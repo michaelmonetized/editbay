@@ -1,11 +1,11 @@
 [workspace]
-members = ["crates/editbay-core", "crates/editbay-cli"]
+members = ["crates/editbay-core", "crates/editbay-cli", "crates/editbay-media", "crates/editbay-render", "crates/editbay-audio", "crates/editbay-lab"]
 resolver = "3"
 
 [workspace.package]
 version = "0.1.0"
 edition = "2024"
-rust-version = "1.85"
+rust-version = "1.95"
 license = "MIT"
 
 [workspace.dependencies]
@@ -16,6 +16,16 @@ sha2 = "0.10"
 thiserror = "2.0"
 fs2 = "0.4"
 tempfile = "3.27"
+wgpu = "=30.0.1"
+pollster = "0.4"
+half = "2.7"
+cpal = "0.15.3"
+cc = "1"
+pkg-config = "0.3"
+
+[profile.dev]
+debug = 0
+incremental = false
 
 [workspace.lints.rust]
 unsafe_code = "forbid"
@@ -23,4 +33,3 @@ unsafe_code = "forbid"
 [profile.release]
 lto = "thin"
 codegen-units = 1
-

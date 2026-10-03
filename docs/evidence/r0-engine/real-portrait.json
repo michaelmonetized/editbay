@@ -1,0 +1,79 @@
+{
+  "adapter": {
+    "backend": "Vulkan",
+    "device_type": "IntegratedGpu",
+    "driver": "Honeykrisp",
+    "driver_info": "Mesa 26.2.3-arch1.1",
+    "name": "Apple M1 Pro (G13S C0)"
+  },
+  "application_version": "0.1.0",
+  "architecture": "aarch64",
+  "color_pass": true,
+  "copies": {
+    "bytes_uploaded": 995328000,
+    "cpu_decode_rgba_per_frame": 1,
+    "float_working_space": "linear BT.709/sRGB primaries, opaque alpha-over, FP16 and FP32",
+    "gpu_readback_per_frame": 2,
+    "gpu_upload_per_frame": 2
+  },
+  "decode": {
+    "count": 60,
+    "max_ms": 9.432639,
+    "p50_ms": 1.842678,
+    "p95_ms": 2.015054
+  },
+  "decoded_rgba_sha256": "23ab2a173ff48d75a534a8a80e45d3786328d9d23d7610c683fdf4b7cee705d5",
+  "ffmpeg": "n9.0.1",
+  "fp16_upload_compose_readback": {
+    "count": 60,
+    "max_ms": 14.517044,
+    "p50_ms": 10.070891999999999,
+    "p95_ms": 10.384020000000001
+  },
+  "fp32_upload_compose_readback": {
+    "count": 60,
+    "max_ms": 8.827219000000001,
+    "p50_ms": 3.410104,
+    "p95_ms": 4.063607
+  },
+  "input_transfer": "Bt709",
+  "kind": "native_engine_probe",
+  "limits": [
+    "CPU codec decode; no hardware handoff",
+    "BT.709/sRGB SDR input only; no HDR/log management",
+    "unspecified input transfer/primaries assume BT.709; unspecified YUV matrix assumes BT.709 at HD, BT.601 below HD",
+    "readback is deliberate prototype/export boundary",
+    "no surface presentation or two-hour device drift qualification"
+  ],
+  "max_linear_error": {
+    "fp16": 0.00048804283142089844,
+    "fp32": 2.384185791015625e-7
+  },
+  "memory": [
+    "VmHWM:\t  202016 kB",
+    "VmRSS:\t  202016 kB"
+  ],
+  "os": "linux",
+  "profile": {
+    "channels": 0,
+    "color_matrix": 1,
+    "color_primaries": 1,
+    "color_range": 1,
+    "color_transfer": 1,
+    "duration_ns": 17600000000,
+    "height": 1920,
+    "rate_den": 1,
+    "rate_num": 30,
+    "sample_rate": 0,
+    "width": 1080
+  },
+  "schema": 1,
+  "source": "/home/michael/Videos/omadesign/reels-42-2026-09-30/renders/41.mp4",
+  "source_sha256": "872e2e7f3cb19ff13653bea9784c48d78969ceb4b8f7da18d1ea5c7cbaa9a48f",
+  "timestamps": {
+    "first_ns": 0,
+    "last_ns": 1966666667,
+    "nonmonotonic": 0
+  },
+  "unspecified_color_assumed_bt709": false
+}

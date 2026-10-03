@@ -1,0 +1,19 @@
+[package]
+name = "editbay-lab"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+description = "Native hardware feasibility and evidence tools"
+
+[dependencies]
+editbay-media = { path = "../editbay-media" }
+editbay-render = { path = "../editbay-render" }
+editbay-audio = { path = "../editbay-audio" }
+serde.workspace = true
+serde_json.workspace = true
+sha2.workspace = true
+tempfile.workspace = true
+
+[lints]
+workspace = true

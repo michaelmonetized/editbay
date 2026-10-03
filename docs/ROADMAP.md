@@ -36,6 +36,11 @@ and its validation; milestone completion is broader than that initial slice.
 - Every release names which complete workflows it supports. No feature badges
   inferred from a library dependency or a model README.
 
+Current R0 progress: EB-001–003 foundation is preserved; EB-004 has measured native
+ARM64 decode, sound-clock, float GPU and isolated export prototypes. See
+[evidence](evidence/r0-engine/README.md). EB-005–007 remain open. Quantitative
+enterprise/GTM budgets are set in [release criteria](RELEASE_CRITERIA.md).
+
 ## Milestone map
 
 | Milestone | User outcome | Dependencies |

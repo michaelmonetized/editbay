@@ -32,8 +32,10 @@ its entire application. Extract small reusable crates with independent tests.
 | `editbay-automation` | Native MCP, inspection, commands, preview and job access | Same revision/validation/undo path as the UI; no bypass writes |
 | Shared Oma components | Theme/fonts, catalogs, brand/assets, format codecs, recovery patterns | Versioned APIs, independent app identities |
 
-Rows beyond the two initial workspace crates describe future module ownership.
-Split crates when real dependency/ownership boundaries justify it.
+The workspace now includes the core/CLI plus narrow media, render and audio
+feasibility crates and the Rust `editbay-lab` tool. These prototypes do not establish
+the full production contracts in the table. Remaining modules describe future
+ownership. Split crates when real dependency/ownership boundaries justify it.
 
 ## Document and composition model
 

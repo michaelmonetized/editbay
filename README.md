@@ -4,7 +4,8 @@ A native Rust production suite for Omarchy: editing, motion graphics, VFX, color
 sound, and connected client/team workflows. The goal is to let professionals move
 their existing production work from macOS/Windows to Omarchy.
 
-The Rust implementation currently provides **project and recovery CLI commands**.
+The Rust implementation provides **project and recovery CLI commands** plus
+**native codec, GPU, sound-clock and cancellable export feasibility tools**.
 The desktop editor and media engine are not implemented yet.
 The application and production workers use Rust with native dependencies.
 
@@ -23,6 +24,9 @@ The application and production workers use Rust with native dependencies.
   native runtime feasibility, tracking, and rigging.
 - [Migration and adoption](docs/MIGRATION_AND_GTM.md): existing-project migration,
   client workflows, cross-app assets, user acquisition, and earned retention.
+- [Release criteria](docs/RELEASE_CRITERIA.md): measurable enterprise/GTM gates.
+- [Native engine evidence](docs/evidence/r0-engine/README.md): actual ARM64
+  decode, FP16/FP32 composition, device-clock playback, export and cancellation.
 
 ## Run the Rust foundation
 
@@ -49,6 +53,11 @@ checked; recovery creates an independent copy and refuses to replace the origina
 or an existing destination. Invalid checkpoints stay visible as errors alongside
 older valid work.
 
-This foundation does not yet implement background autosave scheduling, a welcome
-UI, media playback/export, timeline commands, cloud, or inference. Those have
-explicit implementation and verification gates in the roadmap.
+`cargo run --release --locked -p editbay-lab -- --help` lists native feasibility
+commands. FFmpeg development libraries and ALSA are required for those crates;
+the codec tests also use the FFmpeg executable to make synthetic fixtures.
+Rust 1.95 or newer matches the pinned Omadesign native stack requirements.
+
+Background autosave, welcome UI, timeline commands, full media delivery, cloud,
+and inference remain roadmap work. The lab's picture-only exporter and 30-second
+sound probe have measured limits; see the evidence before choosing a workload.

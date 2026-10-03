@@ -1,0 +1,21 @@
+[package]
+name = "editbay-media"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+description = "Bounded native FFmpeg codec adapter"
+
+[dependencies]
+thiserror.workspace = true
+serde.workspace = true
+
+[build-dependencies]
+cc.workspace = true
+pkg-config.workspace = true
+
+[dev-dependencies]
+tempfile.workspace = true
+
+[lints.rust]
+unsafe_code = "deny"

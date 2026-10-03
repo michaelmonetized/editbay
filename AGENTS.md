@@ -15,8 +15,9 @@ and command architecture.
 
 ## Implementation
 
-- Current source lives in `crates/editbay-core` and `crates/editbay-cli`.
-  `bin/editbay` launches the Cargo binary. Planned modules are not implemented yet.
+- Project/recovery source lives in `crates/editbay-core` and `crates/editbay-cli`.
+  Native feasibility crates cover media/render/audio and `editbay-lab` evidence
+  tools. `bin/editbay` launches the project CLI. Other roadmap modules remain open.
 - Keep application code, production workers and project helper tools in Rust.
   Native C/C++ codec, GPU, color and inference libraries may use narrow adapters.
   Do not add a Python backend, inference subprocess, or parallel implementation.

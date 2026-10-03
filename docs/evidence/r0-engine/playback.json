@@ -1,0 +1,31 @@
+{
+  "backend_reported_latency_ns": 0,
+  "callback_failed": false,
+  "decoded_audio_samples": 480000,
+  "device": {
+    "channels": 2,
+    "name": "default",
+    "sample_format": "F32",
+    "sample_rate": 44100
+  },
+  "device_callbacks": 155,
+  "device_clock_ns": "5028004535",
+  "frames_dropped": 4,
+  "frames_selected": 296,
+  "kind": "device_clock_playback_probe",
+  "limits": [
+    "predecoded sound capped at 30 seconds",
+    "linear rate conversion for feasibility only",
+    "frames selected on interpolated device clock with backend latency; no window presentation",
+    "physical audibility and speaker latency are unmeasured"
+  ],
+  "schedule_lateness": {
+    "count": 296,
+    "max_ms": 2.433227,
+    "p50_ms": 0.528253,
+    "p95_ms": 1.041975
+  },
+  "schema": 1,
+  "source_sha256": "cf1d65e2193a31eba586ecd99cb6c1e9c4157095ee60b7e9e1d38a3d502d4e0a",
+  "wall_ms": 5044.565095
+}

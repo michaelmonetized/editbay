@@ -186,10 +186,10 @@ fn atomic_write(
             "destination must be a regular file, not a symlink or directory".into(),
         ));
     }
-    if let Some(expected) = expected {
-        if metadata.is_none() || load(path)? != *expected {
-            return Err(Error::Conflict(path.to_owned()));
-        }
+    if let Some(expected) = expected
+        && (metadata.is_none() || load(path)? != *expected)
+    {
+        return Err(Error::Conflict(path.to_owned()));
     }
     let temporary = parent(path).join(format!(".editbay-write-{}.tmp", Uuid::new_v4()));
     let result = (|| -> Result<()> {
