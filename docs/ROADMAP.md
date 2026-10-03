@@ -41,7 +41,11 @@ ARM64 decode, sound-clock, float GPU and isolated export prototypes. See
 [engine evidence](evidence/r0-engine/README.md). EB-005 now has native SAM 2.1 video
 and RVM prototypes, active cancellation, exact recurrent resume and independent
 kernel comparisons on ARM64; see [inference evidence](evidence/r0-inference/README.md).
-Production artist/model-pack qualification remains R4/R11 work. EB-006–007 are next.
+Production artist/model-pack qualification remains R4/R11 work. EB-006 now has an
+actual source/job inventory and fixed native/migration inputs; EB-007 has the
+scoped native MCP contract and implemented core command/undo tools. See
+[reference evidence](evidence/r0-reference/README.md) and [automation](AUTOMATION.md).
+R0's foundation and documented ARM64 feasibility gates pass; R1 is next.
 Quantitative enterprise/GTM budgets are set in [release criteria](RELEASE_CRITERIA.md).
 
 ## Milestone map

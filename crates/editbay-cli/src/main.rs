@@ -1,5 +1,6 @@
 use editbay_core::{
-    Project, checkpoint, load, recover_copy, recovery_catalog, save_if_unchanged, save_new,
+    DocumentCommand, DocumentEditor, DocumentVersion, Project, checkpoint, load, recover_copy,
+    recovery_catalog, save_if_unchanged, save_new,
 };
 use std::{ffi::OsString, path::Path, process::ExitCode};
 
@@ -48,11 +49,17 @@ fn run(args: &[OsString]) -> Result<(), Box<dyn std::error::Error>> {
         ("info", 2) => print(load(Path::new(&args[1]))?)?,
         ("rename", 3) => {
             let path = Path::new(&args[1]);
-            let mut project = load(path)?;
-            let expected = project.clone();
-            project.rename(name(&args[2])?)?;
-            save_if_unchanged(&project, path, &expected)?;
-            print(project)?;
+            let expected = load(path)?;
+            let mut editor = DocumentEditor::new(expected.clone())?;
+            editor.apply(
+                DocumentVersion::of(&expected),
+                "Rename project".into(),
+                &[DocumentCommand::RenameProject {
+                    name: name(&args[2])?.into(),
+                }],
+            )?;
+            save_if_unchanged(editor.project(), path, &expected)?;
+            print(editor.project())?;
         }
         ("checkpoint", 3) => {
             let source = Path::new(&args[1]);

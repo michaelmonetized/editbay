@@ -1,0 +1,26 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE fcpxml>
+<fcpxml version="1.11">
+  <resources>
+    <format id="r1" name="FFVideoFormat1080p2398" frameDuration="1001/24000s" width="1920" height="1080" colorSpace="1-1-1 (Rec. 709)"/>
+    <asset id="r2" name="Source with spaces" start="0s" duration="240240/24000s" hasVideo="1" format="r1">
+      <media-rep kind="original-media" src="file:///reference-assets/Source%20with%20spaces.mov"/>
+    </asset>
+    <effect id="r3" name="Unavailable vendor effect" uid="com.editbay.fixture.unavailable-effect"/>
+  </resources>
+  <library>
+    <event name="Authored interchange fixture">
+      <project name="Fractional timing and explicit losses">
+        <sequence format="r1" duration="240240/24000s" tcStart="86400s" tcFormat="NDF">
+          <spine>
+            <asset-clip ref="r2" name="Main picture" offset="0s" start="0s" duration="240240/24000s">
+              <asset-clip ref="r2" name="Connected picture" lane="1" offset="24024/24000s" start="48048/24000s" duration="72072/24000s"/>
+              <filter-video ref="r3" name="Unavailable vendor effect"/>
+              <marker start="120120/24000s" value="Exact frame 120"/>
+            </asset-clip>
+          </spine>
+        </sequence>
+      </project>
+    </event>
+  </library>
+</fcpxml>

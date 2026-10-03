@@ -52,5 +52,8 @@ separately. Passing software checks cannot close those gates.
 Evidence summaries live under `docs/evidence/`; large outputs and private media
 stay outside Git. A receipt includes the exact command, timestamps, exit status,
 metrics and hashes. PRs identify the completed issue(s), parent PR and open gates.
-No milestones beyond the initial persistence slice are qualified at this point.
+R0's persistence, documented ARM64 engine/inference feasibility and scoped
+reference/automation gates pass. Interchange converters and completed production
+jobs are not advertised by this milestone. Other hardware, production model packs,
+native UI and full workflows remain their R1–R11 gates.
 See `IMPLEMENTATION_STATUS.md` for implementation and measurement receipts.

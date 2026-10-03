@@ -34,7 +34,8 @@ its entire application. Extract small reusable crates with independent tests.
 
 The workspace now includes the core/CLI plus narrow media, render and audio
 feasibility crates, native `editbay-ai` video/matting prototypes, optional independent
-reference kernels and the Rust `editbay-lab` tool. These prototypes do not establish
+reference kernels, the Rust `editbay-lab` tool and scoped `editbay-automation` MCP.
+These prototypes do not establish
 the full production contracts in the table. Remaining modules describe future
 ownership. Split crates when real dependency/ownership boundaries justify it.
 
@@ -63,6 +64,13 @@ fail explicitly; imports preserve source files and report conversion losses.
 UI, keyboard, CLI, MCP, and automation dispatch validated commands. A command
 produces a revision and undo group, identifies render/cache invalidation, and
 marks recovery work dirty. Read-only inspection does not mutate the document.
+
+The current core `DocumentEditor` owns atomic typed rename groups, monotonic
+revisions and bounded undo/redo. CLI rename and MCP share it. The MCP service
+saves a candidate through the existing checked writer before replacing its
+session state/history. Only implemented tools are advertised. See
+[automation contract](AUTOMATION.md) for actual scope and subsequent job/source/
+preview requirements; the native UI will adopt the same command path in R1.
 
 Expose real document/render snapshots and job state through a native MCP adapter.
 List capabilities accurately; require expected revisions for mutations; surface

@@ -1,0 +1,37 @@
+{
+  "schema": 1,
+  "owner": "EditBay development fixtures authored in this repository",
+  "fixtures": [
+    {
+      "path": "fixtures/foundation.editbay",
+      "sha256": "8c843edab47076ccb60b31fd8c45e70d549a352ec9fff0fb4c98b91b27ad67a1",
+      "format": "EditBay schema 1",
+      "purpose": "Current document round trip, rational frame rates, immutable checkpoint and independent recovery",
+      "expected": {
+        "project_id": "5502bb7f-0f37-4e30-b561-5e08455543c7",
+        "revision": 7,
+        "sequence_count": 3,
+        "fractional_frame_120_nanoseconds": 5005000000,
+        "recovery": "New identity, original identity in recovered_from, snapshot revision retained; name and all sequence IDs/settings preserved; original bytes unchanged; existing destination refused"
+      },
+      "limitations": ["Sequence settings only; no media clips, titles, sound, grades or exported commercial"]
+    },
+    {
+      "path": "fixtures/migration-with-losses.fcpxml",
+      "sha256": "34c130bc77de9c531f9369f7a5d655b86b47739dd7c94e712348d8f69eec40c6",
+      "format": "Authored FCPXML 1.11",
+      "purpose": "Future EB-034 importer acceptance input; deliberately missing source and vendor effect",
+      "expected": {
+        "frame_rate": "24000/1001",
+        "duration_frames": 240,
+        "connected_offset_frames": 24,
+        "connected_source_in_frames": 48,
+        "connected_duration_frames": 72,
+        "marker_frame": 120,
+        "timecode_origin_seconds": 86400,
+        "report": ["Missing original-media URI visible", "Unavailable vendor effect reported with its UID", "Connected structure and exact timing preserved or explicitly reported as lost", "Source unchanged and destination not overwritten"]
+      },
+      "current_support": "No FCPXML importer is advertised or implemented; current JSON project loading rejects this input"
+    }
+  ]
+}

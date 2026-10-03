@@ -4,7 +4,7 @@ A native Rust production suite for Omarchy: editing, motion graphics, VFX, color
 sound, and connected client/team workflows. The goal is to let professionals move
 their existing production work from macOS/Windows to Omarchy.
 
-The Rust implementation provides **project and recovery CLI commands** plus
+The Rust implementation provides **project/recovery CLI commands and scoped native MCP automation** plus
 **native codec, GPU, sound-clock, export and video-inference feasibility tools**.
 The desktop editor and media engine are not implemented yet.
 The application and production workers use Rust with native dependencies.
@@ -29,6 +29,10 @@ The application and production workers use Rust with native dependencies.
   decode, FP16/FP32 composition, device-clock playback, export and cancellation.
 - [Native inference evidence](docs/evidence/r0-inference/README.md): pinned SAM 2.1
   video/RVM artifacts, recurrent resume, active cancellation and independent references.
+- [Native automation](docs/AUTOMATION.md): scoped tools, typed commands, revision
+  ownership, atomic undo groups and future worker/inspection requirements.
+- [Reference jobs and fixtures](docs/evidence/r0-reference/README.md): actual local
+  source inventory, fixed native/interchange inputs and automation validation.
 
 ## Run the Rust foundation
 
@@ -44,6 +48,7 @@ cargo test --workspace --locked
 ./bin/editbay checkpoint /path/to/client/cut.editbay /path/to/recovery
 ./bin/editbay recoveries /path/to/recovery
 ./bin/editbay recover /path/to/checkpoint /path/to/Recovered.editbay
+./bin/editbay-mcp /path/to/client/cut.editbay /path/to/recovery
 ```
 
 The executable is `target/debug/editbay`; the source launcher builds/runs that
@@ -59,6 +64,13 @@ older valid work.
 commands. FFmpeg development libraries and ALSA are required for those crates;
 the codec tests also use the FFmpeg executable to make synthetic fixtures.
 Rust 1.95 or newer matches the pinned Omadesign native stack requirements.
+
+`editbay-lab inventory MEDIA_DIRECTORY NEW_JSON_REPORT` recursively inventories
+local source hashes and first decoded video pictures, reports incomplete/error
+states and refuses to overwrite an existing report. Native MCP currently exposes
+document inspection, project rename groups, undo/redo, checkpoint and recovery
+inspection. It uses the core command path and acknowledges edits after durable
+save. Its startup paths grant scope; RPC calls cannot choose arbitrary files.
 
 Background autosave, welcome UI, timeline commands, full media delivery, cloud,
 and artist inference workflows remain roadmap work. The lab's picture-only exporter and 30-second

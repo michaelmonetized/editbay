@@ -2,9 +2,11 @@
 //!
 //! This initial schema does not yet represent the media timeline/compositor.
 
+mod command;
 mod document;
 mod storage;
 
+pub use command::{CommandReceipt, DocumentCommand, DocumentEditor, DocumentVersion};
 pub use document::{FrameRate, PROJECT_SCHEMA, Project, Sequence};
 pub use storage::{
     RecoveryCatalog, RecoveryFailure, RecoveryRecord, checkpoint, load, recover_copy,
@@ -27,6 +29,8 @@ pub enum Error {
     Busy(std::path::PathBuf),
     #[error("project changed on disk; reload before saving: {0}")]
     Conflict(std::path::PathBuf),
+    #[error("stale command revision {expected}; current revision is {current}")]
+    StaleCommand { expected: u64, current: u64 },
     #[error("recovery checkpoint failed its integrity check")]
     Integrity,
     #[error("recovery must use a destination separate from the original project")]
