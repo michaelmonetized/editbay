@@ -1,0 +1,52 @@
+{
+  "alpha_range": [
+    0.0,
+    0.2267240285873413
+  ],
+  "backend": "ONNX Runtime CPU, two threads",
+  "cancellation": {
+    "native_operator_termination_requested": true,
+    "request_delay_ms": 20,
+    "returned_cancelled": true,
+    "state_preserved": true,
+    "total_ms": 22.854778999999997
+  },
+  "downsample_ratio": 0.25,
+  "frames": 6,
+  "inference": {
+    "count": 6,
+    "max_ms": 66.941159,
+    "p50_ms": 61.126661,
+    "p95_ms": 66.941159
+  },
+  "input_shape": [
+    1,
+    3,
+    720,
+    1280
+  ],
+  "kind": "native_rvm_probe",
+  "limits": [
+    "human-matting candidate, not arbitrary-object selection",
+    "no ground-truth quality or independent PyTorch/TF reference comparison yet",
+    "CPU/ARM64 only measured",
+    "raw soft alpha/foreground; source-resolution finishing and editable project assets remain R4 work"
+  ],
+  "load_ms": 92.95158500000001,
+  "memory": [
+    "VmHWM:\t  601232 kB",
+    "VmRSS:\t  601232 kB"
+  ],
+  "model_sha256": "88d4531297118f595bf2fd60f6f566aec2e559393802d1f436c380f0cbbd2828",
+  "resume": {
+    "boundary": 3,
+    "max_alpha_foreground_error": 0.0,
+    "pass": true,
+    "state_json_bytes": 4001741,
+    "state_sha256": "4608857379b8895aed06f28f2905fa06e98f9f127ed542a9a91dd19799185168"
+  },
+  "runtime": "/home/michael/.local/share/omadesign/lib/libonnxruntime.so.1.28.0",
+  "runtime_sha256": "f1ec1a08eb99bd6e5401340f0a2b101381bf4694415480291dc13bcaa30f9ec7",
+  "schema": 1,
+  "source_sha256": "498ec6c42b6b440886eb761dc4775c994f7578021890ceae3f370ffc6fb3e021"
+}

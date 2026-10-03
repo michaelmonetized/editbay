@@ -1,0 +1,60 @@
+{
+  "analytic_motion_truth": [],
+  "frames": 3,
+  "input_shape": [
+    720,
+    1280
+  ],
+  "kind": "native_sam2_independent_parity",
+  "limits": [
+    "independent graph kernels and recurrent results; shared Rust preprocessing/memory-bank orchestration",
+    "no comparison with upstream PyTorch video orchestration yet",
+    "not annotated client-footage quality",
+    "reference cancellation between graphs only; artist candidate uses ONNX Runtime operator termination"
+  ],
+  "max_logit_error": 0.001922607421875,
+  "memory": [
+    "VmHWM:\t 3738320 kB",
+    "VmRSS:\t  756736 kB"
+  ],
+  "model_revision": "3b2984dd865f6e9d2cc6aed0be6a5a5c2eb352ce",
+  "prompt": [
+    580.0,
+    300.0
+  ],
+  "reference_pass": true,
+  "reference_runtime": "Tract 0.23.8 Rust CPU kernels",
+  "results": [
+    {
+      "frame": 0,
+      "logit_mae": 0.000023327435322547292,
+      "mask_iou": 1.0,
+      "max_logit_error": 0.0000820159912109375,
+      "object_score_error": 0.000019073486328125,
+      "predicted_iou_error": 1.6093254089355469e-6,
+      "reference_ms": 5186.221671
+    },
+    {
+      "frame": 1,
+      "logit_mae": 0.0001632820866972098,
+      "mask_iou": 1.0,
+      "max_logit_error": 0.001922607421875,
+      "object_score_error": 9.5367431640625e-7,
+      "predicted_iou_error": 2.384185791015625e-7,
+      "reference_ms": 13323.964042
+    },
+    {
+      "frame": 2,
+      "logit_mae": 0.00018435687398272825,
+      "mask_iou": 1.0,
+      "max_logit_error": 0.0014801025390625,
+      "object_score_error": 0.000133514404296875,
+      "predicted_iou_error": 2.980232238769531e-7,
+      "reference_ms": 12592.868291
+    }
+  ],
+  "schema": 1,
+  "source_sha256": "498ec6c42b6b440886eb761dc4775c994f7578021890ceae3f370ffc6fb3e021",
+  "worst_logit_mae": 0.00018435687398272825,
+  "worst_mask_iou": 1.0
+}

@@ -1,0 +1,71 @@
+{
+  "cancellation": {
+    "native_operator_termination_requested": true,
+    "request_delay_ms": 20,
+    "state_preserved": true,
+    "total_ms": 85.03327800000001
+  },
+  "frames": 3,
+  "inference": {
+    "count": 3,
+    "max_ms": 6333.367026999999,
+    "p50_ms": 6296.02027,
+    "p95_ms": 6333.367026999999
+  },
+  "invalid_range_rejected": true,
+  "kind": "native_sam2_video_probe",
+  "limits": [
+    "single object; point prompts on first frame only",
+    "fixed 1024-square bilinear RGB normalization; source logits are bilinearly mapped back",
+    "no independent reference agreement or human mask-quality claim yet",
+    "CPU/ARM64 only measured; no automatic editor asset publication"
+  ],
+  "load_ms": 985.286983,
+  "memory": [
+    "VmHWM:\t 5501952 kB",
+    "VmRSS:\t  872848 kB"
+  ],
+  "model_revision": "3b2984dd865f6e9d2cc6aed0be6a5a5c2eb352ce",
+  "prompt": [
+    580.0,
+    300.0
+  ],
+  "range_check_ms": 0.208252,
+  "results": [
+    {
+      "foreground_pixels": 10369,
+      "frame": 0,
+      "mask_sha256": "c1dd7d1ed28760fa6b85f9ce3eef9f079153e3af88ad441889ec124647849564",
+      "object_score": 17.41745948791504,
+      "predicted_iou": 0.824651837348938
+    },
+    {
+      "foreground_pixels": 10217,
+      "frame": 1,
+      "mask_sha256": "a878ce728fae269c88468d12f2b0e15c605b048017aa3b57df00c4c700f1d6d1",
+      "object_score": 9.14898681640625,
+      "predicted_iou": 0.9428601264953613
+    },
+    {
+      "foreground_pixels": 10218,
+      "frame": 2,
+      "mask_sha256": "0a157afd6f5de466fd547696d3a42208b14a3eb2bc1bc0e9677af79c4f58ba1e",
+      "object_score": 9.160199165344238,
+      "predicted_iou": 0.9383872747421265
+    }
+  ],
+  "resume": {
+    "boundary": 1,
+    "max_logit_error": 0.0,
+    "pass": true,
+    "state_json_bytes": 5786751,
+    "worst_mask_iou": 1.0
+  },
+  "runtime_sha256": "f1ec1a08eb99bd6e5401340f0a2b101381bf4694415480291dc13bcaa30f9ec7",
+  "schema": 1,
+  "source_sha256": "498ec6c42b6b440886eb761dc4775c994f7578021890ceae3f370ffc6fb3e021",
+  "source_shape": [
+    720,
+    1280
+  ]
+}

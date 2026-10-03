@@ -1,0 +1,92 @@
+{
+  "cancellation": {
+    "native_operator_termination_requested": true,
+    "request_delay_ms": 20,
+    "state_preserved": true,
+    "total_ms": 25.701459
+  },
+  "frames": 6,
+  "inference": {
+    "count": 6,
+    "max_ms": 6431.597468,
+    "p50_ms": 6315.744305,
+    "p95_ms": 6431.597468
+  },
+  "invalid_range_rejected": true,
+  "kind": "native_sam2_video_probe",
+  "limits": [
+    "single object; point prompts on first frame only",
+    "fixed 1024-square bilinear RGB normalization; source logits are bilinearly mapped back",
+    "no independent reference agreement or human mask-quality claim yet",
+    "CPU/ARM64 only measured; no automatic editor asset publication"
+  ],
+  "load_ms": 823.498239,
+  "memory": [
+    "VmHWM:\t 5430592 kB",
+    "VmRSS:\t  964688 kB"
+  ],
+  "model_revision": "3b2984dd865f6e9d2cc6aed0be6a5a5c2eb352ce",
+  "prompt": [
+    170.0,
+    135.0
+  ],
+  "range_check_ms": 0.210626,
+  "results": [
+    {
+      "foreground_pixels": 11999,
+      "frame": 0,
+      "mask_sha256": "53dcd6c35ee504b8a001ff7c6fac0465aa997042bab9c965ac24676c06a99dd4",
+      "object_score": 25.167991638183594,
+      "predicted_iou": 0.9905282258987427
+    },
+    {
+      "foreground_pixels": 11998,
+      "frame": 1,
+      "mask_sha256": "95e85c59c921a3207352e449ccf3c5fd6f1c23265d01c110337640fac47852b2",
+      "object_score": 7.250840187072754,
+      "predicted_iou": 0.9932961463928223
+    },
+    {
+      "foreground_pixels": 12000,
+      "frame": 2,
+      "mask_sha256": "726ec4e3a268fe1ddee22f0a25834770f153aba7d570eaf985d136e2e858b44a",
+      "object_score": 7.452497482299805,
+      "predicted_iou": 0.9922205209732056
+    },
+    {
+      "foreground_pixels": 12077,
+      "frame": 3,
+      "mask_sha256": "ee5e6f80f91ed5775384cbea65e28b5c61f6ae3d7b0b1cd561224229a52259b8",
+      "object_score": 7.101403713226318,
+      "predicted_iou": 0.9915856122970581
+    },
+    {
+      "foreground_pixels": 11999,
+      "frame": 4,
+      "mask_sha256": "af51df3d76c8edf91d57a0ff682da738d3343f6219415b9f3b9c191fb04b7110",
+      "object_score": 7.624995708465576,
+      "predicted_iou": 0.9932607412338257
+    },
+    {
+      "foreground_pixels": 11999,
+      "frame": 5,
+      "mask_sha256": "8318e954dc2d23150b86924d87e9ecd62f931a2ac53d00f528e81cb76be21b46",
+      "object_score": 8.364426612854004,
+      "predicted_iou": 0.9926103353500366
+    }
+  ],
+  "resume": {
+    "boundary": 3,
+    "max_logit_error": 0.0,
+    "pass": true,
+    "state_json_bytes": 17368013,
+    "worst_mask_iou": 1.0
+  },
+  "runtime_sha256": "f1ec1a08eb99bd6e5401340f0a2b101381bf4694415480291dc13bcaa30f9ec7",
+  "schema": 1,
+  "source_sha256": "7e24384bb5b01953929cacaffbfcfbc71ec3b8eab480bf86d80d51291903af31",
+  "source_shape": [
+    288,
+    512
+  ]
+}

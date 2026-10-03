@@ -3,6 +3,45 @@ use std::process::Command;
 use tempfile::tempdir;
 
 #[test]
+fn encoder_preserves_existing_assets_and_owns_the_opened_file_after_path_replacement() {
+    let directory = tempdir().unwrap();
+    let path = directory.path().join("protected.mkv");
+    let profile = MediaInfo {
+        width: 2,
+        height: 2,
+        rate_num: 24,
+        rate_den: 1,
+        ..Default::default()
+    };
+    std::fs::write(&path, b"original media").unwrap();
+    assert!(VideoWriter::open_temporary(&path, profile).is_err());
+    assert_eq!(std::fs::read(&path).unwrap(), b"original media");
+    let target = directory.path().join("empty");
+    std::fs::write(&target, []).unwrap();
+    let link = directory.path().join("symlink");
+    std::os::unix::fs::symlink(&target, &link).unwrap();
+    assert!(VideoWriter::open_temporary(&link, profile).is_err());
+    assert_eq!(std::fs::metadata(&target).unwrap().len(), 0);
+    let temporary = directory.path().join("temporary");
+    let owned = directory.path().join("owned");
+    let mut writer = VideoWriter::open_temporary(&temporary, profile).unwrap();
+    std::fs::rename(&temporary, &owned).unwrap();
+    std::fs::write(&temporary, b"replacement asset").unwrap();
+    writer.write(&[255; 16]).unwrap();
+    writer.finish().unwrap();
+    assert_eq!(std::fs::read(&temporary).unwrap(), b"replacement asset");
+    assert_eq!(
+        VideoReader::open(&owned)
+            .unwrap()
+            .next_frame()
+            .unwrap()
+            .unwrap()
+            .rgba,
+        [255; 16]
+    );
+}
+
+#[test]
 fn lossless_export_preserves_unaligned_rgba_and_rational_timestamps() {
     let directory = tempdir().unwrap();
     let path = directory.path().join("unaligned picture.mkv");

@@ -38,8 +38,11 @@ and its validation; milestone completion is broader than that initial slice.
 
 Current R0 progress: EB-001–003 foundation is preserved; EB-004 has measured native
 ARM64 decode, sound-clock, float GPU and isolated export prototypes. See
-[evidence](evidence/r0-engine/README.md). EB-005–007 remain open. Quantitative
-enterprise/GTM budgets are set in [release criteria](RELEASE_CRITERIA.md).
+[engine evidence](evidence/r0-engine/README.md). EB-005 now has native SAM 2.1 video
+and RVM prototypes, active cancellation, exact recurrent resume and independent
+kernel comparisons on ARM64; see [inference evidence](evidence/r0-inference/README.md).
+Production artist/model-pack qualification remains R4/R11 work. EB-006–007 are next.
+Quantitative enterprise/GTM budgets are set in [release criteria](RELEASE_CRITERIA.md).
 
 ## Milestone map
 

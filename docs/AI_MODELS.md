@@ -1,7 +1,10 @@
 # Production AI integration
 
-Primary sources checked 2026-10-03. Models below are candidates, not integrated
-features. Pin code/artifact/license revisions again when implementing each adapter.
+Primary sources checked 2026-10-03. Models below are candidates, not finished artist
+features. Native SAM 2.1 and RVM feasibility adapters are measured in
+[R0 inference evidence](evidence/r0-inference/README.md), with exact artifact,
+runtime and license pins. Other candidates remain unimplemented.
+Pin code/artifact/license revisions again when implementing each adapter.
 Evaluate Meta's general-purpose models alongside the user's portrait/matting/depth
 candidates by production role. Model quality must be demonstrated on EditBay's
 footage. A universal best-model claim is not established here.
@@ -45,8 +48,9 @@ artifact rather than be counted as an independent algorithm by name alone.
 | TCMonoDepth | Stable relative video depth for depth effects/auxiliary selection | [Author implementation](https://github.com/yu-li/TCMonoDepth) has [MIT terms](https://github.com/yu-li/TCMonoDepth/blob/main/LICENSE). Depth is neither subject identity nor alpha; use it as an optional cue and for depth-aware effects, with occlusion/scale validation. |
 
 Human-specific candidates complement SAM's arbitrary-object selection. They do
-not replace object roto, camera/planar solving, or all scene types. No candidate
-above has been integrated or benchmarked in EditBay.
+not replace object roto, camera/planar solving, or all scene types. The measured
+SAM 2.1/RVM prototypes establish native feasibility and numerical agreement on
+named fixtures; they do not establish production matte or mask quality.
 
 ## Offline matte finishing and optional local vision review
 

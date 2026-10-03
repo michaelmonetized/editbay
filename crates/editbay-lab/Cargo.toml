@@ -7,9 +7,11 @@ license.workspace = true
 description = "Native hardware feasibility and evidence tools"
 
 [dependencies]
+editbay-reference = { path = "../editbay-reference", optional = true, features = ["libtorch"] }
 editbay-media = { path = "../editbay-media" }
 editbay-render = { path = "../editbay-render" }
 editbay-audio = { path = "../editbay-audio" }
+editbay-ai = { path = "../editbay-ai" }
 serde.workspace = true
 serde_json.workspace = true
 sha2.workspace = true
@@ -17,3 +19,6 @@ tempfile.workspace = true
 
 [lints]
 workspace = true
+[features]
+torch-reference = ["dep:editbay-reference"]
+tract-reference = ["editbay-ai/tract-reference"]
