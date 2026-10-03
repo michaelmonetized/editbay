@@ -2,6 +2,9 @@
 #include <stdint.h>
 #include <stdlib.h>
 #include <string.h>
+#include <stdio.h>
+#include <unistd.h>
+#include <sys/stat.h>
 #include <libavformat/avformat.h>
 #include <libavcodec/avcodec.h>
 #include <libavutil/channel_layout.h>
@@ -159,6 +162,7 @@ typedef struct {
     AVPacket *packet;
     AVFrame *frame;
     int64_t frames;
+    FILE *file;
 } EBWriter;
 
 void eb_writer_close(EBWriter *w) {
@@ -167,17 +171,49 @@ void eb_writer_close(EBWriter *w) {
     av_packet_free(&w->packet);
     avcodec_free_context(&w->codec);
     if (w->format) {
-        if (w->format->pb) avio_closep(&w->format->pb);
+        if (w->format->pb) {
+            av_freep(&w->format->pb->buffer);
+            avio_context_free(&w->format->pb);
+        }
         avformat_free_context(w->format);
     }
+    if (w->file) fclose(w->file);
     free(w);
 }
 
-EBWriter *eb_writer_open(const char *path, int width, int height, int num, int den, int *error) {
+static int write_bytes(void *opaque, const uint8_t *bytes, int length) {
+    FILE *file = opaque;
+    return fwrite(bytes, 1, length, file) == (size_t)length ? length : AVERROR(EIO);
+}
+
+static int64_t seek_bytes(void *opaque, int64_t offset, int whence) {
+    FILE *file = opaque;
+    if (whence == AVSEEK_SIZE) {
+        struct stat info;
+        return fstat(fileno(file), &info) == 0 ? info.st_size : AVERROR(errno);
+    }
+    if (fseeko(file, offset, whence & ~AVSEEK_FORCE) != 0) return AVERROR(errno);
+    return ftello(file);
+}
+
+EBWriter *eb_writer_open(int descriptor, int width, int height, int num, int den, int *error) {
     EBWriter *w = calloc(1, sizeof(*w));
     int ret = AVERROR(ENOMEM);
     if (!w) goto failed;
-    if ((ret = avformat_alloc_output_context2(&w->format, NULL, "matroska", path)) < 0) goto failed;
+    struct stat file_info;
+    if (fstat(descriptor, &file_info) != 0 || !S_ISREG(file_info.st_mode) || file_info.st_size != 0) {
+        ret = AVERROR(EINVAL); goto failed;
+    }
+    int owned = dup(descriptor);
+    if (owned < 0) { ret = AVERROR(errno); goto failed; }
+    w->file = fdopen(owned, "wb");
+    if (!w->file) { close(owned); ret = AVERROR(errno); goto failed; }
+    if ((ret = avformat_alloc_output_context2(&w->format, NULL, "matroska", NULL)) < 0) goto failed;
+    unsigned char *buffer = av_malloc(32768);
+    if (!buffer) { ret = AVERROR(ENOMEM); goto failed; }
+    w->format->pb = avio_alloc_context(buffer, 32768, 1, w->file, NULL, write_bytes, seek_bytes);
+    if (!w->format->pb) { av_free(buffer); ret = AVERROR(ENOMEM); goto failed; }
+    w->format->flags |= AVFMT_FLAG_CUSTOM_IO;
     const AVCodec *encoder = avcodec_find_encoder(AV_CODEC_ID_FFV1);
     if (!encoder) { ret = AVERROR_ENCODER_NOT_FOUND; goto failed; }
     w->codec = avcodec_alloc_context3(encoder);
@@ -199,7 +235,6 @@ EBWriter *eb_writer_open(const char *path, int width, int height, int num, int d
     if ((ret = avcodec_open2(w->codec, encoder, NULL)) < 0) goto failed;
     if ((ret = avcodec_parameters_from_context(w->stream->codecpar, w->codec)) < 0) goto failed;
     w->stream->time_base = w->codec->time_base;
-    if ((ret = avio_open(&w->format->pb, path, AVIO_FLAG_WRITE)) < 0) goto failed;
     if ((ret = avformat_write_header(w->format, NULL)) < 0) goto failed;
     w->frame->format = w->codec->pix_fmt;
     w->frame->width = width;
@@ -247,7 +282,10 @@ int eb_writer_finish(EBWriter *w) {
     int ret = avcodec_send_frame(w->codec, NULL);
     if (ret < 0) return ret;
     if ((ret = packets(w)) < 0) return ret;
-    return av_write_trailer(w->format);
+    if ((ret = av_write_trailer(w->format)) < 0) return ret;
+    avio_flush(w->format->pb);
+    if (w->format->pb->error < 0) return w->format->pb->error;
+    return fflush(w->file) == 0 ? 0 : AVERROR(errno);
 }
 
 void eb_error(int code, char *message, size_t length) { av_strerror(code, message, length); }

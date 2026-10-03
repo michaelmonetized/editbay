@@ -5,7 +5,7 @@ sound, and connected client/team workflows. The goal is to let professionals mov
 their existing production work from macOS/Windows to Omarchy.
 
 The Rust implementation provides **project and recovery CLI commands** plus
-**native codec, GPU, sound-clock and cancellable export feasibility tools**.
+**native codec, GPU, sound-clock, export and video-inference feasibility tools**.
 The desktop editor and media engine are not implemented yet.
 The application and production workers use Rust with native dependencies.
 
@@ -27,6 +27,8 @@ The application and production workers use Rust with native dependencies.
 - [Release criteria](docs/RELEASE_CRITERIA.md): measurable enterprise/GTM gates.
 - [Native engine evidence](docs/evidence/r0-engine/README.md): actual ARM64
   decode, FP16/FP32 composition, device-clock playback, export and cancellation.
+- [Native inference evidence](docs/evidence/r0-inference/README.md): pinned SAM 2.1
+  video/RVM artifacts, recurrent resume, active cancellation and independent references.
 
 ## Run the Rust foundation
 
@@ -59,5 +61,5 @@ the codec tests also use the FFmpeg executable to make synthetic fixtures.
 Rust 1.95 or newer matches the pinned Omadesign native stack requirements.
 
 Background autosave, welcome UI, timeline commands, full media delivery, cloud,
-and inference remain roadmap work. The lab's picture-only exporter and 30-second
+and artist inference workflows remain roadmap work. The lab's picture-only exporter and 30-second
 sound probe have measured limits; see the evidence before choosing a workload.

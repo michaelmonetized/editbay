@@ -1,0 +1,108 @@
+{
+  "schema": 1,
+  "status": "local native feasibility; no bundled weights or automatic production enablement",
+  "measured_at": "2026-10-03",
+  "architecture": "aarch64",
+  "rvm": {
+    "code_revision": "53d74c6826735f01f4406b5ca9075eee27bec094",
+    "release": "v1.0.0",
+    "license": {
+      "code_spdx": "GPL-3.0-only",
+      "url": "https://github.com/PeterL1n/RobustVideoMatting/blob/53d74c6826735f01f4406b5ca9075eee27bec094/LICENSE",
+      "sha256": "8b1ba204bb69a0ade2bfcf65ef294a920f6bb361b317dba43c7ef29d96332b9b",
+      "distribution": "Record applicable official weight terms and fulfill code/artifact obligations before an EditBay pack is published."
+    },
+    "artifacts": [
+      {
+        "name": "rvm_mobilenetv3_fp32.onnx",
+        "bytes": 14975696,
+        "sha256": "88d4531297118f595bf2fd60f6f566aec2e559393802d1f436c380f0cbbd2828",
+        "url": "https://github.com/PeterL1n/RobustVideoMatting/releases/download/v1.0.0/rvm_mobilenetv3_fp32.onnx"
+      },
+      {
+        "name": "rvm_mobilenetv3_fp32.torchscript",
+        "bytes": 15501891,
+        "sha256": "f01e0c9338b9a6a31b881ea6d4360d70c1e549701b3792e14c9ed88d6196c5a1",
+        "url": "https://github.com/PeterL1n/RobustVideoMatting/releases/download/v1.0.0/rvm_mobilenetv3_fp32.torchscript"
+      }
+    ],
+    "preprocessing": "Original RGB CHW float [0,1], batch 1; ratio 0.25 in measured probes; recurrent state tied to exact dimensions/configuration.",
+    "outputs": "Source-resolution soft opacity alpha and estimated foreground RGB CHW."
+  },
+  "sam2": {
+    "base_model": "facebook/sam2.1-hiera-tiny",
+    "official_code_revision": "2b90b9f5ceec907a1c18123530e92e794ad901a4",
+    "graph_revision": "3b2984dd865f6e9d2cc6aed0be6a5a5c2eb352ce",
+    "graph_repository": "https://huggingface.co/square-zero-labs/sam2.1-tiny-video-onnx",
+    "model_card_sha256": "d651015806f2d9998d0fed4fecf843d5d1b8ebfb27ddc8a5780488166cf192b0",
+    "license": {
+      "spdx": "Apache-2.0",
+      "official_url": "https://github.com/facebookresearch/sam2/blob/2b90b9f5ceec907a1c18123530e92e794ad901a4/LICENSE",
+      "sha256": "c71d239df91726fc519c6eb72d318ec65820627232b2f796219e87dcf35d0ab4",
+      "graph_terms": "Pinned model card declares Apache-2.0; export source not included in graph pack. Preserve base/export attribution and terms when distributing."
+    },
+    "artifacts": [
+      {
+        "name": "vision_encoder.onnx",
+        "bytes": 134335567,
+        "sha256": "aa7a8542942f042e235a993a1ab0ccf5f049918500577802a7f10ec1b39bb873",
+        "url": "https://huggingface.co/square-zero-labs/sam2.1-tiny-video-onnx/resolve/3b2984dd865f6e9d2cc6aed0be6a5a5c2eb352ce/onnx/vision_encoder.onnx"
+      },
+      {
+        "name": "mask_decoder.onnx",
+        "bytes": 17794355,
+        "sha256": "0461896de3db00936fe1643506f129d71cb6d5d2ae15754811756b7ea1b070c6",
+        "url": "https://huggingface.co/square-zero-labs/sam2.1-tiny-video-onnx/resolve/3b2984dd865f6e9d2cc6aed0be6a5a5c2eb352ce/onnx/mask_decoder.onnx"
+      },
+      {
+        "name": "memory_encoder.onnx",
+        "bytes": 5616496,
+        "sha256": "580d246c109de88838f600ba7c1c0d03d1fe267f7641b06f8c88c5f0dc5834cd",
+        "url": "https://huggingface.co/square-zero-labs/sam2.1-tiny-video-onnx/resolve/3b2984dd865f6e9d2cc6aed0be6a5a5c2eb352ce/onnx/memory_encoder.onnx"
+      },
+      {
+        "name": "memory_attention.onnx",
+        "bytes": 32259165,
+        "sha256": "791e648ce8f5ef91ad00ba06e83066ff261ae5a645f0b042b4f46a89fd054baf",
+        "url": "https://huggingface.co/square-zero-labs/sam2.1-tiny-video-onnx/resolve/3b2984dd865f6e9d2cc6aed0be6a5a5c2eb352ce/onnx/memory_attention.onnx"
+      },
+      {
+        "name": "pointer_tpos.onnx",
+        "bytes": 67289,
+        "sha256": "7e71df1d75dba09bc18dd4ae745c2a2cceebdd14d84eadea2fe65d0205f101fc",
+        "url": "https://huggingface.co/square-zero-labs/sam2.1-tiny-video-onnx/resolve/3b2984dd865f6e9d2cc6aed0be6a5a5c2eb352ce/onnx/pointer_tpos.onnx"
+      }
+    ],
+    "constants": {
+      "sha256": "172edc70e892aab0aef6caedf97b8e4091fbf6c5d26dac5fd9ea69d093d927d3",
+      "url": "https://huggingface.co/square-zero-labs/sam2.1-tiny-video-onnx/resolve/3b2984dd865f6e9d2cc6aed0be6a5a5c2eb352ce/constants.json"
+    },
+    "preprocessing": "Half-pixel bilinear resize to 1024 square; RGB [0,1], mean [0.485,0.456,0.406], std [0.229,0.224,0.225]; original-coordinate points mapped to 1024 square.",
+    "outputs": "Segmentation logits, predicted IoU, object-presence score and source-owned video memory; not opacity alpha.",
+    "qualification": "CPU native graph feasibility and independent-kernel comparison; upstream PyTorch video orchestration and production mask-quality acceptance remain separate."
+  },
+  "runtimes": {
+    "onnx_runtime": {
+      "version": "1.28.0",
+      "sha256": "f1ec1a08eb99bd6e5401340f0a2b101381bf4694415480291dc13bcaa30f9ec7",
+      "spdx": "MIT",
+      "license_url": "https://github.com/microsoft/onnxruntime/blob/v1.28.0/LICENSE",
+      "license_sha256": "2f07c72751aed99790b8a4869cf2311df85a860b22ded05fa22803587a48922c",
+      "provenance": "Existing installed ARM64 native library, read-only feasibility use. EditBay runtime package remains required."
+    },
+    "libtorch": {
+      "version": "2.10.0+cpu",
+      "wheel_url": "https://download-r2.pytorch.org/whl/cpu/torch-2.10.0%2Bcpu-cp311-cp311-manylinux_2_28_aarch64.whl",
+      "publisher_sha256": "1cfcb9b1558c6e52dffd0d4effce83b13c5ae5d97338164c372048c21f9cfccb",
+      "license_sha256": "2e311cbf8c7646e764a54621ab15663bbfcfeb5bb94f1d634d79adfd49ae3191",
+      "notice_sha256": "c2cc7bf0caec7652c2b460a8a470bea1677f241e4ab8e431df34cf17f5a9fec0",
+      "provenance": "Only native libraries, C++ headers and license/notice files extracted; no Python modules or interpreter used."
+    },
+    "tract": {
+      "version": "0.23.8",
+      "spdx": "MIT OR Apache-2.0",
+      "source": "https://github.com/sonos/tract",
+      "pin": "Cargo.lock including all registry checksums"
+    }
+  }
+}

@@ -3,6 +3,8 @@
 use crate::{Error, MediaInfo, Result};
 use std::{
     ffi::{CStr, CString, c_char, c_int, c_void},
+    fs::OpenOptions,
+    os::unix::{fs::OpenOptionsExt, io::AsRawFd},
     path::Path,
     ptr::NonNull,
 };
@@ -22,7 +24,7 @@ unsafe extern "C" {
         pts: *mut i64,
     ) -> c_int;
     fn eb_writer_open(
-        path: *const c_char,
+        descriptor: c_int,
         width: c_int,
         height: c_int,
         num: c_int,
@@ -126,11 +128,30 @@ impl VideoWriter {
         {
             return Err(Error::Invalid("invalid export profile".into()));
         }
-        let path = path_string(path)?;
+        let file = match OpenOptions::new()
+            .read(true)
+            .write(true)
+            .create_new(true)
+            .open(path)
+        {
+            Ok(file) => file,
+            Err(e) if e.kind() == std::io::ErrorKind::AlreadyExists => OpenOptions::new()
+                .read(true)
+                .write(true)
+                .custom_flags(libc::O_NOFOLLOW)
+                .open(path)?,
+            Err(e) => return Err(e.into()),
+        };
+        let metadata = file.metadata()?;
+        if !metadata.is_file() || metadata.len() != 0 {
+            return Err(Error::Invalid(
+                "encoder requires an empty regular temporary file".into(),
+            ));
+        }
         let mut code = 0;
         let pointer = unsafe {
             eb_writer_open(
-                path.as_ptr(),
+                file.as_raw_fd(),
                 info.width,
                 info.height,
                 info.rate_num,

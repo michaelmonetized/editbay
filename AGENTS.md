@@ -16,7 +16,7 @@ and command architecture.
 ## Implementation
 
 - Project/recovery source lives in `crates/editbay-core` and `crates/editbay-cli`.
-  Native feasibility crates cover media/render/audio and `editbay-lab` evidence
+  Native feasibility crates cover media/render/audio/AI and `editbay-lab` evidence
   tools. `bin/editbay` launches the project CLI. Other roadmap modules remain open.
 - Keep application code, production workers and project helper tools in Rust.
   Native C/C++ codec, GPU, color and inference libraries may use narrow adapters.

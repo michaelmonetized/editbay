@@ -1,0 +1,118 @@
+{
+  "analytic_motion_truth": [
+    {
+      "frame": 0,
+      "mask_iou": 0.9999166666666667
+    },
+    {
+      "frame": 1,
+      "mask_iou": 0.9998333333333334
+    },
+    {
+      "frame": 2,
+      "mask_iou": 1.0
+    },
+    {
+      "frame": 3,
+      "mask_iou": 0.9936242444315642
+    },
+    {
+      "frame": 4,
+      "mask_iou": 0.9999166666666667
+    },
+    {
+      "frame": 5,
+      "mask_iou": 0.9999166666666667
+    }
+  ],
+  "fixture": {
+    "frames": 6,
+    "kind": "native_motion_fixture",
+    "source_sha256": "9c4fc89495d3d1582b4663929971309b97bb52c83dfd9eaa7b7e4f4ba1c3bcb2",
+    "truth": "100x120 orange rectangle; x=120+10*frame, y=75; 512x288, 6 fps; no alpha ground truth"
+  },
+  "frames": 6,
+  "input_shape": [
+    288,
+    512
+  ],
+  "kind": "native_sam2_independent_parity",
+  "limits": [
+    "independent graph kernels and recurrent results; shared Rust preprocessing/memory-bank orchestration",
+    "no comparison with upstream PyTorch video orchestration yet",
+    "not annotated client-footage quality",
+    "reference cancellation between graphs only; artist candidate uses ONNX Runtime operator termination"
+  ],
+  "max_logit_error": 0.0009441375732421875,
+  "memory": [
+    "VmHWM:\t 3123824 kB",
+    "VmRSS:\t  460320 kB"
+  ],
+  "model_revision": "3b2984dd865f6e9d2cc6aed0be6a5a5c2eb352ce",
+  "prompt": [
+    170.0,
+    135.0
+  ],
+  "reference_pass": true,
+  "reference_runtime": "Tract 0.23.8 Rust CPU kernels",
+  "results": [
+    {
+      "frame": 0,
+      "logit_mae": 0.000035536732411856065,
+      "mask_iou": 1.0,
+      "max_logit_error": 0.00010585784912109375,
+      "object_score_error": 0.0000152587890625,
+      "predicted_iou_error": 1.1920928955078125e-7,
+      "reference_ms": 5482.357486
+    },
+    {
+      "frame": 1,
+      "logit_mae": 0.00007284203979907033,
+      "mask_iou": 1.0,
+      "max_logit_error": 0.0002689361572265625,
+      "object_score_error": 7.152557373046875e-6,
+      "predicted_iou_error": 0.0,
+      "reference_ms": 23126.682936999998
+    },
+    {
+      "frame": 2,
+      "logit_mae": 0.00011761459589049789,
+      "mask_iou": 1.0,
+      "max_logit_error": 0.0007295608520507812,
+      "object_score_error": 0.000019073486328125,
+      "predicted_iou_error": 1.7881393432617188e-7,
+      "reference_ms": 22778.861925
+    },
+    {
+      "frame": 3,
+      "logit_mae": 0.0001292072409013498,
+      "mask_iou": 1.0,
+      "max_logit_error": 0.0007982254028320312,
+      "object_score_error": 0.000049114227294921875,
+      "predicted_iou_error": 1.1920928955078125e-7,
+      "reference_ms": 18793.271921
+    },
+    {
+      "frame": 4,
+      "logit_mae": 0.00015015872506612341,
+      "mask_iou": 1.0,
+      "max_logit_error": 0.0007724761962890625,
+      "object_score_error": 0.00006628036499023438,
+      "predicted_iou_error": 5.960464477539063e-8,
+      "reference_ms": 15465.133322
+    },
+    {
+      "frame": 5,
+      "logit_mae": 0.00018591512359004506,
+      "mask_iou": 1.0,
+      "max_logit_error": 0.0009441375732421875,
+      "object_score_error": 0.0000514984130859375,
+      "predicted_iou_error": 0.0,
+      "reference_ms": 14611.304307999999
+    }
+  ],
+  "schema": 1,
+  "source_sha256": "9c4fc89495d3d1582b4663929971309b97bb52c83dfd9eaa7b7e4f4ba1c3bcb2",
+  "worst_logit_mae": 0.00018591512359004506,
+  "worst_mask_iou": 1.0
+}
