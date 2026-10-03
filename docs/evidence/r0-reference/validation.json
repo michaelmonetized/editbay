@@ -1,0 +1,25 @@
+{
+  "schema": 1,
+  "validated_at_utc": "2026-10-03T22:12:27Z",
+  "machine": "Linux aarch64, Apple M1 Pro, Omarchy; Vulkan Honeykrisp",
+  "rust": "1.98.0",
+  "target_directory": "/var/tmp/editbay-build",
+  "parent_commit": "10a34c7",
+  "lockfile_sha256": "f4aaedfe653a0f754a7dd1a90799b04b96f3516575a5917aebe5074aaa6a73af",
+  "source_sha256": {
+    "crates/editbay-core/src/command.rs": "aa42c4e4a86139eed7d5b2902a9917a8eac4d862cc3eeed2ad26c6e0b36fd790",
+    "crates/editbay-automation/src/lib.rs": "74878ac33d6dbc0149df23e7337b68cb62e38ed2ea702fcc8a9bb61e7b522c52",
+    "crates/editbay-automation/src/main.rs": "c6fc18d85480b8ee121cf69da8565109dfe29603a5688d0214bfbba9bb0e0ebb",
+    "crates/editbay-lab/src/inventory.rs": "8037257f217fabf4c6ecd29a254cad6a424eb05f0d9d2bd23c4c2f1ec1a4c46f"
+  },
+  "checks": [
+    {"command": "CARGO_TARGET_DIR=/var/tmp/editbay-build CARGO_INCREMENTAL=0 cargo test --workspace --locked", "exit_status": 0, "passed": 39, "failed": 0, "ignored": 0},
+    {"command": "EDITBAY_LIBTORCH=/var/tmp/editbay-native-torch/torch LD_LIBRARY_PATH=/var/tmp/editbay-native-torch/torch/lib CARGO_TARGET_DIR=/var/tmp/editbay-build CARGO_INCREMENTAL=0 cargo test --workspace --all-features --locked", "exit_status": 0, "passed": 39, "failed": 0, "ignored": 0},
+    {"command": "CARGO_TARGET_DIR=/var/tmp/editbay-build CARGO_INCREMENTAL=0 cargo clippy --workspace --all-targets --locked -- -D warnings", "exit_status": 0},
+    {"command": "EDITBAY_LIBTORCH=/var/tmp/editbay-native-torch/torch CARGO_TARGET_DIR=/var/tmp/editbay-build CARGO_INCREMENTAL=0 cargo clippy --workspace --all-targets --all-features --locked -- -D warnings", "exit_status": 0},
+    {"command": "cargo fmt --all -- --check", "exit_status": 0},
+    {"command": "git diff --check", "exit_status": 0}
+  ],
+  "measured_scope": ["actual native codec and GPU regression tests", "real save process interruption", "actual MCP server child processes with modern/legacy lifecycles", "106 source inventory records", "fixed native reference replay"],
+  "unqualified": ["native welcome/editor window", "physical monitoring/audio latency", "other hardware", "complete commercial/interview/role jobs", "interchange importer", "cloud/client approval", "GTM repeat use"]
+}

@@ -30,6 +30,50 @@ fn source(directory: &std::path::Path) -> std::path::PathBuf {
 }
 
 #[test]
+fn source_inventory_checks_real_pictures_and_reports_failures_without_following_symlinks_or_replacing_files()
+ {
+    let directory = tempdir().unwrap();
+    let sources = directory.path().join("client sources");
+    fs::create_dir(&sources).unwrap();
+    let video = source(&sources);
+    let original = fs::read(&video).unwrap();
+    let hidden = sources.join(".hidden");
+    fs::create_dir(&hidden).unwrap();
+    fs::write(hidden.join("private.mp4"), b"not media").unwrap();
+    std::os::unix::fs::symlink(&video, sources.join("linked.mp4")).unwrap();
+    fs::write(sources.join("bad.mp4"), b"damaged media").unwrap();
+    let report = directory.path().join("new inventory.json");
+    let run = || {
+        Command::new(env!("CARGO_BIN_EXE_editbay-lab"))
+            .arg("inventory")
+            .arg(&sources)
+            .arg(&report)
+            .output()
+            .unwrap()
+    };
+    let output = run();
+    assert!(
+        output.status.success(),
+        "{}",
+        String::from_utf8_lossy(&output.stderr)
+    );
+    let manifest: Value = serde_json::from_slice(&fs::read(&report).unwrap()).unwrap();
+    assert_eq!(manifest["coverage_complete"], false);
+    assert_eq!(manifest["sources"].as_array().unwrap().len(), 1);
+    assert_eq!(
+        manifest["sources"][0]["first_picture"]["rgba_bytes"],
+        257 * 17 * 4
+    );
+    assert_eq!(manifest["failures"].as_array().unwrap().len(), 1);
+    assert_eq!(manifest["excluded_entries"], 2);
+    let saved = fs::read(&report).unwrap();
+    assert!(!run().status.success());
+    assert_eq!(fs::read(&report).unwrap(), saved);
+    assert_eq!(fs::read(&video).unwrap(), original);
+    assert_eq!(fs::read_dir(directory.path()).unwrap().count(), 2);
+}
+
+#[test]
 fn actual_background_export_verifies_pixels_and_preserves_existing_work() {
     let directory = tempdir().unwrap();
     let source = source(directory.path());

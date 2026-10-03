@@ -1,0 +1,34 @@
+{
+  "schema": 1,
+  "owner": "Michael",
+  "permission": {
+    "basis": "User requested local implementation and representative validation in this workspace",
+    "allowed": ["local read-only inspection", "local derived validation outputs", "metadata and hashes in development evidence"],
+    "not_granted": ["publish client footage", "upload private source media", "contact clients", "claim independent client acceptance"]
+  },
+  "jobs": [
+    {
+      "id": "macks-commercial-social",
+      "kind": "real client source collection",
+      "source_inventory": "macks-sources.json",
+      "source_count": {"video": 41, "still": 65},
+      "reference_input": "IMG_0001.MP4",
+      "required_outcome": "Editable 15-second commercial with horizontal and vertical variants, revisions, sound, archive/reopen and client delivery",
+      "current_evidence": ["complete local source inventory", "actual first video picture decode", "native inference probes on selected source"],
+      "editbay_delivery": "not implemented",
+      "client_acceptance": "not collected",
+      "migration_project": "No existing native editing/interchange project found in the inspected local job/source folders; the authored FCPXML fixture covers future importer loss reporting"
+    },
+    {
+      "id": "omadesign-native-reel",
+      "kind": "Michael's product media source",
+      "source": "/home/michael/Videos/omadesign/reels-42-2026-09-30/renders/41.mp4",
+      "source_sha256": "872e2e7f3cb19ff13653bea9784c48d78969ceb4b8f7da18d1ea5c7cbaa9a48f",
+      "required_outcome": "Native editable brand film with source artwork, motion, revised copy, sound and verified delivery",
+      "current_evidence": ["native decode", "FP16/FP32 GPU comparison", "isolated lossless picture-only export and cancellation"],
+      "editbay_delivery": "not implemented",
+      "client_acceptance": "not applicable to the prototype"
+    }
+  ],
+  "qualification_remaining": ["commercial and social delivery", "interview/event source and job inventory", "motion/VFX/color/audio role-specific production targets", "independent users and accepted repeat jobs"]
+}

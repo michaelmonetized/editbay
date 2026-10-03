@@ -38,16 +38,25 @@ The desktop editor and complete-job release gates remain open.
   pins and actual receipts live in `evidence/r0-inference/`. No weights are bundled.
 - Codec output owns a file descriptor. Existing media, symlink targets and a
   replacement pathname survive internal encoder calls.
+- Typed atomic command groups, expected project/revision checks and bounded
+  undo/redo with monotonically increasing revisions. CLI rename uses this path.
+- Native scoped `editbay-mcp` with actual document inspection, rename groups,
+  undo/redo, checkpoint and recovery inspection. Successful edits are durably
+  saved before session state/history changes; outside edits and deletion fail.
+- Local source inventory: 41 actual client videos and 65 stills, hashes and
+  first decoded video pictures; fixed native/interchange fixture inputs with
+  ownership, expected outcomes and explicit migration limits.
 
 ## Validation
 
 | Check | Result |
 | --- | --- |
-| `cargo test --workspace --locked` | 31 passed; 0 failed or ignored |
+| `cargo test --workspace --locked` | 39 passed; 0 failed or ignored |
 | Core regression suite | 16 tests: identity/rational time, validation, round trips, permission preservation, concurrent/stale writers, corruption, source loss and overwrite refusal |
 | CLI binary integration suite | 3 tests: complete recovery flow, command failures and real process interruption during save; paths contain spaces |
 | Native codec/GPU/worker/clock tests | 8 tests: lossless pictures and rational time; delayed video/audio drain; invalid codecs; output descriptor/path ownership; actual FP16/FP32 GPU parity; export/cancel cleanup; device-clock interpolation |
 | Inference boundary tests | 4 tests: bounded finite tensors, preflight cancellation, forged SAM memory/prompts, source-coordinate resampling and incompatible RVM state geometry |
+| Commands/reference/automation | 8 additional tests: atomic groups, monotonic undo/redo, owner/stale/overflow checks; immutable native fixture replay; real MCP process workflows under both protocol generations; outside edits/deletion; competing servers; source inventory/error/no-overwrite behavior |
 | `cargo clippy --workspace --all-targets --locked -- -D warnings` | Passed |
 | Optional reference features | Local all-feature test suite and Clippy pass with verified native libtorch selected; actual reference model runs are separate measured receipts |
 | `cargo fmt --all -- --check` | Passed |
@@ -62,7 +71,7 @@ hardware and live services remain unqualified.
 ## Still to implement
 
 Background autosave scheduling/ownership, checkpoint pruning, welcome/catalog UI,
-native desktop shell, timeline/undo/composition schema, production ingest/playback,
+native desktop shell, timeline/composition schema and expanded commands, production ingest/playback,
 audio graph, managed GPU/display/output color, delivery, interchange, cloud, and
 production inference integration remain roadmap work. The measured picture exporter and
 short callback-clock probe are functional feasibility tools, with recorded limits.
@@ -72,6 +81,10 @@ model-pack distribution and editable cached-result workflows remain unqualified.
 R0 includes EB-001–003 and measured ARM64 EB-004/005 prototypes. The inference
 comparison gates pass on the documented fixtures. SAM's reference uses independent
 Rust graph kernels with shared orchestration; upstream PyTorch video orchestration
-and annotated client quality remain explicit production gates. EB-006 reference
-jobs and EB-007 automation are next.
+and annotated client quality remain explicit production gates. EB-006 records
+source/jobs and fixed fixtures; actual interchange conversion is EB-034/054/083
+work. EB-007 specifies the complete automation contract and implements only real
+foundation commands. R0's persistence and documented ARM64 feasibility gates pass.
+Other hardware, physical paths, production jobs and model distribution remain
+their later milestone gates. R1 native workspace implementation is next.
 R1–R11 are planned, not shipped. No enterprise or GTM completion is declared.

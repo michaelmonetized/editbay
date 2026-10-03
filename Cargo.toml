@@ -1,5 +1,5 @@
 [workspace]
-members = ["crates/editbay-core", "crates/editbay-cli", "crates/editbay-media", "crates/editbay-render", "crates/editbay-audio", "crates/editbay-lab", "crates/editbay-ai", "crates/editbay-reference"]
+members = ["crates/editbay-core", "crates/editbay-cli", "crates/editbay-media", "crates/editbay-render", "crates/editbay-audio", "crates/editbay-lab", "crates/editbay-ai", "crates/editbay-reference", "crates/editbay-automation"]
 resolver = "3"
 
 [workspace.package]
@@ -24,6 +24,9 @@ cc = "1"
 pkg-config = "0.3"
 ort = { version = "=2.0.0-rc.13", default-features = false, features = ["std", "load-dynamic", "api-27"] }
 libc = "0.2"
+schemars = { version = "1", features = ["uuid1"] }
+rmcp = { version = "=3.5.0", default-features = false, features = ["macros", "server", "transport-io"] }
+tokio = { version = "1", features = ["rt-multi-thread", "macros"] }
 
 [profile.dev]
 debug = 0
