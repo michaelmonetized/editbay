@@ -1,0 +1,79 @@
+{
+  "adapter": {
+    "backend": "Vulkan",
+    "device_type": "IntegratedGpu",
+    "driver": "Honeykrisp",
+    "driver_info": "Mesa 26.2.3-arch1.1",
+    "name": "Apple M1 Pro (G13S C0)"
+  },
+  "application_version": "0.1.0",
+  "architecture": "aarch64",
+  "color_pass": true,
+  "copies": {
+    "bytes_uploaded": 3981312000,
+    "cpu_decode_rgba_per_frame": 1,
+    "float_working_space": "linear BT.709/sRGB primaries, opaque alpha-over, FP16 and FP32",
+    "gpu_readback_per_frame": 2,
+    "gpu_upload_per_frame": 2
+  },
+  "decode": {
+    "count": 60,
+    "max_ms": 13.616288,
+    "p50_ms": 2.42318,
+    "p95_ms": 5.4120729999999995
+  },
+  "decoded_rgba_sha256": "02a75b9f8bc0d993a15c3d06301158de3fe650c14e594fe78dd481ca99d4e404",
+  "ffmpeg": "n9.0.1",
+  "fp16_upload_compose_readback": {
+    "count": 60,
+    "max_ms": 92.678046,
+    "p50_ms": 45.065265000000004,
+    "p95_ms": 63.296455
+  },
+  "fp32_upload_compose_readback": {
+    "count": 60,
+    "max_ms": 38.987646,
+    "p50_ms": 17.524145,
+    "p95_ms": 35.195539999999994
+  },
+  "input_transfer": "Bt709",
+  "kind": "native_engine_probe",
+  "limits": [
+    "CPU codec decode; no hardware handoff",
+    "BT.709/sRGB SDR input only; no HDR/log management",
+    "unspecified input transfer/primaries assume BT.709; unspecified YUV matrix assumes BT.709 at HD, BT.601 below HD",
+    "readback is deliberate prototype/export boundary",
+    "no surface presentation or two-hour device drift qualification"
+  ],
+  "max_linear_error": {
+    "fp16": 0.00048804283142089844,
+    "fp32": 2.384185791015625e-7
+  },
+  "memory": [
+    "VmHWM:\t  452560 kB",
+    "VmRSS:\t  194816 kB"
+  ],
+  "os": "linux",
+  "profile": {
+    "channels": 0,
+    "color_matrix": 1,
+    "color_primaries": 2,
+    "color_range": 1,
+    "color_transfer": 2,
+    "duration_ns": 2000000000,
+    "height": 2160,
+    "rate_den": 1,
+    "rate_num": 30,
+    "sample_rate": 0,
+    "width": 3840
+  },
+  "schema": 1,
+  "source": "/var/tmp/editbay-evidence/r0-engine/4k30.mkv",
+  "source_sha256": "fb039b1247e871c01ae8aeab21c768357719247ccb1e0ef3f0e5ed56763f64cf",
+  "timestamps": {
+    "first_ns": 0,
+    "last_ns": 1967000000,
+    "nonmonotonic": 0
+  },
+  "unspecified_color_assumed_bt709": true
+}

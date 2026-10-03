@@ -96,3 +96,73 @@ fn invalid_commands_and_names_report_failure_without_creating_work() {
     assert!(output.status.success());
     assert!(String::from_utf8_lossy(&output.stdout).contains("Rust project foundation"));
 }
+
+#[test]
+fn killing_a_real_save_process_keeps_the_published_project_and_checkpoint_valid() {
+    use editbay_core::{Project, checkpoint, load, recovery_catalog, save_new};
+    use std::{
+        process::Stdio,
+        time::{Duration, Instant},
+    };
+    let directory = tempdir().unwrap();
+    let path = directory.path().join("large project.editbay");
+    let root = directory.path().join("recovery");
+    let mut project = Project::new("Before interruption").unwrap();
+    let template = project.sequences[0].clone();
+    for _ in 0..20_000 {
+        let mut sequence = template.clone();
+        sequence.id = uuid::Uuid::new_v4();
+        project.sequences.push(sequence);
+    }
+    save_new(&project, &path).unwrap();
+    let previous = checkpoint(&project, Some(&path), &root).unwrap();
+    let mut child = Command::new(env!("CARGO_BIN_EXE_editbay"))
+        .arg("rename")
+        .arg(&path)
+        .arg("After interruption")
+        .stdout(Stdio::null())
+        .stderr(Stdio::null())
+        .spawn()
+        .unwrap();
+    let deadline = Instant::now() + Duration::from_secs(10);
+    let mut observed_temporary = false;
+    while Instant::now() < deadline {
+        observed_temporary = fs::read_dir(directory.path())
+            .unwrap()
+            .filter_map(Result::ok)
+            .any(|entry| {
+                entry
+                    .file_name()
+                    .to_string_lossy()
+                    .starts_with(".editbay-write-")
+            });
+        if observed_temporary || child.try_wait().unwrap().is_some() {
+            break;
+        }
+        std::thread::sleep(Duration::from_micros(100));
+    }
+    child.kill().unwrap();
+    child.wait().unwrap();
+    assert!(
+        observed_temporary,
+        "did not reach the actual save publication window"
+    );
+    let saved = load(&path).unwrap();
+    assert_eq!(saved.id, project.id);
+    assert!(saved == project || (saved.name == "After interruption" && saved.revision == 1));
+    let catalog = recovery_catalog(&root).unwrap();
+    assert_eq!(catalog.valid.len(), 1);
+    assert_eq!(catalog.valid[0].path, previous);
+    assert!(catalog.invalid.is_empty());
+    let output = run(&[
+        "rename".as_ref(),
+        path.as_os_str(),
+        "After restart".as_ref(),
+    ]);
+    assert!(
+        output.status.success(),
+        "{}",
+        String::from_utf8_lossy(&output.stderr)
+    );
+    assert_eq!(load(&path).unwrap().name, "After restart");
+}
