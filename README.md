@@ -111,6 +111,12 @@ measures actual indexed source planning and optional, explicitly synthetic index
 stress. See [temporal evaluation](docs/TEMPORAL_EVALUATION.md). This does not yet
 provide rendered composition playback or export.
 
+`editbay-lab picture-cache SOURCE` qualifies the bounded, source-owned native
+decoded-picture provider against actual sequential pixels. Cached and externally
+held outputs stay charged through eviction, cleanup and document rebinding. See
+[decoded pictures](docs/PICTURE_CACHE.md) for ownership, memory and remaining
+native playback integration.
+
 Keep project builds, worktrees, temporary files and private evidence under this
 checkout. `/target/` and `/artifacts/` are ignored. Set `TMPDIR` as above for local
 tests so their temporary fixtures also stay here. The older committed evidence

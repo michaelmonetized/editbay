@@ -1,0 +1,44 @@
+{
+  "schema": 1,
+  "date": "2026-10-04",
+  "platform": "Linux ARM64 / Omarchy / Apple M1 Pro",
+  "build_profile": "dev, debug=0, incremental=false",
+  "storage": {
+    "build": "target/native-build",
+    "temporary_fixtures": "artifacts/tmp",
+    "frozen_binary": "artifacts/r2-picture-cache-final/editbay-lab",
+    "ignored_parents_verified": ["/target/", "/artifacts/"]
+  },
+  "software": [
+    {"command": "cargo test --workspace --locked", "exit_code": 0, "tests": 101, "sdk_documentation_examples": 5, "failed": 0, "ignored": 0, "log": "workspace-tests.log"},
+    {"command": "cargo test --workspace --all-features --locked", "exit_code": 0, "tests": 102, "sdk_documentation_examples": 5, "failed": 0, "ignored": 0, "native_reference": "Pinned libtorch 2.10.0+cpu under artifacts/native-torch/torch", "log": "all-feature-tests.log"},
+    {"command": "cargo clippy --workspace --all-targets --all-features --locked -- -D warnings", "exit_code": 0, "log": "clippy.log"},
+    {"command": "cargo fmt --all -- --check", "exit_code": 0, "log": "fmt.log"}
+  ],
+  "receipt_commands": [
+    "Frozen editbay-lab picture-cache '/home/michael/Downloads/iCloud Photos/IMG_0001.MP4'",
+    "Frozen editbay-lab picture-cache '/home/michael/Videos/omadesign/reels-42-2026-09-30/renders/41.mp4'"
+  ],
+  "raw_picture_qualification": {
+    "independent_pixel_equal_targets_per_source": 25,
+    "shared_immutable_hit_checks_per_source": 1000,
+    "sequential_requests_per_source": 120,
+    "camera": {"pictures": 314, "hit_p95_ms": 0.005, "empty_output_cache_miss_p95_ms": 295.999296, "sequential_p95_ms": 5.637117, "after_active_cancel_ms": 8.688634, "process_HWM_KiB": 325856},
+    "portrait": {"pictures": 528, "hit_p95_ms": 0.003417, "empty_output_cache_miss_p95_ms": 941.064041, "sequential_p95_ms": 3.727481, "after_active_cancel_ms": 3.381145, "process_HWM_KiB": 347536},
+    "raw_hit_budget_ms": 250,
+    "raw_hit_budget_pass": true,
+    "uncached_miss_warm_budget_pass": false,
+    "active_cancel_budget_ms": 2000,
+    "active_cancel_budget_pass": true,
+    "issued_native_seek_and_joined_worker_proven": true,
+    "source_bytes_verified_before_and_after": true,
+    "cleanup_cache_live_payload_and_handles_zero": true,
+    "native_pin_eviction_revision_rebinding_and_stale_receipt_tests": 5
+  },
+  "native_UI_IPC_integration_claim": false,
+  "rendered_composition_or_audio_block_claim": false,
+  "native_presentation_claim": false,
+  "physical_cold_disk_or_audibility_claim": false,
+  "full_R2_seek_gate_qualified": false,
+  "enterprise_GTM_release_qualified": false
+}

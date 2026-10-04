@@ -1,0 +1,288 @@
+{
+  "active_cancel": {
+    "after_cancel_ms": 8.688634,
+    "budget_ms": 2000.0,
+    "cancelled": true,
+    "delay_ms": 10,
+    "native_seek_issued": true,
+    "pass": true,
+    "stats": {
+      "cache_bytes": 3686400,
+      "decoders": 0,
+      "entries": 1,
+      "evictions": 0,
+      "hits": 0,
+      "live_bytes": 3686400,
+      "misses": 2,
+      "seeks": 1,
+      "sequential_decodes": 1,
+      "sources": 1
+    },
+    "work_wall_ms": 18.669777,
+    "worker_joined": true
+  },
+  "actual_indexed_pictures": 314,
+  "application_version": "0.1.0",
+  "architecture": "aarch64",
+  "budget": {
+    "cache_bytes": 268435456,
+    "cache_entries": 128,
+    "decoder_handles": 4,
+    "live_bytes": 402653184,
+    "maximum_picture_bytes": 67108864,
+    "source_handles": 16
+  },
+  "cleanup": {
+    "cache_bytes": 0,
+    "decoders": 0,
+    "entries": 0,
+    "evictions": 48,
+    "hits": 1000,
+    "live_bytes": 0,
+    "misses": 145,
+    "seeks": 25,
+    "sequential_decodes": 120,
+    "sources": 0
+  },
+  "codec_runtime": "n9.0.1",
+  "empty_output_cache_requests": {
+    "count": 25,
+    "max_ms": 320.47056499999997,
+    "p50_ms": 130.73948299999998,
+    "p95_ms": 295.999296
+  },
+  "fingerprint": {
+    "bytes": 5235017,
+    "sha256": "498ec6c42b6b440886eb761dc4775c994f7578021890ceae3f370ffc6fb3e021"
+  },
+  "full_R2_seek_gate_qualified": false,
+  "geometry": [
+    1280,
+    720
+  ],
+  "hit_budget_pass": true,
+  "hit_p95_budget_ms": 250.0,
+  "immutable_shared_hits": {
+    "count": 1000,
+    "max_ms": 0.016708999999999998,
+    "p50_ms": 0.003333,
+    "p95_ms": 0.005
+  },
+  "independent_pixel_checks": [
+    {
+      "miss_ms": 320.47056499999997,
+      "ordinal": 313,
+      "rgba_sha256": "d1e2e30a79defb8f89181cf7fda5a0b647622421d721a031483309f6f3b2f9da",
+      "source_tick": 7825
+    },
+    {
+      "miss_ms": 99.628132,
+      "ordinal": 299,
+      "rgba_sha256": "b6391b0479bfbd91c668090ed5fbe4029aa90c6ca1ecc842089d594d946dc7fc",
+      "source_tick": 7475
+    },
+    {
+      "miss_ms": 63.890420000000006,
+      "ordinal": 286,
+      "rgba_sha256": "bd53c67d29e7c3eeb3748fd81071ea2bf4b8ad9b482e46cccfee46ddc0a84a15",
+      "source_tick": 7150
+    },
+    {
+      "miss_ms": 26.391823,
+      "ordinal": 273,
+      "rgba_sha256": "1ae6cc2a03734d81f25e682a372878a5aacacd9f14d5b3abee18100ff6bb6699",
+      "source_tick": 6825
+    },
+    {
+      "miss_ms": 188.15519799999998,
+      "ordinal": 260,
+      "rgba_sha256": "827c1ddfbde780a87916ecf7efefc90582948e4c9043cc3dfff1c2c643fefd86",
+      "source_tick": 6500
+    },
+    {
+      "miss_ms": 237.686574,
+      "ordinal": 247,
+      "rgba_sha256": "211faf1a8c0ed8bfeafab08a667d8439d5414cb8cc2bba1a3cd40b01e74b0b8f",
+      "source_tick": 6175
+    },
+    {
+      "miss_ms": 127.47900600000001,
+      "ordinal": 234,
+      "rgba_sha256": "ac696319b4df35e9a5e6fb5077b38cc308b55c8c59c7273aabd795980f31f9a0",
+      "source_tick": 5850
+    },
+    {
+      "miss_ms": 110.135277,
+      "ordinal": 221,
+      "rgba_sha256": "7dd427b940f1d4091528de05af96b5a214605492689c53e0161a939796489e22",
+      "source_tick": 5525
+    },
+    {
+      "miss_ms": 150.115139,
+      "ordinal": 208,
+      "rgba_sha256": "c1d911f57ed5b4af4fc0f32ce3b11790774f51960e6e7efb770a5dc91bf25bf5",
+      "source_tick": 5200
+    },
+    {
+      "miss_ms": 130.73948299999998,
+      "ordinal": 195,
+      "rgba_sha256": "6dcfee954883573e460b4c91ecf3b0d89d61a913f9c269e172adda0af646d988",
+      "source_tick": 4875
+    },
+    {
+      "miss_ms": 56.297332999999995,
+      "ordinal": 182,
+      "rgba_sha256": "475cbfa3ea6cbcf252d8c0f6a3e7e7ee786c10a2c5089cc956d8cd418ca9805d",
+      "source_tick": 4550
+    },
+    {
+      "miss_ms": 252.89045700000003,
+      "ordinal": 169,
+      "rgba_sha256": "a244a4ec5a80e246628f6ac09ae6dbd01f73a0f1c384ca0897bc0708dc944d2c",
+      "source_tick": 4225
+    },
+    {
+      "miss_ms": 246.177333,
+      "ordinal": 156,
+      "rgba_sha256": "d68005d531ba2cac77b1f0d304da4fd68cd5e875e7d20034d1df67eafaee648d",
+      "source_tick": 3900
+    },
+    {
+      "miss_ms": 192.845184,
+      "ordinal": 143,
+      "rgba_sha256": "b540803b241ad46456ffdb8c3e90209e3423ef5bf9ced91de4a45f3b9d03dc8d",
+      "source_tick": 3575
+    },
+    {
+      "miss_ms": 181.368449,
+      "ordinal": 130,
+      "rgba_sha256": "576c9e4516b816118ae20d3483817b38ff6ca47c9bae660054145ca0965d57fe",
+      "source_tick": 3250
+    },
+    {
+      "miss_ms": 153.870286,
+      "ordinal": 117,
+      "rgba_sha256": "ac873c9a35255a96c7c4e668e8dbac1f1dde2e910cd0f24d6929ddf716b97329",
+      "source_tick": 2925
+    },
+    {
+      "miss_ms": 84.14779,
+      "ordinal": 104,
+      "rgba_sha256": "1ddd48171e0e5b8ea0f2a1c1373fc9e6c2617611241144610ee44b5ae2fed59d",
+      "source_tick": 2600
+    },
+    {
+      "miss_ms": 27.700664,
+      "ordinal": 91,
+      "rgba_sha256": "2379d343370da7559b31ae98c4070aa8f31d518ef447b7f28b9440352df0823f",
+      "source_tick": 2275
+    },
+    {
+      "miss_ms": 295.999296,
+      "ordinal": 78,
+      "rgba_sha256": "cb9ff37d7532efe6827bef242b6c90c7a328c09b3ebb1724798aa94ef9934176",
+      "source_tick": 1950
+    },
+    {
+      "miss_ms": 224.44883,
+      "ordinal": 65,
+      "rgba_sha256": "baf930f0b0252f84543da354148827df36e8b536fd09d06975eb576331220866",
+      "source_tick": 1625
+    },
+    {
+      "miss_ms": 96.68019799999999,
+      "ordinal": 52,
+      "rgba_sha256": "8c521b1f4391d8bd53c4a2276577b96efa3179e7c5b8ae9f16fa8bfad06fa64b",
+      "source_tick": 1300
+    },
+    {
+      "miss_ms": 127.22175399999999,
+      "ordinal": 39,
+      "rgba_sha256": "2caa23c32caddffba657fdcd4aa67122676f0f48919f9f924c45ee83cd303b60",
+      "source_tick": 975
+    },
+    {
+      "miss_ms": 132.897787,
+      "ordinal": 26,
+      "rgba_sha256": "8c2aa3d77fa3d5637ba9f93ae88b5ad58c60bb4b3c74abb6f13fd2f00ffcf0b8",
+      "source_tick": 650
+    },
+    {
+      "miss_ms": 73.51431099999999,
+      "ordinal": 13,
+      "rgba_sha256": "5a76a6e0fba0d3fa41d43bee0284730712fff12a53be842179eaf5a02858d79e",
+      "source_tick": 325
+    },
+    {
+      "miss_ms": 24.568979000000002,
+      "ordinal": 0,
+      "rgba_sha256": "1e948726d5af08b4a341ad77ea1290f17dcfab6733e6d0297c9c991973841582",
+      "source_tick": 0
+    }
+  ],
+  "kind": "source_owned_decoded_picture_cache",
+  "limits": [
+    "CPU RGBA8 payload cache only; native decoder buffers and allocator overhead are not its output-byte accounting",
+    "empty output cache measurements retain OS page-cache warmth and are not physical cold-disk proof",
+    "hit measurements share the independently verified Arc; no pixel copies, GPU upload or surface presentation",
+    "source binding/checksum/open costs appear on the first miss; final full verification occurs before job publication",
+    "sequential requests are capped at 120 actual frames and do not prove long native playback",
+    "source handles stay retained up to the declared per-job cap; decoder and picture entries use LRU eviction",
+    "native UI IPC, graph output, working/HDR color, hardware texture handoff, full seek and audio drift remain open"
+  ],
+  "memory": [
+    "VmHWM:\t  325856 kB",
+    "VmRSS:\t   70896 kB"
+  ],
+  "populated": {
+    "cache_bytes": 92160000,
+    "decoders": 1,
+    "entries": 25,
+    "evictions": 0,
+    "hits": 0,
+    "live_bytes": 92160000,
+    "misses": 25,
+    "seeks": 25,
+    "sequential_decodes": 0,
+    "sources": 1
+  },
+  "schema": 1,
+  "selected_stream": 1,
+  "sequenced": {
+    "cache_bytes": 265420800,
+    "decoders": 1,
+    "entries": 72,
+    "evictions": 48,
+    "hits": 1000,
+    "live_bytes": 265420800,
+    "misses": 145,
+    "seeks": 25,
+    "sequential_decodes": 120,
+    "sources": 1
+  },
+  "sequential": {
+    "count": 120,
+    "max_ms": 185.664517,
+    "p50_ms": 1.696635,
+    "p95_ms": 5.637117
+  },
+  "source": "/home/michael/Downloads/iCloud Photos/IMG_0001.MP4",
+  "source_unchanged": true,
+  "stream_sha256": "cd9c7718b8fd9cb29acbb89a485f88139fde423eb0009853fb62094c8996ea1f",
+  "version": {
+    "project_id": "9b2ff02e-587c-44ea-8a52-790e529d11f5",
+    "revision": 0
+  },
+  "warmed": {
+    "cache_bytes": 92160000,
+    "decoders": 1,
+    "entries": 25,
+    "evictions": 0,
+    "hits": 1000,
+    "live_bytes": 92160000,
+    "misses": 25,
+    "seeks": 25,
+    "sequential_decodes": 0,
+    "sources": 1
+  }
+}

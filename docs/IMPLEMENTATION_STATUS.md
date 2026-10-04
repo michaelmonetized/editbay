@@ -83,13 +83,18 @@ authoring and complete-job release gates remain open.
   inspector. Working-content keys include source/mask bytes, dimensions, color,
   precision and dependencies; document version still controls publication.
   This is temporal planning, not rendered pictures or sound-block evaluation.
+- Source-owned native decoded-picture cache: exact indexed requests, retained
+  sequential decoders, bounded cache/live RGBA payload and handle limits, LRU
+  eviction, charged consumer pins, fresh-token version/generation rebinding and
+  full source verification. Real camera/portrait pixels, shared hits, cleanup and
+  active seek cancellation are qualified. Native IPC/GPU/presentation remain open.
 
 ## Validation
 
 | Check | Result |
 | --- | --- |
-| `cargo test --workspace --locked` | 96 tests and 5 SDK documentation examples passed; 0 failed or ignored |
-| `cargo test --workspace --all-features --locked` | 97 tests and 5 SDK documentation examples passed with native libtorch selected; 0 failed or ignored |
+| `cargo test --workspace --locked` | 101 tests and 5 SDK documentation examples passed; 0 failed or ignored |
+| `cargo test --workspace --all-features --locked` | 102 tests and 5 SDK documentation examples passed with native libtorch selected; 0 failed or ignored |
 | Core regression suite | 23 tests: identity/rational time, validation, round trips, permission preservation, concurrent/stale writers, corruption, source loss, bounded reads, unpublished preparation/cleanup and overwrite refusal |
 | CLI binary integration suite | 3 tests: complete recovery flow, command failures and real process interruption during save; paths contain spaces |
 | Native codec/GPU/worker/clock tests | 8 tests: lossless pictures and rational time; delayed video/audio drain; invalid codecs; output descriptor/path ownership; actual FP16/FP32 GPU parity; export/cancel cleanup; device-clock interpolation |
@@ -107,6 +112,7 @@ authoring and complete-job release gates remain open.
 | R2 ingest native recovery regression | 100/100 fresh kill/recover/reopen trials; 250 inputs p95 26.730 ms, maximum 88.814 ms; 223 UI checkpoint commits p95 0.928 ms, maximum 3.951 ms; peak parent HWM 124,304 KiB. Sources/originals/checkpoints retained; incomplete driver runs are separately recorded |
 | Real indexed picture/sound | Portrait: 528 pictures, 25 pixel-equal seeks, CPU seek p95 631.905 ms, HWM 89,184 KiB. Camera: 314 pictures, 26 pixel-equal seeks, 627,040 native mono 48 kHz samples, CPU seek p95 469.515 ms, HWM 64,368 KiB. Both miss the 250 ms warm-seek gate; no cache/playback qualification claimed |
 | Retained temporal planning | 10,000 evaluations per case, ten child nodes plus reverse-nested parent: camera index 314 pictures p95 0.284 ms; actual recording index 11,471 pictures p95 0.281 ms; synthetic 500,000 timestamps p95 0.282 ms. All pass the separate 1 ms CPU planning budget. Initialization and one-shot inspection remain off the frame path; no rendered output/cache/playback claim |
+| Decoded-picture cache | 50 pixel-equal real seek targets; 2,000 shared immutable hits. Camera/portrait hit p95 0.005/0.003417 ms; empty output-cache miss p95 295.999/941.064 ms still exceeds 250 ms. 120 sequential pictures per source p95 5.637/3.727 ms, including first binding separately in maximums. Active seek cancellation 8.689/3.381 ms; payload/handle cleanup zero; HWM 325,856/347,536 KiB. Raw CPU output only; full native seek/playback gate remains open |
 | Native recovery timing | 23 continuous edits: first durable publication 9,807.159 ms, latest idle publication 1,051.024 ms; input acceptance p95 16.844 ms; 1 s idle debounce with <= 250 ms publication allowance |
 | Native storage failures | Actual EACCES and ENOSPC errors displayed; no false checkpoint acknowledgement; retry published a valid checkpoint after repair |
 | Native layout/input/assets | Final 800x600 and 1440x900 dark/light welcome captures inspected; native portrait profiles, Fcitx IME, Ctrl+V/Shift+Insert, preferences and repeated portal imports/exports inspected; exact SVG/font byte round trips and unsaved-bank close guard |

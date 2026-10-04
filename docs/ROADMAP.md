@@ -65,7 +65,12 @@ The temporal dependency of EB-023/024/026 now retains compiled immutable graphs,
 fractional/reverse source and animation boundaries, and working-content keys.
 Integer inspection retains its published receipt. This qualifies CPU planning
 only; see [temporal evaluation](TEMPORAL_EVALUATION.md). Actual rendered picture,
-sound intervals, bounded decoded/GPU caches and playback/export remain open.
+sound intervals, cache integration/GPU caches and playback/export remain open.
+The decoded-picture slice now serves exact native indexed requests with bounded
+cache/live-payload accounting, retained sequential decoders, LRU output/decoder
+eviction, source preflight and version/generation rebinding. This is the raw CPU
+provider; GPU caches and native IPC/presentation still need integration. See
+[decoded pictures](PICTURE_CACHE.md) and its separate qualification limits.
 Quantitative enterprise/GTM budgets are set in [release criteria](RELEASE_CRITERIA.md).
 
 ## Milestone map

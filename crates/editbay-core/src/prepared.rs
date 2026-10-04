@@ -207,6 +207,25 @@ impl EvaluationSnapshot {
         &self.project
     }
 
+    /// Inspect one captured media interpretation without rehashing its index.
+    /// `source` and `stream` select validated identities. Returns the retained
+    /// asset, stream profile and interpretation hash for worker request checks.
+    pub fn source_stream(
+        &self,
+        source: Uuid,
+        stream: u32,
+    ) -> Result<(&crate::AssetReference, &crate::SourceStream, &str)> {
+        let index = self
+            .streams
+            .get(&(source, stream))
+            .ok_or_else(|| Error::Invalid("source stream is absent".into()))?;
+        Ok((
+            &self.project.assets[index.asset],
+            &self.project.sources[index.media].streams[index.profile],
+            &index.fingerprint,
+        ))
+    }
+
     /// Evaluate a composition at an exact temporal boundary.
     /// `composition` selects the scene, `position` is fractional scene time, and
     /// `before` selects the reverse side of boundaries. Returns shared operations,

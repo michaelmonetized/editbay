@@ -2,9 +2,11 @@
 
 #[allow(unsafe_code)]
 mod ffi;
+mod pictures;
 mod source;
 pub mod worker;
 
+pub use pictures::{DecodedPicture, PictureBudget, PictureCache, PictureCacheStats, PictureResult};
 pub use source::{
     AudioBlock, Cancellation, IngestedSource, MediaProbe, NativeAudioReader, SourceFile,
     SourceFingerprint, StreamProfile, StreamType, VideoIndex,
