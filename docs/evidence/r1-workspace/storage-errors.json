@@ -1,0 +1,122 @@
+{
+  "application_sha256": "79d6903ff0dacd7d687f5666426944beafa7f6d307922e8c08060c2fabe03c8d",
+  "disk_full": {
+    "checkpoint_sha256": "8666fd388a21647e5304ce396c28461b5b452aa8d245f558cfa4fe27be94197c",
+    "error": {
+      "details": {
+        "active": "04eefdc7-bd7a-409e-a916-87a550589121",
+        "last_recovery_commit_us": null,
+        "recovery_publications": 0,
+        "tabs": [
+          {
+            "dirty": true,
+            "name": "Storage failure QA",
+            "path": null,
+            "project": "799523c1-6944-46ab-9b8b-b911b82d8c9e",
+            "recovery_error": "filesystem error: No space left on device (os error 28)",
+            "recovery_revision": null,
+            "revision": 0,
+            "session": "04eefdc7-bd7a-409e-a916-87a550589121"
+          }
+        ]
+      },
+      "dropped_before": 0,
+      "kind": "workspace",
+      "pid": 3257236,
+      "unix_us": 1791078982827471
+    },
+    "false_checkpoint_acknowledgement": false,
+    "input_injection_to_ui_acceptance": {
+      "count": 1,
+      "max_ms": 13.876,
+      "p50_ms": 13.876,
+      "p95_ms": 13.876
+    },
+    "kind": "real_enospc_private_tmpfs",
+    "retry": {
+      "details": {
+        "active": "04eefdc7-bd7a-409e-a916-87a550589121",
+        "last_recovery_commit_us": 79,
+        "recovery_publications": 1,
+        "tabs": [
+          {
+            "dirty": true,
+            "name": "Storage failure QA",
+            "path": null,
+            "project": "799523c1-6944-46ab-9b8b-b911b82d8c9e",
+            "recovery_error": null,
+            "recovery_revision": 0,
+            "revision": 0,
+            "session": "04eefdc7-bd7a-409e-a916-87a550589121"
+          }
+        ]
+      },
+      "dropped_before": 0,
+      "kind": "workspace",
+      "pid": 3257236,
+      "unix_us": 1791078984899435
+    },
+    "valid_checkpoints": 1
+  },
+  "kind": "native_storage_errors",
+  "pass": true,
+  "permission": {
+    "checkpoint_sha256": "bee1b58d43e854ccf2175eb0792c1df74e24ec15d6f4ec76615b9a3b881ae912",
+    "error": {
+      "details": {
+        "active": "b9b00a0c-82f4-404b-bd4c-88fffdeb6f91",
+        "last_recovery_commit_us": null,
+        "recovery_publications": 0,
+        "tabs": [
+          {
+            "dirty": true,
+            "name": "Storage failure QA",
+            "path": null,
+            "project": "1f8d9a74-4122-4a2b-ab6a-26f107c3d87e",
+            "recovery_error": "filesystem error: Permission denied (os error 13)",
+            "recovery_revision": null,
+            "revision": 0,
+            "session": "b9b00a0c-82f4-404b-bd4c-88fffdeb6f91"
+          }
+        ]
+      },
+      "dropped_before": 0,
+      "kind": "workspace",
+      "pid": 3257123,
+      "unix_us": 1791078978914372
+    },
+    "false_checkpoint_acknowledgement": false,
+    "input_injection_to_ui_acceptance": {
+      "count": 1,
+      "max_ms": 20.542,
+      "p50_ms": 20.542,
+      "p95_ms": 20.542
+    },
+    "kind": "real_eacces_owned_directory",
+    "retry": {
+      "details": {
+        "active": "b9b00a0c-82f4-404b-bd4c-88fffdeb6f91",
+        "last_recovery_commit_us": 216,
+        "recovery_publications": 1,
+        "tabs": [
+          {
+            "dirty": true,
+            "name": "Storage failure QA",
+            "path": null,
+            "project": "1f8d9a74-4122-4a2b-ab6a-26f107c3d87e",
+            "recovery_error": null,
+            "recovery_revision": 0,
+            "revision": 0,
+            "session": "b9b00a0c-82f4-404b-bd4c-88fffdeb6f91"
+          }
+        ]
+      },
+      "dropped_before": 0,
+      "kind": "workspace",
+      "pid": 3257123,
+      "unix_us": 1791078980943756
+    },
+    "valid_checkpoints": 1
+  },
+  "schema": 1
+}

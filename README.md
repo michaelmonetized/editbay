@@ -4,9 +4,13 @@ A native Rust production suite for Omarchy: editing, motion graphics, VFX, color
 sound, and connected client/team workflows. The goal is to let professionals move
 their existing production work from macOS/Windows to Omarchy.
 
-The Rust implementation provides **project/recovery CLI commands and scoped native MCP automation** plus
+The Rust implementation provides a **native local workspace**, **project/recovery
+CLI commands and scoped native MCP automation**, plus
 **native codec, GPU, sound-clock, export and video-inference feasibility tools**.
-The desktop editor and media engine are not implemented yet.
+The workspace includes welcome, project tabs, checked saves, automatic recovery,
+local settings and shared brand banks. Timeline/media authoring and complete-job
+release gates remain roadmap work. The local R1 workspace gates pass; see the
+[native workspace evidence](docs/evidence/r1-workspace/README.md).
 The application and production workers use Rust with native dependencies.
 
 ## Roadmap and decisions
@@ -33,6 +37,10 @@ The application and production workers use Rust with native dependencies.
   ownership, atomic undo groups and future worker/inspection requirements.
 - [Reference jobs and fixtures](docs/evidence/r0-reference/README.md): actual local
   source inventory, fixed native/interchange inputs and automation validation.
+- [Your local workspace](docs/LOCAL_WORKSPACE.md): native creation, saves, recovery,
+  settings and shared assets.
+- [Shared brand banks](docs/SHARED_BRANDS.md): compatible manifests, exact asset
+  copies, version ownership and collision rules.
 
 ## Run the Rust foundation
 
@@ -41,6 +49,8 @@ Build on the local machine with Rust/Cargo:
 ```sh
 cargo build --workspace --locked
 cargo test --workspace --locked
+./bin/editbay
+./bin/editbay /path/to/client/cut.editbay
 ./bin/editbay --help
 ./bin/editbay new /path/to/client/cut.editbay "Client spot"
 ./bin/editbay info /path/to/client/cut.editbay
@@ -51,8 +61,10 @@ cargo test --workspace --locked
 ./bin/editbay-mcp /path/to/client/cut.editbay /path/to/recovery
 ```
 
-The executable is `target/debug/editbay`; the source launcher builds/runs that
-Rust command with the lockfile. Projects use a fresh validated schema and stable
+The native executable is `target/debug/editbay-studio`; the CLI is
+`target/debug/editbay`. The source launcher chooses the native app for no arguments
+or project paths, and the CLI for the listed commands. It builds/runs Rust with
+the lockfile. Projects use a fresh validated schema and stable
 UUID identity. Frame rates stay rational. Saves use synchronized atomic writes
 with writer locks and stale-edit rejection for edits. New files are published
 without replacing an existing destination. Checkpoints are immutable and integrity
@@ -72,6 +84,6 @@ document inspection, project rename groups, undo/redo, checkpoint and recovery
 inspection. It uses the core command path and acknowledges edits after durable
 save. Its startup paths grant scope; RPC calls cannot choose arbitrary files.
 
-Background autosave, welcome UI, timeline commands, full media delivery, cloud,
-and artist inference workflows remain roadmap work. The lab's picture-only exporter and 30-second
+Timeline commands, full media delivery, cloud and artist inference workflows
+remain roadmap work. The lab's picture-only exporter and 30-second
 sound probe have measured limits; see the evidence before choosing a workload.

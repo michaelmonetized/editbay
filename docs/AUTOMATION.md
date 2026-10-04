@@ -1,7 +1,7 @@
 # Native document automation
 
 EB-007 contract, 2026-10-03. Automation and the CLI use `editbay-core`'s typed
-document commands. The R1 native UI will use the same editor; there is no separate
+document commands. The R1 native UI uses the same editor; there is no separate
 agent document format or provider-specific authoring path.
 
 ## Start a scoped server

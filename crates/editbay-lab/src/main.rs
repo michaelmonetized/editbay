@@ -13,6 +13,7 @@ use std::{
 use tempfile::NamedTempFile;
 
 mod inventory;
+mod native_workspace;
 
 type Result<T> = std::result::Result<T, Box<dyn std::error::Error>>;
 
@@ -796,6 +797,18 @@ fn run(args: Vec<OsString>) -> Result<()> {
             json!({"kind":"native_runtime_provenance","sha256":hash(library)?,"build":editbay_ai::runtime_build_info()?})
         }
         ("inventory", 3) => inventory::run(Path::new(&args[1]), Path::new(&args[2]))?,
+        ("native-workspace", 4) => {
+            native_workspace::run(Path::new(&args[1]), Path::new(&args[2]), number(&args[3])?)?
+        }
+        ("native-workspace-timing", 3) => {
+            native_workspace::timing(Path::new(&args[1]), Path::new(&args[2]))?
+        }
+        ("native-workspace-errors", 3) => {
+            native_workspace::errors(Path::new(&args[1]), Path::new(&args[2]))?
+        }
+        ("native-error-worker", 3) => {
+            native_workspace::error_trial(Path::new(&args[1]), Path::new(&args[2]), true)?
+        }
         ("rvm", 5) => rvm_probe(
             Path::new(&args[1]),
             Path::new(&args[2]),
@@ -848,7 +861,7 @@ fn run(args: Vec<OsString>) -> Result<()> {
         }
         ("--help", 0 | 1) => {
             println!(
-                "EditBay native feasibility lab\n  probe SOURCE FRAME_LIMIT\n  playback SOURCE SECONDS\n  export SOURCE NEW_MKV FRAME_LIMIT\n  cancel-export SOURCE NEW_MKV FRAME_LIMIT CANCEL_MS\n  runtime-info ORT_LIBRARY\n  inventory MEDIA_DIRECTORY NEW_JSON_REPORT\n  rvm SOURCE VERIFIED_MODEL ORT_LIBRARY FRAME_LIMIT\n  sam2 SOURCE VERIFIED_PACK ORT_LIBRARY FRAME_LIMIT X Y\n  sam2-fixture NEW_MKV"
+                "EditBay native feasibility lab\n  probe SOURCE FRAME_LIMIT\n  playback SOURCE SECONDS\n  export SOURCE NEW_MKV FRAME_LIMIT\n  cancel-export SOURCE NEW_MKV FRAME_LIMIT CANCEL_MS\n  runtime-info ORT_LIBRARY\n  inventory MEDIA_DIRECTORY NEW_JSON_REPORT\n  native-workspace APP_BINARY NEW_EVIDENCE_DIRECTORY TRIALS\n  native-workspace-timing APP_BINARY NEW_EVIDENCE_DIRECTORY\n  native-workspace-errors APP_BINARY NEW_EVIDENCE_DIRECTORY\n  rvm SOURCE VERIFIED_MODEL ORT_LIBRARY FRAME_LIMIT\n  sam2 SOURCE VERIFIED_PACK ORT_LIBRARY FRAME_LIMIT X Y\n  sam2-fixture NEW_MKV"
             );
             #[cfg(feature = "torch-reference")]
             println!(

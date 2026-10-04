@@ -1,0 +1,71 @@
+{
+  "application_sha256": "79d6903ff0dacd7d687f5666426944beafa7f6d307922e8c08060c2fabe03c8d",
+  "edit_intervals": {
+    "count": 23,
+    "max_ms": 546.421,
+    "p50_ms": 511.012,
+    "p95_ms": 540.79
+  },
+  "first_continuous_publication_ms": 9807.159,
+  "first_publication": {
+    "details": {
+      "active": "d4405097-fcd8-4a11-a7c8-7e81b2fdfff3",
+      "last_recovery_commit_us": 318,
+      "recovery_publications": 1,
+      "tabs": [
+        {
+          "dirty": true,
+          "name": "Timing 019 active",
+          "path": null,
+          "project": "4414a975-1abb-4160-bab0-5662168bead5",
+          "recovery_error": null,
+          "recovery_revision": 19,
+          "revision": 19,
+          "session": "d4405097-fcd8-4a11-a7c8-7e81b2fdfff3"
+        }
+      ]
+    },
+    "dropped_before": 0,
+    "kind": "workspace",
+    "pid": 3255534,
+    "unix_us": 1791078930309844
+  },
+  "input_injection_to_ui_acceptance": {
+    "count": 24,
+    "max_ms": 24.608,
+    "p50_ms": 8.426,
+    "p95_ms": 16.844
+  },
+  "kind": "native_recovery_timing",
+  "last_publication": {
+    "details": {
+      "active": "d4405097-fcd8-4a11-a7c8-7e81b2fdfff3",
+      "last_recovery_commit_us": 921,
+      "recovery_publications": 2,
+      "tabs": [
+        {
+          "dirty": true,
+          "name": "Timing 023 active",
+          "path": null,
+          "project": "4414a975-1abb-4160-bab0-5662168bead5",
+          "recovery_error": null,
+          "recovery_revision": 23,
+          "revision": 23,
+          "session": "d4405097-fcd8-4a11-a7c8-7e81b2fdfff3"
+        }
+      ]
+    },
+    "dropped_before": 0,
+    "kind": "workspace",
+    "pid": 3255534,
+    "unix_us": 1791078933185926
+  },
+  "latest_idle_publication_ms": 1051.024,
+  "limits": [
+    "Observed UI acknowledgements include event scheduling and durable filesystem publication",
+    "The idle gate measures the 1 s debounce plus up to 250 ms for worker/UI publication; continuous edits require publication within 10 s"
+  ],
+  "pass": true,
+  "revisions": 23,
+  "schema": 1
+}

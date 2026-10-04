@@ -9,8 +9,9 @@ mod storage;
 pub use command::{CommandReceipt, DocumentCommand, DocumentEditor, DocumentVersion};
 pub use document::{FrameRate, PROJECT_SCHEMA, Project, Sequence};
 pub use storage::{
-    RecoveryCatalog, RecoveryFailure, RecoveryRecord, checkpoint, load, recover_copy,
-    recovery_catalog, save, save_if_unchanged, save_new,
+    PreparedCheckpoint, RecoveryCatalog, RecoveryFailure, RecoveryRecord, checkpoint, load,
+    load_bounded, prepare_checkpoint, recover_copy, recovery_catalog, save, save_if_unchanged,
+    save_new,
 };
 
 #[derive(Debug, thiserror::Error)]

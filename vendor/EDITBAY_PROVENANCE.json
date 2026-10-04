@@ -1,0 +1,30 @@
+{
+  "schema": 1,
+  "omadesign_reference": "c4813ef9a9628274778047e880a3aff6ea98d199",
+  "upstream_egui_commit": "4c1f2fae95475a40e524884ebb298bcb1714b08e",
+  "crates": [
+    {
+      "name": "eframe",
+      "version": "0.36.1",
+      "archive_sha256": "2afc0cbcdb6896b7bfb1dbbebaf7b9af9635ff38fd01e89bdd0174c1717b1857",
+      "changes": ["Omadesign Wayland redraw polling guard and four tests", "Test module placed after implementation for Clippy", "Workspace resolver and removal of retired lint", "Scoped upstream Clippy configuration"],
+      "final_files": {
+        "src/native/run.rs": "697220cd77797f56c7083745d8c7754f9fbf0c629956940aa7f880d4cac53d0d",
+        "Cargo.toml": "d150420bd45b59dce318c7c4fb88ec4971547b568d391b1197768275449311c3"
+      }
+    },
+    {
+      "name": "egui-winit",
+      "version": "0.36.1",
+      "archive_sha256": "9327fc8edef2c57db9bcbcacc82c8a4b1e8cc64cd41a67db4419dcf643d88c83",
+      "upstream_src_lib_sha256": "45dccc061b2ef2b60b9c4d5379055b163cee7be770308bb67ca033916078f398",
+      "changes": ["Omadesign clipboard/modifier handling and five tests", "Redundant wildcard fields removed for Clippy", "Workspace resolver and removal of retired lint", "Scoped upstream Clippy configuration"],
+      "final_files": {
+        "src/lib.rs": "8069ae457c4d2a5cae79f11e9a05614157d27e7a5eb10dd8b08eb883c7a816b7",
+        "Cargo.toml": "b762ab57eaa53d79af3a3b68d8accc38e8f727b234a64ae0f7fe087b515d44ae"
+      }
+    }
+  ],
+  "validation": "Nine SDK tests and five eframe documentation examples run in the normal EditBay workspace test suite. Native evidence is separate in docs/evidence/r1-workspace.",
+  "licenses": ["Each crate retains upstream MIT and Apache notices", "OMADESIGN-LICENSE-MIT records the copied adapter license"]
+}
