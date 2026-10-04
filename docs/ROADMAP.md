@@ -53,8 +53,14 @@ schema 2 media/composition/animation data, exact time mapping, typed reversible
 commands, safe legacy migration and revision-owned frame-plan inspection are
 implemented; see [document model](DOCUMENT_MODEL.md) and the separate
 [document evidence](evidence/r2-document/README.md), including a fresh 100-trial
-native recovery regression. Production ingest, shared
-picture/sound evaluation, scheduling, GPU handoff and hardware gates remain open.
+native recovery regression. Native isolated ingest, explicit stream selection,
+indexed picture seeking and original-channel sound now use the shared command,
+undo/save/recovery path; see [media ingest](MEDIA_INGEST.md). EB-021 remains partial:
+image sequences and explicit camera SDK support remain open. Shared picture/sound
+evaluation, caches, scheduling, GPU handoff and hardware gates remain open.
+The ingest layer passes another 100-trial native recovery regression; input p95
+26.730 ms. Real indexed seek agrees pixel for pixel but exceeds the warm-seek
+budget; see [ingest evidence](evidence/r2-media/README.md).
 Quantitative enterprise/GTM budgets are set in [release criteria](RELEASE_CRITERIA.md).
 
 ## Milestone map

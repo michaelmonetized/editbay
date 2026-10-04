@@ -1,0 +1,59 @@
+{
+  "recorded_utc": "2026-10-04 09:54:01 UTC",
+  "environment": "Local Omarchy, Apple M1 Pro, AArch64, Rust/Cargo 1.98.0; CARGO_TARGET_DIR=/var/tmp/editbay-build; CARGO_INCREMENTAL=0",
+  "checks": [
+    {
+      "command": "cargo test --workspace --locked",
+      "exit_code": 0,
+      "tests": 89,
+      "documentation_examples": 5,
+      "log": "workspace-tests.log"
+    },
+    {
+      "command": "cargo test --workspace --all-features --locked",
+      "environment": "EDITBAY_LIBTORCH=/var/tmp/editbay-native-torch/torch LD_LIBRARY_PATH=/var/tmp/editbay-native-torch/torch/lib",
+      "exit_code": 0,
+      "tests": 90,
+      "documentation_examples": 5,
+      "log": "all-feature-tests.log"
+    },
+    {
+      "command": "cargo test -p editbay-lab --locked",
+      "exit_code": 0,
+      "tests": 3,
+      "scope": "Later driver-only changes",
+      "log": "lab-tests.log"
+    },
+    {
+      "command": "cargo clippy --workspace --all-targets --all-features --locked -- -D warnings",
+      "environment": "EDITBAY_LIBTORCH=/var/tmp/editbay-native-torch/torch LD_LIBRARY_PATH=/var/tmp/editbay-native-torch/torch/lib",
+      "exit_code": 0,
+      "log": "clippy.log"
+    },
+    {
+      "command": "cargo fmt --all -- --check",
+      "exit_code": 0,
+      "log": "fmt.log"
+    },
+    {
+      "command": "editbay-lab native-media editbay-studio CAMERA_SOURCE NEW_EVIDENCE_DIRECTORY",
+      "exit_code": 0,
+      "receipt": "native-camera.json",
+      "timestamps": "Actual observations retain unix_us"
+    },
+    {
+      "command": "editbay-lab media-ingest SOURCE",
+      "exit_code": 0,
+      "receipts": [
+        "real-camera-qualification.json",
+        "real-portrait-qualification.json"
+      ]
+    },
+    {
+      "command": "editbay-lab-portal native-workspace editbay-studio NEW_EVIDENCE_DIRECTORY 100",
+      "exit_code": 0,
+      "receipt": "recovery-qualification.json",
+      "timestamps": "Actual observations retain acknowledged_unix_us"
+    }
+  ]
+}

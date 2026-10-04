@@ -115,13 +115,25 @@ fn delayed_video_and_resampled_sound_drain_without_losing_the_tail() {
     let mut decoder = VideoReader::open(&path).unwrap();
     let mut frames = 0;
     let mut previous = None;
+    let mut originals = Vec::new();
     while let Some(frame) = decoder.next_frame().unwrap() {
         let timestamp = frame.timestamp_ns.unwrap();
         assert!(previous.is_none_or(|old| timestamp > old));
         previous = Some(timestamp);
         frames += 1;
+        originals.push(frame);
     }
     assert_eq!(frames, 30);
+    for index in [29, 0, 14, 28, 1] {
+        let original = &originals[index];
+        assert_eq!(
+            decoder
+                .frame_at(original.source_tick.unwrap())
+                .unwrap()
+                .rgba,
+            original.rgba
+        );
+    }
     let mut audio = AudioReader::open(&path).unwrap();
     let mut samples = Vec::new();
     while let Some(block) = audio.next_samples().unwrap() {

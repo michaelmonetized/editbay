@@ -60,6 +60,9 @@ cargo test --workspace --locked
 ./bin/editbay apply /path/to/client/cut.editbay /path/to/commands.json
 ./bin/editbay frame-plan /path/to/client/cut.editbay COMPOSITION_UUID 24
 ./bin/editbay migrate /path/to/legacy.editbay /path/to/new-format.editbay
+./bin/editbay probe-media /path/to/camera.mp4
+./bin/editbay ingest /path/to/client/cut.editbay /path/to/camera.mp4 0,1
+./bin/editbay decode-frame /path/to/camera.mp4 1 SOURCE_TICK
 ./bin/editbay checkpoint /path/to/client/cut.editbay /path/to/recovery
 ./bin/editbay recoveries /path/to/recovery
 ./bin/editbay recover /path/to/checkpoint /path/to/Recovered.editbay
@@ -92,6 +95,9 @@ save. Its startup paths grant scope; RPC calls cannot choose arbitrary files.
 Typed sources/compositions/animation and frame-plan inspection now share the core
 command, undo, save and recovery path. Existing schema 1 projects/checkpoints
 migrate in memory; their source bytes remain intact until explicit save. Native
-timeline gestures, evaluated picture/sound output, full media delivery, cloud and artist inference workflows
+media import selects actual streams, indexes picture timestamps and preserves
+original sound channels through undo/save/recovery; see
+[native ingest](docs/MEDIA_INGEST.md). Native timeline gestures, evaluated
+picture/sound output, full media delivery, cloud and artist inference workflows
 remain roadmap work. The lab's picture-only exporter and 30-second
 sound probe have measured limits; see the evidence before choosing a workload.

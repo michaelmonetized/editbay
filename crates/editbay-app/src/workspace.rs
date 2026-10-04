@@ -28,6 +28,13 @@ pub struct Tab {
     retry_after: Instant,
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct DocumentOwner {
+    pub tab: Uuid,
+    pub version: DocumentVersion,
+    generation: u64,
+}
+
 impl Tab {
     /// Determine whether this document still needs a manual save.
     /// Takes no arguments; returns true for untitled or changed documents,
@@ -85,6 +92,68 @@ pub struct Workspace {
 }
 
 impl Workspace {
+    /// Capture a document for a background authoring operation.
+    /// `id` selects its independent session. Returns ownership and a cheap
+    /// immutable editor clone; save/replacement/edit/close invalidates ownership.
+    pub fn edit_snapshot(&self, id: Uuid) -> Result<(DocumentOwner, DocumentEditor), String> {
+        let tab = self
+            .tabs
+            .iter()
+            .find(|tab| tab.id == id)
+            .ok_or("This document is no longer open")?;
+        Ok((
+            DocumentOwner {
+                tab: id,
+                version: DocumentVersion::of(tab.editor.project()),
+                generation: tab.generation,
+            },
+            tab.editor.clone(),
+        ))
+    }
+
+    /// Check that a worker still owns its starting document session.
+    /// `owner` was captured before work. Returns false after an edit, save,
+    /// replacement or close; switching to another tab does not invalidate it.
+    pub fn owns(&self, owner: DocumentOwner) -> bool {
+        self.tabs.iter().any(|tab| {
+            tab.id == owner.tab
+                && tab.generation == owner.generation
+                && DocumentVersion::of(tab.editor.project()) == owner.version
+        })
+    }
+
+    /// Publish an already validated background command result.
+    /// `owner` captures the starting session and `editor` contains one newer
+    /// revision. Returns a stale error before mutation if ownership changed.
+    pub fn commit_edit(
+        &mut self,
+        owner: DocumentOwner,
+        editor: DocumentEditor,
+    ) -> Result<(), String> {
+        if !self.owns(owner) {
+            return Err("Media import belongs to an older project state; import again".into());
+        }
+        if editor.project().id != owner.version.project_id
+            || editor.project().revision
+                != owner
+                    .version
+                    .revision
+                    .checked_add(1)
+                    .ok_or("Document revision overflow")?
+        {
+            return Err("Worker returned an invalid document revision".into());
+        }
+        let tab = self.tab_mut(owner.tab)?;
+        let was_dirty = tab.dirty();
+        tab.editor = editor;
+        tab.last_edit = Instant::now();
+        if !was_dirty {
+            tab.recovery_since = tab.last_edit;
+        }
+        self.wake.request_repaint();
+        Ok(())
+    }
+
     /// Own local documents and bounded filesystem workers.
     /// `recovery_root` selects EditBay's independent recovery storage; `wake`
     /// receives worker repaint requests. Returns an empty offline workspace.

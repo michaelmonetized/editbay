@@ -1,6 +1,9 @@
 fn main() {
     let mut adapter = cc::Build::new();
-    adapter.file("native/codec.c").warnings_into_errors(true);
+    adapter
+        .files(["native/codec.c", "native/reader.c"])
+        .flag_if_supported("-std=c11")
+        .warnings_into_errors(true);
     for library in [
         "libavformat",
         "libavcodec",
@@ -17,4 +20,5 @@ fn main() {
     }
     adapter.compile("editbay_codec");
     println!("cargo:rerun-if-changed=native/codec.c");
+    println!("cargo:rerun-if-changed=native/reader.c");
 }

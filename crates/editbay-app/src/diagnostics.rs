@@ -19,6 +19,9 @@ struct Tab {
     dirty: bool,
     recovery_revision: Option<u64>,
     recovery_error: Option<String>,
+    sources: usize,
+    compositions: usize,
+    assets: usize,
 }
 
 pub struct Diagnostics {
@@ -27,6 +30,7 @@ pub struct Diagnostics {
     previous: Vec<Tab>,
     previous_active: Option<uuid::Uuid>,
     dropped: u64,
+    previous_media: Value,
 }
 
 impl Diagnostics {
@@ -71,6 +75,7 @@ impl Diagnostics {
             previous: Vec::new(),
             previous_active: None,
             dropped: 0,
+            previous_media: Value::Null,
         })
     }
 
@@ -88,7 +93,7 @@ impl Diagnostics {
     /// Publish changed native document state after real UI actions and worker acknowledgements.
     /// `workspace` is the live owner. Returns no value; checkpoint revisions reflect
     /// completed durable publication, never a scheduled or prepared job.
-    pub fn observe(&mut self, workspace: &Workspace) {
+    pub fn observe(&mut self, workspace: &Workspace, media: &crate::media_ui::MediaPane) {
         let current: Vec<_> = workspace
             .tabs
             .iter()
@@ -101,12 +106,20 @@ impl Diagnostics {
                 dirty: tab.dirty(),
                 recovery_revision: tab.recovery_revision,
                 recovery_error: tab.recovery_error.clone(),
+                sources: tab.editor.project().sources.len(),
+                compositions: tab.editor.project().compositions.len(),
+                assets: tab.editor.project().assets.len(),
             })
             .collect();
         if current != self.previous || workspace.active != self.previous_active {
             self.record("workspace", json!({"tabs":&current,"active":workspace.active,"recovery_publications":workspace.recovery_commit_times.len(),"last_recovery_commit_us":workspace.recovery_commit_times.last().map(|time|time.as_micros() as u64)}));
             self.previous = current;
             self.previous_active = workspace.active;
+        }
+        let current_media = media.diagnostic_state();
+        if current_media != self.previous_media {
+            self.record("media", current_media.clone());
+            self.previous_media = current_media;
         }
     }
 

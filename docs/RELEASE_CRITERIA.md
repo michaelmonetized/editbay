@@ -63,5 +63,15 @@ R2's typed document, migration and frame-plan slice passes its software checks
 and a fresh 100-trial native workspace regression; see
 [R2 document evidence](evidence/r2-document/README.md). Its production picture,
 sound, seek, cache and long-playback gates remain open.
+R2 native stream ingest passes real source/worker/window/save/recovery checks;
+see [ingest evidence](evidence/r2-media/README.md). Uncached CPU seek p95 is
+631.905 ms for the portrait source and 469.515 ms for the camera source, above the
+unchanged 250 ms warm target. Exact pixels and native sound samples pass; cache,
+shared rendering, playback/drift, image sequences and the hardware matrix remain
+open. Import cancellation through the actual window measures 126.238 ms.
+A fresh native 100/100 recovery regression on the ingest artifact retains
+originals/checkpoints and independent identities; input p95 is 26.730 ms and
+UI checkpoint publication p95 is 0.928 ms. Incomplete driver attempts are
+recorded separately and do not count as passing trials.
 Other hardware, production model packs and full workflows remain R2–R11 gates.
 See `IMPLEMENTATION_STATUS.md` for implementation and measurement receipts.

@@ -1,0 +1,16 @@
+   Compiling editbay-lab v0.1.0 (/home/michael/Projects/editbay/crates/editbay-lab)
+    Finished `test` profile [unoptimized] target(s) in 0.64s
+     Running unittests src/main.rs (/var/tmp/editbay-build/debug/deps/editbay_lab-b142b69e27fbc3c8)
+
+running 0 tests
+
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+     Running tests/worker.rs (/var/tmp/editbay-build/debug/deps/worker-86380b0e23e29f4d)
+
+running 3 tests
+test cancellation_and_codec_failure_leave_no_partial_destination_or_worker_files ... ok
+test source_inventory_checks_real_pictures_and_reports_failures_without_following_symlinks_or_replacing_files ... ok
+test actual_background_export_verifies_pixels_and_preserves_existing_work ... ok
+
+test result: ok. 3 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.20s

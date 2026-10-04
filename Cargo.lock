@@ -1184,6 +1184,7 @@ name = "editbay-app"
 version = "0.1.0"
 dependencies = [
  "editbay-core",
+ "editbay-media",
  "eframe",
  "egui",
  "egui-wgpu",
@@ -1225,8 +1226,10 @@ name = "editbay-cli"
 version = "0.1.0"
 dependencies = [
  "editbay-core",
+ "editbay-media",
  "serde",
  "serde_json",
+ "sha2",
  "tempfile",
  "uuid",
 ]
@@ -1266,11 +1269,15 @@ name = "editbay-media"
 version = "0.1.0"
 dependencies = [
  "cc",
+ "editbay-core",
  "libc",
  "pkg-config",
  "serde",
+ "serde_json",
+ "sha2",
  "tempfile",
  "thiserror 2.0.21",
+ "uuid",
 ]
 
 [[package]]
