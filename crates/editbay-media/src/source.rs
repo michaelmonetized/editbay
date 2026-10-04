@@ -136,6 +136,15 @@ impl SourceFile {
         Ok(())
     }
 
+    /// Check retained file ownership between decoded-frame requests.
+    /// `cancel` interrupts the job. Returns success only while pathname, inode,
+    /// byte count and modification/change stamps match the full-hash preflight.
+    /// Final job publication still requires `verify` to check all bytes again.
+    pub fn check_current(&self, cancel: &Cancellation) -> Result<()> {
+        cancel.check()?;
+        self.check_identity()
+    }
+
     /// Recheck both pathname ownership and all source bytes.
     /// `cancel` interrupts hashing. Returns success only if the source still
     /// matches the initial descriptor, metadata and complete checksum.

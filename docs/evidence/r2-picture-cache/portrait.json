@@ -1,0 +1,288 @@
+{
+  "active_cancel": {
+    "after_cancel_ms": 3.381145,
+    "budget_ms": 2000.0,
+    "cancelled": true,
+    "delay_ms": 10,
+    "native_seek_issued": true,
+    "pass": true,
+    "stats": {
+      "cache_bytes": 8294400,
+      "decoders": 0,
+      "entries": 1,
+      "evictions": 0,
+      "hits": 0,
+      "live_bytes": 8294400,
+      "misses": 2,
+      "seeks": 1,
+      "sequential_decodes": 1,
+      "sources": 1
+    },
+    "work_wall_ms": 13.306037,
+    "worker_joined": true
+  },
+  "actual_indexed_pictures": 528,
+  "application_version": "0.1.0",
+  "architecture": "aarch64",
+  "budget": {
+    "cache_bytes": 268435456,
+    "cache_entries": 128,
+    "decoder_handles": 4,
+    "live_bytes": 402653184,
+    "maximum_picture_bytes": 67108864,
+    "source_handles": 16
+  },
+  "cleanup": {
+    "cache_bytes": 0,
+    "decoders": 0,
+    "entries": 0,
+    "evictions": 88,
+    "hits": 1000,
+    "live_bytes": 0,
+    "misses": 145,
+    "seeks": 25,
+    "sequential_decodes": 120,
+    "sources": 0
+  },
+  "codec_runtime": "n9.0.1",
+  "empty_output_cache_requests": {
+    "count": 25,
+    "max_ms": 973.1149810000001,
+    "p50_ms": 273.814208,
+    "p95_ms": 941.064041
+  },
+  "fingerprint": {
+    "bytes": 777868,
+    "sha256": "872e2e7f3cb19ff13653bea9784c48d78969ceb4b8f7da18d1ea5c7cbaa9a48f"
+  },
+  "full_R2_seek_gate_qualified": false,
+  "geometry": [
+    1080,
+    1920
+  ],
+  "hit_budget_pass": true,
+  "hit_p95_budget_ms": 250.0,
+  "immutable_shared_hits": {
+    "count": 1000,
+    "max_ms": 0.026083000000000002,
+    "p50_ms": 0.003333,
+    "p95_ms": 0.003417
+  },
+  "independent_pixel_checks": [
+    {
+      "miss_ms": 170.380843,
+      "ordinal": 527,
+      "rgba_sha256": "bd7b7adb36f64170e728abd72968f6156af1573c4b3d644ff91cf52d687aaf5c",
+      "source_tick": 1581000
+    },
+    {
+      "miss_ms": 271.535943,
+      "ordinal": 505,
+      "rgba_sha256": "556fab6a7da8bbb23baa2309f58dae06aa562f8917588f228b8b35fc3ea11c83",
+      "source_tick": 1515000
+    },
+    {
+      "miss_ms": 161.35495699999998,
+      "ordinal": 483,
+      "rgba_sha256": "0e3963a6a85060f2ba0f9a4fe479628c4e917c7f11f2afa576d1371b052c8481",
+      "source_tick": 1449000
+    },
+    {
+      "miss_ms": 46.915278,
+      "ordinal": 461,
+      "rgba_sha256": "49836f5a5c744f6cb98bbd479e9f25f1ce00ed49e0fd77fadb60cb52791c36ca",
+      "source_tick": 1383000
+    },
+    {
+      "miss_ms": 644.204529,
+      "ordinal": 439,
+      "rgba_sha256": "fe9efed7bb7731d81a347d33fa36f0a8c35326d0efefccee4e0a56356451d52e",
+      "source_tick": 1317000
+    },
+    {
+      "miss_ms": 538.2024,
+      "ordinal": 417,
+      "rgba_sha256": "2b1e087ed6b4b65fb562f64f96fb720c9fe7a9514a0b37a2f8555f4570384b72",
+      "source_tick": 1251000
+    },
+    {
+      "miss_ms": 461.323319,
+      "ordinal": 395,
+      "rgba_sha256": "1db588094b001870c70a6479ca81733b0e5ee58ccd5bbd1cf57c8010fc156e59",
+      "source_tick": 1185000
+    },
+    {
+      "miss_ms": 368.664728,
+      "ordinal": 373,
+      "rgba_sha256": "208dffef521cf0ca29aac776ccd79ab065d12d3761c6c3031e41a6007892066c",
+      "source_tick": 1119000
+    },
+    {
+      "miss_ms": 259.45733,
+      "ordinal": 351,
+      "rgba_sha256": "0e7ac906c7ff6b63125b853fdbf1bcb4ca7953d368360d12e7714c32242e4be8",
+      "source_tick": 1053000
+    },
+    {
+      "miss_ms": 178.888311,
+      "ordinal": 329,
+      "rgba_sha256": "a158f7966a71f748108be0abd90aa505549a3b4c67ba128c050f08dde4a3b5cb",
+      "source_tick": 987000
+    },
+    {
+      "miss_ms": 78.22546399999999,
+      "ordinal": 307,
+      "rgba_sha256": "b95cd90d475deee44ca121efbcb64044fcf4f5c601a153aebead27f41c79b17d",
+      "source_tick": 921000
+    },
+    {
+      "miss_ms": 973.1149810000001,
+      "ordinal": 285,
+      "rgba_sha256": "79e56c5e683e037017350c918cd616748e32a4c0923d0e00d5fb4582995420c3",
+      "source_tick": 855000
+    },
+    {
+      "miss_ms": 941.064041,
+      "ordinal": 263,
+      "rgba_sha256": "307a8dbbe8db92a7199ea65a80a0d2bc39b2945818fa91cdc588fb4cbc86f1a2",
+      "source_tick": 789000
+    },
+    {
+      "miss_ms": 838.596725,
+      "ordinal": 241,
+      "rgba_sha256": "79da951269d089346a980f4f3d48b9399fa1ddb05dbffc70270f4b65737a98b6",
+      "source_tick": 723000
+    },
+    {
+      "miss_ms": 751.93842,
+      "ordinal": 219,
+      "rgba_sha256": "bb66e03c1fe1194e8ca8e4f42169198a010822b8d8c10e161f690aaf06c96f74",
+      "source_tick": 657000
+    },
+    {
+      "miss_ms": 669.934558,
+      "ordinal": 197,
+      "rgba_sha256": "aa435fd991934d4cff07b266171543742ee3f84d43f0410429746a8fbe9aa573",
+      "source_tick": 591000
+    },
+    {
+      "miss_ms": 582.137329,
+      "ordinal": 175,
+      "rgba_sha256": "979834e4c90c3de225afa51a07f4232f9cd517d2ee538d6d4aafe5015e2307cc",
+      "source_tick": 525000
+    },
+    {
+      "miss_ms": 493.474178,
+      "ordinal": 153,
+      "rgba_sha256": "d85017e79667590add8c277ce3f94b878fd2221f59f5e81e99c29d364b49126b",
+      "source_tick": 459000
+    },
+    {
+      "miss_ms": 364.005493,
+      "ordinal": 131,
+      "rgba_sha256": "1b2d21fcba11655ee606883a4471b8a7c81d21beff069c4e988e92217249bff4",
+      "source_tick": 393000
+    },
+    {
+      "miss_ms": 273.814208,
+      "ordinal": 109,
+      "rgba_sha256": "fd94094249bde74e6a708c81ebed7d420cd5dd4b68f0075bea6f765889ba028e",
+      "source_tick": 327000
+    },
+    {
+      "miss_ms": 187.179277,
+      "ordinal": 87,
+      "rgba_sha256": "750771da8d282bf8edacffe6626f89b713f4fe34f3ca9b71b8bf7bb5b9d697be",
+      "source_tick": 261000
+    },
+    {
+      "miss_ms": 93.141803,
+      "ordinal": 65,
+      "rgba_sha256": "50242a94e7760fd8c29adcea361122080a9a207ab2f8358a6dba23cb5c8e6bb6",
+      "source_tick": 195000
+    },
+    {
+      "miss_ms": 170.01709300000002,
+      "ordinal": 43,
+      "rgba_sha256": "eed5bb563ff8f1b5de4ae379c422c400acb467d508bd260fa9ac1afd0e25850b",
+      "source_tick": 129000
+    },
+    {
+      "miss_ms": 97.847664,
+      "ordinal": 21,
+      "rgba_sha256": "0a414178d53c16af4366b5e53e86cfd1b505b0f9a1994d610a67b1dc7d39bf3a",
+      "source_tick": 63000
+    },
+    {
+      "miss_ms": 16.51189,
+      "ordinal": 0,
+      "rgba_sha256": "6e915a9dfb4ceb7d806d8e45a04d2d7bd09af4a77530e45c4b649c265731f778",
+      "source_tick": 0
+    }
+  ],
+  "kind": "source_owned_decoded_picture_cache",
+  "limits": [
+    "CPU RGBA8 payload cache only; native decoder buffers and allocator overhead are not its output-byte accounting",
+    "empty output cache measurements retain OS page-cache warmth and are not physical cold-disk proof",
+    "hit measurements share the independently verified Arc; no pixel copies, GPU upload or surface presentation",
+    "source binding/checksum/open costs appear on the first miss; final full verification occurs before job publication",
+    "sequential requests are capped at 120 actual frames and do not prove long native playback",
+    "source handles stay retained up to the declared per-job cap; decoder and picture entries use LRU eviction",
+    "native UI IPC, graph output, working/HDR color, hardware texture handoff, full seek and audio drift remain open"
+  ],
+  "memory": [
+    "VmHWM:\t  347536 kB",
+    "VmRSS:\t   91648 kB"
+  ],
+  "populated": {
+    "cache_bytes": 207360000,
+    "decoders": 1,
+    "entries": 25,
+    "evictions": 0,
+    "hits": 0,
+    "live_bytes": 207360000,
+    "misses": 25,
+    "seeks": 25,
+    "sequential_decodes": 0,
+    "sources": 1
+  },
+  "schema": 1,
+  "selected_stream": 0,
+  "sequenced": {
+    "cache_bytes": 265420800,
+    "decoders": 1,
+    "entries": 32,
+    "evictions": 88,
+    "hits": 1000,
+    "live_bytes": 265420800,
+    "misses": 145,
+    "seeks": 25,
+    "sequential_decodes": 120,
+    "sources": 1
+  },
+  "sequential": {
+    "count": 120,
+    "max_ms": 31.227892999999998,
+    "p50_ms": 2.031762,
+    "p95_ms": 3.727481
+  },
+  "source": "/home/michael/Videos/omadesign/reels-42-2026-09-30/renders/41.mp4",
+  "source_unchanged": true,
+  "stream_sha256": "5599fbc036d8e9be732849e3c36bd889a47273f2895a08c546785bbeb7dc558b",
+  "version": {
+    "project_id": "6584bedd-460d-4345-a4fb-f6358eb0b138",
+    "revision": 0
+  },
+  "warmed": {
+    "cache_bytes": 207360000,
+    "decoders": 1,
+    "entries": 25,
+    "evictions": 0,
+    "hits": 1000,
+    "live_bytes": 207360000,
+    "misses": 25,
+    "seeks": 25,
+    "sequential_decodes": 0,
+    "sources": 1
+  }
+}

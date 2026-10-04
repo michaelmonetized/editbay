@@ -67,6 +67,12 @@ dimensions, source/mask bytes, dependencies, gamut and float precision; document
 version separately controls publication. Audio keys describe a point, not a block.
 The real GPU renderer/audio interval engine and their caches remain open; see
 [temporal evaluation](TEMPORAL_EVALUATION.md).
+The native decoded-picture provider retains exact indexed source requests,
+immutable raw pixels, decoder cursors and declared cache/live-output/handle limits.
+Consumer-held pixels remain charged after eviction. Rebinding invalidates prior
+receipts and preserves matching content under a fresh cancellation token. Native
+IPC/process integration, GPU output caches and presentation remain open; see
+[decoded pictures](PICTURE_CACHE.md).
 Schema 1 migrates after integrity verification without writing its source; unknown
 schemas fail. Format-copy migration uses a separate destination.
 

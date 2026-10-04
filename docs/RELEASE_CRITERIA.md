@@ -79,5 +79,11 @@ It preserves the published integer inspector and covers exact fractional/reverse
 boundaries and content invalidation; see [temporal evidence](evidence/r2-temporal/README.md).
 This does not satisfy rendered preview/export, decoded/GPU cache, seek, sound-block,
 presentation or drift gates. The production renderer/audio/cache layer remains open.
+The raw decoded-picture cache passes real pixel, hit-sharing, payload/pin budgets,
+eviction, cleanup, version rebinding and active cancellation checks. Cache-hit p95
+is 0.005/0.003417 ms for camera/portrait; uncached miss p95 remains 295.999/941.064 ms.
+This measures CPU raw-picture access, not graph/GPU/native presentation latency;
+see [cache evidence](evidence/r2-picture-cache/README.md). Full seek and playback
+gates remain open, including native IPC, rendered output, audio and hardware.
 Other hardware, production model packs and full workflows remain R2–R11 gates.
 See `IMPLEMENTATION_STATUS.md` for implementation and measurement receipts.
