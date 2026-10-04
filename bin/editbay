@@ -1,5 +1,11 @@
 #!/usr/bin/env bash
 set -euo pipefail
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
-exec cargo run --quiet --locked --manifest-path "$ROOT/Cargo.toml" --package editbay-cli -- "$@"
-
+case "${1-}" in
+  new|info|rename|checkpoint|recoveries|recover|--help|-h|--version|-V)
+    exec cargo run --quiet --locked --manifest-path "$ROOT/Cargo.toml" --package editbay-cli -- "$@"
+    ;;
+  *)
+    exec cargo run --quiet --locked --manifest-path "$ROOT/Cargo.toml" --package editbay-app --bin editbay-studio -- "$@"
+    ;;
+esac

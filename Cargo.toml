@@ -1,5 +1,6 @@
 [workspace]
-members = ["crates/editbay-core", "crates/editbay-cli", "crates/editbay-media", "crates/editbay-render", "crates/editbay-audio", "crates/editbay-lab", "crates/editbay-ai", "crates/editbay-reference", "crates/editbay-automation"]
+members = ["crates/editbay-core", "crates/editbay-cli", "crates/editbay-media", "crates/editbay-render", "crates/editbay-audio", "crates/editbay-lab", "crates/editbay-ai", "crates/editbay-reference", "crates/editbay-automation", "crates/editbay-app", "vendor/eframe", "vendor/egui-winit"]
+default-members = ["crates/editbay-core", "crates/editbay-cli", "crates/editbay-media", "crates/editbay-render", "crates/editbay-audio", "crates/editbay-lab", "crates/editbay-ai", "crates/editbay-reference", "crates/editbay-automation", "crates/editbay-app"]
 resolver = "3"
 
 [workspace.package]
@@ -27,6 +28,11 @@ libc = "0.2"
 schemars = { version = "1", features = ["uuid1"] }
 rmcp = { version = "=3.5.0", default-features = false, features = ["macros", "server", "transport-io"] }
 tokio = { version = "1", features = ["rt-multi-thread", "macros"] }
+eframe = { version = "=0.36.1", default-features = false, features = ["default_fonts", "wayland", "x11", "wgpu"] }
+
+[patch.crates-io]
+eframe = { path = "vendor/eframe" }
+egui-winit = { path = "vendor/egui-winit" }
 
 [profile.dev]
 debug = 0

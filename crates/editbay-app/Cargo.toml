@@ -1,0 +1,31 @@
+[package]
+name = "editbay-app"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+description = "Native EditBay welcome and local workspace"
+
+[[bin]]
+name = "editbay-studio"
+path = "src/main.rs"
+
+[dependencies]
+editbay-core = { path = "../editbay-core" }
+eframe.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+uuid.workspace = true
+sha2.workspace = true
+fs2.workspace = true
+egui = "=0.36.1"
+egui-wgpu = "=0.36.1"
+egui-winit = "=0.36.1"
+rfd = { version = "0.15", default-features = false, features = ["xdg-portal", "tokio"] }
+tokio.workspace = true
+
+[dev-dependencies]
+tempfile.workspace = true
+
+[lints]
+workspace = true

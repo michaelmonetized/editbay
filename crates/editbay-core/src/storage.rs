@@ -5,7 +5,7 @@ use sha2::{Digest, Sha256};
 use std::{
     ffi::OsString,
     fs::{self, File, OpenOptions},
-    io::Write,
+    io::{Read, Write},
     path::{Path, PathBuf},
     time::{SystemTime, UNIX_EPOCH},
 };
@@ -37,6 +37,10 @@ pub struct RecoveryRecord {
     pub revision: u64,
     pub saved_at_unix_ms: u64,
     pub original: Option<PathBuf>,
+    pub width: u32,
+    pub height: u32,
+    pub frame_rate: crate::FrameRate,
+    pub sequence_count: usize,
 }
 
 #[derive(Debug, Serialize)]
@@ -53,6 +57,24 @@ pub struct RecoveryCatalog {
 
 pub fn load(path: impl AsRef<Path>) -> Result<Project> {
     let project: Project = serde_json::from_slice(&fs::read(path)?)?;
+    project.validate()?;
+    Ok(project)
+}
+
+/// Read a validated project within a caller's explicit memory budget.
+/// `path` selects the read-only source and `bytes` limits its serialized size.
+/// Returns the shared typed document, or a visible limit/validation error.
+pub fn load_bounded(path: impl AsRef<Path>, bytes: u64) -> Result<Project> {
+    let mut data = Vec::new();
+    File::open(path)?
+        .take(bytes.saturating_add(1))
+        .read_to_end(&mut data)?;
+    if data.len() as u64 > bytes {
+        return Err(Error::Invalid(format!(
+            "project exceeds its {bytes}-byte read budget"
+        )));
+    }
+    let project: Project = serde_json::from_slice(&data)?;
     project.validate()?;
     Ok(project)
 }
@@ -106,7 +128,30 @@ fn absolute_destination(path: &Path) -> Result<PathBuf> {
     let filename = path
         .file_name()
         .ok_or_else(|| Error::Invalid("destination needs a filename".into()))?;
-    Ok(fs::canonicalize(parent(path))?.join(filename))
+    let mut ancestor = parent(path);
+    let mut missing = Vec::new();
+    let mut absolute = loop {
+        match fs::canonicalize(ancestor) {
+            Ok(absolute) => break absolute,
+            Err(error) if error.kind() == std::io::ErrorKind::NotFound => {
+                let component = ancestor.components().next_back().ok_or(error)?;
+                missing.push(component.as_os_str().to_owned());
+                ancestor = ancestor
+                    .parent()
+                    .filter(|p| !p.as_os_str().is_empty())
+                    .unwrap_or(Path::new("."));
+            }
+            Err(error) => return Err(error.into()),
+        }
+    };
+    for component in missing.into_iter().rev() {
+        if component == ".." {
+            absolute.pop();
+        } else if component != "." {
+            absolute.push(component);
+        }
+    }
+    Ok(absolute.join(filename))
 }
 
 fn private_options() -> OpenOptions {
@@ -228,6 +273,47 @@ pub fn checkpoint(
     original: Option<&Path>,
     root: impl AsRef<Path>,
 ) -> Result<PathBuf> {
+    prepare_checkpoint(project, original, root)?.commit()
+}
+
+pub struct PreparedCheckpoint {
+    temporary: PathBuf,
+    destination: PathBuf,
+}
+
+impl PreparedCheckpoint {
+    /// Publish a completely prepared immutable snapshot.
+    /// Consumes this preparation after the caller checks document ownership.
+    /// Returns the synchronized checkpoint path; an existing destination is refused.
+    pub fn commit(self) -> Result<PathBuf> {
+        fs::hard_link(&self.temporary, &self.destination).map_err(|error| {
+            if error.kind() == std::io::ErrorKind::AlreadyExists {
+                Error::Exists(self.destination.clone())
+            } else {
+                Error::Io(error)
+            }
+        })?;
+        fs::remove_file(&self.temporary)?;
+        File::open(parent(&self.destination))?.sync_all()?;
+        Ok(self.destination.clone())
+    }
+}
+
+impl Drop for PreparedCheckpoint {
+    fn drop(&mut self) {
+        let _ = fs::remove_file(&self.temporary);
+    }
+}
+
+/// Prepare recovery bytes without publishing an obsolete worker result.
+/// `project` is an immutable validated revision, `original` its optional saved
+/// path, and `root` the recovery directory. Returns a synchronized private file;
+/// dropping it removes the file, while commit publishes after an ownership check.
+pub fn prepare_checkpoint(
+    project: &Project,
+    original: Option<&Path>,
+    root: impl AsRef<Path>,
+) -> Result<PreparedCheckpoint> {
     project.validate()?;
     let original = original.map(absolute_destination).transpose()?;
     let millis = SystemTime::now()
@@ -248,8 +334,16 @@ pub fn checkpoint(
         project.revision,
         Uuid::new_v4()
     ));
-    atomic_write(&path, &serde_json::to_vec_pretty(&envelope)?, true, None)?;
-    Ok(path)
+    create_parents(&path)?;
+    let prepared = PreparedCheckpoint {
+        temporary: parent(&path).join(format!(".editbay-write-{}.tmp", Uuid::new_v4())),
+        destination: path,
+    };
+    let mut file = private_options().open(&prepared.temporary)?;
+    file.write_all(&serde_json::to_vec_pretty(&envelope)?)?;
+    file.sync_all()?;
+    drop(file);
+    Ok(prepared)
 }
 
 fn read_snapshot(path: &Path) -> Result<Snapshot> {
@@ -318,6 +412,10 @@ pub fn recovery_catalog(root: impl AsRef<Path>) -> Result<RecoveryCatalog> {
                     revision: snapshot.project.revision,
                     saved_at_unix_ms: snapshot.saved_at_unix_ms,
                     original: snapshot.original,
+                    width: snapshot.project.sequences[0].width,
+                    height: snapshot.project.sequences[0].height,
+                    frame_rate: snapshot.project.sequences[0].frame_rate,
+                    sequence_count: snapshot.project.sequences.len(),
                 }),
                 Err(error) => catalog.invalid.push(RecoveryFailure {
                     path,

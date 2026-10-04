@@ -54,6 +54,10 @@ stay outside Git. A receipt includes the exact command, timestamps, exit status,
 metrics and hashes. PRs identify the completed issue(s), parent PR and open gates.
 R0's persistence, documented ARM64 engine/inference feasibility and scoped
 reference/automation gates pass. Interchange converters and completed production
-jobs are not advertised by this milestone. Other hardware, production model packs,
-native UI and full workflows remain their R1–R11 gates.
+jobs are not advertised by this milestone. R1's local native workspace passes its
+100-trial recovery, input, timing, storage-error and inspected layout gates; see
+[R1 evidence](evidence/r1-workspace/README.md). The recovery scheduler starts after
+1 s idle; the timing receipt allows at most 250 ms for worker preparation and
+durable publication, and retains the 10 s continuous-edit maximum.
+Other hardware, production model packs and full workflows remain R2–R11 gates.
 See `IMPLEMENTATION_STATUS.md` for implementation and measurement receipts.

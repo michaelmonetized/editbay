@@ -32,7 +32,8 @@ its entire application. Extract small reusable crates with independent tests.
 | `editbay-automation` | Native MCP, inspection, commands, preview and job access | Same revision/validation/undo path as the UI; no bypass writes |
 | Shared Oma components | Theme/fonts, catalogs, brand/assets, format codecs, recovery patterns | Versioned APIs, independent app identities |
 
-The workspace now includes the core/CLI plus narrow media, render and audio
+The workspace now includes the native `editbay-app` local workspace, core/CLI,
+and narrow media, render and audio
 feasibility crates, native `editbay-ai` video/matting prototypes, optional independent
 reference kernels, the Rust `editbay-lab` tool and scoped `editbay-automation` MCP.
 These prototypes do not establish
@@ -70,7 +71,8 @@ revisions and bounded undo/redo. CLI rename and MCP share it. The MCP service
 saves a candidate through the existing checked writer before replacing its
 session state/history. Only implemented tools are advertised. See
 [automation contract](AUTOMATION.md) for actual scope and subsequent job/source/
-preview requirements; the native UI will adopt the same command path in R1.
+preview requirements. The native UI uses this same editor for rename and history;
+checked saves and separate recovery copies retain the foundation contracts.
 
 Expose real document/render snapshots and job state through a native MCP adapter.
 List capabilities accurately; require expected revisions for mutations; surface
@@ -155,9 +157,13 @@ coordinate writers; checked edits compare the loaded document under the lock to
 reject stale updates. Account for filesystem-specific durability rather than
 promise arbitrary network filesystem behavior.
 
-The first Rust foundation implements validated save/load/checkpoint/recover. It
-does not claim the future idle scheduler, history pruning, native recovery UI,
-or full timeline schema yet.
+The Rust foundation and native workspace implement validated save/load and a
+worker-prepared checkpoint with a short ownership-checked publication. Every dirty
+tab participates in idle/maximum-delay recovery. Native history/preview and
+separate-copy recovery are implemented. History pruning and the full timeline
+schema remain later work. EditBay's local settings and bank metadata have their
+own versions and optimistic writer ownership; see [workspace](LOCAL_WORKSPACE.md)
+and [shared banks](SHARED_BRANDS.md).
 
 ## Cloud and large media
 

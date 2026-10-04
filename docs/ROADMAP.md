@@ -25,8 +25,8 @@ and its validation; milestone completion is broader than that initial slice.
 ## Status and execution rules
 
 - The Cargo workspace is the application implementation and source of truth.
-- Rust project persistence/recovery is the initial implementation slice. A Rust
-  desktop editor, media engine, and cloud integration remain roadmap work.
+- Rust project persistence/recovery and the native local workspace are implemented.
+  Production media authoring, the full engine and cloud integration remain roadmap work.
 - Each issue needs implementation, representative fixtures, user-path validation,
   documentation, and measured limitations before it is complete.
 - Share Omadesign components through small, versioned interfaces after proving
@@ -45,7 +45,10 @@ Production artist/model-pack qualification remains R4/R11 work. EB-006 now has a
 actual source/job inventory and fixed native/migration inputs; EB-007 has the
 scoped native MCP contract and implemented core command/undo tools. See
 [reference evidence](evidence/r0-reference/README.md) and [automation](AUTOMATION.md).
-R0's foundation and documented ARM64 feasibility gates pass; R1 is next.
+R0's foundation and documented ARM64 feasibility gates pass. R1's local workspace
+gates pass, including 100 native kill/recover/reopen trials, input p95 25.086 ms,
+idle/continuous recovery timing, real disk errors and native layout/asset inspection.
+See [workspace evidence](evidence/r1-workspace/README.md). R2 is next.
 Quantitative enterprise/GTM budgets are set in [release criteria](RELEASE_CRITERIA.md).
 
 ## Milestone map
@@ -129,6 +132,10 @@ projects without blocking input or losing work. Test small windows and differing
 Omarchy palettes. Recovery tests do not substitute for native visual inspection.
 
 ## R2 — the production engine
+
+R1 cards show natural-aspect empty sequences. Media cover frames and schema
+migration fixtures follow the actual R2 media/composition implementation; shared
+bank imports preserve original bytes without claiming title/LUT execution.
 
 - **EB-020:** Typed media sources, tracks, nested compositions, timed nodes,
   masks, animation channels, asset references, and revision-aware commands.
