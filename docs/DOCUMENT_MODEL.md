@@ -2,7 +2,9 @@
 
 Schema 2, 2026-10-03. The Rust document, typed commands, CLI, MCP, native tabs and
 recovery share this representation. This layer evaluates frame plans. The native
-codec/GPU feasibility tools remain separate until the production engine consumes
+codec/GPU feasibility tools have separate evidence. The shared SDR GPU renderer now
+consumes the typed picture subset; see [GPU pictures](GPU_PICTURES.md). Full playback,
+audio/masks/HDR/delivery remain open. The document owns
 those plans; a plan is not a picture, sound block or completed production job.
 
 ## Identity and migration

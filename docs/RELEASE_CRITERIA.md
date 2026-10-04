@@ -77,8 +77,8 @@ The compiled temporal slice passes its separate 1 ms CPU planning budget on actu
 314/11,471-picture indices and explicitly synthetic 500,000-timestamp stress.
 It preserves the published integer inspector and covers exact fractional/reverse
 boundaries and content invalidation; see [temporal evidence](evidence/r2-temporal/README.md).
-This does not satisfy rendered preview/export, decoded/GPU cache, seek, sound-block,
-presentation or drift gates. The production renderer/audio/cache layer remains open.
+This CPU planning qualification does not satisfy rendered preview/export, seek,
+sound-block, presentation or drift gates. Complete production playback remains open.
 The raw decoded-picture cache passes real pixel, hit-sharing, payload/pin budgets,
 eviction, cleanup, version rebinding and active cancellation checks. Cache-hit p95
 is 0.005/0.003417 ms for camera/portrait; uncached miss p95 remains 295.999/941.064 ms.
@@ -86,4 +86,17 @@ This measures CPU raw-picture access, not graph/GPU/native presentation latency;
 see [cache evidence](evidence/r2-picture-cache/README.md). Full seek and playback
 gates remain open, including native IPC, rendered output, audio and hardware.
 Other hardware, production model packs and full workflows remain R2–R11 gates.
+
+The shared SDR GPU picture subset passes its separate **completed-picture kernel**
+p95 <=33.3 ms budget: camera FP16/FP32 12.051/12.878 ms; portrait 9.559/14.548 ms.
+FP16 linear error <=0.002 and FP32 <=0.00002 pass on every channel of the 12 real
+reference pictures. 4,000 hits share resident outputs without new upload/dispatch/
+readback; 480 native pictures complete, with source binding separated from steady
+timing. Active graph-native-seek cancellation/join/cleanup <=2 s passes at
+17.750/9.984 ms. Texture/raw ownership and zero cleanup pass declared limits.
+See [GPU evidence](evidence/r2-gpu/README.md). These ordinal-mapped headless cases
+exclude native presentation, codec IPC, audio/clock/drop/drift, masks/HDR and codec
+delivery. The final portrait FP32 maximum is 18.340 ms; an earlier local candidate reached
+51.263 ms, recorded separately. Full playback/seek/export and
+enterprise/GTM gates remain open; the prior 250 ms uncached seek failures persist.
 See `IMPLEMENTATION_STATUS.md` for implementation and measurement receipts.

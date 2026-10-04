@@ -64,14 +64,22 @@ budget; see [ingest evidence](evidence/r2-media/README.md).
 The temporal dependency of EB-023/024/026 now retains compiled immutable graphs,
 fractional/reverse source and animation boundaries, and working-content keys.
 Integer inspection retains its published receipt. This qualifies CPU planning
-only; see [temporal evaluation](TEMPORAL_EVALUATION.md). Actual rendered picture,
-sound intervals, cache integration/GPU caches and playback/export remain open.
+only; see [temporal evaluation](TEMPORAL_EVALUATION.md). The picture/cache subsets
+and their separate receipts follow below. Full sound and playback/export remain open.
 The decoded-picture slice now serves exact native indexed requests with bounded
 cache/live-payload accounting, retained sequential decoders, LRU output/decoder
 eviction, source preflight and version/generation rebinding. This is the raw CPU
-provider; GPU caches and native IPC/presentation still need integration. See
+provider; native IPC/presentation still need integration. See
 [decoded pictures](PICTURE_CACHE.md) and its separate qualification limits.
 Quantitative enterprise/GTM budgets are set in [release criteria](RELEASE_CRITERIA.md).
+
+The shared SDR subset of EB-024/026 now renders typed source/nested pictures,
+solids, animated affine transforms, over and scalar opacity into bounded resident
+FP16/FP32 working textures. Real-source steady completed-picture p95 passes the
+33.3 ms kernel budget at both precisions; display/output conversion, pinned cache
+ownership and active source cancellation are qualified. Native presentation/IPC,
+audio intervals/clock, masks/HDR, delivery and full R2 gates remain open; see
+[GPU pictures](GPU_PICTURES.md) and [evidence](evidence/r2-gpu/README.md).
 
 ## Milestone map
 

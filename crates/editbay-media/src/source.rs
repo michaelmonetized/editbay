@@ -557,7 +557,7 @@ fn color(primaries: i32, transfer: i32, matrix: i32, range: i32) -> SourceColor 
         range,
     }
 }
-fn resolve_color(frame: ffi::RawFrame, fallback: SourceColor) -> SourceColor {
+pub(crate) fn resolve_color(frame: ffi::RawFrame, fallback: SourceColor) -> SourceColor {
     color(
         if frame.color_primaries == 2 {
             fallback.primaries
@@ -581,7 +581,7 @@ fn resolve_color(frame: ffi::RawFrame, fallback: SourceColor) -> SourceColor {
         },
     )
 }
-fn alpha(present: i32, mode: i32) -> AlphaMode {
+pub(crate) fn alpha(present: i32, mode: i32) -> AlphaMode {
     if present == 0 {
         AlphaMode::Opaque
     } else if mode == 1 {

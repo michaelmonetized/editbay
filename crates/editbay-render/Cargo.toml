@@ -4,7 +4,7 @@ version.workspace = true
 edition.workspace = true
 rust-version.workspace = true
 license.workspace = true
-description = "Measured linear float GPU composition prototype"
+description = "Typed resident float GPU picture evaluation"
 
 [dependencies]
 wgpu.workspace = true
@@ -12,6 +12,11 @@ pollster.workspace = true
 half.workspace = true
 thiserror.workspace = true
 serde.workspace = true
+serde_json.workspace = true
+sha2.workspace = true
+uuid.workspace = true
+editbay-core = { path = "../editbay-core" }
+editbay-media = { path = "../editbay-media" }
 
 [dev-dependencies]
 tempfile.workspace = true

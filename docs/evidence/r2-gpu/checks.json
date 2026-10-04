@@ -1,0 +1,39 @@
+{
+  "schema": 1,
+  "commands": [
+    {
+      "command": "cargo test --workspace --locked",
+      "tests": 109,
+      "sdk_documentation_examples": 5,
+      "failed": 0,
+      "ignored": 0
+    },
+    {
+      "command": "cargo test --workspace --all-features --locked",
+      "tests": 110,
+      "sdk_documentation_examples": 5,
+      "failed": 0,
+      "ignored": 0
+    },
+    {
+      "command": "cargo clippy --workspace --all-targets --all-features --locked -- -D warnings",
+      "pass": true
+    },
+    {
+      "command": "cargo fmt --all -- --check",
+      "pass": true
+    }
+  ],
+  "storage": {
+    "build": "target/native-build",
+    "temporary": "artifacts/tmp",
+    "private_evidence": "artifacts/r2-gpu-final"
+  },
+  "native_reference": {
+    "libtorch": "artifacts/native-torch/torch",
+    "version": "2.10.0+cpu",
+    "archive_sha256": "1cfcb9b1558c6e52dffd0d4effce83b13c5ae5d97338164c372048c21f9cfccb"
+  },
+  "native_window_regression_rerun": false,
+  "full_r2_gate_pass": false
+}
