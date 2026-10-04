@@ -49,6 +49,8 @@ The application and production workers use Rust with native dependencies.
 Build on the local machine with Rust/Cargo:
 
 ```sh
+mkdir -p artifacts/tmp
+export TMPDIR="$PWD/artifacts/tmp"
 cargo build --workspace --locked
 cargo test --workspace --locked
 ./bin/editbay
@@ -101,3 +103,16 @@ original sound channels through undo/save/recovery; see
 picture/sound output, full media delivery, cloud and artist inference workflows
 remain roadmap work. The lab's picture-only exporter and 30-second
 sound probe have measured limits; see the evidence before choosing a workload.
+
+`EvaluationSnapshot` retains immutable compiled dependencies for repeated exact
+fractional/reverse frame planning. The published integer inspection format is
+preserved. `editbay-lab evaluation SOURCE ITERATIONS [SYNTHETIC_INDEX_PICTURES]`
+measures actual indexed source planning and optional, explicitly synthetic index
+stress. See [temporal evaluation](docs/TEMPORAL_EVALUATION.md). This does not yet
+provide rendered composition playback or export.
+
+Keep project builds, worktrees, temporary files and private evidence under this
+checkout. `/target/` and `/artifacts/` are ignored. Set `TMPDIR` as above for local
+tests so their temporary fixtures also stay here. The older committed evidence
+retains its original artifact paths; those historical paths are not working
+storage instructions or promises that private binaries remain available.

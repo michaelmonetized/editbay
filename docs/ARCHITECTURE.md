@@ -60,6 +60,13 @@ Schema 2 implements typed assets/streams, tracks/clips, nested compositions, tim
 image/mask/geometry/audio/data nodes, channels, exact source mapping and separate
 color settings. Typed frame plans expose evaluated parameters and source requests;
 the production renderer still needs to consume them. See [document model](DOCUMENT_MODEL.md).
+`EvaluationSnapshot` now compiles immutable node order, shared static operations
+and source interpretation hashes once. Exact fractional/reverse preparation and
+integer inspection share that evaluator. Working image/mask keys include their
+dimensions, source/mask bytes, dependencies, gamut and float precision; document
+version separately controls publication. Audio keys describe a point, not a block.
+The real GPU renderer/audio interval engine and their caches remain open; see
+[temporal evaluation](TEMPORAL_EVALUATION.md).
 Schema 1 migrates after integrity verification without writing its source; unknown
 schemas fail. Format-copy migration uses a separate destination.
 

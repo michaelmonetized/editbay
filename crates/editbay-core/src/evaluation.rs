@@ -1,10 +1,11 @@
 use crate::{
-    AnimatedProperty, ClipSource, ColorConfiguration, DocumentVersion, Error, FrameRate,
-    NodeOperation, Project, Result, SocketType, SourcePosition, StreamFormat, TimedNode,
+    AnimatedProperty, AnimationChannel, ClipSource, ColorConfiguration, DocumentVersion, Error,
+    FrameRate, NodeOperation, Project, Result, SocketType, SourcePosition,
 };
 use serde::Serialize;
 use sha2::{Digest, Sha256};
 use std::collections::{BTreeSet, HashMap};
+use std::sync::Arc;
 use uuid::Uuid;
 
 #[derive(Debug, Clone, PartialEq, Serialize)]
@@ -53,212 +54,12 @@ pub struct FramePlan {
 }
 
 impl Project {
-    /// Evaluate typed dependencies and exact source requests for one frame.
-    /// `composition_id` selects the scene; `frame` is an integer composition frame.
-    /// Returns deterministic input-first nodes, resolved animation, source pictures/
-    /// samples and revision ownership. This is an evaluation plan, not rendered pixels.
+    /// Inspect one composition frame through the shared temporal evaluator.
+    /// `composition_id` and `frame` select the scene and integer time.
+    /// Returns typed source requests and resolved parameters; repeated production
+    /// evaluation retains an EvaluationSnapshot rather than recompiling each frame.
     pub fn frame_plan(&self, composition_id: Uuid, frame: u64) -> Result<FramePlan> {
-        self.validate()?;
-        let composition = self
-            .compositions
-            .iter()
-            .find(|composition| composition.id == composition_id)
-            .ok_or_else(|| Error::Invalid("composition is absent".into()))?;
-        if frame >= composition.duration {
-            return Err(Error::Invalid("frame is outside the composition".into()));
-        }
-        let nodes: HashMap<_, _> = composition
-            .nodes
-            .iter()
-            .map(|node| (node.id, node))
-            .collect();
-        let clips: HashMap<_, _> = composition
-            .tracks
-            .iter()
-            .flat_map(|track| track.clips.iter().map(move |clip| (clip.id, (track, clip))))
-            .collect();
-        let clip_types = clips
-            .iter()
-            .map(|(id, (track, _))| (*id, track.kind))
-            .collect();
-        let mut reachable = BTreeSet::new();
-        let mut pending: Vec<_> = [composition.picture, composition.audio]
-            .into_iter()
-            .flatten()
-            .collect();
-        while let Some(id) = pending.pop() {
-            if reachable.insert(id) {
-                pending.extend(nodes[&id].operation.inputs().into_iter().map(|(id, _)| id));
-            }
-        }
-        let mut remaining: HashMap<_, _> = reachable
-            .iter()
-            .map(|id| (*id, nodes[id].operation.inputs().len()))
-            .collect();
-        let mut dependants: HashMap<Uuid, Vec<Uuid>> = HashMap::new();
-        for id in &reachable {
-            for (input, _) in nodes[id].operation.inputs() {
-                dependants.entry(input).or_default().push(*id);
-            }
-        }
-        let mut ready: BTreeSet<_> = remaining
-            .iter()
-            .filter(|(_, count)| **count == 0)
-            .map(|(id, _)| *id)
-            .collect();
-        let mut evaluated = Vec::with_capacity(reachable.len());
-        while let Some(id) = ready.pop_first() {
-            let node = nodes[&id];
-            let mut active = node.range.contains(frame);
-            let source = if let NodeOperation::Source { clip } = node.operation {
-                let (track, clip) = clips[&clip];
-                active &= track.enabled && clip.range.contains(frame);
-                if active {
-                    let local = frame - clip.range.start;
-                    let position = clip.time_map.position(local)?;
-                    let reverse = clip.time_map.direction_at(local)? < 0;
-                    Some(match clip.source {
-                        ClipSource::Composition { composition } => SourceRequest::Composition {
-                            composition,
-                            position,
-                            reverse,
-                        },
-                        ClipSource::Media { source, stream } => {
-                            let media = self
-                                .sources
-                                .iter()
-                                .find(|media| media.id == source)
-                                .ok_or_else(|| Error::Invalid("source is absent".into()))?;
-                            let profile = media
-                                .streams
-                                .iter()
-                                .find(|profile| profile.index == stream)
-                                .ok_or_else(|| Error::Invalid("stream is absent".into()))?;
-                            let asset = self
-                                .assets
-                                .iter()
-                                .find(|asset| asset.id == media.asset)
-                                .ok_or_else(|| Error::Invalid("source asset is absent".into()))?;
-                            let (picture, sample) = match &profile.format {
-                                StreamFormat::Video { timing, .. } => (
-                                    if reverse {
-                                        timing.picture_before(
-                                            position,
-                                            profile.time_base,
-                                            profile.start_tick,
-                                        )?
-                                    } else {
-                                        timing.picture_at(
-                                            position,
-                                            profile.time_base,
-                                            profile.start_tick,
-                                        )?
-                                    },
-                                    None,
-                                ),
-                                StreamFormat::Audio { sample_rate, .. } => {
-                                    let relative = position.relative_to(profile.start_tick)?;
-                                    let rate = FrameRate::new(*sample_rate, 1)?;
-                                    let sample = if reverse {
-                                        let negative = SourcePosition::from_fraction(
-                                            -i128::from(relative.numerator),
-                                            relative.denominator,
-                                        )?;
-                                        profile
-                                            .time_base
-                                            .boundary(negative, rate)?
-                                            .checked_neg()
-                                            .and_then(|sample| sample.checked_sub(1))
-                                            .ok_or_else(|| {
-                                                Error::Invalid(
-                                                    "reverse sample boundary overflow".into(),
-                                                )
-                                            })?
-                                    } else {
-                                        profile.time_base.boundary(relative, rate)?
-                                    };
-                                    (None, Some(sample))
-                                }
-                            };
-                            let stream_sha256 = format!(
-                                "{:x}",
-                                Sha256::digest(serde_json::to_vec(&(
-                                    profile.index,
-                                    &profile.codec,
-                                    profile.time_base,
-                                    profile.start_tick,
-                                    profile.duration_ticks,
-                                    &profile.format
-                                ))?)
-                            );
-                            SourceRequest::Media {
-                                source,
-                                stream,
-                                asset: asset.id,
-                                asset_sha256: asset.sha256.clone(),
-                                stream_sha256,
-                                position,
-                                reverse,
-                                picture,
-                                sample,
-                            }
-                        }
-                    })
-                } else {
-                    None
-                }
-            } else {
-                None
-            };
-            evaluated.push(EvaluatedNode {
-                id,
-                socket: node.operation.socket(&clip_types)?,
-                active,
-                operation: resolve(node, frame)?,
-                source,
-            });
-            for dependant in dependants.get(&id).into_iter().flatten() {
-                let count = remaining
-                    .get_mut(dependant)
-                    .ok_or_else(|| Error::Invalid("node dependency is absent".into()))?;
-                *count -= 1;
-                if *count == 0 {
-                    ready.insert(*dependant);
-                }
-            }
-        }
-        if evaluated.len() != reachable.len() {
-            return Err(Error::Invalid("graph did not resolve".into()));
-        }
-        let dependencies = self.composition_fingerprint(composition_id)?;
-        let sha256 = format!(
-            "{:x}",
-            Sha256::digest(serde_json::to_vec(&(
-                composition.id,
-                frame,
-                composition.width,
-                composition.height,
-                composition.frame_rate,
-                self.color,
-                composition.picture,
-                composition.audio,
-                dependencies,
-                &evaluated
-            ))?)
-        );
-        Ok(FramePlan {
-            version: DocumentVersion::of(self),
-            composition: composition.id,
-            frame,
-            width: composition.width,
-            height: composition.height,
-            frame_rate: composition.frame_rate,
-            color: self.color,
-            picture: composition.picture,
-            audio: composition.audio,
-            nodes: evaluated,
-            sha256,
-        })
+        crate::EvaluationSnapshot::new(Arc::new(self.clone()))?.frame_plan(composition_id, frame)
     }
 }
 
@@ -269,6 +70,13 @@ impl Project {
     /// project revisions, labels, metadata and unrelated scenes do not enter it.
     pub fn composition_fingerprint(&self, composition_id: Uuid) -> Result<String> {
         self.validate()?;
+        self.composition_fingerprint_validated(composition_id)
+    }
+
+    /// Fingerprint a dependency closure after complete document validation.
+    /// `composition_id` selects the retained scene. Returns the established
+    /// semantic SHA-256 without repeating the document's validation scan.
+    pub(crate) fn composition_fingerprint_validated(&self, composition_id: Uuid) -> Result<String> {
         let compositions: HashMap<_, _> = self
             .compositions
             .iter()
@@ -384,10 +192,18 @@ impl Project {
     }
 }
 
-fn resolve(node: &TimedNode, frame: u64) -> Result<NodeOperation> {
-    let mut operation = node.operation.clone();
-    for channel in &node.animation {
-        let value = channel.value_at(frame)?;
+/// Resolve animated parameters on a validated node operation.
+/// `operation`, `animation`, `position` and `before` identify its parameters/time.
+/// Returns an owned operation with finite values at the requested boundary side.
+pub(crate) fn resolve_operation(
+    operation: &NodeOperation,
+    animation: &[AnimationChannel],
+    position: SourcePosition,
+    before: bool,
+) -> Result<NodeOperation> {
+    let mut operation = operation.clone();
+    for channel in animation {
+        let value = channel.value_validated(position, before)?;
         use AnimatedProperty::*;
         match (&mut operation, channel.property) {
             (NodeOperation::Transform { translation, .. }, TranslateX) => translation[0] = value,

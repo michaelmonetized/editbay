@@ -6,6 +6,7 @@ mod command;
 mod composition;
 mod document;
 mod evaluation;
+mod prepared;
 mod storage;
 mod time;
 
@@ -20,6 +21,7 @@ pub use composition::{
 };
 pub use document::{FrameRate, PROJECT_SCHEMA, Project, Sequence};
 pub use evaluation::{EvaluatedNode, FramePlan, SourceRequest};
+pub use prepared::{EvaluationSnapshot, PreparedFrame, PreparedNode};
 pub use storage::{
     MAX_DOCUMENT_BYTES, PreparedCheckpoint, RecoveryCatalog, RecoveryFailure, RecoveryRecord,
     checkpoint, load, load_bounded, prepare_checkpoint, recover_copy, recovery_catalog, save,
