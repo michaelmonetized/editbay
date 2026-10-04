@@ -191,11 +191,11 @@ fn incomplete_temporary_files_are_not_recovery_candidates() {
 }
 
 #[test]
-fn newer_or_legacy_schemas_fail_explicitly() {
+fn unsupported_schemas_fail_explicitly() {
     let directory = tempdir().unwrap();
     let path = directory.path().join("unknown.editbay");
     let mut project = Project::new("Future").unwrap();
-    for schema in [0, 2] {
+    for schema in [0, editbay_core::PROJECT_SCHEMA + 1] {
         project.schema = schema;
         fs::write(&path, serde_json::to_vec(&project).unwrap()).unwrap();
         assert!(matches!(load(&path), Err(Error::Schema(value)) if value == schema));

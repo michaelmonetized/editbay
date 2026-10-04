@@ -1,8 +1,8 @@
 //! Scoped automation uses the same validated commands and durable saves as the application.
 
 use editbay_core::{
-    DocumentCommand, DocumentEditor, DocumentVersion, checkpoint, load, recovery_catalog,
-    save_if_unchanged,
+    CommandGroup, DocumentCommand, DocumentEditor, DocumentVersion, checkpoint, load,
+    recovery_catalog, save_if_unchanged,
 };
 use rmcp::{
     ServerHandler,
@@ -33,16 +33,16 @@ pub struct Automation {
 
 #[derive(Deserialize, JsonSchema)]
 #[serde(deny_unknown_fields)]
-struct Apply {
+struct AtVersion {
     expected: DocumentVersion,
-    label: String,
-    commands: Vec<DocumentCommand>,
 }
 
 #[derive(Deserialize, JsonSchema)]
 #[serde(deny_unknown_fields)]
-struct AtVersion {
+struct AtFrame {
     expected: DocumentVersion,
+    composition_id: uuid::Uuid,
+    frame: u64,
 }
 
 impl Automation {
@@ -127,13 +127,14 @@ impl Automation {
             Ok(json!({
                 "document": session.editor.project(),
                 "version": DocumentVersion::of(session.editor.project()),
-                "history": {"undo": undo, "redo": redo, "limit":128, "persisted":false},
+                "history": {"undo": undo, "redo": redo, "limit":128, "byte_limit":16777216,
+                    "usage":session.editor.history_usage(), "persisted":false},
                 "scope": {"project":session.project_path, "recovery":session.recovery_root},
                 "disk": disk,
                 "capabilities": {
-                    "commands":["rename_project"], "atomic_groups":true,
+                    "commands":DocumentCommand::capabilities(), "atomic_groups":true,
                     "undo":true, "redo":true, "checkpoint":true,
-                    "preview":false, "export":false, "media_import":false,
+                    "frame_plan":true, "preview":false, "export":false, "media_import":false,
                     "jobs":false, "cloud":false
                 }
             }))
@@ -145,7 +146,7 @@ impl Automation {
         description = "Apply 1..64 typed commands as one undo step and durably save; expected project identity and revision are required",
         annotations(destructive_hint = false)
     )]
-    async fn apply_commands(&self, Parameters(args): Parameters<Apply>) -> CallToolResult {
+    async fn apply_commands(&self, Parameters(args): Parameters<CommandGroup>) -> CallToolResult {
         self.run(move |session| {
             mutate(session, |editor| {
                 editor.apply(args.expected, args.label, &args.commands)
@@ -203,6 +204,25 @@ impl Automation {
             Ok(serde_json::to_value(recovery_catalog(
                 &session.recovery_root,
             )?)?)
+        })
+        .await
+    }
+
+    #[tool(
+        description = "Inspect exact source requests, typed graph order and evaluated animation for a composition frame; returns a plan, not pixels",
+        annotations(read_only_hint = true)
+    )]
+    async fn inspect_frame_plan(&self, Parameters(args): Parameters<AtFrame>) -> CallToolResult {
+        self.run(move |session| {
+            let project = session.editor.project();
+            if args.expected != DocumentVersion::of(project) {
+                return Err(editbay_core::Error::Invalid(
+                    "frame request does not own the current document".into(),
+                ));
+            }
+            Ok(serde_json::to_value(
+                project.frame_plan(args.composition_id, args.frame)?,
+            )?)
         })
         .await
     }

@@ -1,0 +1,45 @@
+{
+  "version": {
+    "project_id": "d9f5be53-a9ab-4f16-9e2d-47e06a3e6c35",
+    "revision": 1
+  },
+  "composition": "00000000-0000-0000-0000-00000000001f",
+  "frame": 0,
+  "width": 1920,
+  "height": 1080,
+  "frame_rate": {
+    "numerator": 24,
+    "denominator": 1
+  },
+  "color": {
+    "working_gamut": "bt709",
+    "precision": "full",
+    "display_gamut": "bt709",
+    "display_transfer": "srgb",
+    "output_gamut": "bt709",
+    "output_transfer": "srgb"
+  },
+  "picture": "00000000-0000-0000-0000-00000000003e",
+  "audio": null,
+  "nodes": [
+    {
+      "id": "00000000-0000-0000-0000-00000000003e",
+      "socket": "image",
+      "active": true,
+      "operation": {
+        "kind": "source",
+        "clip": "00000000-0000-0000-0000-00000000003d"
+      },
+      "source": {
+        "kind": "composition",
+        "composition": "00000000-0000-0000-0000-00000000001e",
+        "position": {
+          "numerator": 48,
+          "denominator": 1
+        },
+        "reverse": true
+      }
+    }
+  ],
+  "sha256": "8a66fd101ac8a3d911b651e285681988469398c15dfecacfe9a995cd9dd4a4e0"
+}

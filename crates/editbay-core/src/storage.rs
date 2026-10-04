@@ -12,6 +12,7 @@ use std::{
 use uuid::Uuid;
 
 const RECOVERY_SCHEMA: u32 = 1;
+pub const MAX_DOCUMENT_BYTES: u64 = 64 * 1024 * 1024;
 
 #[derive(Debug, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
@@ -56,9 +57,7 @@ pub struct RecoveryCatalog {
 }
 
 pub fn load(path: impl AsRef<Path>) -> Result<Project> {
-    let project: Project = serde_json::from_slice(&fs::read(path)?)?;
-    project.validate()?;
-    Ok(project)
+    load_bounded(path, MAX_DOCUMENT_BYTES)
 }
 
 /// Read a validated project within a caller's explicit memory budget.
@@ -75,8 +74,7 @@ pub fn load_bounded(path: impl AsRef<Path>, bytes: u64) -> Result<Project> {
         )));
     }
     let project: Project = serde_json::from_slice(&data)?;
-    project.validate()?;
-    Ok(project)
+    project.migrate()
 }
 
 pub fn save(project: &Project, path: impl AsRef<Path>) -> Result<()> {
@@ -113,7 +111,7 @@ fn write_project(
     expected: Option<&Project>,
 ) -> Result<()> {
     project.validate()?;
-    let mut bytes = serde_json::to_vec_pretty(project)?;
+    let mut bytes = serialize_bounded(project, true)?;
     bytes.push(b'\n');
     atomic_write(path, &bytes, new_only, expected)
 }
@@ -327,8 +325,9 @@ pub fn prepare_checkpoint(
         original,
         project: project.clone(),
     };
-    let sha256 = format!("{:x}", Sha256::digest(serde_json::to_vec(&snapshot)?));
+    let sha256 = format!("{:x}", Sha256::digest(serialize_bounded(&snapshot, false)?));
     let envelope = Envelope { snapshot, sha256 };
+    let bytes = serialize_bounded(&envelope, true)?;
     let path = root.as_ref().join(project.id.to_string()).join(format!(
         "{}-{}.checkpoint",
         project.revision,
@@ -340,14 +339,23 @@ pub fn prepare_checkpoint(
         destination: path,
     };
     let mut file = private_options().open(&prepared.temporary)?;
-    file.write_all(&serde_json::to_vec_pretty(&envelope)?)?;
+    file.write_all(&bytes)?;
     file.sync_all()?;
     drop(file);
     Ok(prepared)
 }
 
 fn read_snapshot(path: &Path) -> Result<Snapshot> {
-    let envelope: Envelope = serde_json::from_slice(&fs::read(path)?)?;
+    let mut bytes = Vec::new();
+    File::open(path)?
+        .take(MAX_DOCUMENT_BYTES + 1)
+        .read_to_end(&mut bytes)?;
+    if bytes.len() as u64 > MAX_DOCUMENT_BYTES {
+        return Err(Error::Invalid(
+            "recovery exceeds its 64 MiB read budget".into(),
+        ));
+    }
+    let mut envelope: Envelope = serde_json::from_slice(&bytes)?;
     if envelope.snapshot.schema != RECOVERY_SCHEMA {
         return Err(Error::Invalid(format!(
             "unsupported recovery schema {}",
@@ -356,13 +364,42 @@ fn read_snapshot(path: &Path) -> Result<Snapshot> {
     }
     let digest = format!(
         "{:x}",
-        Sha256::digest(serde_json::to_vec(&envelope.snapshot)?)
+        Sha256::digest(serialize_bounded(&envelope.snapshot, false)?)
     );
     if digest != envelope.sha256 {
         return Err(Error::Integrity);
     }
-    envelope.snapshot.project.validate()?;
+    envelope.snapshot.project = envelope.snapshot.project.migrate()?;
     Ok(envelope.snapshot)
+}
+
+struct JsonBuffer {
+    bytes: Vec<u8>,
+}
+
+impl Write for JsonBuffer {
+    fn write(&mut self, bytes: &[u8]) -> std::io::Result<usize> {
+        if self.bytes.len().saturating_add(bytes.len()) >= MAX_DOCUMENT_BYTES as usize {
+            return Err(std::io::Error::other(
+                "document exceeds its 64 MiB serialization budget",
+            ));
+        }
+        self.bytes.extend_from_slice(bytes);
+        Ok(bytes.len())
+    }
+    fn flush(&mut self) -> std::io::Result<()> {
+        Ok(())
+    }
+}
+
+fn serialize_bounded(value: &impl Serialize, pretty: bool) -> Result<Vec<u8>> {
+    let mut buffer = JsonBuffer { bytes: Vec::new() };
+    if pretty {
+        serde_json::to_writer_pretty(&mut buffer, value)?;
+    } else {
+        serde_json::to_writer(&mut buffer, value)?;
+    }
+    Ok(buffer.bytes)
 }
 
 /// Recover into a new independent project; never replace the original or another file.

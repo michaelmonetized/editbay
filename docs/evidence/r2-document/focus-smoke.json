@@ -1,0 +1,91 @@
+{
+  "application_sha256": "4358d10899a29f55c7a8075275039228ff82a83c302b1cb7513b3c3eb4932f28",
+  "architecture": "aarch64",
+  "catalog_documents": 4000,
+  "checkpoint_main_thread_commit": {
+    "count": 7,
+    "max_ms": 0.379,
+    "p50_ms": 0.214,
+    "p95_ms": 0.379
+  },
+  "cpu_frame_work": {
+    "count": 655,
+    "max_ms": 83.399,
+    "p50_ms": 1.031,
+    "p95_ms": 3.506
+  },
+  "desktop": "Hyprland Wayland / Synchro portal",
+  "input_gate_pass": true,
+  "input_injection_to_ui_acceptance": {
+    "count": 8,
+    "max_ms": 41.172,
+    "p50_ms": 13.788,
+    "p95_ms": 41.172
+  },
+  "kind": "native_workspace_qualification",
+  "latest_revision": 3,
+  "limits": [
+    "Software-injected Wayland text/portal keys and persistent Linux keyboard/pointer events; no physical-device input measurement",
+    "Native UI recovery uses the installed Synchro file chooser",
+    "These fixtures qualify local workspace behavior, not completed client edits or media playback"
+  ],
+  "passed": 3,
+  "reports": [
+    {
+      "checkpoint_acknowledged_unix_us": 1791082564001047,
+      "checkpoint_sha256": "32d42cfaf289afc4dd8e32f187d2e60862f86009fed726f7672a3a160a9b96f3",
+      "inactive_checkpoint_sha256": "ab6e7509339d2f50e6768bbcab510e46bb948a703fd658b3a27c525d3b467dde",
+      "index": 0,
+      "memory": [
+        "VmHWM:\t   88432 kB",
+        "VmRSS:\t   54736 kB"
+      ],
+      "native_reopen": true,
+      "native_ui_recovery": true,
+      "original_project": "ce3382b4-35ad-481f-bbdd-c0cd370eb4e8",
+      "original_sha256": null,
+      "recovered_project": "a913b8ef-f6d8-4a5f-8d10-d0f6e3e26c19",
+      "recovered_sha256": "225888d767dab72f7f517f456687a3a2bad726d8ef979e73689833aaeea9810c",
+      "revision": 3,
+      "saved_original": false
+    },
+    {
+      "checkpoint_acknowledged_unix_us": 1791082575862459,
+      "checkpoint_sha256": "4215e578df2fd36cc4bafad3dac7d2c4845f11d0e47a364f2751494412fc3ddc",
+      "inactive_checkpoint_sha256": "8f05186fc2bdf0b992fecc68d0d270dbaeb28b3a2f82647a95e123e3a8f22143",
+      "index": 1,
+      "memory": [
+        "VmHWM:\t   99456 kB",
+        "VmRSS:\t   99456 kB"
+      ],
+      "native_reopen": true,
+      "native_ui_recovery": true,
+      "original_project": "2471615c-3440-46ce-baa5-784efbebe5cf",
+      "original_sha256": "8e8f38de597e93e75bec3ea37eba927e4f751335792d6e4ba9a2b4482f54134b",
+      "recovered_project": "92ee36b5-e5b3-4330-826d-4a35e5f97d4d",
+      "recovered_sha256": "17578e1f10ded8ab82ea0614e1f77e198429260a6153bb0d3c1997f453b3d0a4",
+      "revision": 3,
+      "saved_original": true
+    },
+    {
+      "checkpoint_acknowledged_unix_us": 1791082581618124,
+      "checkpoint_sha256": "5f0c9d10f73286026c7d623c9e5482f019452e8cfeb01f084c83593b29f3b61b",
+      "inactive_checkpoint_sha256": "4d6e81f3225c872660488abf23971e2a85627f1d737ccb5ff239ede431b535c1",
+      "index": 2,
+      "memory": [
+        "VmHWM:\t   99824 kB",
+        "VmRSS:\t   99824 kB"
+      ],
+      "native_reopen": true,
+      "native_ui_recovery": true,
+      "original_project": "d2a700a5-c6ea-425e-a5ef-2857144f9473",
+      "original_sha256": null,
+      "recovered_project": "f4dda019-a406-4a96-879d-7ddc4cb2b28c",
+      "recovered_sha256": "52b5809d3a1b161eb85c15e8f01553af1fd9d78c7aa6c0b0d44e2d425da48fa3",
+      "revision": 3,
+      "saved_original": false
+    }
+  ],
+  "schema": 1,
+  "trials": 3
+}

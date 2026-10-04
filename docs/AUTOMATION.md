@@ -12,7 +12,9 @@ cargo run -p editbay-automation --locked --bin editbay-mcp -- \
 ```
 
 The caller grants access by selecting an existing regular project file and a
-recovery directory at startup. RPC arguments cannot supply other file paths.
+recovery directory at startup. Filesystem tools cannot supply other destinations.
+Typed asset commands may store local path references inside the document; those
+references grant no source-reading or writing permission.
 The server creates the recovery directory when absent. Project and root symlinks
 are rejected; the recovery catalog skips symlink entries. Paths are canonicalized
 once. This is a local stdio service, with no HTTP listener, authentication service,
@@ -35,9 +37,13 @@ Stdout contains protocol messages only; startup errors go to stderr.
 | `undo` / `redo` | Restore the previous/next group content, advance revision, durably save |
 | `create_checkpoint` | Require current version; write a new immutable checksummed snapshot into the granted recovery directory |
 | `inspect_recoveries` | List valid and corrupt snapshots in that directory without changing them |
+| `inspect_frame_plan` | Require current document version; inspect typed input order, evaluated channels, exact source requests and semantic fingerprint for a composition frame |
 
-`rename_project` is the only current document command. Its schema is derived from
-the core Rust type. Preview, export, media import, jobs and cloud capabilities are
+The implemented commands are `rename_project`, `set_sequence`, `remove_sequence`,
+`set_asset`, `remove_asset`, `set_source`, `remove_source`, `set_composition`,
+`remove_composition` and `set_color`. Their schema and the `CommandGroup` request
+are derived from core Rust types. Frame-plan inspection returns structured data;
+preview, export, media import, jobs and cloud capabilities are
 false, and corresponding tools are absent. The lab's actual decode/inference/
 export probes are documented separately; their presence does not enable editor
 workflows or turn them into document jobs.
@@ -68,7 +74,7 @@ tool errors. No stale save recreates a deleted original. Inspection keeps the
 in-memory version visible even when the disk file is unavailable, allowing a
 checkpoint and separate-copy recovery. Recovery never replaces the original.
 
-History is bounded to 128 groups in memory and starts empty after reopening;
+History is bounded to 128 groups and 16 MiB serialized entity deltas, starts empty after reopening;
 persisted project/recovery state remains available. Restart does not promise
 persistent undo history. A disconnected caller can lose a response after a save
 commits: inspect the current version before retrying. Expected revisions reject

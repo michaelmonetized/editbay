@@ -1,0 +1,228 @@
+{
+  "schema": 2,
+  "id": "d9f5be53-a9ab-4f16-9e2d-47e06a3e6c35",
+  "revision": 1,
+  "name": "Editable graph qualification",
+  "sequences": [
+    {
+      "id": "773b37f2-38e1-43c2-8fc8-3680287cd949",
+      "name": "Sequence 1",
+      "width": 1920,
+      "height": 1080,
+      "frame_rate": {
+        "numerator": 24,
+        "denominator": 1
+      },
+      "composition": "00000000-0000-0000-0000-00000000001f"
+    }
+  ],
+  "compositions": [
+    {
+      "id": "00000000-0000-0000-0000-00000000001e",
+      "name": "Editable masked motion",
+      "width": 1920,
+      "height": 1080,
+      "frame_rate": {
+        "numerator": 24,
+        "denominator": 1
+      },
+      "duration": 48,
+      "tracks": [],
+      "nodes": [
+        {
+          "id": "00000000-0000-0000-0000-000000000028",
+          "range": {
+            "start": 0,
+            "end": 48
+          },
+          "operation": {
+            "kind": "solid",
+            "rgba": [
+              0.03,
+              0.04,
+              0.06,
+              1.0
+            ]
+          },
+          "animation": []
+        },
+        {
+          "id": "00000000-0000-0000-0000-000000000029",
+          "range": {
+            "start": 0,
+            "end": 48
+          },
+          "operation": {
+            "kind": "solid",
+            "rgba": [
+              1.5,
+              0.2,
+              0.05,
+              0.8
+            ]
+          },
+          "animation": []
+        },
+        {
+          "id": "00000000-0000-0000-0000-00000000002a",
+          "range": {
+            "start": 0,
+            "end": 48
+          },
+          "operation": {
+            "kind": "polygon",
+            "points": [
+              [
+                250.0,
+                150.0
+              ],
+              [
+                1700.0,
+                150.0
+              ],
+              [
+                960.0,
+                950.0
+              ]
+            ]
+          },
+          "animation": []
+        },
+        {
+          "id": "00000000-0000-0000-0000-00000000002b",
+          "range": {
+            "start": 0,
+            "end": 48
+          },
+          "operation": {
+            "kind": "mask",
+            "geometry": "00000000-0000-0000-0000-00000000002a",
+            "feather": 12.0,
+            "inverted": false
+          },
+          "animation": []
+        },
+        {
+          "id": "00000000-0000-0000-0000-00000000002c",
+          "range": {
+            "start": 0,
+            "end": 48
+          },
+          "operation": {
+            "kind": "transform",
+            "image": "00000000-0000-0000-0000-000000000029",
+            "translation": [
+              0.0,
+              0.0
+            ],
+            "scale": [
+              1.0,
+              1.0
+            ],
+            "rotation": 0.0,
+            "opacity": 1.0
+          },
+          "animation": [
+            {
+              "id": "00000000-0000-0000-0000-000000000032",
+              "property": "translate_x",
+              "interpolation": "hermite",
+              "keys": [
+                {
+                  "frame": 0,
+                  "value": 0.0,
+                  "in_tangent": 0.0,
+                  "out_tangent": 4.0
+                },
+                {
+                  "frame": 48,
+                  "value": 192.0,
+                  "in_tangent": 4.0,
+                  "out_tangent": 0.0
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "id": "00000000-0000-0000-0000-00000000002d",
+          "range": {
+            "start": 0,
+            "end": 48
+          },
+          "operation": {
+            "kind": "over",
+            "foreground": "00000000-0000-0000-0000-00000000002c",
+            "background": "00000000-0000-0000-0000-000000000028",
+            "mask": "00000000-0000-0000-0000-00000000002b"
+          },
+          "animation": []
+        }
+      ],
+      "picture": "00000000-0000-0000-0000-00000000002d",
+      "audio": null
+    },
+    {
+      "id": "00000000-0000-0000-0000-00000000001f",
+      "name": "Reusable reverse composition",
+      "width": 1920,
+      "height": 1080,
+      "frame_rate": {
+        "numerator": 24,
+        "denominator": 1
+      },
+      "duration": 48,
+      "tracks": [
+        {
+          "id": "00000000-0000-0000-0000-00000000003c",
+          "name": "Nested picture",
+          "kind": "video",
+          "enabled": true,
+          "clips": [
+            {
+              "id": "00000000-0000-0000-0000-00000000003d",
+              "name": "Reverse motion",
+              "range": {
+                "start": 0,
+                "end": 48
+              },
+              "source": {
+                "kind": "composition",
+                "composition": "00000000-0000-0000-0000-00000000001e"
+              },
+              "time_map": {
+                "points": [
+                  {
+                    "frame": 0,
+                    "source_tick": 48
+                  },
+                  {
+                    "frame": 48,
+                    "source_tick": 0
+                  }
+                ]
+              },
+              "linked": null
+            }
+          ]
+        }
+      ],
+      "nodes": [
+        {
+          "id": "00000000-0000-0000-0000-00000000003e",
+          "range": {
+            "start": 0,
+            "end": 48
+          },
+          "operation": {
+            "kind": "source",
+            "clip": "00000000-0000-0000-0000-00000000003d"
+          },
+          "animation": []
+        }
+      ],
+      "picture": "00000000-0000-0000-0000-00000000003e",
+      "audio": null
+    }
+  ]
+}

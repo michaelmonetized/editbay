@@ -39,6 +39,8 @@ The application and production workers use Rust with native dependencies.
   source inventory, fixed native/interchange inputs and automation validation.
 - [Your local workspace](docs/LOCAL_WORKSPACE.md): native creation, saves, recovery,
   settings and shared assets.
+- [Typed document model](docs/DOCUMENT_MODEL.md): schema migration, sources,
+  retiming, compositions, animation, commands and frame-plan inspection.
 - [Shared brand banks](docs/SHARED_BRANDS.md): compatible manifests, exact asset
   copies, version ownership and collision rules.
 
@@ -55,6 +57,9 @@ cargo test --workspace --locked
 ./bin/editbay new /path/to/client/cut.editbay "Client spot"
 ./bin/editbay info /path/to/client/cut.editbay
 ./bin/editbay rename /path/to/client/cut.editbay "Client spot revised"
+./bin/editbay apply /path/to/client/cut.editbay /path/to/commands.json
+./bin/editbay frame-plan /path/to/client/cut.editbay COMPOSITION_UUID 24
+./bin/editbay migrate /path/to/legacy.editbay /path/to/new-format.editbay
 ./bin/editbay checkpoint /path/to/client/cut.editbay /path/to/recovery
 ./bin/editbay recoveries /path/to/recovery
 ./bin/editbay recover /path/to/checkpoint /path/to/Recovered.editbay
@@ -84,6 +89,9 @@ document inspection, project rename groups, undo/redo, checkpoint and recovery
 inspection. It uses the core command path and acknowledges edits after durable
 save. Its startup paths grant scope; RPC calls cannot choose arbitrary files.
 
-Timeline commands, full media delivery, cloud and artist inference workflows
+Typed sources/compositions/animation and frame-plan inspection now share the core
+command, undo, save and recovery path. Existing schema 1 projects/checkpoints
+migrate in memory; their source bytes remain intact until explicit save. Native
+timeline gestures, evaluated picture/sound output, full media delivery, cloud and artist inference workflows
 remain roadmap work. The lab's picture-only exporter and 30-second
 sound probe have measured limits; see the evidence before choosing a workload.
