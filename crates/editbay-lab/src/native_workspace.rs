@@ -49,10 +49,7 @@ impl Trace {
             return Err("Invalid owned window address".into());
         }
         dispatch(&format!("hl.dsp.focus({{window=\"address:{address}\"}})"))?;
-        let observed: Value = serde_json::from_str(&command("hyprctl", &["activewindow", "-j"])?)?;
-        if observed["pid"] != pid {
-            return Err("Owned native window did not acquire keyboard focus".into());
-        }
+        let observed = focused(pid)?;
         let mut receipt = std::fs::OpenOptions::new()
             .create(true)
             .append(true)
@@ -144,9 +141,23 @@ fn window(predicate: impl Fn(&Value) -> bool) -> Result<Value> {
     }
 }
 
+fn focused(pid: u64) -> Result<Value> {
+    let deadline = Instant::now() + Duration::from_secs(2);
+    loop {
+        let active: Value = serde_json::from_str(&command("hyprctl", &["activewindow", "-j"])?)?;
+        if active["pid"] == pid {
+            return Ok(active);
+        }
+        if Instant::now() >= deadline {
+            return Err("Owned native window did not acquire keyboard focus".into());
+        }
+        thread::sleep(Duration::from_millis(10));
+    }
+}
+
 fn click(x: i64, y: i64) -> Result<()> {
     dispatch(&format!("hl.dsp.cursor.move({{x={x},y={y}}})"))?;
-    thread::sleep(Duration::from_millis(25));
+    thread::sleep(Duration::from_millis(125));
     command("ydotool", &["click", "0xC0"])?;
     Ok(())
 }
@@ -195,8 +206,11 @@ fn start(
         process.arg(path);
     }
     let application = Application(process.spawn()?);
-    let native =
-        window(|window| window["pid"] == application.0.id() && window["class"] == "editbay")?;
+    let native = window(|window| {
+        window["pid"] == application.0.id()
+            && window["class"] == "editbay"
+            && window["mapped"] == true
+    })?;
     let address = native["address"]
         .as_str()
         .ok_or("Native window has no identity")?;
@@ -213,10 +227,7 @@ fn start(
     ] {
         dispatch(&action)?;
     }
-    let active: Value = serde_json::from_str(&command("hyprctl", &["activewindow", "-j"])?)?;
-    if active["pid"] != application.0.id() {
-        return Err("The native application does not hold keyboard focus; release desktop input capture before running qualification".into());
-    }
+    focused(u64::from(application.0.id()))?;
     thread::sleep(Duration::from_millis(350));
     let mut trace = Trace {
         path: trace.to_owned(),
@@ -511,14 +522,303 @@ pub fn error_trial(binary: &Path, directory: &Path, full: bool) -> Result<Value>
     Ok(receipt)
 }
 
-fn recover(trace: &mut Trace, folder: &Path) -> Result<()> {
+fn choose_camera(trace: &mut Trace, source: &Path) -> Result<Value> {
+    trace.focus()?;
+    let requested = now();
+    click(577, 110)?;
+    let chooser = window(|window| {
+        window["class"] == "org.omarchy.synchro"
+            && window["mapped"] == true
+            && window["title"]
+                .as_str()
+                .is_some_and(|title| title.contains("Import source media"))
+    })?;
+    let address = chooser["address"]
+        .as_str()
+        .ok_or("Missing source chooser identity")?;
+    dispatch(&format!("hl.dsp.focus({{window=\"address:{address}\"}})"))?;
+    let active: Value = serde_json::from_str(&command("hyprctl", &["activewindow", "-j"])?)?;
+    if active["address"] != chooser["address"] {
+        return Err("Source chooser did not acquire native input".into());
+    }
+    key(38, true, false)?;
+    thread::sleep(Duration::from_millis(100));
+    key(30, true, false)?;
+    command(
+        "wtype",
+        &[
+            "-s",
+            "40",
+            source.to_str().ok_or("Source needs UTF-8")?,
+            "-s",
+            "80",
+        ],
+    )?;
+    key(28, false, false)?;
+    thread::sleep(Duration::from_millis(200));
+    let coordinate = |field: &str, index: usize| -> Result<i64> {
+        chooser[field][index]
+            .as_i64()
+            .ok_or_else(|| "Source chooser has no geometry".into())
+    };
+    click(
+        coordinate("at", 0)? + coordinate("size", 0)? - 40,
+        coordinate("at", 1)? + coordinate("size", 1)? - 18,
+    )?;
+    trace.wait("actual camera stream selection", |record| {
+        record["unix_us"]
+            .as_u64()
+            .is_some_and(|time| time >= requested)
+            && record["kind"] == "media"
+            && record["details"]["phase"] == "select"
+    })
+}
+
+/// Qualify native camera ingest, worker failure, cancellation and recovery.
+/// `binary` selects the app, `source` has one picture and one sound stream,
+/// and `directory` must be new. Returns actual window/portal/process receipts;
+/// decoded sources remain read-only and no playback performance is claimed.
+pub fn media(binary: &Path, source: &Path, directory: &Path) -> Result<Value> {
+    use editbay_media::{Cancellation, SourceFile, StreamType};
+    let binary = binary.canonicalize()?;
+    let source = source.canonicalize()?;
+    let token = Cancellation::new()?;
+    let owned = SourceFile::open(&source, &token)?;
+    let probe = owned.probe(token.clone())?;
+    if probe.streams.len() != 2
+        || !probe.streams.iter().all(|stream| stream.decoder_available)
+        || probe
+            .streams
+            .iter()
+            .filter(|stream| stream.kind == StreamType::Video)
+            .count()
+            != 1
+        || probe
+            .streams
+            .iter()
+            .filter(|stream| stream.kind == StreamType::Audio)
+            .count()
+            != 1
+        || probe
+            .streams
+            .iter()
+            .any(|stream| stream.alpha_interpretation_required)
+    {
+        return Err("Native camera qualification needs one picture and one sound stream".into());
+    }
+    fs::create_dir(directory)?;
+    let directory = directory.canonicalize()?;
+    let catalog = directory.join("catalog");
+    fs::create_dir(&catalog)?;
+    let state = directory.join("state");
+    let original = directory.join("Camera.editbay");
+    let initial = Project::new("Native camera edit")?;
+    save_new(&initial, &original)?;
+    let (mut application, mut trace) = start(
+        &binary,
+        &state,
+        &catalog,
+        &directory.join("native.jsonl"),
+        Some(&original),
+    )?;
+    trace.wait("camera document open", |record| {
+        has_tab(record, &initial.name, 0)
+    })?;
+    let selected = choose_camera(&mut trace, &source)?;
+    let worker = selected["details"]["worker_pid"]
+        .as_u64()
+        .ok_or("Missing actual codec worker")?;
+    let limits = fs::read_to_string(format!("/proc/{worker}/limits"))?
+        .lines()
+        .filter(|line| {
+            line.starts_with("Max cpu time")
+                || line.starts_with("Max open files")
+                || line.starts_with("Max address space")
+        })
+        .map(str::to_owned)
+        .collect::<Vec<_>>();
+    let killed_at = now();
+    command("kill", &["-KILL", &worker.to_string()])?;
+    let failed = trace.wait("idle worker failure without further input", |record| {
+        record["unix_us"]
+            .as_u64()
+            .is_some_and(|time| time >= killed_at)
+            && record["kind"] == "media"
+            && record["details"]["phase"].is_null()
+            && record["details"]["error"]
+                .as_str()
+                .is_some_and(|error| error.contains("stopped"))
+    })?;
+    command(
+        "grim",
+        &[
+            "-g",
+            "80,80 1440x900",
+            directory.join("worker-failure.png").to_str().unwrap(),
+        ],
+    )?;
+    if load(&original)? != initial {
+        return Err("Worker crash modified the original".into());
+    }
+    choose_camera(&mut trace, &source)?;
+    trace.focus()?;
+    click(150, 440)?;
+    let progressing = trace.wait("native decode has read actual source content", |record| {
+        record["kind"] == "media"
+            && record["details"]["phase"] == "ingest"
+            && record["details"]["progress"][1]
+                .as_u64()
+                .is_some_and(|count| count >= 32)
+    })?;
+    let cancel_at = now();
+    click(699, 110)?;
+    let cancelled = trace.wait("native active import cancellation", |record| {
+        record["unix_us"]
+            .as_u64()
+            .is_some_and(|time| time >= cancel_at)
+            && record["kind"] == "media"
+            && record["details"]["phase"].is_null()
+            && record["details"]["completed_imports"] == 0
+            && record["details"]["error"].is_null()
+    })?;
+    let cancel_ms = (cancelled["unix_us"]
+        .as_u64()
+        .ok_or("Missing cancellation timestamp")?
+        - cancel_at) as f64
+        / 1000.;
+    if cancel_ms > 2000. || load(&original)? != initial {
+        return Err("Native cancellation exceeded its budget or changed the original".into());
+    }
+    choose_camera(&mut trace, &source)?;
+    command(
+        "grim",
+        &[
+            "-g",
+            "80,80 1440x900",
+            directory.join("stream-selection.png").to_str().unwrap(),
+        ],
+    )?;
+    trace.focus()?;
+    let import_at = now();
+    click(150, 440)?;
+    let imported = trace.wait("native media document publication", |record| {
+        has_tab(record, &initial.name, 1)
+            && record["details"]["tabs"][0]["sources"] == 1
+            && record["details"]["tabs"][0]["assets"] == 1
+    })?;
+    let import_ms = (imported["unix_us"]
+        .as_u64()
+        .ok_or("Missing import timestamp")?
+        - import_at) as f64
+        / 1000.;
+    trace.focus()?;
+    key(44, true, false)?;
+    let undone = trace.wait("native import undo", |record| {
+        has_tab(record, &initial.name, 2) && record["details"]["tabs"][0]["sources"] == 0
+    })?;
+    trace.focus()?;
+    key(44, true, true)?;
+    let redone = trace.wait("native import redo", |record| {
+        has_tab(record, &initial.name, 3) && record["details"]["tabs"][0]["sources"] == 1
+    })?;
+    trace.focus()?;
+    key(31, true, false)?;
+    let saved = trace.wait("durable native media save", |record| {
+        has_tab(record, &initial.name, 3) && record["details"]["tabs"][0]["dirty"] == false
+    })?;
+    let saved_project = load(&original)?;
+    let saved_hash = hash(&original)?;
+    if saved_project.revision != 3
+        || saved_project.sources.len() != 1
+        || saved_project.sources[0].streams.len() != 2
+    {
+        return Err("Native save lost selected camera streams".into());
+    }
+    let mut input_times = Vec::new();
+    click(160, 329)?;
+    let revised = "Native camera revision";
+    rename(&mut trace, revised, 4, &mut input_times)?;
+    let acknowledged = trace.wait("media checkpoint revision four", |record| {
+        has_tab(record, revised, 4) && record["details"]["tabs"][0]["recovery_revision"] == 4
+    })?;
+    command(
+        "grim",
+        &[
+            "-g",
+            "80,80 1440x900",
+            directory.join("imported-native.png").to_str().unwrap(),
+        ],
+    )?;
+    let peak_memory = fs::read_to_string(format!("/proc/{}/status", application.0.id()))?
+        .lines()
+        .filter(|line| line.starts_with("VmRSS:") || line.starts_with("VmHWM:"))
+        .map(str::to_owned)
+        .collect::<Vec<_>>();
+    application.kill()?;
+    let snapshot = recovery_catalog(state.join("recovery"))?
+        .valid
+        .into_iter()
+        .find(|snapshot| snapshot.project_id == initial.id && snapshot.revision == 4)
+        .ok_or("Acknowledged media checkpoint is missing")?;
+    let checkpoint_hash = hash(&snapshot.path)?;
+    let (mut restarted, mut recovery_trace) = start(
+        &binary,
+        &state,
+        &catalog,
+        &directory.join("recovery.jsonl"),
+        None,
+    )?;
+    recover(&mut recovery_trace, &directory, 1)?;
+    let recovered_path = directory.join("Recovered.editbay");
+    let recovered = load(&recovered_path)?;
+    if recovered.id == initial.id
+        || recovered.recovered_from != Some(initial.id)
+        || recovered.revision != 4
+        || recovered.name != revised
+        || recovered.assets != saved_project.assets
+        || recovered.sources != saved_project.sources
+        || hash(&original)? != saved_hash
+        || hash(&snapshot.path)? != checkpoint_hash
+    {
+        return Err("Native media recovery changed identities, content or originals".into());
+    }
+    thread::sleep(Duration::from_millis(300));
+    recovery_trace.focus()?;
+    click(160, 329)?;
+    thread::sleep(Duration::from_millis(100));
+    command(
+        "grim",
+        &[
+            "-g",
+            "80,80 1440x900",
+            directory.join("recovered-native.png").to_str().unwrap(),
+        ],
+    )?;
+    restarted.kill()?;
+    owned.verify(&token)?;
+    let receipt = json!({"kind":"native_media_ingest_qualification","application_sha256":hash(&binary)?,
+        "source":source,"source_fingerprint":owned.fingerprint(),"worker_limits":limits,
+        "worker_crash":failed,"active_progress_before_cancel":progressing,"cancellation":cancelled,
+        "cancellation_ms":cancel_ms,"import_ms":import_ms,"import":imported,"undo":undone,"redo":redone,
+        "save":saved,"checkpoint":acknowledged,"checkpoint_sha256":checkpoint_hash,
+        "saved_sha256":saved_hash,"recovered_sha256":hash(&recovered_path)?,
+        "saved_project":saved_project.id,"recovered_project":recovered.id,
+        "recovered_revision":recovered.revision,"source_unchanged":true,"memory":peak_memory,
+        "pass":true,"production_playback_qualified":false});
+    File::create_new(directory.join("qualification.json"))?
+        .write_all(&serde_json::to_vec_pretty(&receipt)?)?;
+    Ok(receipt)
+}
+
+fn recover(trace: &mut Trace, folder: &Path, minimum_checkpoints: u64) -> Result<()> {
+    trace.focus()?;
     click(240, 224)?;
     trace.wait("recovery catalog", |record| {
         record["kind"] == "frame"
             && record["details"]["recovered"] == true
             && record["details"]["recoveries_valid"]
                 .as_u64()
-                .is_some_and(|count| count >= 2)
+                .is_some_and(|count| count >= minimum_checkpoints)
     })?;
     click(380, 307)?;
     trace.wait("recovery preview", |record| {
@@ -527,10 +827,23 @@ fn recover(trace: &mut Trace, folder: &Path) -> Result<()> {
     click(665, 579)?;
     let chooser = window(|window| {
         window["class"] == "org.omarchy.synchro"
+            && window["mapped"] == true
             && window["title"]
                 .as_str()
                 .is_some_and(|title| title.starts_with("Save EditBay project"))
     })?;
+    let address = chooser["address"]
+        .as_str()
+        .ok_or("Missing recovery chooser identity")?;
+    dispatch(&format!("hl.dsp.focus({{window=\"address:{address}\"}})"))?;
+    let active = focused(
+        chooser["pid"]
+            .as_u64()
+            .ok_or("Missing recovery chooser PID")?,
+    )?;
+    if active["address"] != chooser["address"] {
+        return Err("Recovery chooser did not acquire native input".into());
+    }
     let x = chooser["at"][0]
         .as_i64()
         .ok_or("Chooser has no native position")?;
@@ -696,7 +1009,7 @@ pub fn run(binary: &Path, directory: &Path, count: usize) -> Result<Value> {
         let restarted_path = folder.join("after-kill.jsonl");
         let (mut restarted, mut restarted_trace) =
             start(&binary, &state, &catalog, &restarted_path, None)?;
-        recover(&mut restarted_trace, &folder)?;
+        recover(&mut restarted_trace, &folder, 2)?;
         let recovered_path = folder.join("Recovered.editbay");
         let recovered = load(&recovered_path)?;
         if recovered.name != revised

@@ -2,6 +2,8 @@ use editbay_core::{
     CommandGroup, DocumentCommand, DocumentEditor, DocumentVersion, Project, checkpoint, load,
     recover_copy, recovery_catalog, save_if_unchanged, save_new,
 };
+use editbay_media::{Cancellation, SourceFile, VideoReader};
+use sha2::{Digest, Sha256};
 use std::{ffi::OsString, io::Read, path::Path, process::ExitCode};
 
 const HELP: &str = "EditBay Rust project foundation
@@ -13,6 +15,9 @@ Usage:
   editbay apply FILE COMMAND_GROUP_JSON
   editbay migrate SOURCE NEW_FILE
   editbay frame-plan FILE COMPOSITION_ID FRAME
+  editbay probe-media SOURCE
+  editbay ingest FILE SOURCE STREAM_INDICES
+  editbay decode-frame SOURCE STREAM_INDEX SOURCE_TICK
   editbay checkpoint FILE RECOVERY_DIRECTORY
   editbay recoveries RECOVERY_DIRECTORY
   editbay recover CHECKPOINT NEW_FILE
@@ -31,6 +36,17 @@ fn name(value: &OsString) -> Result<&str, Box<dyn std::error::Error>> {
     value
         .to_str()
         .ok_or_else(|| "project name must be valid UTF-8".into())
+}
+
+fn read_bounded(path: &Path, limit: u64) -> Result<Vec<u8>, Box<dyn std::error::Error>> {
+    let mut bytes = Vec::new();
+    std::fs::File::open(path)?
+        .take(limit + 1)
+        .read_to_end(&mut bytes)?;
+    if bytes.len() as u64 > limit {
+        return Err(format!("request exceeds its {limit}-byte read budget").into());
+    }
+    Ok(bytes)
 }
 
 fn run(args: &[OsString]) -> Result<(), Box<dyn std::error::Error>> {
@@ -67,13 +83,7 @@ fn run(args: &[OsString]) -> Result<(), Box<dyn std::error::Error>> {
         ("apply", 3) => {
             let path = Path::new(&args[1]);
             let expected = load(path)?;
-            let mut bytes = Vec::new();
-            std::fs::File::open(Path::new(&args[2]))?
-                .take(8 * 1024 * 1024 + 1)
-                .read_to_end(&mut bytes)?;
-            if bytes.len() > 8 * 1024 * 1024 {
-                return Err("command group exceeds its 8 MiB read budget".into());
-            }
+            let bytes = read_bounded(Path::new(&args[2]), 8 * 1024 * 1024)?;
             let group: CommandGroup = serde_json::from_slice(&bytes)?;
             let mut editor = DocumentEditor::new(expected.clone())?;
             let receipt = editor.apply(group.expected, group.label, &group.commands)?;
@@ -82,7 +92,7 @@ fn run(args: &[OsString]) -> Result<(), Box<dyn std::error::Error>> {
         }
         ("migrate", 3) => {
             let source = Path::new(&args[1]);
-            let source_bytes = std::fs::read(source)?;
+            let source_bytes = read_bounded(source, editbay_core::MAX_DOCUMENT_BYTES)?;
             let old: Project = serde_json::from_slice(&source_bytes)?;
             let from_schema = old.schema;
             let project = old.migrate()?;
@@ -98,6 +108,55 @@ fn run(args: &[OsString]) -> Result<(), Box<dyn std::error::Error>> {
             let composition = name(&args[2])?.parse()?;
             let frame = name(&args[3])?.parse()?;
             print(project.frame_plan(composition, frame)?)?;
+        }
+        ("probe-media", 2) => {
+            let cancel = Cancellation::new()?;
+            let source = SourceFile::open(Path::new(&args[1]), &cancel)?;
+            print(source.probe(cancel)?)?;
+        }
+        ("ingest", 4) => {
+            let path = Path::new(&args[1]);
+            let expected = load(path)?;
+            let mut editor = DocumentEditor::new(expected.clone())?;
+            let indices: Vec<u32> = name(&args[3])?
+                .split(',')
+                .map(str::parse)
+                .collect::<Result<_, _>>()?;
+            let cancel = Cancellation::new()?;
+            let source = SourceFile::open(Path::new(&args[2]), &cancel)?;
+            let source_name = source
+                .path()
+                .file_name()
+                .ok_or("source has no filename")?
+                .to_string_lossy()
+                .into_owned();
+            let imported = source.ingest(source_name, &indices, cancel.clone(), |_, _| {})?;
+            let receipt = editor.apply(
+                DocumentVersion::of(&expected),
+                "Import media".into(),
+                &imported.commands(),
+            )?;
+            source.verify(&cancel)?;
+            save_if_unchanged(editor.project(), path, &expected)?;
+            print(
+                serde_json::json!({"receipt":receipt,"source":imported.source.id,
+                "asset":imported.asset.id,"fingerprint":source.fingerprint(),"saved":true}),
+            )?;
+        }
+        ("decode-frame", 4) => {
+            let cancel = Cancellation::new()?;
+            let source = SourceFile::open(Path::new(&args[1]), &cancel)?;
+            let stream = name(&args[2])?.parse()?;
+            let tick = name(&args[3])?.parse()?;
+            let mut reader = VideoReader::open_stream(&source, stream, cancel.clone())?;
+            let frame = reader.frame_at(tick)?;
+            source.verify(&cancel)?;
+            print(
+                serde_json::json!({"fingerprint":source.fingerprint(),"stream":stream,
+                "source_tick":frame.source_tick,"timestamp_ns":frame.timestamp_ns,
+                "width":reader.info.width,"height":reader.info.height,"format":"rgba8",
+                "rgba_bytes":frame.rgba.len(),"rgba_sha256":format!("{:x}",Sha256::digest(&frame.rgba))}),
+            )?;
         }
         ("checkpoint", 3) => {
             let source = Path::new(&args[1]);
@@ -115,6 +174,15 @@ fn run(args: &[OsString]) -> Result<(), Box<dyn std::error::Error>> {
 }
 
 fn main() -> ExitCode {
+    if std::env::args_os().nth(1).as_deref() == Some(std::ffi::OsStr::new("--media-worker")) {
+        return match editbay_media::worker::serve() {
+            Ok(()) => ExitCode::SUCCESS,
+            Err(error) => {
+                eprintln!("editbay media worker: {error}");
+                ExitCode::FAILURE
+            }
+        };
+    }
     match run(&std::env::args_os().skip(1).collect::<Vec<_>>()) {
         Ok(()) => ExitCode::SUCCESS,
         Err(error) => {

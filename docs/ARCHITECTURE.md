@@ -63,6 +63,14 @@ the production renderer still needs to consume them. See [document model](DOCUME
 Schema 1 migrates after integrity verification without writing its source; unknown
 schemas fail. Format-copy migration uses a separate destination.
 
+Selected native media ingest now fills these source records through ordinary
+asset/source commands. The packaged Rust codec child retains a read-only source
+descriptor and full checksum, indexes actual picture timestamps, and preserves
+original sound rate/channel order. Off-thread preparation and final source
+verification precede session/generation/revision-owned UI publication; crash and
+cancellation leave the document intact. Bounded protocol/decoder/process limits
+and current format/precision limits are defined in [media ingest](MEDIA_INGEST.md).
+
 ## Commands and concurrency
 
 UI, keyboard, CLI, MCP, and automation dispatch validated commands. A command

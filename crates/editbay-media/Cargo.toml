@@ -7,9 +7,13 @@ license.workspace = true
 description = "Bounded native FFmpeg codec adapter"
 
 [dependencies]
+editbay-core = { path = "../editbay-core" }
 libc.workspace = true
 thiserror.workspace = true
 serde.workspace = true
+serde_json.workspace = true
+sha2.workspace = true
+uuid.workspace = true
 
 [build-dependencies]
 cc.workspace = true

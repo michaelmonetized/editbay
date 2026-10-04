@@ -12,8 +12,10 @@ path = "src/main.rs"
 
 [dependencies]
 editbay-core = { path = "../editbay-core" }
+editbay-media = { path = "../editbay-media" }
 serde.workspace = true
 serde_json.workspace = true
+sha2.workspace = true
 
 [dev-dependencies]
 tempfile.workspace = true

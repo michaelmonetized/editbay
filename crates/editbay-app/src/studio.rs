@@ -3,9 +3,10 @@ use crate::{
     brand_ui::{Action as BankAction, BankPane, Task as BankTask},
     catalog::{CatalogEvent, CatalogScan, DocumentEntry, ProjectFolder},
     diagnostics::Diagnostics,
+    media_ui::MediaPane,
     preferences::{PreferenceStore, Preferences, Startup},
     theme::LiveTheme,
-    workspace::Workspace,
+    workspace::{DocumentOwner, Workspace},
 };
 use editbay_core::{DocumentCommand, DocumentVersion, Project};
 use eframe::egui::{self, Align2, FontFamily, FontId, RichText, Sense, Stroke, Ui, vec2};
@@ -22,6 +23,9 @@ use uuid::Uuid;
 
 enum DialogAction {
     Open,
+    ImportMedia {
+        owner: DocumentOwner,
+    },
     CatalogRoot,
     BrandFolder {
         create: bool,
@@ -75,6 +79,7 @@ pub struct Studio {
     preferences: PreferenceStore,
     settings: Option<Preferences>,
     bank: BankPane,
+    media: MediaPane,
     preferences_applied: bool,
     explicit_paths: bool,
     restoring: bool,
@@ -160,6 +165,7 @@ impl Studio {
             preferences,
             settings: None,
             bank: BankPane::default(),
+            media: MediaPane::default(),
             preferences_applied: false,
             explicit_paths,
             restoring: false,
@@ -205,6 +211,7 @@ impl Studio {
         }
         let previous = self.workspace.activation_generation;
         self.workspace.poll(Instant::now());
+        self.media.poll(&mut self.workspace, ctx);
         if self.workspace.activation_generation != previous && self.workspace.active.is_some() {
             self.welcome = false;
         }
@@ -262,6 +269,24 @@ impl Studio {
                             DialogAction::Open => {
                                 self.workspace.open(result.paths);
                                 Ok(())
+                            }
+                            DialogAction::ImportMedia { owner } => {
+                                if self.workspace.owns(owner) {
+                                    std::env::current_exe().map_err(|e| e.to_string()).and_then(
+                                        |executable| {
+                                            self.media.start(
+                                                &self.workspace,
+                                                owner.tab,
+                                                path.clone(),
+                                                &executable,
+                                                ctx,
+                                            )
+                                        },
+                                    )
+                                } else {
+                                    Err("The project changed while choosing media; choose again"
+                                        .into())
+                                }
                             }
                             DialogAction::CatalogRoot => {
                                 let mut preferences = self.preferences.current.clone();
@@ -476,6 +501,15 @@ impl Studio {
                     if matches!(action, DialogAction::BrandImport { .. }) {
                         return dialog
                             .set_title("Add brand asset")
+                            .pick_file()
+                            .await
+                            .into_iter()
+                            .map(|file| file.path().to_path_buf())
+                            .collect();
+                    }
+                    if matches!(action, DialogAction::ImportMedia { .. }) {
+                        return dialog
+                            .set_title("Import source media")
                             .pick_file()
                             .await
                             .into_iter()
@@ -722,10 +756,27 @@ impl Studio {
                         self.message = Some(error);
                     }
                 }
+                if ui
+                    .add_enabled(
+                        self.dialog.is_none() && !self.media.busy(),
+                        egui::Button::new("Import media…"),
+                    )
+                    .clicked()
+                {
+                    match self.workspace.edit_snapshot(id) {
+                        Ok((owner, _)) => {
+                            self.choose(DialogAction::ImportMedia { owner }, "", &ctx)
+                        }
+                        Err(error) => self.message = Some(error),
+                    }
+                }
+                if self.media.busy() && ui.button("Cancel import").clicked() {
+                    self.media.cancel();
+                }
             }
             ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
                 ui.label(RichText::new(env!("CARGO_PKG_VERSION")).small().weak());
-                if self.workspace.busy() || self.dialog.is_some() {
+                if self.workspace.busy() || self.dialog.is_some() || self.media.working() {
                     ui.spinner();
                 }
                 if ui.button("Help").clicked() {
@@ -1185,13 +1236,69 @@ impl Studio {
             |path| path.display().to_string(),
         ));
         ui.add_space(12.);
-        if !project.compositions.is_empty() {
+        self.media.show(ui);
+        if !project.compositions.is_empty() || !project.sources.is_empty() {
+            let count = |size, name| format!("{size} {name}{}", if size == 1 { "" } else { "s" });
             ui.weak(format!(
-                "{} sources · {} compositions · {} assets",
-                project.sources.len(),
-                project.compositions.len(),
-                project.assets.len()
+                "{} · {} · {}",
+                count(project.sources.len(), "source"),
+                count(project.compositions.len(), "composition"),
+                count(project.assets.len(), "asset")
             ));
+        }
+        if !project.sources.is_empty() {
+            egui::CollapsingHeader::new("Source media")
+                .default_open(true)
+                .show(ui, |ui| {
+                    egui::ScrollArea::vertical()
+                        .max_height(180.)
+                        .show(ui, |ui| {
+                            for source in &project.sources {
+                                egui::CollapsingHeader::new(&source.name)
+                                    .id_salt(source.id)
+                                    .show(ui, |ui| {
+                                        for stream in &source.streams {
+                                            let description = match &stream.format {
+                                                editbay_core::StreamFormat::Video {
+                                                    width,
+                                                    height,
+                                                    timing,
+                                                    ..
+                                                } => {
+                                                    let timing = match timing {
+                                                        editbay_core::PictureTiming::Variable {
+                                                            presentation_ticks,
+                                                            ..
+                                                        } => format!(
+                                                            "{} indexed pictures",
+                                                            presentation_ticks.len()
+                                                        ),
+                                                        editbay_core::PictureTiming::Constant {
+                                                            rate,
+                                                        } => format!(
+                                                            "{}/{} fps",
+                                                            rate.numerator, rate.denominator
+                                                        ),
+                                                    };
+                                                    format!("{width} × {height} · {timing}")
+                                                }
+                                                editbay_core::StreamFormat::Audio {
+                                                    sample_rate,
+                                                    channels,
+                                                } => format!(
+                                                    "{sample_rate} Hz · {}",
+                                                    channels.join(" / ")
+                                                ),
+                                            };
+                                            ui.label(format!(
+                                                "Stream {} · {} · {description}",
+                                                stream.index, stream.codec
+                                            ));
+                                        }
+                                    });
+                            }
+                        });
+                });
         }
         egui::ScrollArea::vertical()
             .id_salt("document")
@@ -1212,11 +1319,21 @@ impl Studio {
                             .find(|composition| composition.id == id)
                     }) {
                         ui.label(format!(
-                            "{} · {} frames · {} tracks · {} nodes",
+                            "{} · {} frames · {} {} · {} {}",
                             composition.name,
                             composition.duration,
                             composition.tracks.len(),
-                            composition.nodes.len()
+                            if composition.tracks.len() == 1 {
+                                "track"
+                            } else {
+                                "tracks"
+                            },
+                            composition.nodes.len(),
+                            if composition.nodes.len() == 1 {
+                                "node"
+                            } else {
+                                "nodes"
+                            }
                         ));
                         ui.weak("Composition preview unavailable");
                     }
@@ -1747,7 +1864,7 @@ impl eframe::App for Studio {
             });
         self.modals(&ctx);
         if let Some(diagnostics) = &mut self.diagnostics {
-            diagnostics.observe(&self.workspace);
+            diagnostics.observe(&self.workspace, &self.media);
             diagnostics.record("frame", serde_json::json!({"cpu_us":self.frame_started.elapsed().as_micros() as u64,"catalog_running":self.scan.is_some(),"workspace_busy":self.workspace.busy(),"bank_busy":self.bank.busy(),"welcome":self.welcome,"recovered":self.recovered,"recovery_preview":self.recovery_preview.is_some(),"recoveries_valid":self.workspace.recoveries.valid.len(),"dialog_pending":self.dialog.is_some(),"new_project_name":self.create_name,"rename_name":self.rename.as_ref().map(|(_,_,name)|name),"desktop_font_ready":self.theme.font_path.is_some()}));
         }
     }

@@ -1,6 +1,6 @@
 # Rust restart: implementation status
 
-Validated locally on 2026-10-03, Linux ARM64, Rust/Cargo 1.98.0.
+Validated locally on 2026-10-04, Linux ARM64, Rust/Cargo 1.98.0.
 This is the native local workspace, project/recovery foundation and native
 engine/inference feasibility tools. The local R1 workspace gates pass; timeline
 authoring and complete-job release gates remain open.
@@ -67,13 +67,23 @@ authoring and complete-job release gates remain open.
   separate-file format migration, CLI command groups/frame-plan inspection and
   revision-owned MCP frame-plan inspection. Native tabs retain structured documents;
   shared immutable snapshots keep frame/file handoffs independent of graph size.
+- Native/CLI media ingest with explicit installed-decoder stream selection,
+  read-only descriptor/full-checksum ownership, decoded VFR picture indices,
+  original-channel float sound and source timecode/reel/color/alpha metadata.
+  Source import uses normal undo/redo/save/recovery. Exact picture seeks flush
+  delayed decoders and work after EOF; single PNG/JPEG sources retain alpha.
+- Packaged Rust codec child with typed bounded pipes, native cancellation,
+  memory/CPU/handle limits, secondary-resource denial, visible crash recovery
+  and session/revision-owned off-thread document preparation. Native camera
+  import, active cancellation, worker death, undo/save and independent recovery
+  are exercised through the actual window and portal.
 
 ## Validation
 
 | Check | Result |
 | --- | --- |
-| `cargo test --workspace --locked` | 78 tests and 5 SDK documentation examples passed; 0 failed or ignored |
-| `cargo test --workspace --all-features --locked` | 79 tests and 5 SDK documentation examples passed with native libtorch selected; 0 failed or ignored |
+| `cargo test --workspace --locked` | 89 tests and 5 SDK documentation examples passed; 0 failed or ignored |
+| `cargo test --workspace --all-features --locked` | 90 tests and 5 SDK documentation examples passed with native libtorch selected; 0 failed or ignored |
 | Core regression suite | 23 tests: identity/rational time, validation, round trips, permission preservation, concurrent/stale writers, corruption, source loss, bounded reads, unpublished preparation/cleanup and overwrite refusal |
 | CLI binary integration suite | 3 tests: complete recovery flow, command failures and real process interruption during save; paths contain spaces |
 | Native codec/GPU/worker/clock tests | 8 tests: lossless pictures and rational time; delayed video/audio drain; invalid codecs; output descriptor/path ownership; actual FP16/FP32 GPU parity; export/cancel cleanup; device-clock interpolation |
@@ -82,10 +92,14 @@ authoring and complete-job release gates remain open.
 | Native workspace/bank | 16 tests: incremental deep catalogs and cancellation, palette parsing, settings concurrency/corruption, exact asset round trips/conflicts, stale recovery/save ownership, inactive recovery, bank draft merging and native input/focus regressions |
 | Schema 2 document | 8 additional core tests: editable job commands/undo/save/recovery, pinned legacy checkpoint migration/integrity, invalid graph/socket/link/identity rejection, exact VFR/retiming/sample boundaries, animation/history ordering, semantic frame fingerprints, immutable snapshot ownership and actual 64 MiB read/write limits |
 | Typed CLI/MCP | 2 additional real CLI workflows and 1 real MCP process workflow: authored composition/frame inspection, stale rejection, undo/redo/recovery and separate-file migration |
+| Native ingest/worker | 11 additional tests: actual VFR/multiple streams, exact backward seeks after EOF, original six-channel order/float headroom, PNG/JPEG alpha, AAC priming, source replacement, native cancellation/secondary-resource refusal, packaged child resource limits/crash/stale ownership, CLI durable ingest/recovery and document-read budget |
 | Vendored native SDK | 9 focused Wayland redraw and clipboard/modifier tests passed |
 | R1 native kill/recover/reopen | 100/100 trials passed with 4,000 catalog documents; 50 untitled and 50 saved originals; active/inactive acknowledged checkpoints retained, independent recovery identities and unchanged source/checkpoint hashes |
 | R1 native input/publication | 250 inputs: p50 11.768 ms, p95 25.086 ms, maximum 65.256 ms; 200 UI checkpoint commits: p95 1.059 ms, maximum 4.585 ms; peak RSS/HWM 103,248 KiB |
 | R2 document native regression | 100/100 new native recovery trials; 250 inputs p95 22.256 ms, maximum 33.244 ms; 200 UI checkpoint commits p95 0.564 ms, maximum 4.204 ms; peak RSS/HWM 101,360 KiB. Authored graph Save/checkpoint/recovery and legacy profiles inspected; source hashes preserved |
+| R2 native camera ingest | Actual portal/stream selection, worker SIGKILL with idle UI error, active cancellation 126.238 ms, import 2,284.802 ms, undo/redo, Save revision 3, checkpoint/recovery revision 4 with separate identity and preserved source/stream hashes; parent peak HWM 129,696 KiB |
+| R2 ingest native recovery regression | 100/100 fresh kill/recover/reopen trials; 250 inputs p95 26.730 ms, maximum 88.814 ms; 223 UI checkpoint commits p95 0.928 ms, maximum 3.951 ms; peak parent HWM 124,304 KiB. Sources/originals/checkpoints retained; incomplete driver runs are separately recorded |
+| Real indexed picture/sound | Portrait: 528 pictures, 25 pixel-equal seeks, CPU seek p95 631.905 ms, HWM 89,184 KiB. Camera: 314 pictures, 26 pixel-equal seeks, 627,040 native mono 48 kHz samples, CPU seek p95 469.515 ms, HWM 64,368 KiB. Both miss the 250 ms warm-seek gate; no cache/playback qualification claimed |
 | Native recovery timing | 23 continuous edits: first durable publication 9,807.159 ms, latest idle publication 1,051.024 ms; input acceptance p95 16.844 ms; 1 s idle debounce with <= 250 ms publication allowance |
 | Native storage failures | Actual EACCES and ENOSPC errors displayed; no false checkpoint acknowledgement; retry published a valid checkpoint after repair |
 | Native layout/input/assets | Final 800x600 and 1440x900 dark/light welcome captures inspected; native portrait profiles, Fcitx IME, Ctrl+V/Shift+Insert, preferences and repeated portal imports/exports inspected; exact SVG/font byte round trips and unsaved-bank close guard |
@@ -104,10 +118,13 @@ other advertised hardware and live services remain unqualified.
 Schema 2 software, actual CLI/MCP workflows and the fresh native 100-trial
 regression have separate [R2 document evidence](evidence/r2-document/README.md).
 This does not close production media-engine gates.
+Actual native ingest and source/seek receipts are in
+[R2 media evidence](evidence/r2-media/README.md). Native/CLI ingest is implemented;
+EB-021 and the full R2 release gate remain open.
 
 ## Still to implement
 
-Checkpoint pruning, native timeline gestures, production ingest/playback,
+Checkpoint pruning, native timeline gestures, image-sequence ingest, production playback,
 audio graph, managed GPU/display/output color, delivery, interchange, cloud, and
 production inference integration remain roadmap work. The measured picture exporter and
 short callback-clock probe are functional feasibility tools, with recorded limits.
@@ -123,6 +140,7 @@ work. EB-007 specifies the complete automation contract and implements only real
 foundation commands. R0's persistence and documented ARM64 feasibility gates pass.
 Other hardware, physical paths, production jobs and model distribution remain
 their later milestone gates. R1's native workspace is implemented and locally
-qualified. R2's document layer is implemented; production media engine qualification
+qualified. R2's document and selected native ingest layers are implemented; shared
+production picture/sound evaluation, cache/scheduling and media engine qualification
 and R3–R11 remain roadmap work. No enterprise or GTM completion
 is declared.

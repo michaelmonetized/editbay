@@ -48,6 +48,11 @@ false, and corresponding tools are absent. The lab's actual decode/inference/
 export probes are documented separately; their presence does not enable editor
 workflows or turn them into document jobs.
 
+Native UI and CLI ingest are now implemented through the shared typed commands;
+see [media ingest](MEDIA_INGEST.md). This does not grant MCP filesystem access or
+enable its media capability: MCP source values remain explicit validated document
+data supplied within the existing command scope.
+
 Example `apply_commands` arguments, using the identity/revision returned by inspection:
 
 ```json

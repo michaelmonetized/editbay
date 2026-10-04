@@ -2,6 +2,13 @@
 
 #[allow(unsafe_code)]
 mod ffi;
+mod source;
+pub mod worker;
+
+pub use source::{
+    AudioBlock, Cancellation, IngestedSource, MediaProbe, NativeAudioReader, SourceFile,
+    SourceFingerprint, StreamProfile, StreamType, VideoIndex,
+};
 
 use serde::Serialize;
 use std::path::Path;
@@ -14,6 +21,12 @@ pub enum Error {
     Invalid(String),
     #[error("filesystem: {0}")]
     Io(#[from] std::io::Error),
+    #[error("media operation cancelled")]
+    Cancelled,
+    #[error("source changed during media work: {0}")]
+    SourceChanged(String),
+    #[error("document: {0}")]
+    Document(#[from] editbay_core::Error),
 }
 pub type Result<T> = std::result::Result<T, Error>;
 
@@ -36,6 +49,8 @@ pub struct MediaInfo {
 #[derive(Debug)]
 pub struct DecodedFrame {
     pub timestamp_ns: Option<i64>,
+    pub source_tick: Option<i64>,
+    pub duration_ticks: Option<u64>,
     pub rgba: Vec<u8>,
 }
 
@@ -57,14 +72,73 @@ impl VideoReader {
     pub fn next_frame(&mut self) -> Result<Option<DecodedFrame>> {
         let size = self.info.width as usize * self.info.height as usize * 4;
         let mut rgba = vec![0; size];
-        let (length, timestamp_ns) = self.inner.next(&mut rgba)?;
+        let (length, details) = self.inner.next(&mut rgba)?;
         if length == 0 {
             return Ok(None);
         }
         if length != size {
             return Err(Error::Invalid("decoded picture size changed".into()));
         }
-        Ok(Some(DecodedFrame { timestamp_ns, rgba }))
+        let source_tick = (details.pts != i64::MIN).then_some(details.pts);
+        let timestamp_ns = source_tick
+            .map(|tick| {
+                i64::try_from(
+                    i128::from(tick) * i128::from(self.inner.stream.base_num) * 1_000_000_000
+                        / i128::from(self.inner.stream.base_den),
+                )
+                .map_err(|_| Error::Invalid("picture timestamp overflow".into()))
+            })
+            .transpose()?;
+        Ok(Some(DecodedFrame {
+            timestamp_ns,
+            source_tick,
+            duration_ticks: u64::try_from(details.duration)
+                .ok()
+                .filter(|value| *value > 0),
+            rgba,
+        }))
+    }
+
+    /// Select a picture stream from an owned local source.
+    /// `source` retains the validated descriptor, `stream` is its explicit index,
+    /// and `cancel` interrupts native IO/decode. Returns an RGBA8 CPU reader.
+    pub fn open_stream(source: &SourceFile, stream: u32, cancel: Cancellation) -> Result<Self> {
+        let (inner, info) =
+            ffi::Reader::from_file(source.file(), source.path(), Some(stream), 0, cancel)?;
+        if inner.stream.base_num <= 0 || inner.stream.base_den <= 0 {
+            return Err(Error::Invalid(
+                "picture stream has no valid time base".into(),
+            ));
+        }
+        Ok(Self { inner, info })
+    }
+
+    /// Seek to a source keyframe at or before a presentation tick.
+    /// `tick` uses the selected stream's time base. Returns after flushing all
+    /// delayed decoder state; callers decode forward to the requested picture.
+    pub fn seek(&mut self, tick: i64) -> Result<()> {
+        self.inner.seek(tick)
+    }
+
+    /// Decode the exact indexed picture after a source seek.
+    /// `tick` is a previously indexed presentation timestamp. Returns its
+    /// picture or an error rather than substituting a neighbouring frame.
+    pub fn frame_at(&mut self, tick: i64) -> Result<DecodedFrame> {
+        self.seek(tick)?;
+        while let Some(frame) = self.next_frame()? {
+            let actual = frame
+                .source_tick
+                .ok_or_else(|| Error::Invalid("picture has no timestamp".into()))?;
+            if actual == tick {
+                return Ok(frame);
+            }
+            if actual > tick {
+                break;
+            }
+        }
+        Err(Error::Invalid(format!(
+            "indexed picture at tick {tick} is unavailable"
+        )))
     }
 }
 
@@ -85,7 +159,7 @@ impl AudioReader {
     /// Returns interleaved stereo float samples, or `None` after draining the resampler.
     pub fn next_samples(&mut self) -> Result<Option<Vec<f32>>> {
         let mut samples = vec![0.0; 2 * 65_536];
-        let length = self.inner.next_audio(&mut samples)?;
+        let (length, _) = self.inner.next_audio(&mut samples)?;
         if length == 0 {
             return Ok(None);
         }
