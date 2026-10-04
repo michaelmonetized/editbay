@@ -1,0 +1,81 @@
+{
+  "actual_indexed_source": {
+    "child_nodes": 10,
+    "document_bytes": 7469,
+    "document_sha256": "0c1090895f1279df64a393b729da49ecffcc282176c7ea71ae74f2bbc0737e09",
+    "indexed_pictures": 314,
+    "initialization_ms": 1.237048,
+    "inspection_keys_sha256": "1b5d2ff76489e00134249bd4e3a1cdc35c07fb6aab77b28b7342586256bd655d",
+    "inspection_parity_checks": 20,
+    "one_shot_inspection": {
+      "count": 20,
+      "max_ms": 1.74055,
+      "p50_ms": 1.618925,
+      "p95_ms": 1.74055
+    },
+    "parent_nodes": 1,
+    "planning_budget_pass": true,
+    "planning_p95_budget_ms": 1.0,
+    "retained_frame_keys_sha256": "a4228eeb62962cc32477a4b2cfadeff44daf72ee60f024594f777b71be023c10",
+    "retained_planning": {
+      "count": 10000,
+      "max_ms": 6.900951,
+      "p50_ms": 0.262918,
+      "p95_ms": 0.284293
+    },
+    "warmup_iterations": 100
+  },
+  "application_version": "0.1.0",
+  "architecture": "aarch64",
+  "codec_runtime": "n9.0.1",
+  "fingerprint": {
+    "bytes": 5235017,
+    "sha256": "498ec6c42b6b440886eb761dc4775c994f7578021890ceae3f370ffc6fb3e021"
+  },
+  "ingest_ms": 811.416336,
+  "kind": "retained_temporal_evaluation",
+  "limits": [
+    "CPU temporal planning only; no rendered pictures, decoded output cache, surface presentation or sound playback",
+    "the ten-node masked/animated picture and gain graph is a synthetic edit referencing the actual imported source index",
+    "optional stress timestamps are synthetic and do not claim actual source pictures or duration",
+    "planning p95 budget is 1 ms; the complete R2 picture, seek, audio and hardware budgets remain unchanged"
+  ],
+  "memory": [
+    "VmHWM:\t   88576 kB",
+    "VmRSS:\t   84384 kB"
+  ],
+  "production_playback_qualified": false,
+  "schema": 1,
+  "selected_streams": [
+    1,
+    0
+  ],
+  "source": "/home/michael/Downloads/iCloud Photos/IMG_0001.MP4",
+  "source_unchanged": true,
+  "synthetic_index_stress": {
+    "child_nodes": 10,
+    "document_bytes": 4174279,
+    "document_sha256": "d3386a4523ff2006ed0aafe83d0836eb74bae3b59a64d4e84af6355799ca020e",
+    "indexed_pictures": 500000,
+    "initialization_ms": 620.446186,
+    "inspection_keys_sha256": "d29af0b193f872cec2e04acff95f2eca277ea5db788157b5df841a46aa96f8d5",
+    "inspection_parity_checks": 20,
+    "one_shot_inspection": {
+      "count": 20,
+      "max_ms": 620.626937,
+      "p50_ms": 605.578988,
+      "p95_ms": 620.626937
+    },
+    "parent_nodes": 1,
+    "planning_budget_pass": true,
+    "planning_p95_budget_ms": 1.0,
+    "retained_frame_keys_sha256": "635e448bccfe890509f53d4b93b17f655688176c91f9fb87da85d0a873fbc646",
+    "retained_planning": {
+      "count": 10000,
+      "max_ms": 0.43375199999999997,
+      "p50_ms": 0.262876,
+      "p95_ms": 0.28229299999999996
+    },
+    "warmup_iterations": 100
+  }
+}

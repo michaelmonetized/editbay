@@ -61,6 +61,11 @@ evaluation, caches, scheduling, GPU handoff and hardware gates remain open.
 The ingest layer passes another 100-trial native recovery regression; input p95
 26.730 ms. Real indexed seek agrees pixel for pixel but exceeds the warm-seek
 budget; see [ingest evidence](evidence/r2-media/README.md).
+The temporal dependency of EB-023/024/026 now retains compiled immutable graphs,
+fractional/reverse source and animation boundaries, and working-content keys.
+Integer inspection retains its published receipt. This qualifies CPU planning
+only; see [temporal evaluation](TEMPORAL_EVALUATION.md). Actual rendered picture,
+sound intervals, bounded decoded/GPU caches and playback/export remain open.
 Quantitative enterprise/GTM budgets are set in [release criteria](RELEASE_CRITERIA.md).
 
 ## Milestone map

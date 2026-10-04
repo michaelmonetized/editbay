@@ -1,5 +1,5 @@
 use editbay_core::*;
-use std::{collections::BTreeMap, fs};
+use std::{collections::BTreeMap, fs, sync::Arc};
 use uuid::Uuid;
 
 fn id(value: u128) -> Uuid {
@@ -254,6 +254,469 @@ fn model() -> Project {
     project.sequences[0].composition = Some(id(31));
     project.validate().unwrap();
     project
+}
+
+fn prepared_node(frame: &PreparedFrame, value: u128) -> &PreparedNode {
+    frame
+        .nodes
+        .iter()
+        .find(|node| node.id == id(value))
+        .unwrap()
+}
+
+#[test]
+fn compiled_integer_inspection_preserves_the_published_receipt() {
+    let project: Project = serde_json::from_slice(include_bytes!(
+        "../../../docs/evidence/r2-document/fixture.editbay"
+    ))
+    .unwrap();
+    let expected: serde_json::Value = serde_json::from_slice(include_bytes!(
+        "../../../docs/evidence/r2-document/frame-24.json"
+    ))
+    .unwrap();
+    let snapshot = EvaluationSnapshot::new(Arc::new(project)).unwrap();
+    let actual = snapshot.frame_plan(id(30), 24).unwrap();
+    assert_eq!(serde_json::to_value(actual).unwrap(), expected);
+}
+
+#[test]
+fn rational_retimes_cancel_large_factors_and_preserve_unsigned_endpoints() {
+    let base = TimeBase {
+        numerator: 1,
+        denominator: u32::MAX,
+    };
+    let rate = FrameRate::new(1, u32::MAX).unwrap();
+    assert_eq!(
+        base.boundary(SourcePosition::new(1, u64::MAX).unwrap(), rate)
+            .unwrap(),
+        0
+    );
+    assert_eq!(
+        base.boundary(SourcePosition::new(-1, u64::MAX).unwrap(), rate)
+            .unwrap(),
+        -1
+    );
+    let forward = TimeMap {
+        points: vec![
+            TimePoint {
+                frame: 0,
+                source_tick: i64::MIN,
+            },
+            TimePoint {
+                frame: 1,
+                source_tick: i64::MAX,
+            },
+        ],
+    };
+    let fraction = SourcePosition::new(i64::MAX, u64::MAX).unwrap();
+    assert_eq!(
+        forward.position_at(fraction).unwrap(),
+        SourcePosition::new(-1, 1).unwrap()
+    );
+    let reverse = TimeMap {
+        points: vec![
+            TimePoint {
+                frame: 0,
+                source_tick: i64::MAX,
+            },
+            TimePoint {
+                frame: 1,
+                source_tick: i64::MIN,
+            },
+        ],
+    };
+    assert_eq!(
+        reverse.position_at(fraction).unwrap(),
+        SourcePosition::new(0, 1).unwrap()
+    );
+    assert_eq!(
+        forward
+            .position_at(SourcePosition::new(1, 2).unwrap())
+            .unwrap(),
+        SourcePosition::new(-1, 2).unwrap()
+    );
+    assert!(
+        forward
+            .position_at(SourcePosition::new(1, 4).unwrap())
+            .is_err()
+    );
+    assert!(
+        forward
+            .position_at(SourcePosition {
+                numerator: 0,
+                denominator: 0
+            })
+            .is_err()
+    );
+    assert!(
+        forward
+            .position_at(SourcePosition::new(-1, 2).unwrap())
+            .is_err()
+    );
+    let extremes = TimeMap {
+        points: vec![
+            TimePoint {
+                frame: 0,
+                source_tick: i64::MIN,
+            },
+            TimePoint {
+                frame: u64::MAX,
+                source_tick: i64::MAX,
+            },
+        ],
+    };
+    assert_eq!(extremes.position(u64::MAX).unwrap().numerator, i64::MAX);
+    assert_eq!(extremes.position(u64::MAX / 2).unwrap().numerator, -1);
+    assert_eq!(extremes.direction_at(u64::MAX).unwrap(), 1);
+}
+
+#[test]
+fn nested_different_rates_keep_fractional_picture_sample_and_animation_time() {
+    let mut project = model();
+    let stream = &mut project.sources[0].streams[0];
+    stream.time_base = TimeBase {
+        numerator: 1,
+        denominator: 60,
+    };
+    stream.duration_ticks = Some(120);
+    if let StreamFormat::Video { timing, .. } = &mut stream.format {
+        *timing = PictureTiming::Constant {
+            rate: FrameRate::new(60, 1).unwrap(),
+        };
+    }
+    project.compositions[0].frame_rate = FrameRate::new(25, 1).unwrap();
+    project.compositions[0].tracks[0].clips[0].time_map = map(0, 120);
+    project.compositions[1].frame_rate = FrameRate::new(60, 1).unwrap();
+    project.sequences[0].frame_rate = FrameRate::new(60, 1).unwrap();
+    project.compositions[1].tracks[0].clips[0].time_map = map(0, 20);
+    let snapshot = EvaluationSnapshot::new(Arc::new(project)).unwrap();
+    let parent = snapshot
+        .prepare(id(31), SourcePosition::new(1, 1).unwrap(), false)
+        .unwrap();
+    let Some(SourceRequest::Composition {
+        composition,
+        position,
+        reverse,
+    }) = parent.nodes[0].source
+    else {
+        panic!("nested source missing")
+    };
+    assert_eq!(position, SourcePosition::new(5, 12).unwrap());
+    assert!(!reverse);
+    let child = snapshot.prepare(composition, position, reverse).unwrap();
+    assert!(matches!(
+        prepared_node(&child, 50).source,
+        Some(SourceRequest::Media {
+            picture: Some(1),
+            position: SourcePosition {
+                numerator: 25,
+                denominator: 24
+            },
+            ..
+        })
+    ));
+    assert!(matches!(
+        prepared_node(&child, 56).source,
+        Some(SourceRequest::Media {
+            sample: Some(833),
+            position: SourcePosition {
+                numerator: 2500,
+                denominator: 3
+            },
+            ..
+        })
+    ));
+    let NodeOperation::Transform { translation, .. } = *prepared_node(&child, 53).operation else {
+        panic!("transform missing")
+    };
+    assert!((translation[0] - 5.0 / 3.0).abs() < 1e-12);
+    let first = snapshot
+        .prepare(id(30), SourcePosition::new(0, 1).unwrap(), false)
+        .unwrap();
+    assert!(matches!(
+        prepared_node(&first, 50).source,
+        Some(SourceRequest::Media {
+            picture: Some(0),
+            ..
+        })
+    ));
+}
+
+#[test]
+fn reverse_nested_end_owns_the_last_picture_sample_and_preceding_step() {
+    let mut project = model();
+    project.compositions[0].nodes[3].animation[0].interpolation = Interpolation::Step;
+    let snapshot = EvaluationSnapshot::new(Arc::new(project)).unwrap();
+    let parent = snapshot
+        .prepare(id(31), SourcePosition::new(0, 1).unwrap(), false)
+        .unwrap();
+    let Some(SourceRequest::Composition {
+        composition,
+        position,
+        reverse,
+    }) = parent.nodes[0].source
+    else {
+        panic!("nested source missing")
+    };
+    assert_eq!(position.numerator, 48);
+    assert!(reverse);
+    let child = snapshot.prepare(composition, position, reverse).unwrap();
+    assert!(matches!(
+        prepared_node(&child, 50).source,
+        Some(SourceRequest::Media {
+            picture: Some(4),
+            reverse: true,
+            ..
+        })
+    ));
+    assert!(matches!(
+        prepared_node(&child, 56).source,
+        Some(SourceRequest::Media {
+            sample: Some(95999),
+            reverse: true,
+            ..
+        })
+    ));
+    assert!(matches!(
+        *prepared_node(&child, 53).operation,
+        NodeOperation::Transform {
+            translation: [0.0, 0.0],
+            ..
+        }
+    ));
+    assert!(snapshot.prepare(id(30), position, false).is_err());
+    assert!(
+        snapshot
+            .prepare(id(30), SourcePosition::new(0, 1).unwrap(), true)
+            .is_err()
+    );
+    assert!(
+        snapshot
+            .prepare(
+                id(30),
+                SourcePosition {
+                    numerator: 0,
+                    denominator: 0
+                },
+                false
+            )
+            .is_err()
+    );
+}
+
+#[test]
+fn freeze_and_range_boundaries_choose_the_correct_source_side() {
+    let mut project = model();
+    project.compositions[0].tracks[0].clips[0].time_map = TimeMap {
+        points: vec![
+            TimePoint {
+                frame: 0,
+                source_tick: 0,
+            },
+            TimePoint {
+                frame: 24,
+                source_tick: 130,
+            },
+            TimePoint {
+                frame: 48,
+                source_tick: 130,
+            },
+        ],
+    };
+    project.compositions[0].nodes[4].range = FrameRange { start: 12, end: 24 };
+    let snapshot = EvaluationSnapshot::new(Arc::new(project)).unwrap();
+    let after = snapshot
+        .prepare(id(30), SourcePosition::new(24, 1).unwrap(), false)
+        .unwrap();
+    let before = snapshot
+        .prepare(id(30), SourcePosition::new(24, 1).unwrap(), true)
+        .unwrap();
+    assert!(matches!(
+        prepared_node(&after, 50).source,
+        Some(SourceRequest::Media {
+            picture: Some(3),
+            reverse: false,
+            ..
+        })
+    ));
+    assert!(matches!(
+        prepared_node(&before, 50).source,
+        Some(SourceRequest::Media {
+            picture: Some(2),
+            reverse: true,
+            ..
+        })
+    ));
+    assert!(!prepared_node(&after, 54).active);
+    assert!(prepared_node(&before, 54).active);
+    let sample_time = SourcePosition::new(1, 2000).unwrap();
+    let after = snapshot.prepare(id(30), sample_time, false).unwrap();
+    let before = snapshot.prepare(id(30), sample_time, true).unwrap();
+    assert!(matches!(
+        prepared_node(&after, 56).source,
+        Some(SourceRequest::Media {
+            sample: Some(1),
+            ..
+        })
+    ));
+    assert!(matches!(
+        prepared_node(&before, 56).source,
+        Some(SourceRequest::Media {
+            sample: Some(0),
+            ..
+        })
+    ));
+}
+
+#[test]
+fn retained_operations_and_held_picture_keys_reuse_only_matching_dependencies() {
+    let project = model();
+    let version = DocumentVersion::of(&project);
+    let snapshot = EvaluationSnapshot::new(Arc::new(project.clone())).unwrap();
+    let first = snapshot
+        .prepare(id(30), SourcePosition::new(12, 1).unwrap(), false)
+        .unwrap();
+    let second = snapshot
+        .prepare(id(30), SourcePosition::new(13, 1).unwrap(), false)
+        .unwrap();
+    assert!(Arc::ptr_eq(
+        &prepared_node(&first, 51).operation,
+        &prepared_node(&second, 51).operation
+    ));
+    assert_eq!(
+        prepared_node(&first, 50).sha256,
+        prepared_node(&second, 50).sha256
+    );
+    assert_ne!(
+        prepared_node(&first, 53).sha256,
+        prepared_node(&second, 53).sha256
+    );
+    assert_ne!(
+        prepared_node(&first, 56).sha256,
+        prepared_node(&second, 56).sha256
+    );
+    let mut editor = DocumentEditor::new(project).unwrap();
+    editor
+        .apply(
+            version,
+            "Rename retained source".into(),
+            &[DocumentCommand::RenameProject {
+                name: "Later edit".into(),
+            }],
+        )
+        .unwrap();
+    let changed = EvaluationSnapshot::new(editor.snapshot()).unwrap();
+    let after = changed
+        .prepare(id(30), SourcePosition::new(12, 1).unwrap(), false)
+        .unwrap();
+    assert_eq!(first.sha256, after.sha256);
+    assert_ne!(first.version, after.version);
+    let worker = std::thread::spawn(move || {
+        snapshot
+            .prepare(id(30), SourcePosition::new(12, 1).unwrap(), false)
+            .unwrap()
+    });
+    assert_eq!(worker.join().unwrap().version, version);
+}
+
+#[test]
+fn mask_bytes_working_color_precision_and_dimensions_invalidate_working_keys() {
+    let mut project = model();
+    project.assets.push(AssetReference {
+        id: id(90),
+        kind: AssetKind::Mask,
+        path: "Editable mask.exr".into(),
+        sha256: "b".repeat(64),
+        bytes: 1024,
+        provenance: "Synthetic dependency test".into(),
+    });
+    project.compositions[0].nodes[2].operation = NodeOperation::MaskAsset { asset: id(90) };
+    let prepare = |project: &Project| {
+        EvaluationSnapshot::new(Arc::new(project.clone()))
+            .unwrap()
+            .prepare(id(30), SourcePosition::new(24, 1).unwrap(), false)
+            .unwrap()
+    };
+    let original = prepare(&project);
+    let mut changed = project.clone();
+    changed.assets[1].sha256 = "c".repeat(64);
+    let mask = prepare(&changed);
+    assert_ne!(
+        prepared_node(&original, 52).sha256,
+        prepared_node(&mask, 52).sha256
+    );
+    assert_ne!(
+        prepared_node(&original, 59).sha256,
+        prepared_node(&mask, 59).sha256
+    );
+    assert_eq!(
+        prepared_node(&original, 50).sha256,
+        prepared_node(&mask, 50).sha256
+    );
+    changed = project.clone();
+    changed.assets[1].bytes += 1;
+    assert_ne!(
+        prepared_node(&original, 52).sha256,
+        prepared_node(&prepare(&changed), 52).sha256
+    );
+    for (gamut, precision, width) in [
+        (WorkingGamut::Bt2020, FloatPrecision::Full, 1920),
+        (WorkingGamut::Bt709, FloatPrecision::Half, 1920),
+        (WorkingGamut::Bt709, FloatPrecision::Full, 1280),
+    ] {
+        changed = project.clone();
+        changed.color.working_gamut = gamut;
+        changed.color.precision = precision;
+        changed.compositions[0].width = width;
+        let after = prepare(&changed);
+        for node in [50, 52, 54, 59] {
+            assert_ne!(
+                prepared_node(&original, node).sha256,
+                prepared_node(&after, node).sha256
+            );
+        }
+        for node in [56, 57, 58] {
+            assert_eq!(
+                prepared_node(&original, node).sha256,
+                prepared_node(&after, node).sha256
+            );
+        }
+    }
+    changed = project.clone();
+    changed.color.display_transfer = OutputTransfer::Bt709;
+    changed.color.output_transfer = OutputTransfer::Linear;
+    let after = prepare(&changed);
+    assert_ne!(original.sha256, after.sha256);
+    for node in [50, 52, 54, 59] {
+        assert_eq!(
+            prepared_node(&original, node).sha256,
+            prepared_node(&after, node).sha256
+        );
+    }
+    changed = project;
+    changed.assets[0].bytes += 1;
+    let after = prepare(&changed);
+    assert_ne!(
+        prepared_node(&original, 50).sha256,
+        prepared_node(&after, 50).sha256
+    );
+    assert_eq!(
+        prepared_node(&original, 54).sha256,
+        prepared_node(&after, 54).sha256
+    );
+    changed.assets[0].bytes -= 1;
+    if let StreamFormat::Video { alpha, .. } = &mut changed.sources[0].streams[0].format {
+        *alpha = AlphaMode::Premultiplied;
+    }
+    let after = prepare(&changed);
+    assert_ne!(
+        prepared_node(&original, 50).sha256,
+        prepared_node(&after, 50).sha256
+    );
+    assert_eq!(
+        prepared_node(&original, 54).sha256,
+        prepared_node(&after, 54).sha256
+    );
 }
 
 #[test]

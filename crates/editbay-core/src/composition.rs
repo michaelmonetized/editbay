@@ -324,6 +324,19 @@ impl AnimationChannel {
     /// `frame` is composition time. Returns a finite value or an explicit error;
     /// Hermite tangents are value change per composition frame.
     pub fn value_at(&self, frame: u64) -> Result<f64> {
+        self.validate_keys()?;
+        self.value_fraction(i128::from(frame), 1, false)
+    }
+
+    /// Evaluate animation at an exact fractional composition position.
+    /// `position` is measured in composition frames. Returns the interpolated
+    /// finite parameter; key selection occurs before any floating-point conversion.
+    pub fn value_at_position(&self, position: SourcePosition) -> Result<f64> {
+        self.validate_keys()?;
+        self.value_validated(position, false)
+    }
+
+    fn validate_keys(&self) -> Result<()> {
         if self.keys.len() > 1_000_000
             || self
                 .keys
@@ -339,14 +352,38 @@ impl AnimationChannel {
             finite(key.in_tangent)?;
             finite(key.out_tangent)?;
         }
+        Ok(())
+    }
+
+    /// Evaluate retained keys after document validation.
+    /// `position` selects exact frame time; `before` selects the preceding side.
+    /// Returns a finite parameter without scanning every key again.
+    pub(crate) fn value_validated(&self, position: SourcePosition, before: bool) -> Result<f64> {
+        self.value_fraction(i128::from(position.numerator), position.denominator, before)
+    }
+
+    /// Resolve a rational time against ordered animation keys.
+    /// `numerator`, `denominator` and `before` specify time and boundary ownership.
+    /// Returns held, linear or Hermite interpolation with parameter bounds applied.
+    fn value_fraction(&self, numerator: i128, denominator: u64, before: bool) -> Result<f64> {
+        if denominator == 0 {
+            return Err(Error::Invalid("animation time denominator is zero".into()));
+        }
         let first = self
             .keys
             .first()
             .ok_or_else(|| Error::Invalid("empty animation channel".into()))?;
-        if frame <= first.frame {
+        if numerator < 0 || numerator as u128 <= u128::from(first.frame) * u128::from(denominator) {
             return finite(first.value);
         }
-        let index = self.keys.partition_point(|key| key.frame <= frame) - 1;
+        let index = self.keys.partition_point(|key| {
+            let tick = u128::from(key.frame) * u128::from(denominator);
+            if before {
+                tick < numerator as u128
+            } else {
+                tick <= numerator as u128
+            }
+        }) - 1;
         let a = &self.keys[index];
         let Some(b) = self.keys.get(index + 1) else {
             return finite(a.value);
@@ -355,7 +392,8 @@ impl AnimationChannel {
             return Err(Error::Invalid("animation keys must increase".into()));
         }
         let span = (b.frame - a.frame) as f64;
-        let t = (frame - a.frame) as f64 / span;
+        let offset = numerator as u128 - u128::from(a.frame) * u128::from(denominator);
+        let t = (offset as f64 / denominator as f64) / span;
         let value = finite(match self.interpolation {
             Interpolation::Step => a.value,
             Interpolation::Linear => a.value + (b.value - a.value) * t,

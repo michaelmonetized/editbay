@@ -1,0 +1,67 @@
+{
+  "schema": 1,
+  "date": "2026-10-04",
+  "platform": "Linux ARM64 / Omarchy / Apple M1 Pro",
+  "build_profile": "dev, debug=0, incremental=false",
+  "storage": {
+    "build": "target/native-build",
+    "temporary_fixtures": "artifacts/tmp",
+    "frozen_binaries": "artifacts/r2-temporal-final",
+    "ignored_parents_verified": ["/target/", "/artifacts/"]
+  },
+  "software": [
+    {
+      "command": "cargo test --workspace --locked",
+      "exit_code": 0,
+      "tests": 96,
+      "sdk_documentation_examples": 5,
+      "failed": 0,
+      "ignored": 0,
+      "log": "workspace-tests.log"
+    },
+    {
+      "command": "cargo test --workspace --all-features --locked",
+      "exit_code": 0,
+      "tests": 97,
+      "sdk_documentation_examples": 5,
+      "failed": 0,
+      "ignored": 0,
+      "native_reference": "Pinned libtorch 2.10.0+cpu under artifacts/native-torch/torch",
+      "log": "all-feature-tests.log"
+    },
+    {
+      "command": "cargo clippy --workspace --all-targets --all-features --locked -- -D warnings",
+      "exit_code": 0,
+      "log": "clippy.log"
+    },
+    {
+      "command": "cargo fmt --all -- --check",
+      "exit_code": 0,
+      "log": "fmt.log"
+    }
+  ],
+  "integer_inspection": {
+    "command": "Frozen editbay frame-plan docs/evidence/r2-document/fixture.editbay 00000000-0000-0000-0000-00000000001e 24",
+    "byte_identical_cmp_exit_code": 0,
+    "frame_plan_sha256": "451a76e94d25277cda2ee25aa01ac7ff38b9ac26662d3609924d6520809040de"
+  },
+  "temporal_budget": {
+    "p95_ms": 1.0,
+    "warmup_iterations": 100,
+    "iterations_per_case": 10000,
+    "graph": "Ten-node synthetic edit referencing actual indexed picture and native sound, alternating direct fractional and reverse-nested requests",
+    "actual_camera": {"pictures": 314, "p95_ms": 0.284293, "pass": true},
+    "actual_recording": {"pictures": 11471, "p95_ms": 0.281001, "pass": true},
+    "synthetic_index_stress": {"timestamps": 500000, "p95_ms": 0.282293, "pass": true},
+    "source_bytes_verified_before_and_after": true,
+    "receipt_commands": [
+      "Frozen editbay-lab evaluation '/home/michael/Downloads/iCloud Photos/IMG_0001.MP4' 10000 500000",
+      "Frozen editbay-lab evaluation '/home/michael/Videos/2026-10-01 15-52-31.mkv' 10000"
+    ]
+  },
+  "rendered_picture_or_audio_block_claim": false,
+  "native_presentation_claim": false,
+  "physical_audibility_claim": false,
+  "full_R2_release_qualified": false,
+  "enterprise_GTM_release_qualified": false
+}

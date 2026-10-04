@@ -82,6 +82,16 @@ scenes and reel/timecode metadata do not affect them. Frame fingerprints also in
 time and evaluated nodes. Workers must still reject obsolete document ownership;
 reusable immutable content and permission to publish are separate checks.
 
+Repeated production planning retains an `EvaluationSnapshot` over the immutable
+document. It validates and compiles reachable inputs, static operations and source
+interpretations once. `prepare` accepts an exact fractional composition position
+and the requested boundary side. Reverse evaluation uses (start,end] ranges and
+the preceding side of step-animation/time-map keys. Nested frames retain their
+fraction through the next scene's source map and animation; only final media
+picture/sample selection rounds. The established integer `FramePlan` inspection
+format and fingerprint remain unchanged. See [temporal evaluation](TEMPORAL_EVALUATION.md)
+for cache dependency boundaries and measured limits.
+
 ## Commands and limits
 
 `rename_project`, `set_sequence`, `remove_sequence`, `set_asset`, `remove_asset`,

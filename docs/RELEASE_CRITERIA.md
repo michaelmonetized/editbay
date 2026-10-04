@@ -73,5 +73,11 @@ A fresh native 100/100 recovery regression on the ingest artifact retains
 originals/checkpoints and independent identities; input p95 is 26.730 ms and
 UI checkpoint publication p95 is 0.928 ms. Incomplete driver attempts are
 recorded separately and do not count as passing trials.
+The compiled temporal slice passes its separate 1 ms CPU planning budget on actual
+314/11,471-picture indices and explicitly synthetic 500,000-timestamp stress.
+It preserves the published integer inspector and covers exact fractional/reverse
+boundaries and content invalidation; see [temporal evidence](evidence/r2-temporal/README.md).
+This does not satisfy rendered preview/export, decoded/GPU cache, seek, sound-block,
+presentation or drift gates. The production renderer/audio/cache layer remains open.
 Other hardware, production model packs and full workflows remain R2–R11 gates.
 See `IMPLEMENTATION_STATUS.md` for implementation and measurement receipts.
