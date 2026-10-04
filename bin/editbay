@@ -2,7 +2,7 @@
 set -euo pipefail
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 case "${1-}" in
-  new|info|rename|checkpoint|recoveries|recover|--help|-h|--version|-V)
+  new|info|rename|apply|migrate|frame-plan|checkpoint|recoveries|recover|--help|-h|--version|-V)
     exec cargo run --quiet --locked --manifest-path "$ROOT/Cargo.toml" --package editbay-cli -- "$@"
     ;;
   *)

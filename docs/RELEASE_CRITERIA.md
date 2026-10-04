@@ -59,5 +59,9 @@ jobs are not advertised by this milestone. R1's local native workspace passes it
 [R1 evidence](evidence/r1-workspace/README.md). The recovery scheduler starts after
 1 s idle; the timing receipt allows at most 250 ms for worker preparation and
 durable publication, and retains the 10 s continuous-edit maximum.
+R2's typed document, migration and frame-plan slice passes its software checks
+and a fresh 100-trial native workspace regression; see
+[R2 document evidence](evidence/r2-document/README.md). Its production picture,
+sound, seek, cache and long-playback gates remain open.
 Other hardware, production model packs and full workflows remain R2–R11 gates.
 See `IMPLEMENTATION_STATUS.md` for implementation and measurement receipts.

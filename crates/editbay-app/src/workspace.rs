@@ -7,7 +7,10 @@ use std::{
     collections::{HashMap, VecDeque},
     fs,
     path::{Path, PathBuf},
-    sync::mpsc::{self, Receiver, Sender},
+    sync::{
+        Arc,
+        mpsc::{self, Receiver, Sender},
+    },
     time::{Duration, Instant},
 };
 use uuid::Uuid;
@@ -16,7 +19,7 @@ pub struct Tab {
     pub id: Uuid,
     pub editor: DocumentEditor,
     pub path: Option<PathBuf>,
-    pub saved: Option<Project>,
+    pub saved: Option<Arc<Project>>,
     pub recovery_revision: Option<u64>,
     pub recovery_error: Option<String>,
     generation: u64,
@@ -30,7 +33,8 @@ impl Tab {
     /// Takes no arguments; returns true for untitled or changed documents,
     /// independently of whether a recovery snapshot already exists.
     pub fn dirty(&self) -> bool {
-        self.saved.as_ref() != Some(self.editor.project())
+        self.saved.as_deref().map(DocumentVersion::of)
+            != Some(DocumentVersion::of(self.editor.project()))
     }
 }
 
@@ -50,8 +54,14 @@ enum Pending {
 }
 
 enum Outcome {
-    Opened { path: PathBuf, project: Project },
-    Saved { path: PathBuf, project: Project },
+    Opened {
+        path: PathBuf,
+        editor: DocumentEditor,
+    },
+    Saved {
+        path: PathBuf,
+        project: Arc<Project>,
+    },
     Prepared(PreparedCheckpoint),
     Copy(PathBuf),
     Recoveries(RecoveryCatalog),
@@ -102,10 +112,13 @@ impl Workspace {
     /// `project` comes from the core constructor. Returns its independent tab
     /// identity; it is recoverable even before a destination has been chosen.
     pub fn create(&mut self, project: Project) -> Result<Uuid, String> {
-        self.add(project, None)
+        self.add(
+            DocumentEditor::new(project).map_err(|error| error.to_string())?,
+            None,
+        )
     }
 
-    fn add(&mut self, project: Project, path: Option<PathBuf>) -> Result<Uuid, String> {
+    fn add(&mut self, editor: DocumentEditor, path: Option<PathBuf>) -> Result<Uuid, String> {
         if self.tabs.len() >= 128 {
             return Err(
                 "The workspace supports 128 open projects; close a tab to open another".into(),
@@ -113,10 +126,10 @@ impl Workspace {
         }
         let now = Instant::now();
         let id = Uuid::new_v4();
-        let saved = path.as_ref().map(|_| project.clone());
+        let saved = path.as_ref().map(|_| editor.snapshot());
         self.tabs.push(Tab {
             id,
-            editor: DocumentEditor::new(project).map_err(|e| e.to_string())?,
+            editor,
             path,
             saved,
             recovery_revision: None,
@@ -212,7 +225,7 @@ impl Workspace {
             .iter()
             .find(|tab| tab.id == id)
             .ok_or("This document is no longer open")?;
-        let project = tab.editor.project().clone();
+        let project = tab.editor.snapshot();
         if DocumentVersion::of(&project) != expected {
             return Err("Save dialog belongs to an older document revision".into());
         }
@@ -234,7 +247,7 @@ impl Workspace {
                         &project,
                         &destination,
                         saved
-                            .as_ref()
+                            .as_deref()
                             .ok_or("Saved project has no loaded version")?,
                     )
                     .map_err(|e| e.to_string())?;
@@ -260,20 +273,20 @@ impl Workspace {
         expected: DocumentVersion,
         destination: PathBuf,
     ) -> Result<Uuid, String> {
-        let mut project = self
+        let captured = self
             .tabs
             .iter()
             .find(|tab| tab.id == id)
             .ok_or("This document is no longer open")?
             .editor
-            .project()
-            .clone();
-        if DocumentVersion::of(&project) != expected {
+            .snapshot();
+        if DocumentVersion::of(&captured) != expected {
             return Err("Copy dialog belongs to an older document revision".into());
         }
-        project.id = Uuid::new_v4();
-        project.recovered_from = None;
         self.spawn(Pending::Copy, move || {
+            let mut project = (*captured).clone();
+            project.id = Uuid::new_v4();
+            project.recovered_from = None;
             save_new(&project, &destination).map_err(|e| e.to_string())?;
             Ok(Outcome::Copy(destination))
         })
@@ -287,7 +300,7 @@ impl Workspace {
             let project = recover_copy(snapshot, &destination).map_err(|e| e.to_string())?;
             Ok(Outcome::Opened {
                 path: absolute_destination(&destination)?,
-                project,
+                editor: DocumentEditor::new(project).map_err(|error| error.to_string())?,
             })
         })
     }
@@ -320,7 +333,7 @@ impl Workspace {
             .iter()
             .find(|tab| tab.id == id)
             .ok_or("This document is no longer open")?;
-        let project = tab.editor.project().clone();
+        let project = tab.editor.snapshot();
         let original = tab.path.clone();
         let root = self.recovery_root.clone();
         self.spawn(
@@ -397,7 +410,10 @@ impl Workspace {
                 }
                 let path = path.canonicalize().map_err(|e| e.to_string())?;
                 let project = load_bounded(&path, 8 * 1024 * 1024).map_err(|e| e.to_string())?;
-                Ok(Outcome::Opened { path, project })
+                Ok(Outcome::Opened {
+                    path,
+                    editor: DocumentEditor::new(project).map_err(|error| error.to_string())?,
+                })
             });
             if let Err(error) = result {
                 self.error(error);
@@ -427,7 +443,7 @@ impl Workspace {
                 break;
             }
             let tab = self.tabs.iter().find(|tab| tab.id == id).unwrap();
-            let project = tab.editor.project().clone();
+            let project = tab.editor.snapshot();
             let original = tab.path.clone();
             let root = self.recovery_root.clone();
             let job = Pending::Recovery {
@@ -561,9 +577,9 @@ impl Workspace {
                 tab.recovery_since = now;
                 self.catalog_dirty = true;
             }
-            (Pending::Open, Ok(Outcome::Opened { path, project })) => {
+            (Pending::Open, Ok(Outcome::Opened { path, editor })) => {
                 self.activation_generation = self.activation_generation.wrapping_add(1);
-                if project.recovered_from.is_some() {
+                if editor.project().recovered_from.is_some() {
                     self.catalog_dirty = true;
                 }
                 if let Some(tab) = self
@@ -573,7 +589,7 @@ impl Workspace {
                 {
                     self.active = Some(tab.id);
                 } else {
-                    self.add(project, Some(path))?;
+                    self.add(editor, Some(path))?;
                 }
             }
             (Pending::Copy, Ok(Outcome::Copy(path))) => {

@@ -1,18 +1,31 @@
 //! Native project identity, validation, durable storage, and recovery.
 //!
-//! This initial schema does not yet represent the media timeline/compositor.
+//! One typed media/composition document is shared by UI, CLI, automation and recovery.
 
 mod command;
+mod composition;
 mod document;
+mod evaluation;
 mod storage;
+mod time;
 
-pub use command::{CommandReceipt, DocumentCommand, DocumentEditor, DocumentVersion};
-pub use document::{FrameRate, PROJECT_SCHEMA, Project, Sequence};
-pub use storage::{
-    PreparedCheckpoint, RecoveryCatalog, RecoveryFailure, RecoveryRecord, checkpoint, load,
-    load_bounded, prepare_checkpoint, recover_copy, recovery_catalog, save, save_if_unchanged,
-    save_new,
+pub use command::{
+    ChangeImpact, CommandGroup, CommandReceipt, DocumentCommand, DocumentEditor, DocumentVersion,
 };
+pub use composition::{
+    AlphaMode, AnimatedProperty, AnimationChannel, AssetKind, AssetReference, Clip, ClipSource,
+    ColorConfiguration, Composition, FloatPrecision, FrameRange, Interpolation, Keyframe,
+    MediaSource, NodeOperation, OutputTransfer, PictureTiming, SocketType, SourceColor,
+    SourceStream, StreamFormat, TimedNode, Track, TrackKind, WorkingGamut,
+};
+pub use document::{FrameRate, PROJECT_SCHEMA, Project, Sequence};
+pub use evaluation::{EvaluatedNode, FramePlan, SourceRequest};
+pub use storage::{
+    MAX_DOCUMENT_BYTES, PreparedCheckpoint, RecoveryCatalog, RecoveryFailure, RecoveryRecord,
+    checkpoint, load, load_bounded, prepare_checkpoint, recover_copy, recovery_catalog, save,
+    save_if_unchanged, save_new,
+};
+pub use time::{SourcePosition, TimeBase, TimeMap, TimePoint};
 
 #[derive(Debug, thiserror::Error)]
 pub enum Error {

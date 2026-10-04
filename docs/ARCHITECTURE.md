@@ -56,9 +56,12 @@ ownership. Split crates when real dependency/ownership boundaries justify it.
 - Local authoring files, disposable caches, immutable recovery checkpoints,
   portable asset packages, and cloud revisions have distinct ownership.
 
-The initial Rust document is deliberately small: identity, revision, name, and
-sequence profiles. Its schema evolves with tested migrations. Unsupported schemas
-fail explicitly; imports preserve source files and report conversion losses.
+Schema 2 implements typed assets/streams, tracks/clips, nested compositions, timed
+image/mask/geometry/audio/data nodes, channels, exact source mapping and separate
+color settings. Typed frame plans expose evaluated parameters and source requests;
+the production renderer still needs to consume them. See [document model](DOCUMENT_MODEL.md).
+Schema 1 migrates after integrity verification without writing its source; unknown
+schemas fail. Format-copy migration uses a separate destination.
 
 ## Commands and concurrency
 
@@ -66,8 +69,9 @@ UI, keyboard, CLI, MCP, and automation dispatch validated commands. A command
 produces a revision and undo group, identifies render/cache invalidation, and
 marks recovery work dirty. Read-only inspection does not mutate the document.
 
-The current core `DocumentEditor` owns atomic typed rename groups, monotonic
-revisions and bounded undo/redo. CLI rename and MCP share it. The MCP service
+The current core `DocumentEditor` owns atomic typed document groups, monotonic
+revisions and bounded undo/redo. CLI apply, rename and MCP share it. Immutable shared
+snapshots keep graph copying out of frame/save/recovery handoffs. The MCP service
 saves a candidate through the existing checked writer before replacing its
 session state/history. Only implemented tools are advertised. See
 [automation contract](AUTOMATION.md) for actual scope and subsequent job/source/
@@ -160,8 +164,8 @@ promise arbitrary network filesystem behavior.
 The Rust foundation and native workspace implement validated save/load and a
 worker-prepared checkpoint with a short ownership-checked publication. Every dirty
 tab participates in idle/maximum-delay recovery. Native history/preview and
-separate-copy recovery are implemented. History pruning and the full timeline
-schema remain later work. EditBay's local settings and bank metadata have their
+separate-copy recovery are implemented. History pruning and native timeline gestures
+remain later work. EditBay's local settings and bank metadata have their
 own versions and optimistic writer ownership; see [workspace](LOCAL_WORKSPACE.md)
 and [shared banks](SHARED_BRANDS.md).
 

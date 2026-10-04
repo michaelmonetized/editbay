@@ -34,6 +34,36 @@ struct Trace {
 }
 
 impl Trace {
+    fn focus(&self) -> Result<()> {
+        let pid = self
+            .records
+            .first()
+            .and_then(|record| record["pid"].as_u64())
+            .ok_or("Missing owned application PID")?;
+        let owned = window(|window| window["pid"] == pid && window["class"] == "editbay")?;
+        let address = owned["address"]
+            .as_str()
+            .ok_or("Missing owned window address")?;
+        if !address.starts_with("0x") || !address[2..].bytes().all(|byte| byte.is_ascii_hexdigit())
+        {
+            return Err("Invalid owned window address".into());
+        }
+        dispatch(&format!("hl.dsp.focus({{window=\"address:{address}\"}})"))?;
+        let observed: Value = serde_json::from_str(&command("hyprctl", &["activewindow", "-j"])?)?;
+        if observed["pid"] != pid {
+            return Err("Owned native window did not acquire keyboard focus".into());
+        }
+        let mut receipt = std::fs::OpenOptions::new()
+            .create(true)
+            .append(true)
+            .open(self.path.with_extension("focus.jsonl"))?;
+        writeln!(
+            receipt,
+            "{}",
+            json!({"unix_us":now(),"owned_pid":pid,"observed_pid":observed["pid"],"keyboard_focus":true})
+        )?;
+        Ok(())
+    }
     fn read(&mut self) -> Result<()> {
         let file = match File::open(&self.path) {
             Ok(file) => file,
@@ -125,7 +155,7 @@ fn click(x: i64, y: i64) -> Result<()> {
 /// `code` is a US Linux key code; `control` and `shift` hold the named modifiers.
 /// Returns only after every requested press and release has been submitted.
 fn key(code: u16, control: bool, shift: bool) -> Result<()> {
-    let mut arguments = vec!["key".to_owned(), "-d".to_owned(), "2".to_owned()];
+    let mut arguments = vec!["key".to_owned(), "-d".to_owned(), "8".to_owned()];
     if control {
         arguments.push("29:1".into());
     }
@@ -219,6 +249,7 @@ fn has_tab(record: &Value, name: &str, revision: u64) -> bool {
 }
 
 fn accept(trace: &mut Trace, name: &str, revision: u64, latencies: &mut Vec<f64>) -> Result<Value> {
+    trace.focus()?;
     let sent = now();
     key(28, false, false)?;
     let record = trace.wait(name, |record| {
@@ -236,6 +267,7 @@ fn accept(trace: &mut Trace, name: &str, revision: u64, latencies: &mut Vec<f64>
 }
 
 fn create(trace: &mut Trace, name: &str, latencies: &mut Vec<f64>) -> Result<Value> {
+    trace.focus()?;
     let requested = now();
     key(49, true, false)?;
     trace.wait("new-project name field", |record| {
@@ -258,6 +290,7 @@ fn create(trace: &mut Trace, name: &str, latencies: &mut Vec<f64>) -> Result<Val
 }
 
 fn rename(trace: &mut Trace, name: &str, revision: u64, latencies: &mut Vec<f64>) -> Result<Value> {
+    trace.focus()?;
     let requested = now();
     click(286, 205)?;
     trace.wait("rename name field", |record| {
@@ -618,8 +651,10 @@ pub fn run(binary: &Path, directory: &Path, count: usize) -> Result<Value> {
             create(&mut trace, &active, &mut latencies)?;
         }
         rename(&mut trace, &revised, 1, &mut latencies)?;
+        trace.focus()?;
         key(44, true, false)?;
         trace.wait("native undo", |record| has_tab(record, &active, 2))?;
+        trace.focus()?;
         key(44, true, true)?;
         trace.wait("native redo", |record| has_tab(record, &revised, 3))?;
         let acknowledged = trace.wait("active and inactive checkpoints", |record| {

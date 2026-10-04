@@ -59,21 +59,33 @@ authoring and complete-job release gates remain open.
 - Original-byte shared brand imports/exports, palettes and client/project metadata.
   EditBay's versioned namespace preserves Omadesign manifests and legacy markers.
   Fonts/title packages/LUTs are stored assets; their execution belongs to authoring.
+- Schema 2 assets/streams, exact source tick mapping, typed tracks/clips and nested
+  compositions, timed image/mask/geometry/audio/data nodes, channels and separate
+  working/display/output color settings. Graph/socket/identity/link validation,
+  reversible entity commands and transitive semantic fingerprints share one core.
+- In-memory schema 1 migration, legacy checkpoint integrity before upgrade,
+  separate-file format migration, CLI command groups/frame-plan inspection and
+  revision-owned MCP frame-plan inspection. Native tabs retain structured documents;
+  shared immutable snapshots keep frame/file handoffs independent of graph size.
 
 ## Validation
 
 | Check | Result |
 | --- | --- |
-| `cargo test --workspace --locked` | 67 tests and 5 SDK documentation examples passed; 0 failed or ignored |
+| `cargo test --workspace --locked` | 78 tests and 5 SDK documentation examples passed; 0 failed or ignored |
+| `cargo test --workspace --all-features --locked` | 79 tests and 5 SDK documentation examples passed with native libtorch selected; 0 failed or ignored |
 | Core regression suite | 23 tests: identity/rational time, validation, round trips, permission preservation, concurrent/stale writers, corruption, source loss, bounded reads, unpublished preparation/cleanup and overwrite refusal |
 | CLI binary integration suite | 3 tests: complete recovery flow, command failures and real process interruption during save; paths contain spaces |
 | Native codec/GPU/worker/clock tests | 8 tests: lossless pictures and rational time; delayed video/audio drain; invalid codecs; output descriptor/path ownership; actual FP16/FP32 GPU parity; export/cancel cleanup; device-clock interpolation |
 | Inference boundary tests | 4 tests: bounded finite tensors, preflight cancellation, forged SAM memory/prompts, source-coordinate resampling and incompatible RVM state geometry |
 | Commands/reference/automation | 8 tests, including 4 already counted in core: atomic groups, monotonic undo/redo, owner/stale/overflow checks; immutable native fixture replay; real MCP process workflows under both protocol generations; outside edits/deletion; competing servers; source inventory/error/no-overwrite behavior |
 | Native workspace/bank | 16 tests: incremental deep catalogs and cancellation, palette parsing, settings concurrency/corruption, exact asset round trips/conflicts, stale recovery/save ownership, inactive recovery, bank draft merging and native input/focus regressions |
+| Schema 2 document | 8 additional core tests: editable job commands/undo/save/recovery, pinned legacy checkpoint migration/integrity, invalid graph/socket/link/identity rejection, exact VFR/retiming/sample boundaries, animation/history ordering, semantic frame fingerprints, immutable snapshot ownership and actual 64 MiB read/write limits |
+| Typed CLI/MCP | 2 additional real CLI workflows and 1 real MCP process workflow: authored composition/frame inspection, stale rejection, undo/redo/recovery and separate-file migration |
 | Vendored native SDK | 9 focused Wayland redraw and clipboard/modifier tests passed |
-| Native kill/recover/reopen | 100/100 trials passed with 4,000 catalog documents; 50 untitled and 50 saved originals; active/inactive acknowledged checkpoints retained, independent recovery identities and unchanged source/checkpoint hashes |
-| Native input/publication | 250 inputs: p50 11.768 ms, p95 25.086 ms, maximum 65.256 ms; 200 UI checkpoint commits: p95 1.059 ms, maximum 4.585 ms; peak RSS/HWM 103,248 KiB |
+| R1 native kill/recover/reopen | 100/100 trials passed with 4,000 catalog documents; 50 untitled and 50 saved originals; active/inactive acknowledged checkpoints retained, independent recovery identities and unchanged source/checkpoint hashes |
+| R1 native input/publication | 250 inputs: p50 11.768 ms, p95 25.086 ms, maximum 65.256 ms; 200 UI checkpoint commits: p95 1.059 ms, maximum 4.585 ms; peak RSS/HWM 103,248 KiB |
+| R2 document native regression | 100/100 new native recovery trials; 250 inputs p95 22.256 ms, maximum 33.244 ms; 200 UI checkpoint commits p95 0.564 ms, maximum 4.204 ms; peak RSS/HWM 101,360 KiB. Authored graph Save/checkpoint/recovery and legacy profiles inspected; source hashes preserved |
 | Native recovery timing | 23 continuous edits: first durable publication 9,807.159 ms, latest idle publication 1,051.024 ms; input acceptance p95 16.844 ms; 1 s idle debounce with <= 250 ms publication allowance |
 | Native storage failures | Actual EACCES and ENOSPC errors displayed; no false checkpoint acknowledgement; retry published a valid checkpoint after repair |
 | Native layout/input/assets | Final 800x600 and 1440x900 dark/light welcome captures inspected; native portrait profiles, Fcitx IME, Ctrl+V/Shift+Insert, preferences and repeated portal imports/exports inspected; exact SVG/font byte round trips and unsaved-bank close guard |
@@ -89,10 +101,13 @@ Native-window recovery and input performance passed all 100 qualification trials
 timing, storage-error and inspected native workflows have separate receipts in
 [R1 evidence](evidence/r1-workspace/README.md). Power loss, physical audibility/latency,
 other advertised hardware and live services remain unqualified.
+Schema 2 software, actual CLI/MCP workflows and the fresh native 100-trial
+regression have separate [R2 document evidence](evidence/r2-document/README.md).
+This does not close production media-engine gates.
 
 ## Still to implement
 
-Checkpoint pruning, timeline/composition schema and expanded commands, production ingest/playback,
+Checkpoint pruning, native timeline gestures, production ingest/playback,
 audio graph, managed GPU/display/output color, delivery, interchange, cloud, and
 production inference integration remain roadmap work. The measured picture exporter and
 short callback-clock probe are functional feasibility tools, with recorded limits.
@@ -108,5 +123,6 @@ work. EB-007 specifies the complete automation contract and implements only real
 foundation commands. R0's persistence and documented ARM64 feasibility gates pass.
 Other hardware, physical paths, production jobs and model distribution remain
 their later milestone gates. R1's native workspace is implemented and locally
-qualified. R2–R11 remain roadmap work. No enterprise or GTM completion
+qualified. R2's document layer is implemented; production media engine qualification
+and R3–R11 remain roadmap work. No enterprise or GTM completion
 is declared.

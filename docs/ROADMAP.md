@@ -48,7 +48,13 @@ scoped native MCP contract and implemented core command/undo tools. See
 R0's foundation and documented ARM64 feasibility gates pass. R1's local workspace
 gates pass, including 100 native kill/recover/reopen trials, input p95 25.086 ms,
 idle/continuous recovery timing, real disk errors and native layout/asset inspection.
-See [workspace evidence](evidence/r1-workspace/README.md). R2 is next.
+See [workspace evidence](evidence/r1-workspace/README.md). R2 is in progress:
+schema 2 media/composition/animation data, exact time mapping, typed reversible
+commands, safe legacy migration and revision-owned frame-plan inspection are
+implemented; see [document model](DOCUMENT_MODEL.md) and the separate
+[document evidence](evidence/r2-document/README.md), including a fresh 100-trial
+native recovery regression. Production ingest, shared
+picture/sound evaluation, scheduling, GPU handoff and hardware gates remain open.
 Quantitative enterprise/GTM budgets are set in [release criteria](RELEASE_CRITERIA.md).
 
 ## Milestone map

@@ -74,6 +74,7 @@ async fn modern_and_legacy_clients_edit_undo_checkpoint_and_restart_real_files()
                 "apply_commands",
                 "create_checkpoint",
                 "inspect_document",
+                "inspect_frame_plan",
                 "inspect_recoveries",
                 "redo",
                 "undo"
@@ -265,4 +266,60 @@ async fn two_actual_server_processes_cannot_acknowledge_conflicting_edits() {
     );
     first.cancel().await.unwrap();
     second.cancel().await.unwrap();
+}
+
+#[tokio::test]
+async fn actual_mcp_authors_inspects_undoes_and_recovers_typed_composition() {
+    let directory = tempfile::tempdir().unwrap();
+    let path = directory.path().join("Typed scene.editbay");
+    let recovery = directory.path().join("Recovery");
+    let project = Project::new("Typed scene").unwrap();
+    save_new(&project, &path).unwrap();
+    let client = start(&path, &recovery, true).await;
+    let composition_id = "00000000-0000-0000-0000-000000000090";
+    let node_id = "00000000-0000-0000-0000-000000000091";
+    let mut sequence = serde_json::to_value(&project.sequences[0]).unwrap();
+    sequence["composition"] = composition_id.into();
+    let applied = success(call(&client, "apply_commands", json!({"expected":DocumentVersion::of(&project),"label":"Create scene","commands":[
+        {"kind":"set_composition","composition":{"id":composition_id,"name":"Editable scene","width":1920,"height":1080,"frame_rate":{"numerator":24,"denominator":1},"duration":48,"tracks":[],"nodes":[
+            {"id":node_id,"range":{"start":0,"end":48},"operation":{"kind":"solid","rgba":[0.2,0.4,1.0,1.0]},"animation":[]}
+        ],"picture":node_id,"audio":null}}, {"kind":"set_sequence","sequence":sequence}
+    ]})).await);
+    let inspected = success(call(&client, "inspect_frame_plan", json!({"expected":applied["receipt"]["after"],"composition_id":composition_id,"frame":24})).await);
+    assert_eq!(inspected["nodes"][0]["operation"]["rgba"][2], 1.0);
+    assert_eq!(inspected["version"]["revision"], 1);
+    assert_eq!(call(&client, "inspect_frame_plan", json!({"expected":DocumentVersion::of(&project),"composition_id":composition_id,"frame":24})).await.is_error, Some(true));
+    let checkpoint = success(
+        call(
+            &client,
+            "create_checkpoint",
+            json!({"expected":applied["receipt"]["after"]}),
+        )
+        .await,
+    );
+    let rescued = recover_copy(
+        checkpoint["checkpoint"].as_str().unwrap(),
+        directory.path().join("Rescued scene.editbay"),
+    )
+    .unwrap();
+    assert_eq!(rescued.compositions, load(&path).unwrap().compositions);
+    let undone = success(
+        call(
+            &client,
+            "undo",
+            json!({"expected":applied["receipt"]["after"]}),
+        )
+        .await,
+    );
+    assert!(load(&path).unwrap().compositions.is_empty());
+    success(
+        call(
+            &client,
+            "redo",
+            json!({"expected":undone["receipt"]["after"]}),
+        )
+        .await,
+    );
+    assert_eq!(load(&path).unwrap().revision, 3);
+    client.cancel().await.unwrap();
 }

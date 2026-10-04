@@ -1167,7 +1167,7 @@ impl Studio {
         let Some(tab) = self.workspace.tabs.iter().find(|tab| tab.id == id) else {
             return;
         };
-        let project = tab.editor.project().clone();
+        let project = tab.editor.snapshot();
         let dirty = tab.dirty();
         let path = tab.path.clone();
         let recovery = tab.recovery_revision;
@@ -1185,6 +1185,14 @@ impl Studio {
             |path| path.display().to_string(),
         ));
         ui.add_space(12.);
+        if !project.compositions.is_empty() {
+            ui.weak(format!(
+                "{} sources · {} compositions · {} assets",
+                project.sources.len(),
+                project.compositions.len(),
+                project.assets.len()
+            ));
+        }
         egui::ScrollArea::vertical()
             .id_salt("document")
             .show(ui, |ui| {
@@ -1197,6 +1205,21 @@ impl Studio {
                         sequence.frame_rate.numerator,
                         sequence.frame_rate.denominator
                     ));
+                    if let Some(composition) = sequence.composition.and_then(|id| {
+                        project
+                            .compositions
+                            .iter()
+                            .find(|composition| composition.id == id)
+                    }) {
+                        ui.label(format!(
+                            "{} · {} frames · {} tracks · {} nodes",
+                            composition.name,
+                            composition.duration,
+                            composition.tracks.len(),
+                            composition.nodes.len()
+                        ));
+                        ui.weak("Composition preview unavailable");
+                    }
                     let scale = ((ui.available_width() - 24.).min(960.) / sequence.width as f32)
                         .min(400. / sequence.height as f32);
                     let width = sequence.width as f32 * scale;

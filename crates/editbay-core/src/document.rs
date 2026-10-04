@@ -3,9 +3,10 @@ use serde::{Deserialize, Serialize};
 use std::collections::HashSet;
 use uuid::Uuid;
 
-pub const PROJECT_SCHEMA: u32 = 1;
+pub const PROJECT_SCHEMA: u32 = 2;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[cfg_attr(feature = "json-schema", derive(schemars::JsonSchema))]
 #[serde(deny_unknown_fields)]
 pub struct FrameRate {
     pub numerator: u32,
@@ -22,7 +23,7 @@ impl FrameRate {
         Ok(rate)
     }
 
-    fn validate(self) -> Result<()> {
+    pub(crate) fn validate(self) -> Result<()> {
         if self.numerator == 0 || self.denominator == 0 {
             return Err(Error::Invalid(
                 "frame rate must have positive numerator and denominator".into(),
@@ -42,6 +43,7 @@ impl FrameRate {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[cfg_attr(feature = "json-schema", derive(schemars::JsonSchema))]
 #[serde(deny_unknown_fields)]
 pub struct Sequence {
     pub id: Uuid,
@@ -49,9 +51,11 @@ pub struct Sequence {
     pub width: u32,
     pub height: u32,
     pub frame_rate: FrameRate,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub composition: Option<Uuid>,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct Project {
     pub schema: u32,
@@ -61,6 +65,14 @@ pub struct Project {
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub recovered_from: Option<Uuid>,
     pub sequences: Vec<Sequence>,
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub assets: Vec<crate::AssetReference>,
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub sources: Vec<crate::MediaSource>,
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub compositions: Vec<crate::Composition>,
+    #[serde(default, skip_serializing_if = "crate::ColorConfiguration::is_default")]
+    pub color: crate::ColorConfiguration,
 }
 
 impl Project {
@@ -71,6 +83,10 @@ impl Project {
             revision: 0,
             name: name.into(),
             recovered_from: None,
+            assets: Vec::new(),
+            sources: Vec::new(),
+            compositions: Vec::new(),
+            color: crate::ColorConfiguration::default(),
             sequences: vec![Sequence {
                 id: Uuid::new_v4(),
                 name: "Sequence 1".into(),
@@ -80,6 +96,7 @@ impl Project {
                     numerator: 24,
                     denominator: 1,
                 },
+                composition: None,
             }],
         };
         project.validate()?;
@@ -90,7 +107,8 @@ impl Project {
         if self.schema != PROJECT_SCHEMA {
             return Err(Error::Schema(self.schema));
         }
-        if self.id.is_nil() || self.name.trim().is_empty() {
+        crate::composition::named(&self.name)?;
+        if self.id.is_nil() {
             return Err(Error::Invalid(
                 "project needs an identity and a nonempty name".into(),
             ));
@@ -111,21 +129,45 @@ impl Project {
                     "sequence identities must be nonempty and unique".into(),
                 ));
             }
-            if sequence.name.trim().is_empty() || sequence.width == 0 || sequence.height == 0 {
+            crate::composition::named(&sequence.name)?;
+            if sequence.width == 0 || sequence.height == 0 {
                 return Err(Error::Invalid(
-                    "sequence needs a name and positive dimensions".into(),
+                    "sequence dimensions must be positive".into(),
                 ));
             }
             sequence.frame_rate.validate()?;
         }
+        crate::composition::validate_model(self, &mut identities)?;
         Ok(())
+    }
+
+    /// Upgrade a supported older representation without writing its source.
+    /// Takes the parsed document and returns schema 2 with its identity, revision
+    /// and sequence profiles retained. Recovery callers verify integrity first.
+    pub fn migrate(mut self) -> Result<Self> {
+        if self.schema == 1 {
+            if !self.assets.is_empty()
+                || !self.sources.is_empty()
+                || !self.compositions.is_empty()
+                || self
+                    .sequences
+                    .iter()
+                    .any(|sequence| sequence.composition.is_some())
+                || !self.color.is_default()
+            {
+                return Err(Error::Invalid(
+                    "schema 1 cannot contain schema 2 media/composition fields".into(),
+                ));
+            }
+            self.schema = PROJECT_SCHEMA;
+        }
+        self.validate()?;
+        Ok(self)
     }
 
     pub fn rename(&mut self, name: impl Into<String>) -> Result<()> {
         let name = name.into();
-        if name.trim().is_empty() {
-            return Err(Error::Invalid("project name cannot be empty".into()));
-        }
+        crate::composition::named(&name)?;
         if name != self.name {
             let revision = self
                 .revision
