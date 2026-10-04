@@ -362,6 +362,11 @@ next_frame:
     details->alpha_mode = frame->alpha_mode;
     const AVPixFmtDescriptor *pixel = av_pix_fmt_desc_get(frame->format);
     details->has_alpha = pixel && (pixel->flags & AV_PIX_FMT_FLAG_ALPHA);
+    const AVCodecParameters *parameters = reader->input.format->streams[reader->stream]->codecpar;
+    if (details->color_primaries == AVCOL_PRI_UNSPECIFIED) details->color_primaries = parameters->color_primaries;
+    if (details->color_transfer == AVCOL_TRC_UNSPECIFIED) details->color_transfer = parameters->color_trc;
+    if (details->color_matrix == AVCOL_SPC_UNSPECIFIED) details->color_matrix = parameters->color_space;
+    if (details->color_range == AVCOL_RANGE_UNSPECIFIED) details->color_range = parameters->color_range;
     if (reader->audio) {
         if (frame->sample_rate != reader->codec->sample_rate ||
             frame->format != reader->codec->sample_fmt ||
@@ -391,13 +396,13 @@ next_frame:
     reader->scale = sws_getCachedContext(reader->scale, width, height, frame->format, width, height,
         AV_PIX_FMT_RGBA, SWS_BILINEAR, NULL, NULL, NULL);
     if (!reader->scale) return AVERROR(ENOMEM);
-    int matrix = frame->colorspace == AVCOL_SPC_BT709 ? SWS_CS_ITU709 :
-        frame->colorspace == AVCOL_SPC_BT2020_NCL ? SWS_CS_BT2020 :
-        frame->colorspace == AVCOL_SPC_FCC ? SWS_CS_FCC :
-        frame->colorspace == AVCOL_SPC_SMPTE240M ? SWS_CS_SMPTE240M :
-        frame->colorspace == AVCOL_SPC_UNSPECIFIED && (width >= 1280 || height >= 720) ? SWS_CS_ITU709 : SWS_CS_ITU601;
+    int matrix = details->color_matrix == AVCOL_SPC_BT709 ? SWS_CS_ITU709 :
+        details->color_matrix == AVCOL_SPC_BT2020_NCL ? SWS_CS_BT2020 :
+        details->color_matrix == AVCOL_SPC_FCC ? SWS_CS_FCC :
+        details->color_matrix == AVCOL_SPC_SMPTE240M ? SWS_CS_SMPTE240M :
+        details->color_matrix == AVCOL_SPC_UNSPECIFIED && (width >= 1280 || height >= 720) ? SWS_CS_ITU709 : SWS_CS_ITU601;
     const int *coefficients = sws_getCoefficients(matrix);
-    ret = sws_setColorspaceDetails(reader->scale, coefficients, frame->color_range == AVCOL_RANGE_JPEG,
+    ret = sws_setColorspaceDetails(reader->scale, coefficients, details->color_range == AVCOL_RANGE_JPEG,
         coefficients, 1, 0, 1<<16, 1<<16);
     if (ret < 0) return ret;
     uint8_t *planes[] = {output}; int strides[] = {width * 4};

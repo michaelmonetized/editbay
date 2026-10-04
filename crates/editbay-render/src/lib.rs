@@ -1,5 +1,10 @@
 //! Explicit sRGB input, linear-float composition and sRGB output boundaries.
 
+mod graph;
+pub use graph::{
+    GraphBudget, GraphRenderer, GraphStats, ImageBoundary, RenderedFrame, ResidentImage,
+};
+
 use half::f16;
 use serde::Serialize;
 use std::{sync::mpsc, time::Duration};

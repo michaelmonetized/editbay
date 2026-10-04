@@ -87,14 +87,21 @@ authoring and complete-job release gates remain open.
   sequential decoders, bounded cache/live RGBA payload and handle limits, LRU
   eviction, charged consumer pins, fresh-token version/generation rebinding and
   full source verification. Real camera/portrait pixels, shared hits, cleanup and
-  active seek cancellation are qualified. Native IPC/GPU/presentation remain open.
+  active seek cancellation are qualified. Native IPC/presentation remain open.
+- Shared typed SDR GPU picture subset: real/nested sources, solids, animated
+  affine transforms, unmasked over and scalar opacity. FP16/FP32 premultiplied
+  linear working textures stay resident; display/output gamut and transfer are
+  separate conversions. Bounded cache/live textures include consumer/in-flight
+  pins, with worker/version/generation ownership. Actual pixels, shared hits,
+  source interpretation/rotation guards and active source cancellation pass;
+  native presentation/process IPC/audio, masks/HDR and full delivery remain open.
 
 ## Validation
 
 | Check | Result |
 | --- | --- |
-| `cargo test --workspace --locked` | 101 tests and 5 SDK documentation examples passed; 0 failed or ignored |
-| `cargo test --workspace --all-features --locked` | 102 tests and 5 SDK documentation examples passed with native libtorch selected; 0 failed or ignored |
+| `cargo test --workspace --locked` | 109 tests and 5 SDK documentation examples passed; 0 failed or ignored |
+| `cargo test --workspace --all-features --locked` | 110 tests and 5 SDK documentation examples passed with native libtorch selected; 0 failed or ignored |
 | Core regression suite | 23 tests: identity/rational time, validation, round trips, permission preservation, concurrent/stale writers, corruption, source loss, bounded reads, unpublished preparation/cleanup and overwrite refusal |
 | CLI binary integration suite | 3 tests: complete recovery flow, command failures and real process interruption during save; paths contain spaces |
 | Native codec/GPU/worker/clock tests | 8 tests: lossless pictures and rational time; delayed video/audio drain; invalid codecs; output descriptor/path ownership; actual FP16/FP32 GPU parity; export/cancel cleanup; device-clock interpolation |
@@ -113,6 +120,7 @@ authoring and complete-job release gates remain open.
 | Real indexed picture/sound | Portrait: 528 pictures, 25 pixel-equal seeks, CPU seek p95 631.905 ms, HWM 89,184 KiB. Camera: 314 pictures, 26 pixel-equal seeks, 627,040 native mono 48 kHz samples, CPU seek p95 469.515 ms, HWM 64,368 KiB. Both miss the 250 ms warm-seek gate; no cache/playback qualification claimed |
 | Retained temporal planning | 10,000 evaluations per case, ten child nodes plus reverse-nested parent: camera index 314 pictures p95 0.284 ms; actual recording index 11,471 pictures p95 0.281 ms; synthetic 500,000 timestamps p95 0.282 ms. All pass the separate 1 ms CPU planning budget. Initialization and one-shot inspection remain off the frame path; no rendered output/cache/playback claim |
 | Decoded-picture cache | 50 pixel-equal real seek targets; 2,000 shared immutable hits. Camera/portrait hit p95 0.005/0.003417 ms; empty output-cache miss p95 295.999/941.064 ms still exceeds 250 ms. 120 sequential pictures per source p95 5.637/3.727 ms, including first binding separately in maximums. Active seek cancellation 8.689/3.381 ms; payload/handle cleanup zero; HWM 325,856/347,536 KiB. Raw CPU output only; full native seek/playback gate remains open |
+| Typed resident SDR GPU | 8 new actual GPU regressions; 480 completed native pictures, 4,000 shared GPU hits, 12 independent full-picture comparisons. Camera FP16/FP32 steady p95 12.051/12.878 ms; portrait 9.559/14.548 ms. Linear error <=0.000418425/0.000000119209. No sequence readback; explicit output conversion passes. Active native seek cancellation/join/cleanup 17.750/9.984 ms; HWM 455,808/575,248 KiB. First binding separate, ordinal fixture mapping; no native presentation, process IPC, audio/drop/drift or delivery proof |
 | Native recovery timing | 23 continuous edits: first durable publication 9,807.159 ms, latest idle publication 1,051.024 ms; input acceptance p95 16.844 ms; 1 s idle debounce with <= 250 ms publication allowance |
 | Native storage failures | Actual EACCES and ENOSPC errors displayed; no false checkpoint acknowledgement; retry published a valid checkpoint after repair |
 | Native layout/input/assets | Final 800x600 and 1440x900 dark/light welcome captures inspected; native portrait profiles, Fcitx IME, Ctrl+V/Shift+Insert, preferences and repeated portal imports/exports inspected; exact SVG/font byte round trips and unsaved-bank close guard |
@@ -137,8 +145,8 @@ EB-021 and the full R2 release gate remain open.
 
 ## Still to implement
 
-Checkpoint pruning, native timeline gestures, image-sequence ingest, production playback,
-audio graph, managed GPU/display/output color, delivery, interchange, cloud, and
+Checkpoint pruning, native timeline gestures, image-sequence ingest, native production playback,
+audio graph, full GPU mask/HDR/managed display color, delivery, interchange, cloud, and
 production inference integration remain roadmap work. The measured picture exporter and
 short callback-clock probe are functional feasibility tools, with recorded limits.
 SAM 2.1 and RVM native prototypes are measured; production quality, GPU routes,
@@ -153,7 +161,14 @@ work. EB-007 specifies the complete automation contract and implements only real
 foundation commands. R0's persistence and documented ARM64 feasibility gates pass.
 Other hardware, physical paths, production jobs and model distribution remain
 their later milestone gates. R1's native workspace is implemented and locally
-qualified. R2's document and selected native ingest layers are implemented; shared
-production picture/sound evaluation, cache/scheduling and media engine qualification
+qualified. R2's document, native ingest, retained temporal/raw-cache and SDR GPU
+picture layers are implemented; complete native picture/sound playback, scheduling,
+delivery and media engine qualification
 and R3–R11 remain roadmap work. No enterprise or GTM completion
 is declared.
+
+The shared SDR GPU picture subset and its real source/cache/output qualification
+are documented in [GPU pictures](GPU_PICTURES.md) and
+[GPU evidence](evidence/r2-gpu/README.md). Native codec IPC and shared UI-device
+presentation, audio intervals/clock, masks/HDR and full playback/export still need
+implementation and acceptance proof. EB-024/026 and R2 remain partial.

@@ -117,6 +117,12 @@ held outputs stay charged through eviction, cleanup and document rebinding. See
 [decoded pictures](docs/PICTURE_CACHE.md) for ownership, memory and remaining
 native playback integration.
 
+`editbay-lab render-graph SOURCE` qualifies the shared typed SDR picture renderer
+against real native source pixels at FP16/FP32. Working textures stay resident;
+display/output conversion and float readback are explicit boundaries. See
+[GPU pictures](docs/GPU_PICTURES.md) for supported operations, color, ownership,
+budgets and remaining native presentation/process/audio integration.
+
 Keep project builds, worktrees, temporary files and private evidence under this
 checkout. `/target/` and `/artifacts/` are ignored. Set `TMPDIR` as above for local
 tests so their temporary fixtures also stay here. The older committed evidence

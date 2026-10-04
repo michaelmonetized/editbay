@@ -54,6 +54,10 @@ pub struct DecodedFrame {
     pub source_tick: Option<i64>,
     pub duration_ticks: Option<u64>,
     pub rgba: Vec<u8>,
+    pub color: editbay_core::SourceColor,
+    pub alpha: editbay_core::AlphaMode,
+    pub alpha_interpretation_required: bool,
+    pub rotation_degrees: f64,
 }
 
 pub struct VideoReader {
@@ -98,6 +102,18 @@ impl VideoReader {
                 .ok()
                 .filter(|value| *value > 0),
             rgba,
+            color: source::resolve_color(
+                details,
+                editbay_core::SourceColor {
+                    primaries: self.info.color_primaries,
+                    transfer: self.info.color_transfer,
+                    matrix: self.info.color_matrix,
+                    range: self.info.color_range,
+                },
+            ),
+            alpha: source::alpha(details.has_alpha, details.alpha_mode),
+            alpha_interpretation_required: details.has_alpha != 0 && details.alpha_mode == 0,
+            rotation_degrees: self.inner.stream.rotation,
         }))
     }
 

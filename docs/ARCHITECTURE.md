@@ -59,20 +59,28 @@ ownership. Split crates when real dependency/ownership boundaries justify it.
 Schema 2 implements typed assets/streams, tracks/clips, nested compositions, timed
 image/mask/geometry/audio/data nodes, channels, exact source mapping and separate
 color settings. Typed frame plans expose evaluated parameters and source requests;
-the production renderer still needs to consume them. See [document model](DOCUMENT_MODEL.md).
+the shared SDR renderer consumes their picture subset. Full audio/mask/HDR/native
+playback remains open. See [document model](DOCUMENT_MODEL.md).
 `EvaluationSnapshot` now compiles immutable node order, shared static operations
 and source interpretation hashes once. Exact fractional/reverse preparation and
 integer inspection share that evaluator. Working image/mask keys include their
 dimensions, source/mask bytes, dependencies, gamut and float precision; document
 version separately controls publication. Audio keys describe a point, not a block.
-The real GPU renderer/audio interval engine and their caches remain open; see
+The complete GPU/audio engines remain open; see
 [temporal evaluation](TEMPORAL_EVALUATION.md).
 The native decoded-picture provider retains exact indexed source requests,
 immutable raw pixels, decoder cursors and declared cache/live-output/handle limits.
 Consumer-held pixels remain charged after eviction. Rebinding invalidates prior
 receipts and preserves matching content under a fresh cancellation token. Native
-IPC/process integration, GPU output caches and presentation remain open; see
+IPC/process integration and native presentation remain open; see
 [decoded pictures](PICTURE_CACHE.md).
+The shared SDR GPU renderer now consumes exact prepared source/nested picture,
+solid, affine, over and scalar-opacity graphs. Linear premultiplied FP16/FP32
+textures stay resident; display/output conversion and readback are explicit.
+Cache/live texture limits retain consumer and submitted-work charges; private
+worker/version/generation receipts reject stale publication. Mask/HDR/full color,
+native codec IPC/shared-device presentation and the audio interval engine remain
+open. See [GPU picture contracts](GPU_PICTURES.md) and their measured evidence.
 Schema 1 migrates after integrity verification without writing its source; unknown
 schemas fail. Format-copy migration uses a separate destination.
 

@@ -89,6 +89,10 @@ pub struct DecodedPicture {
     pub width: u32,
     pub height: u32,
     pub source_tick: i64,
+    pub color: editbay_core::SourceColor,
+    pub alpha: editbay_core::AlphaMode,
+    pub alpha_interpretation_required: bool,
+    pub rotation_degrees: f64,
     _allocation: Allocation,
 }
 
@@ -348,6 +352,10 @@ impl PictureCache {
             width: *width,
             height: *height,
             source_tick: tick,
+            color: decoded.color,
+            alpha: decoded.alpha,
+            alpha_interpretation_required: decoded.alpha_interpretation_required,
+            rotation_degrees: decoded.rotation_degrees,
             _allocation: allocation,
         });
         if size <= self.budget.cache_bytes && self.budget.cache_entries > 0 {

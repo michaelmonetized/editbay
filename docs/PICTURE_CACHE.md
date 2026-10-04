@@ -77,3 +77,8 @@ The cache stores the native adapter's current RGBA8 output. It does not apply
 working/display/output transforms, enable float/HDR decode, or supply an audio
 block. Native source-tag conversion retains its documented ingest limits;
 interactive source matrix/range overrides still need an adapter/rendering route.
+
+The cache now retains actual decoded color, alpha/interpretation requirement and
+native rotation alongside raw pixels. [The shared SDR GPU picture worker](GPU_PICTURES.md)
+uses these to check captured interpretations before input conversion, including
+GPU cache hits. Native cache IPC/process isolation and presentation remain open.
