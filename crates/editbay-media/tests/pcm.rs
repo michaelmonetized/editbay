@@ -162,3 +162,41 @@ fn changed_sources_cached_hits_and_cancelled_work_are_rejected() {
     cache.clear();
     assert_eq!(cache.stats().entries, 0);
 }
+
+#[test]
+fn nonzero_container_origin_retains_absolute_samples_after_normalized_ingest() {
+    let dir = tempfile::tempdir().unwrap();
+    let original = dir.path().join("original.wav");
+    fixture(&original, "pcm_f32le");
+    let shifted = dir.path().join("shifted.mkv");
+    let result = Command::new("ffmpeg")
+        .args(["-v", "error", "-i"])
+        .arg(&original)
+        .args(["-c:a", "copy", "-output_ts_offset", "2"])
+        .arg(&shifted)
+        .output()
+        .unwrap();
+    assert!(result.status.success());
+    let cancel = Cancellation::new().unwrap();
+    let imported = SourceFile::open(&shifted, &cancel)
+        .unwrap()
+        .ingest("Absolute sound origin".into(), &[0], cancel, |_, _| {})
+        .unwrap();
+    assert_eq!(imported.source.streams[0].start_tick, 96000);
+    let source = imported.source.id;
+    let mut p = Project::new("Container origin").unwrap();
+    p.assets.push(imported.asset);
+    p.sources.push(imported.source);
+    let mut cache = NativePcmCache::new(
+        Arc::new(EvaluationSnapshot::new(Arc::new(p)).unwrap()),
+        PcmBudget::default(),
+        Cancellation::new().unwrap(),
+    )
+    .unwrap();
+    let decoded = cache.interval(source, 0, 96000, 4096).unwrap();
+    assert_eq!(decoded.pcm.samples(), &reference(&shifted)[..4096 * 6]);
+    assert_eq!(
+        cache.interval(source, 0, 95984, 32).unwrap().pcm.samples()[..96],
+        [0.; 96]
+    );
+}
