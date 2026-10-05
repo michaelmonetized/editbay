@@ -92,6 +92,15 @@ misses 250 ms. See [process pictures](WORKER_PICTURES.md) and
 [evidence](evidence/r2-picture-worker/README.md). Native surface/audio/scheduling,
 full preview/export and the broader R2 hardware/release gates remain open.
 
+The native picture workspace now creates editable source sequences through one
+owned command group and draws the same SDR graph on its actual window GPU device.
+Exact frame stepping/scrubbing, bounded/coalesced jobs, visible worker failure,
+retry, cancellation and saved/recovered picture reopening are implemented. The
+scoped input/cached-draw/cancellation budgets are 50 ms / 250 ms p95 / 2 s; they
+are separate from full playback, uncached seek and sound drift. See
+[native preview](NATIVE_PREVIEW.md) and its separate receipts. EB-023/024/025/026
+remain partial until sound scheduling, shared delivery and full R2 workloads pass.
+
 ## Milestone map
 
 | Milestone | User outcome | Dependencies |

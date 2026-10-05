@@ -670,6 +670,12 @@ impl PictureCache {
 
 /// Interchangeable source-owned picture routes used by the same GPU graph.
 pub trait PictureProvider {
+    /// Check supervised process liveness without decoding a picture.
+    /// Takes this provider. Returns success for an in-process provider or a live
+    /// codec child, and a visible failure after an isolated process exits.
+    fn check_health(&mut self) -> Result<()> {
+        Ok(())
+    }
     /// Inspect captured document ownership without media IO.
     /// Takes no arguments. Returns the version served by this provider.
     fn version(&self) -> DocumentVersion;
@@ -718,6 +724,9 @@ impl PictureProvider for PictureCache {
 }
 
 impl<P: PictureProvider + ?Sized> PictureProvider for Box<P> {
+    fn check_health(&mut self) -> Result<()> {
+        (**self).check_health()
+    }
     fn version(&self) -> DocumentVersion {
         (**self).version()
     }

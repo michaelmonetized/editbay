@@ -31,6 +31,7 @@ pub struct Diagnostics {
     previous_active: Option<uuid::Uuid>,
     dropped: u64,
     previous_media: Value,
+    previous_preview: Value,
 }
 
 impl Diagnostics {
@@ -76,6 +77,7 @@ impl Diagnostics {
             previous_active: None,
             dropped: 0,
             previous_media: Value::Null,
+            previous_preview: Value::Null,
         })
     }
 
@@ -93,7 +95,12 @@ impl Diagnostics {
     /// Publish changed native document state after real UI actions and worker acknowledgements.
     /// `workspace` is the live owner. Returns no value; checkpoint revisions reflect
     /// completed durable publication, never a scheduled or prepared job.
-    pub fn observe(&mut self, workspace: &Workspace, media: &crate::media_ui::MediaPane) {
+    pub fn observe(
+        &mut self,
+        workspace: &Workspace,
+        media: &crate::media_ui::MediaPane,
+        preview: &crate::preview::PreviewPane,
+    ) {
         let current: Vec<_> = workspace
             .tabs
             .iter()
@@ -120,6 +127,11 @@ impl Diagnostics {
         if current_media != self.previous_media {
             self.record("media", current_media.clone());
             self.previous_media = current_media;
+        }
+        let current_preview = preview.diagnostic_state();
+        if current_preview != self.previous_preview {
+            self.record("preview", current_preview.clone());
+            self.previous_preview = current_preview;
         }
     }
 

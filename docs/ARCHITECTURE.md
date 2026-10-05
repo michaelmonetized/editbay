@@ -73,15 +73,23 @@ immutable raw pixels, decoder cursors and declared cache/live-output/handle limi
 Consumer-held pixels remain charged after eviction. Rebinding invalidates prior
 receipts and preserves matching content under a fresh cancellation token. Native
 process ownership now uses the [isolated retained codec route](WORKER_PICTURES.md)
-over sealed binary planes. Shared native presentation remains open; see
+over sealed binary planes. The native viewer uses that provider on the UI's actual
+GPU device; see [native preview](NATIVE_PREVIEW.md) and
 [decoded pictures](PICTURE_CACHE.md).
 The shared SDR GPU renderer now consumes exact prepared source/nested picture,
 solid, affine, over and scalar-opacity graphs. Linear premultiplied FP16/FP32
 textures stay resident; display/output conversion and readback are explicit.
 Cache/live texture limits retain consumer and submitted-work charges; private
-worker/version/generation receipts reject stale publication. Mask/HDR/full color,
-shared-device presentation and the audio interval engine remain
+worker/version/generation receipts reject stale publication. Mask/HDR/full color
+and the audio interval engine remain
 open. See [GPU picture contracts](GPU_PICTURES.md) and their measured evidence.
+The native display draw checks exact device identity, applies the declared SDR
+display boundary and retains charged resources until its actual GPU submission
+completes. It introduces no normal preview readback. A bounded preview actor
+coalesces requests, rejects obsolete results and cancels underlying work after
+session/revision/view changes. Source-sequence authoring validates off-thread and
+commits one normal undo group under captured ownership. See
+[native preview contracts](NATIVE_PREVIEW.md).
 Schema 1 migrates after integrity verification without writing its source; unknown
 schemas fail. Format-copy migration uses a separate destination.
 

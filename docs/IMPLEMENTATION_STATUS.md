@@ -1,6 +1,6 @@
 # Rust restart: implementation status
 
-Validated locally on 2026-10-04, Linux ARM64, Rust/Cargo 1.98.0.
+Validated locally on 2026-10-05, Linux ARM64, Rust/Cargo 1.98.0.
 This is the native local workspace, project/recovery foundation and native
 engine/inference feasibility tools. The local R1 workspace gates pass; timeline
 authoring and complete-job release gates remain open.
@@ -100,14 +100,22 @@ authoring and complete-job release gates remain open.
   into the charged output and skips intermediate seek conversion. Bounded
   byte/handle pins, source checks, private version/session/job/generation receipts,
   cancellation, worker death/rebind and malformed transport are qualified; see
-  [isolated pictures](WORKER_PICTURES.md). Native viewer integration remains open.
+  [isolated pictures](WORKER_PICTURES.md).
+- Native shared-device SDR preview with editable source-sequence creation,
+  exact frame stepping/scrubbing, bounded single-value request/result mailboxes,
+  revision/session/view invalidation, underlying cancellation and visible codec
+  death/retry. Charged pictures survive until their actual UI GPU submission
+  completes. Native saves, Undo/Redo and independent recovery reopen the same
+  authored graph. Camera/portrait sources pass paused-viewer gates at FP16/FP32;
+  see [native preview](NATIVE_PREVIEW.md). Sound scheduling and shared delivery
+  remain open.
 
 ## Validation
 
 | Check | Result |
 | --- | --- |
-| `cargo test --workspace --locked` | 119 tests and 5 SDK documentation examples passed; 0 failed or ignored |
-| `cargo test --workspace --all-features --locked` | 120 tests and 5 SDK documentation examples passed with native libtorch selected; 0 failed or ignored |
+| `cargo test --workspace --locked` | 126 tests and 5 SDK documentation examples passed; 0 failed or ignored |
+| `cargo test --workspace --all-features --locked` | 127 tests and 5 SDK documentation examples passed with native libtorch selected; 0 failed or ignored |
 | Core regression suite | 23 tests: identity/rational time, validation, round trips, permission preservation, concurrent/stale writers, corruption, source loss, bounded reads, unpublished preparation/cleanup and overwrite refusal |
 | CLI binary integration suite | 3 tests: complete recovery flow, command failures and real process interruption during save; paths contain spaces |
 | Native codec/GPU/worker/clock tests | 8 tests: lossless pictures and rational time; delayed video/audio drain; invalid codecs; output descriptor/path ownership; actual FP16/FP32 GPU parity; export/cancel cleanup; device-clock interpolation |
@@ -178,8 +186,9 @@ is declared.
 The shared SDR GPU picture subset and its real source/cache/output qualification
 are documented in [GPU pictures](GPU_PICTURES.md) and
 [GPU evidence](evidence/r2-gpu/README.md). Shared UI-device
-presentation, audio intervals/clock, masks/HDR and full playback/export still need
-implementation and acceptance proof. EB-024/026 and R2 remain partial.
+presentation now uses the actual window device. Audio intervals/clock, masks/HDR
+and full playback/export still need implementation and acceptance proof.
+EB-024/026 and R2 remain partial.
 
 The retained codec process/plane handoff and identical GPU evaluation are now
 qualified in [process evidence](evidence/r2-picture-worker/README.md). The initial

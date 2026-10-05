@@ -5,8 +5,9 @@ inside the packaged app or CLI's Rust `--picture-worker` endpoint. It uses the
 same indexed source selection and cache as `PictureCache`, and implements the
 same `PictureProvider` consumed by `GraphRenderer::with_provider`. Exact temporal
 mapping, SDR color, GPU caches and output conversion have one implementation.
-This completes the process handoff dependency of EB-022/025/026. Native surface
-presentation, sound scheduling and delivery remain subsequent R2 work.
+This completes the process handoff dependency of EB-022/025/026. The
+[native viewer](NATIVE_PREVIEW.md) now uses the same provider and graph on the
+window device. Sound scheduling and delivery remain subsequent R2 work.
 
 ## Source and result ownership
 
@@ -107,5 +108,5 @@ timed in cache hits; native identity checks, transport, envelope/seal validation
 and shared mapping lookup are included. Source misses are measured separately.
 The second command runs the established typed GPU/color reference through this
 provider at both precisions. See [evidence](evidence/r2-picture-worker/README.md).
-Full native warm/cold seek, presentation, sound/drop/drift, preview/export delivery
+Full native warm/cold seek, sound/drop/drift, preview/export delivery
 parity, other hardware and enterprise/GTM gates remain open.
