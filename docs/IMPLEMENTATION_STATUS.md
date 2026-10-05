@@ -1,6 +1,6 @@
 # Rust restart: implementation status
 
-Validated locally on 2026-10-04, Linux ARM64, Rust/Cargo 1.98.0.
+Validated locally on 2026-10-05, Linux ARM64, Rust/Cargo 1.98.0.
 This is the native local workspace, project/recovery foundation and native
 engine/inference feasibility tools. The local R1 workspace gates pass; timeline
 authoring and complete-job release gates remain open.
@@ -100,14 +100,22 @@ authoring and complete-job release gates remain open.
   into the charged output and skips intermediate seek conversion. Bounded
   byte/handle pins, source checks, private version/session/job/generation receipts,
   cancellation, worker death/rebind and malformed transport are qualified; see
-  [isolated pictures](WORKER_PICTURES.md). Native viewer integration remains open.
+  [isolated pictures](WORKER_PICTURES.md).
+- Native shared-device SDR preview with editable source-sequence creation,
+  exact frame stepping/scrubbing, bounded single-value request/result mailboxes,
+  revision/session/view invalidation, underlying cancellation and visible codec
+  death/retry. Charged pictures survive until their actual UI GPU submission
+  completes. Native saves, Undo/Redo and independent recovery reopen the same
+  authored graph. Camera/portrait sources pass paused-viewer gates at FP16/FP32;
+  see [native preview](NATIVE_PREVIEW.md). Sound scheduling and shared delivery
+  remain open.
 
 ## Validation
 
 | Check | Result |
 | --- | --- |
-| `cargo test --workspace --locked` | 119 tests and 5 SDK documentation examples passed; 0 failed or ignored |
-| `cargo test --workspace --all-features --locked` | 120 tests and 5 SDK documentation examples passed with native libtorch selected; 0 failed or ignored |
+| `cargo test --workspace --locked` | 126 tests and 5 SDK documentation examples passed; 0 failed or ignored |
+| `cargo test --workspace --all-features --locked` | 127 tests and 5 SDK documentation examples passed with native libtorch selected; 0 failed or ignored |
 | Core regression suite | 23 tests: identity/rational time, validation, round trips, permission preservation, concurrent/stale writers, corruption, source loss, bounded reads, unpublished preparation/cleanup and overwrite refusal |
 | CLI binary integration suite | 3 tests: complete recovery flow, command failures and real process interruption during save; paths contain spaces |
 | Native codec/GPU/worker/clock tests | 8 tests: lossless pictures and rational time; delayed video/audio drain; invalid codecs; output descriptor/path ownership; actual FP16/FP32 GPU parity; export/cancel cleanup; device-clock interpolation |
@@ -131,6 +139,8 @@ authoring and complete-job release gates remain open.
 | Isolated retained pictures | 10 new regressions; 50 real indexed pixel checks, 2,000 already-decoded shared handoffs, 240 sequential pictures. Camera/portrait handoff p95 1.734/1.151 ms against 10 ms. Empty-cache seek p95 254.661/324.550 ms still exceeds 250 ms. Active outstanding request cancel/join/reap 29.416/18.164 ms; SIGSTOP fallback 104.839/104.413 ms. Actual app/CLI children, independent handle/byte pin limits and zero cleanup pass |
 | GPU over codec IPC | Same real five-node graph: 480 pictures and 4,000 resident hits. Camera FP16/FP32 completed p95 21.625/23.983 ms; portrait 25.242/28.276 ms, all within the 33.3 ms picture-kernel budget. Every channel of 12 independent references agrees within existing tolerances. No timed sequence readback; native surface/audio/delivery gates remain open |
 | Native storage failures | Actual EACCES and ENOSPC errors displayed; no false checkpoint acknowledgement; retry published a valid checkpoint after repair |
+| Native shared-device viewer | 7 new core/app/GPU regressions; 4 real camera/portrait FP16/FP32 window cases, 160 inputs p95 <=33.257 ms and 152 cached submitted-draw samples p95 <=38.215 ms; cancellation <=137.680 ms. Same-pass revision invalidation, coalesced scrub rejection, SIGKILL/retry, underlying SIGSTOP cancellation, native Undo/Redo/Save/recovery/reopen and zero preview readbacks pass. Scoped paused viewing; full sound/playback/export stays open |
+| Native preview foundation regression | Same frozen app passes fresh actual camera ingest/cancel/recovery and 100/100 kill/recover/reopen trials with 4,000 catalog documents; 250 inputs p95 29.030 ms, maximum 45.946 ms; 200 UI checkpoint publications p95 3.534 ms; parent HWM <=132,928 KiB. Current Flea picker, sources, originals/checkpoints and independent recovery identities verified; earlier candidates remain separately recorded |
 | Native layout/input/assets | Final 800x600 and 1440x900 dark/light welcome captures inspected; native portrait profiles, Fcitx IME, Ctrl+V/Shift+Insert, preferences and repeated portal imports/exports inspected; exact SVG/font byte round trips and unsaved-bank close guard |
 | `cargo clippy --workspace --all-targets --all-features --locked -- -D warnings` | Passed with native libtorch selected |
 | Optional reference features | Local all-feature test suite and Clippy pass with verified native libtorch selected; actual reference model runs are separate measured receipts |
@@ -178,8 +188,9 @@ is declared.
 The shared SDR GPU picture subset and its real source/cache/output qualification
 are documented in [GPU pictures](GPU_PICTURES.md) and
 [GPU evidence](evidence/r2-gpu/README.md). Shared UI-device
-presentation, audio intervals/clock, masks/HDR and full playback/export still need
-implementation and acceptance proof. EB-024/026 and R2 remain partial.
+presentation now uses the actual window device. Audio intervals/clock, masks/HDR
+and full playback/export still need implementation and acceptance proof.
+EB-024/026 and R2 remain partial.
 
 The retained codec process/plane handoff and identical GPU evaluation are now
 qualified in [process evidence](evidence/r2-picture-worker/README.md). The initial

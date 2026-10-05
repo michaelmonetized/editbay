@@ -131,7 +131,7 @@ impl Workspace {
         editor: DocumentEditor,
     ) -> Result<(), String> {
         if !self.owns(owner) {
-            return Err("Media import belongs to an older project state; import again".into());
+            return Err("Background change belongs to an older project state; try again".into());
         }
         if editor.project().id != owner.version.project_id
             || editor.project().revision

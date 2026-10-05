@@ -41,14 +41,18 @@ fn main() -> eframe::Result {
             ..Default::default()
         },
         Box::new(move |cc| {
-            Ok(Box::new(Studio::new(
+            let mut studio = Studio::new(
                 cc.egui_ctx.clone(),
                 home,
                 root,
                 state,
                 paths,
                 rfd::AsyncFileDialog::new().set_parent(cc),
-            )))
+            );
+            if let Some(state) = &cc.wgpu_render_state {
+                studio.attach_gpu(state);
+            }
+            Ok(Box::new(studio))
         }),
     )
 }

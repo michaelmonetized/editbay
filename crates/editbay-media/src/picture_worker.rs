@@ -294,6 +294,23 @@ pub struct PictureWorker {
     cleared: bool,
 }
 impl PictureWorker {
+    /// Detect an idle codec process exit without requesting or copying a picture.
+    /// Takes this supervisor. Returns a visible failure and reaps a dead child;
+    /// subsequent work requires an explicit fresh rebind.
+    pub fn check_health(&mut self) -> Result<()> {
+        let exited = self
+            .process
+            .as_mut()
+            .map(|process| process.child.try_wait())
+            .transpose()?;
+        if exited.flatten().is_some() {
+            self.process.take();
+            return Err(Error::Invalid(
+                "picture worker exited; retry the viewer".into(),
+            ));
+        }
+        Ok(())
+    }
     /// Start the packaged Rust codec route over a captured immutable document.
     /// `executable` supports --picture-worker; `snapshot`, `budget` and `cancel`
     /// declare granted sources and limits. Returns after the child's validated bind.
@@ -496,6 +513,9 @@ impl PictureWorker {
     }
 }
 impl PictureProvider for PictureWorker {
+    fn check_health(&mut self) -> Result<()> {
+        PictureWorker::check_health(self)
+    }
     fn version(&self) -> DocumentVersion {
         self.owner.version
     }

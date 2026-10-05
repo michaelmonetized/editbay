@@ -134,4 +134,9 @@ codec process and sealed, bounded RGBA handoff. `render-graph-worker` runs the
 same typed GPU graph through that provider. The packaged app/CLI both host this
 Rust endpoint. See [isolated pictures](docs/WORKER_PICTURES.md) for source/receipt
 ownership, consumer pins, cancellation/retry and qualification limits. Native
-surface presentation, audio-clock scheduling and complete delivery remain open.
+surface presentation now uses the same graph on the window's own device. Create
+a sequence from an imported video, step or scrub its exact frame numbers, then
+save or recover the editable document. Cancel and Retry supervise the actual
+codec job. See [native preview](docs/NATIVE_PREVIEW.md) for ownership, timing,
+color and qualification limits. Audio-clock scheduling and complete delivery
+remain open.

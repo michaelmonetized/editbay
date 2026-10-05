@@ -5,6 +5,7 @@ use crate::{
     diagnostics::Diagnostics,
     media_ui::MediaPane,
     preferences::{PreferenceStore, Preferences, Startup},
+    preview::PreviewPane,
     theme::LiveTheme,
     workspace::{DocumentOwner, Workspace},
 };
@@ -80,6 +81,7 @@ pub struct Studio {
     settings: Option<Preferences>,
     bank: BankPane,
     media: MediaPane,
+    preview: PreviewPane,
     preferences_applied: bool,
     explicit_paths: bool,
     restoring: bool,
@@ -166,6 +168,7 @@ impl Studio {
             settings: None,
             bank: BankPane::default(),
             media: MediaPane::default(),
+            preview: PreviewPane::default(),
             preferences_applied: false,
             explicit_paths,
             restoring: false,
@@ -184,6 +187,12 @@ impl Studio {
             diagnostics,
             frame_started: Instant::now(),
         }
+    }
+
+    /// Attach the native window's shared GPU without doing input-thread work.
+    /// `state` is eframe's actual device and surface. Returns no value.
+    pub fn attach_gpu(&mut self, state: &egui_wgpu::RenderState) {
+        self.preview.attach(state);
     }
 
     fn tick(&mut self, ctx: &egui::Context) {
@@ -215,6 +224,7 @@ impl Studio {
         if self.workspace.activation_generation != previous && self.workspace.active.is_some() {
             self.welcome = false;
         }
+        self.preview.poll(&mut self.workspace, !self.welcome, ctx);
         if self.workspace.take_catalog_dirty() {
             self.rescan();
         }
@@ -462,9 +472,26 @@ impl Studio {
         if self.dialog.is_some() {
             return;
         }
-        let folder = self
-            .project_scope
-            .clone()
+        let original = match &action {
+            DialogAction::Save { tab, .. } => self
+                .workspace
+                .tabs
+                .iter()
+                .find(|item| item.id == *tab)
+                .and_then(|item| item.path.as_ref()),
+            DialogAction::Recover { snapshot } => self
+                .workspace
+                .recoveries
+                .valid
+                .iter()
+                .find(|item| item.path == *snapshot)
+                .and_then(|item| item.original.as_ref()),
+            _ => None,
+        };
+        let folder = original
+            .and_then(|path| path.parent())
+            .map(PathBuf::from)
+            .or_else(|| self.project_scope.clone())
             .unwrap_or_else(|| self.home.clone());
         let name = if matches!(action, DialogAction::BrandExport { .. }) {
             name.to_owned()
@@ -701,7 +728,8 @@ impl Studio {
 
     fn toolbar(&mut self, ui: &mut Ui) {
         let ctx = ui.ctx().clone();
-        ui.horizontal(|ui| {
+        let compact = ui.available_width() < 1100.;
+        ui.horizontal_wrapped(|ui| {
             if ui.selectable_label(self.welcome, "EditBay").clicked() {
                 self.welcome = true;
             }
@@ -756,13 +784,12 @@ impl Studio {
                         self.message = Some(error);
                     }
                 }
-                if ui
-                    .add_enabled(
-                        self.dialog.is_none() && !self.media.busy(),
-                        egui::Button::new("Import media…"),
-                    )
-                    .clicked()
-                {
+                let import = ui.add_enabled(
+                    self.dialog.is_none() && !self.media.busy(),
+                    egui::Button::new("Import media…"),
+                );
+                self.preview.observe_control("import-media", &import, ui);
+                if import.clicked() {
                     match self.workspace.edit_snapshot(id) {
                         Ok((owner, _)) => {
                             self.choose(DialogAction::ImportMedia { owner }, "", &ctx)
@@ -774,38 +801,13 @@ impl Studio {
                     self.media.cancel();
                 }
             }
-            ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
-                ui.label(RichText::new(env!("CARGO_PKG_VERSION")).small().weak());
-                if self.workspace.busy() || self.dialog.is_some() || self.media.working() {
-                    ui.spinner();
-                }
-                if ui.button("Help").clicked() {
-                    self.manual = true;
-                }
-                if ui.button("Settings").clicked() {
-                    self.settings = Some(self.preferences.current.clone());
-                }
-                if ui.button("Brand bank").clicked() {
-                    self.bank.opened = true;
-                    if self.bank.catalog.is_none() && !self.bank.busy() {
-                        let folder = self.project_scope.clone().or_else(|| {
-                            self.workspace
-                                .tabs
-                                .iter()
-                                .find(|tab| Some(tab.id) == self.workspace.active)
-                                .and_then(|tab| tab.path.as_ref())
-                                .and_then(|path| path.parent())
-                                .map(|path| path.to_path_buf())
-                        });
-                        if let Some(folder) = folder
-                            && let Err(error) = self.bank.run(BankTask::Discover(folder), &ctx)
-                        {
-                            self.bank.message = Some(error);
-                        }
-                    }
-                }
-            });
+            if !compact {
+                self.workspace_tools(ui, &ctx);
+            }
         });
+        if compact {
+            ui.horizontal(|ui| self.workspace_tools(ui, &ctx));
+        }
         ui.add_space(6.);
         let tabs: Vec<_> = self
             .workspace
@@ -836,6 +838,40 @@ impl Studio {
                 })
             });
         ui.separator();
+    }
+
+    fn workspace_tools(&mut self, ui: &mut Ui, ctx: &egui::Context) {
+        ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
+            ui.label(RichText::new(env!("CARGO_PKG_VERSION")).small().weak());
+            if self.workspace.busy() || self.dialog.is_some() || self.media.working() {
+                ui.spinner();
+            }
+            if ui.button("Help").clicked() {
+                self.manual = true;
+            }
+            if ui.button("Settings").clicked() {
+                self.settings = Some(self.preferences.current.clone());
+            }
+            if ui.button("Brand bank").clicked() {
+                self.bank.opened = true;
+                if self.bank.catalog.is_none() && !self.bank.busy() {
+                    let folder = self.project_scope.clone().or_else(|| {
+                        self.workspace
+                            .tabs
+                            .iter()
+                            .find(|tab| Some(tab.id) == self.workspace.active)
+                            .and_then(|tab| tab.path.as_ref())
+                            .and_then(|path| path.parent())
+                            .map(|path| path.to_path_buf())
+                    });
+                    if let Some(folder) = folder
+                        && let Err(error) = self.bank.run(BankTask::Discover(folder), ctx)
+                    {
+                        self.bank.message = Some(error);
+                    }
+                }
+            }
+        });
     }
 
     fn welcome(&mut self, ui: &mut Ui) {
@@ -1225,7 +1261,9 @@ impl Studio {
         let error = tab.recovery_error.clone();
         ui.horizontal(|ui| {
             ui.heading(&project.name);
-            if ui.button("Rename…").clicked() {
+            let rename = ui.button("Rename…");
+            self.preview.observe_control("rename-project", &rename, ui);
+            if rename.clicked() {
                 self.rename = Some((id, DocumentVersion::of(&project), project.name.clone()));
                 self.focus_name = true;
             }
@@ -1247,14 +1285,14 @@ impl Studio {
             ));
         }
         if !project.sources.is_empty() {
-            egui::CollapsingHeader::new("Source media")
+            let header = egui::CollapsingHeader::new("Source media")
                 .default_open(true)
                 .show(ui, |ui| {
                     egui::ScrollArea::vertical()
                         .max_height(180.)
                         .show(ui, |ui| {
                             for source in &project.sources {
-                                egui::CollapsingHeader::new(&source.name)
+                                let header = egui::CollapsingHeader::new(&source.name)
                                     .id_salt(source.id)
                                     .show(ui, |ui| {
                                         for stream in &source.streams {
@@ -1294,16 +1332,54 @@ impl Studio {
                                                 "Stream {} · {} · {description}",
                                                 stream.index, stream.codec
                                             ));
+                                            if matches!(
+                                                stream.format,
+                                                editbay_core::StreamFormat::Video { .. }
+                                            ) {
+                                                let create =
+                                                    ui.button("Create sequence from video");
+                                                self.preview.observe_control(
+                                                    &format!(
+                                                        "create-sequence:{}:{}",
+                                                        source.id, stream.index
+                                                    ),
+                                                    &create,
+                                                    ui,
+                                                );
+                                                if create.clicked()
+                                                    && let Err(error) =
+                                                        self.preview.create_sequence(
+                                                            &self.workspace,
+                                                            id,
+                                                            source.id,
+                                                            stream.index,
+                                                        )
+                                                {
+                                                    self.message = Some(error);
+                                                }
+                                            }
                                         }
                                     });
+                                self.preview.observe_control(
+                                    &format!("source:{}", source.id),
+                                    &header.header_response,
+                                    ui,
+                                );
                             }
                         });
                 });
+            self.preview
+                .observe_control("source-media", &header.header_response, ui);
         }
         egui::ScrollArea::vertical()
             .id_salt("document")
             .show(ui, |ui| {
-                for sequence in &project.sequences {
+                self.preview.show(ui, &self.workspace, id, project.clone());
+                for sequence in project
+                    .sequences
+                    .iter()
+                    .filter(|sequence| sequence.composition.is_none())
+                {
                     ui.heading(&sequence.name);
                     ui.label(format!(
                         "{} × {} · {}/{} fps",
@@ -1312,31 +1388,6 @@ impl Studio {
                         sequence.frame_rate.numerator,
                         sequence.frame_rate.denominator
                     ));
-                    if let Some(composition) = sequence.composition.and_then(|id| {
-                        project
-                            .compositions
-                            .iter()
-                            .find(|composition| composition.id == id)
-                    }) {
-                        ui.label(format!(
-                            "{} · {} frames · {} {} · {} {}",
-                            composition.name,
-                            composition.duration,
-                            composition.tracks.len(),
-                            if composition.tracks.len() == 1 {
-                                "track"
-                            } else {
-                                "tracks"
-                            },
-                            composition.nodes.len(),
-                            if composition.nodes.len() == 1 {
-                                "node"
-                            } else {
-                                "nodes"
-                            }
-                        ));
-                        ui.weak("Composition preview unavailable");
-                    }
                     let scale = ((ui.available_width() - 24.).min(960.) / sequence.width as f32)
                         .min(400. / sequence.height as f32);
                     let width = sequence.width as f32 * scale;
@@ -1849,6 +1900,7 @@ impl eframe::App for Studio {
 
     fn ui(&mut self, ui: &mut Ui, _: &mut eframe::Frame) {
         let ctx = ui.ctx().clone();
+        self.preview.begin_frame();
         egui::Frame::new()
             .fill(self.theme.palette.background)
             .inner_margin(16)
@@ -1864,7 +1916,7 @@ impl eframe::App for Studio {
             });
         self.modals(&ctx);
         if let Some(diagnostics) = &mut self.diagnostics {
-            diagnostics.observe(&self.workspace, &self.media);
+            diagnostics.observe(&self.workspace, &self.media, &self.preview);
             diagnostics.record("frame", serde_json::json!({"cpu_us":self.frame_started.elapsed().as_micros() as u64,"catalog_running":self.scan.is_some(),"workspace_busy":self.workspace.busy(),"bank_busy":self.bank.busy(),"welcome":self.welcome,"recovered":self.recovered,"recovery_preview":self.recovery_preview.is_some(),"recoveries_valid":self.workspace.recoveries.valid.len(),"dialog_pending":self.dialog.is_some(),"new_project_name":self.create_name,"rename_name":self.rename.as_ref().map(|(_,_,name)|name),"desktop_font_ready":self.theme.font_path.is_some()}));
         }
     }

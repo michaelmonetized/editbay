@@ -1,4 +1,4 @@
-use crate::Result;
+use crate::{DisplayFrame, DisplayRenderer, Result};
 use editbay_core::{
     AlphaMode, DocumentVersion, EvaluationSnapshot, FloatPrecision, NodeOperation, OutputTransfer,
     PreparedFrame, SocketType, SourcePosition, SourceRequest, StreamFormat, WorkingGamut,
@@ -78,7 +78,8 @@ impl Drop for Allocation {
 
 /// Immutable resident picture with charged ownership through GPU completion.
 pub struct ResidentImage {
-    texture: wgpu::Texture,
+    pub(crate) device: wgpu::Device,
+    pub(crate) texture: wgpu::Texture,
     key: String,
     precision: FloatPrecision,
     gamut: WorkingGamut,
@@ -225,6 +226,31 @@ impl<P: PictureProvider> GraphRenderer<P> {
         let instance =
             wgpu::Instance::new(wgpu::InstanceDescriptor::new_without_display_handle_from_env());
         let adapter = pollster::block_on(instance.request_adapter(&Default::default()))?;
+        let (device, queue) = pollster::block_on(adapter.request_device(&Default::default()))?;
+        Self::with_device(snapshot, provider, budget, cancel, &adapter, device, queue)
+    }
+
+    /// Evaluate on the native application's existing GPU device.
+    /// `snapshot`, `provider`, `budget` and `cancel` own evaluation; `adapter`,
+    /// `device` and `queue` are the application's matching native handles.
+    /// Returns compiled shared kernels. Call from a worker, never from UI input.
+    #[allow(clippy::too_many_arguments)]
+    pub fn with_device(
+        snapshot: Arc<EvaluationSnapshot>,
+        provider: P,
+        budget: GraphBudget,
+        cancel: Cancellation,
+        adapter: &wgpu::Adapter,
+        device: wgpu::Device,
+        queue: wgpu::Queue,
+    ) -> Result<Self> {
+        budget.validate()?;
+        if provider.version() != DocumentVersion::of(snapshot.project()) {
+            return Err("picture provider does not own this graph's document version".into());
+        }
+        if cancel.is_cancelled() {
+            return Err(editbay_media::Error::Cancelled.into());
+        }
         for format in [
             wgpu::TextureFormat::Rgba16Float,
             wgpu::TextureFormat::Rgba32Float,
@@ -241,7 +267,6 @@ impl<P: PictureProvider> GraphRenderer<P> {
             }
         }
         let info = adapter.get_info();
-        let (device, queue) = pollster::block_on(adapter.request_device(&Default::default()))?;
         let pipeline = |precision| {
             let entries = [
                 texture_binding(0),
@@ -656,6 +681,19 @@ impl<P: PictureProvider> GraphRenderer<P> {
         Ok(self.receipt(image))
     }
 
+    /// Prepare an owned display draw without reading pixels back to the CPU.
+    /// `frame` is this worker's display-converted receipt and `display` owns the
+    /// matching application device. Returns an immutable draw with charged image
+    /// ownership; the draw pins its image through actual command completion.
+    pub fn present(
+        &self,
+        frame: &RenderedFrame,
+        display: &DisplayRenderer,
+    ) -> Result<DisplayFrame> {
+        self.validate_result(frame)?;
+        display.prepare(frame.image.clone())
+    }
+
     /// Read a resident picture at an explicit inspection/export boundary.
     /// `frame` must belong to this worker/version. Returns premultiplied float
     /// pixels in its declared encoding; source integrity is checked separately.
@@ -739,6 +777,14 @@ impl<P: PictureProvider> GraphRenderer<P> {
     /// Takes no arguments. Returns success after full file checksum checks.
     pub fn verify_sources(&mut self) -> Result<()> {
         self.pictures.verify_sources()?;
+        Ok(())
+    }
+    /// Poll native completion and detect an idle source worker failure.
+    /// Takes this worker. Returns without waiting for GPU work; call off the UI thread.
+    pub fn poll(&mut self) -> Result<()> {
+        self.check()?;
+        self.device.poll(wgpu::PollType::Poll)?;
+        self.pictures.check_health()?;
         Ok(())
     }
     /// Wait for submitted work and inspect actual residency counters.
@@ -922,6 +968,7 @@ impl<P: PictureProvider> GraphRenderer<P> {
             view_formats: &[],
         });
         Ok(Arc::new(ResidentImage {
+            device: self.device.clone(),
             texture,
             key,
             precision,

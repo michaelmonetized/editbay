@@ -825,6 +825,20 @@ fn run(args: Vec<OsString>) -> Result<()> {
         ("native-workspace", 4) => {
             native_workspace::run(Path::new(&args[1]), Path::new(&args[2]), number(&args[3])?)?
         }
+        ("native-preview", 4 | 5) => {
+            let half = match args.get(4) {
+                None => false,
+                Some(value) if value == "full" => false,
+                Some(value) if value == "half" => true,
+                _ => return Err("Preview precision must be full or half".into()),
+            };
+            native_workspace::preview(
+                Path::new(&args[1]),
+                Path::new(&args[2]),
+                Path::new(&args[3]),
+                half,
+            )?
+        }
         ("native-media", 4) => native_workspace::media(
             Path::new(&args[1]),
             Path::new(&args[2]),
@@ -893,6 +907,7 @@ fn run(args: Vec<OsString>) -> Result<()> {
             println!(
                 "EditBay native feasibility lab\n  probe SOURCE FRAME_LIMIT\n  media-ingest SOURCE\n  picture-cache SOURCE\n  render-graph SOURCE\n  picture-worker SOURCE [WORKER_BINARY]\n  render-graph-worker SOURCE [WORKER_BINARY]\n  evaluation SOURCE ITERATIONS [SYNTHETIC_INDEX_PICTURES]\n  playback SOURCE SECONDS\n  export SOURCE NEW_MKV FRAME_LIMIT\n  cancel-export SOURCE NEW_MKV FRAME_LIMIT CANCEL_MS\n  runtime-info ORT_LIBRARY\n  inventory MEDIA_DIRECTORY NEW_JSON_REPORT\n  native-workspace APP_BINARY NEW_EVIDENCE_DIRECTORY TRIALS\n  native-media APP_BINARY CAMERA_SOURCE NEW_EVIDENCE_DIRECTORY\n  native-workspace-timing APP_BINARY NEW_EVIDENCE_DIRECTORY\n  native-workspace-errors APP_BINARY NEW_EVIDENCE_DIRECTORY\n  rvm SOURCE VERIFIED_MODEL ORT_LIBRARY FRAME_LIMIT\n  sam2 SOURCE VERIFIED_PACK ORT_LIBRARY FRAME_LIMIT X Y\n  sam2-fixture NEW_MKV"
             );
+            println!("  native-preview APP_BINARY SOURCE NEW_EVIDENCE_DIRECTORY [full|half]");
             #[cfg(feature = "torch-reference")]
             println!(
                 "  rvm-parity SOURCE VERIFIED_MODEL VERIFIED_TORCHSCRIPT ORT_LIBRARY FRAME_LIMIT"

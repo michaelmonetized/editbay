@@ -1,9 +1,11 @@
 //! Explicit sRGB input, linear-float composition and sRGB output boundaries.
 
 mod graph;
+mod presentation;
 pub use graph::{
     GraphBudget, GraphRenderer, GraphStats, ImageBoundary, RenderedFrame, ResidentImage,
 };
+pub use presentation::{DisplayFrame, DisplayRenderer};
 
 use half::f16;
 use serde::Serialize;

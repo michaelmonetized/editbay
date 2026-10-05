@@ -5,8 +5,9 @@ source-owned `PictureCache`. Its functioning SDR picture subset covers media and
 nested composition sources, solids, animated affine transforms, unmasked over,
 scalar animation and opacity. Audio is evaluated separately. Geometry/masks,
 mask assets, HDR/log input, PQ/HLG boundaries and source orientation return errors.
-This is a scoped EB-024/026 engine layer; native preview and delivery integration
-remain open. No unsupported native controls are enabled.
+This is a scoped EB-024/026 engine layer. The [native preview](NATIVE_PREVIEW.md)
+now presents it on the actual window device; delivery integration remains open.
+No unsupported native controls are enabled.
 
 ## Evaluation and color
 
@@ -118,8 +119,8 @@ fixture, not natural VFR wall-clock playback. See [evidence](evidence/r2-gpu/REA
 
 The same graph now accepts the [isolated retained codec provider](WORKER_PICTURES.md),
 with private receipt validation before upload and qualified real source/output
-agreement. This worker still uses its own headless device. Shared native UI-device
-presentation, GPU display-surface quantization, transport/frame scheduling,
-audio blocks/clock, export encoders, masks/HDR and complete R2 hardware/playback
+agreement. The separate native viewer uses the window's shared device and has
+GPU surface-quantization/ownership checks plus paused native frame trials.
+Transport/frame scheduling, audio blocks/clock, export encoders, masks/HDR and complete R2 hardware/playback
 qualification remain next work. `readback` is an explicit float inspection/export
 boundary, not a preview implementation or a delivery-file exporter.
