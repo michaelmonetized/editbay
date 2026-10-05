@@ -174,6 +174,15 @@ fn run(args: &[OsString]) -> Result<(), Box<dyn std::error::Error>> {
 }
 
 fn main() -> ExitCode {
+    if std::env::args_os().nth(1).as_deref() == Some(std::ffi::OsStr::new("--pcm-worker")) {
+        return match editbay_media::pcm_worker::serve() {
+            Ok(()) => ExitCode::SUCCESS,
+            Err(error) => {
+                eprintln!("editbay sound worker: {error}");
+                ExitCode::FAILURE
+            }
+        };
+    }
     if std::env::args_os().nth(1).as_deref() == Some(std::ffi::OsStr::new("--picture-worker")) {
         return match editbay_media::picture_worker::serve() {
             Ok(()) => ExitCode::SUCCESS,

@@ -16,6 +16,7 @@ mod gpu_graph;
 mod inventory;
 mod media_ingest;
 mod native_workspace;
+mod pcm_worker;
 mod picture_cache;
 mod picture_worker;
 mod sound_blocks;
@@ -799,7 +800,19 @@ fn run(args: Vec<OsString>) -> Result<()> {
         ("media-ingest", 2) => media_ingest::run(Path::new(&args[1]))?,
         ("picture-cache", 2) => picture_cache::run(Path::new(&args[1]))?,
         ("sound-blocks", 2) => sound_blocks::run(Path::new(&args[1]))?,
+        ("sound-blocks-worker", 2 | 3) => sound_blocks::run_process(
+            Path::new(&args[1]),
+            args.get(2)
+                .map(Path::new)
+                .unwrap_or(&std::env::current_exe()?),
+        )?,
         ("render-graph", 2) => gpu_graph::run(Path::new(&args[1]))?,
+        ("pcm-worker", 2 | 3) => pcm_worker::run(
+            Path::new(&args[1]),
+            args.get(2)
+                .map(Path::new)
+                .unwrap_or(&std::env::current_exe()?),
+        )?,
         ("picture-worker", 2 | 3) => picture_worker::run(
             Path::new(&args[1]),
             args.get(2)
@@ -907,7 +920,7 @@ fn run(args: Vec<OsString>) -> Result<()> {
         }
         ("--help", 0 | 1) => {
             println!(
-                "EditBay native feasibility lab\n  probe SOURCE FRAME_LIMIT\n  media-ingest SOURCE\n  picture-cache SOURCE\n  sound-blocks SOURCE\n  render-graph SOURCE\n  picture-worker SOURCE [WORKER_BINARY]\n  render-graph-worker SOURCE [WORKER_BINARY]\n  evaluation SOURCE ITERATIONS [SYNTHETIC_INDEX_PICTURES]\n  playback SOURCE SECONDS\n  export SOURCE NEW_MKV FRAME_LIMIT\n  cancel-export SOURCE NEW_MKV FRAME_LIMIT CANCEL_MS\n  runtime-info ORT_LIBRARY\n  inventory MEDIA_DIRECTORY NEW_JSON_REPORT\n  native-workspace APP_BINARY NEW_EVIDENCE_DIRECTORY TRIALS\n  native-media APP_BINARY CAMERA_SOURCE NEW_EVIDENCE_DIRECTORY\n  native-workspace-timing APP_BINARY NEW_EVIDENCE_DIRECTORY\n  native-workspace-errors APP_BINARY NEW_EVIDENCE_DIRECTORY\n  rvm SOURCE VERIFIED_MODEL ORT_LIBRARY FRAME_LIMIT\n  sam2 SOURCE VERIFIED_PACK ORT_LIBRARY FRAME_LIMIT X Y\n  sam2-fixture NEW_MKV"
+                "EditBay native feasibility lab\n  probe SOURCE FRAME_LIMIT\n  media-ingest SOURCE\n  picture-cache SOURCE\n  sound-blocks SOURCE\n  sound-blocks-worker SOURCE [WORKER_BINARY]\n  render-graph SOURCE\n  picture-worker SOURCE [WORKER_BINARY]\n  pcm-worker SOURCE [WORKER_BINARY]\n  render-graph-worker SOURCE [WORKER_BINARY]\n  evaluation SOURCE ITERATIONS [SYNTHETIC_INDEX_PICTURES]\n  playback SOURCE SECONDS\n  export SOURCE NEW_MKV FRAME_LIMIT\n  cancel-export SOURCE NEW_MKV FRAME_LIMIT CANCEL_MS\n  runtime-info ORT_LIBRARY\n  inventory MEDIA_DIRECTORY NEW_JSON_REPORT\n  native-workspace APP_BINARY NEW_EVIDENCE_DIRECTORY TRIALS\n  native-media APP_BINARY CAMERA_SOURCE NEW_EVIDENCE_DIRECTORY\n  native-workspace-timing APP_BINARY NEW_EVIDENCE_DIRECTORY\n  native-workspace-errors APP_BINARY NEW_EVIDENCE_DIRECTORY\n  rvm SOURCE VERIFIED_MODEL ORT_LIBRARY FRAME_LIMIT\n  sam2 SOURCE VERIFIED_PACK ORT_LIBRARY FRAME_LIMIT X Y\n  sam2-fixture NEW_MKV"
             );
             println!("  native-preview APP_BINARY SOURCE NEW_EVIDENCE_DIRECTORY [full|half]");
             #[cfg(feature = "torch-reference")]
@@ -928,6 +941,15 @@ fn run(args: Vec<OsString>) -> Result<()> {
 }
 
 fn main() -> ExitCode {
+    if std::env::args_os().nth(1).as_deref() == Some(std::ffi::OsStr::new("--pcm-worker")) {
+        return match editbay_media::pcm_worker::serve() {
+            Ok(()) => ExitCode::SUCCESS,
+            Err(error) => {
+                eprintln!("editbay sound worker: {error}");
+                ExitCode::FAILURE
+            }
+        };
+    }
     if std::env::args_os().nth(1).as_deref() == Some(std::ffi::OsStr::new("--picture-worker")) {
         return match editbay_media::picture_worker::serve() {
             Ok(()) => ExitCode::SUCCESS,

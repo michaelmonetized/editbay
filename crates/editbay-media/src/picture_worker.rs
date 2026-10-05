@@ -1,6 +1,7 @@
 use crate::{
     Cancellation, DecodedPicture, Error, PictureBudget, PictureCache, PictureCacheStats,
     PictureProvider, PictureResult, Result,
+    codec_process::{Ownership, Process},
     pictures::{Allocation, HandleAllocation, Key, Pixels, selection},
     planes,
 };
@@ -10,23 +11,15 @@ use editbay_core::{
 use serde::{Deserialize, Serialize};
 use std::{
     collections::HashMap,
-    io::Read,
-    net::Shutdown,
-    os::{fd::OwnedFd, unix::net::UnixStream},
+    os::fd::OwnedFd,
     path::{Path, PathBuf},
-    process::{Child, Command, Stdio},
     sync::{
         Arc, Mutex,
         atomic::{AtomicUsize, Ordering},
         mpsc,
     },
-    thread::JoinHandle,
-    time::{Duration, Instant},
 };
 use uuid::Uuid;
-
-const STDERR_BYTES: usize = 8192;
-const RESPONSE_TIMEOUT: Duration = Duration::from_secs(120);
 
 /// Per-process decoded and mapped output limits, including consumer-held handles.
 #[derive(Debug, Clone, Copy, Serialize, Deserialize)]
@@ -60,15 +53,6 @@ impl WorkerBudget {
     }
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
-#[serde(deny_unknown_fields)]
-struct Ownership {
-    session: Uuid,
-    job: Uuid,
-    worker: Uuid,
-    version: DocumentVersion,
-    generation: u64,
-}
 #[derive(Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
 struct Request {
@@ -147,114 +131,6 @@ enum Reply {
 
 type Packet = (Response, Option<OwnedFd>);
 
-struct Process {
-    child: Child,
-    socket: UnixStream,
-    responses: mpsc::Receiver<Result<Packet>>,
-    reader: Option<JoinHandle<()>>,
-    stderr: Option<JoinHandle<()>>,
-    tail: Arc<Mutex<Vec<u8>>>,
-}
-impl Process {
-    fn start(executable: &Path) -> Result<Self> {
-        let (socket, inherited) = UnixStream::pair()?;
-        socket.set_write_timeout(Some(Duration::from_millis(250)))?;
-        let mut command = Command::new(executable);
-        command
-            .arg("--picture-worker")
-            .stdin(Stdio::null())
-            .stdout(Stdio::null())
-            .stderr(Stdio::piped());
-        let mut child = planes::spawn(&mut command, &inherited)?;
-        drop(inherited);
-        let mut output = child
-            .stderr
-            .take()
-            .ok_or_else(|| Error::Invalid("picture worker lacks stderr".into()))?;
-        let tail = Arc::new(Mutex::new(Vec::new()));
-        let retained = tail.clone();
-        let mut process = Self {
-            child,
-            socket,
-            responses: mpsc::channel().1,
-            reader: None,
-            stderr: None,
-            tail,
-        };
-        process.stderr = Some(
-            std::thread::Builder::new()
-                .name("editbay-picture-stderr".into())
-                .spawn(move || {
-                    let mut buffer = [0u8; 2048];
-                    while let Ok(count) = output.read(&mut buffer) {
-                        if count == 0 {
-                            break;
-                        }
-                        if let Ok(mut tail) = retained.lock() {
-                            tail.extend_from_slice(&buffer[..count]);
-                            let excess = tail.len().saturating_sub(STDERR_BYTES);
-                            tail.drain(..excess);
-                        }
-                    }
-                })?,
-        );
-        let mut input = process.socket.try_clone()?;
-        let (sender, receiver) = mpsc::sync_channel(1);
-        process.responses = receiver;
-        process.reader = Some(
-            std::thread::Builder::new()
-                .name("editbay-picture-receive".into())
-                .spawn(move || {
-                    loop {
-                        let packet = planes::receive(&mut input).and_then(|packet| {
-                            let (bytes, descriptor) = packet.ok_or_else(|| {
-                                Error::Invalid("picture worker closed its socket".into())
-                            })?;
-                            let response = serde_json::from_slice(&bytes)
-                                .map_err(|e| Error::Invalid(e.to_string()))?;
-                            Ok((response, descriptor))
-                        });
-                        let failed = packet.is_err();
-                        if sender.try_send(packet).is_err() || failed {
-                            break;
-                        }
-                    }
-                })?,
-        );
-        Ok(process)
-    }
-    fn stop(&mut self) {
-        let _ = self.socket.shutdown(Shutdown::Both);
-        let start = Instant::now();
-        while matches!(self.child.try_wait(), Ok(None))
-            && start.elapsed() < Duration::from_millis(100)
-        {
-            std::thread::sleep(Duration::from_millis(2));
-        }
-        let _ = self.child.kill();
-        let _ = self.child.wait();
-        if let Some(reader) = self.reader.take() {
-            let _ = reader.join();
-        }
-        if let Some(stderr) = self.stderr.take() {
-            let _ = stderr.join();
-        }
-    }
-    fn error(&self, message: impl std::fmt::Display) -> Error {
-        let tail = self
-            .tail
-            .lock()
-            .map(|v| String::from_utf8_lossy(&v).into_owned())
-            .unwrap_or_default();
-        Error::Invalid(format!("picture worker failed: {message}; {tail}"))
-    }
-}
-impl Drop for Process {
-    fn drop(&mut self) {
-        self.stop();
-    }
-}
-
 struct Entry {
     picture: Arc<DecodedPicture>,
     used: u64,
@@ -281,7 +157,7 @@ pub struct PictureWorker {
     cancel: Cancellation,
     owner: Ownership,
     serial: u64,
-    process: Option<Process>,
+    process: Option<Process<Response>>,
     entries: HashMap<Key, Entry>,
     bytes: usize,
     live: Arc<AtomicUsize>,
@@ -379,7 +255,7 @@ impl PictureWorker {
         self.check()?;
         self.cleared = false;
         self.owner.worker = Uuid::new_v4();
-        self.process = Some(Process::start(&self.executable)?);
+        self.process = Some(Process::start(&self.executable, "--picture-worker")?);
         self.spawns += 1;
         self.bind()
     }
@@ -412,41 +288,15 @@ impl PictureWorker {
             serial: self.serial,
             operation,
         };
-        let bytes = serde_json::to_vec(&request).map_err(|e| Error::Invalid(e.to_string()))?;
         let process = self.process.as_mut().ok_or_else(|| {
             Error::Invalid("picture worker stopped; rebind with a fresh job to retry".into())
         })?;
-        if let Err(error) = planes::send(&mut process.socket, &bytes, None) {
-            let error = process.error(error);
-            self.process.take();
-            return Err(error);
-        }
-        let started = Instant::now();
-        let packet = loop {
-            if self.cancel.is_cancelled() {
+        let packet = match process.exchange(&request, &self.cancel) {
+            Ok(packet) => packet,
+            Err(error) => {
                 self.process.take();
                 self.child_stats = PictureCacheStats::default();
-                return Err(Error::Cancelled);
-            }
-            if started.elapsed() > RESPONSE_TIMEOUT {
-                return self.protocol_error("picture worker response exceeded 120 seconds");
-            }
-            let process = self
-                .process
-                .as_ref()
-                .expect("active request owns its process");
-            match process.responses.recv_timeout(Duration::from_millis(2)) {
-                Ok(Ok(packet)) => break packet,
-                Ok(Err(error)) => {
-                    let error = process.error(error);
-                    self.process.take();
-                    self.child_stats = PictureCacheStats::default();
-                    return Err(error);
-                }
-                Err(mpsc::RecvTimeoutError::Timeout) => {}
-                Err(mpsc::RecvTimeoutError::Disconnected) => {
-                    return self.protocol_error("picture response reader stopped");
-                }
+                return Err(error);
             }
         };
         if validate_response(&packet.0, self.owner, self.serial).is_err() {
