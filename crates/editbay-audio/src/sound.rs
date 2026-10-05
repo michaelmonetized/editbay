@@ -62,11 +62,34 @@ impl SoundBuffer {
 }
 
 /// A privately owned, revision-bound sound publication.
+/// Payload replacement cannot preserve a valid publication receipt.
+/// ```compile_fail,E0616
+/// fn replace(a: &mut editbay_audio::SoundResult, b: editbay_audio::SoundResult) {
+///     a.sound = b.sound;
+/// }
+/// ```
 pub struct SoundResult {
-    pub sound: Arc<SoundBuffer>,
-    pub version: DocumentVersion,
-    pub content_sha256: String,
+    sound: Arc<SoundBuffer>,
+    version: DocumentVersion,
+    content_sha256: String,
     owner: Arc<()>,
+}
+impl SoundResult {
+    /// Retain this receipt's immutable rendered sound.
+    /// Takes no arguments; returns the exact charged buffer without payload mutation.
+    pub fn sound(&self) -> &Arc<SoundBuffer> {
+        &self.sound
+    }
+    /// Inspect the captured document publication owner.
+    /// Takes no arguments; returns this receipt's immutable document version.
+    pub fn version(&self) -> DocumentVersion {
+        self.version
+    }
+    /// Inspect the immutable sound block's semantic identity.
+    /// Takes no arguments; returns its content hash separately from revision ownership.
+    pub fn sha256(&self) -> &str {
+        &self.content_sha256
+    }
 }
 
 /// Retained native sound evaluator shared by preview and durable delivery workers.
@@ -167,7 +190,7 @@ impl SoundRenderer {
             let input = self
                 .pcm
                 .interval(source.source, source.stream, start, length)?;
-            if input.pcm.interval().2 != channels {
+            if input.pcm().interval().2 != channels {
                 return Err(Error::Invalid("sound channel routing is undeclared".into()));
             }
             for (frame, point) in points.iter().enumerate() {
@@ -183,7 +206,7 @@ impl SoundRenderer {
                     let index = (point.start - start) as usize * channels;
                     for (value, sample) in out
                         .iter_mut()
-                        .zip(&input.pcm.samples()[index..index + channels])
+                        .zip(&input.pcm().samples()[index..index + channels])
                     {
                         *value += f64::from(*sample) * gain;
                     }
@@ -209,7 +232,7 @@ impl SoundRenderer {
                         normalization += weight;
                         let offset = (index - start) as usize * channels;
                         for (channel, value) in sum[..channels].iter_mut().enumerate() {
-                            *value += f64::from(input.pcm.samples()[offset + channel]) * weight;
+                            *value += f64::from(input.pcm().samples()[offset + channel]) * weight;
                         }
                     }
                     if !normalization.is_finite() || normalization.abs() < 0.5 {

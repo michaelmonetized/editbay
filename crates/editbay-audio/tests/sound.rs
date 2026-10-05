@@ -137,7 +137,7 @@ fn unchanged_samples_reverse_and_mix_preserve_original_channel_order_and_headroo
     for start in [0, 47999, 160000] {
         let result = r.render(&s.prepare(start, 4096).unwrap()).unwrap();
         assert_eq!(
-            result.sound.samples(),
+            result.sound().samples(),
             &expected[start as usize * 2..(start as usize + 4096) * 2]
         );
         r.validate_result(&result).unwrap();
@@ -153,7 +153,7 @@ fn unchanged_samples_reverse_and_mix_preserve_original_channel_order_and_headroo
     let result = r.render(&s.prepare(0, 4096).unwrap()).unwrap();
     for n in 0..4096 {
         assert_eq!(
-            &result.sound.samples()[n * 2..n * 2 + 2],
+            &result.sound().samples()[n * 2..n * 2 + 2],
             &expected[(191999 - n) * 2..(192000 - n) * 2]
         );
     }
@@ -180,10 +180,10 @@ fn unchanged_samples_reverse_and_mix_preserve_original_channel_order_and_headroo
     mixed.compositions[0].audio = Some(id(52));
     let (s, mut r) = renderer(mixed, 48000, SoundRenderBudget::default());
     let result = r.render(&s.prepare(1024, 4096).unwrap()).unwrap();
-    for (n, actual) in result.sound.samples().iter().enumerate() {
+    for (n, actual) in result.sound().samples().iter().enumerate() {
         assert_eq!(*actual, (f64::from(expected[2048 + n]) * 1.25) as f32);
     }
-    assert!(result.sound.samples().iter().any(|v| v.abs() > 1.));
+    assert!(result.sound().samples().iter().any(|v| v.abs() > 1.));
     r.verify_sources().unwrap();
 }
 #[test]
@@ -195,7 +195,14 @@ fn bandlimited_resampling_matches_analytic_passband_and_rejects_aliases() {
             let (s, mut r) = renderer(p.clone(), rate, SoundRenderBudget::default());
             let result = r.render(&s.prepare(2048, 4096).unwrap()).unwrap();
             let mut maximum = 0f64;
-            for (n, sample) in result.sound.samples().as_chunks::<2>().0.iter().enumerate() {
+            for (n, sample) in result
+                .sound()
+                .samples()
+                .as_chunks::<2>()
+                .0
+                .iter()
+                .enumerate()
+            {
                 let coordinate = (2048.5 + n as f64) * 48000. / rate as f64 - 0.5;
                 let phase = 2. * std::f64::consts::PI * frequency as f64 * coordinate / 48000.;
                 let expected = if frequency == 18000 && rate == 24000 {

@@ -107,11 +107,29 @@ impl PcmBlock {
 }
 
 /// A native PCM result with private cache-generation ownership.
+/// Payload replacement cannot preserve a valid publication receipt.
+/// ```compile_fail,E0616
+/// fn replace(a: &mut editbay_media::PcmResult, b: editbay_media::PcmResult) {
+///     a.pcm = b.pcm;
+/// }
+/// ```
 pub struct PcmResult {
-    pub pcm: Arc<PcmBlock>,
-    pub version: DocumentVersion,
+    pcm: Arc<PcmBlock>,
+    version: DocumentVersion,
     owner: Arc<()>,
     asset: Uuid,
+}
+impl PcmResult {
+    /// Retain this receipt's immutable original-channel PCM.
+    /// Takes no arguments; returns the exact charged buffer without payload mutation.
+    pub fn pcm(&self) -> &Arc<PcmBlock> {
+        &self.pcm
+    }
+    /// Inspect the captured document publication owner.
+    /// Takes no arguments; returns this receipt's immutable document version.
+    pub fn version(&self) -> DocumentVersion {
+        self.version
+    }
 }
 struct Entry {
     pcm: Arc<PcmBlock>,

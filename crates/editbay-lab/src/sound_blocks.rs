@@ -261,7 +261,7 @@ pub fn run(path: &Path) -> Result<Value> {
         let began = Instant::now();
         let result = render.render(&plan)?;
         cold.push(began.elapsed().as_secs_f64() * 1000.);
-        for (sample, original) in result.sound.samples().iter().zip(
+        for (sample, original) in result.sound().samples().iter().zip(
             &reference[first as usize * channels.len()
                 ..(first as usize + frames as usize) * channels.len()],
         ) {

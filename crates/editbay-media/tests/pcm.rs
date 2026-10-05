@@ -73,11 +73,11 @@ fn original_channels_headroom_intervals_and_delayed_codec_match_native_sequentia
             (100000, 4096),
         ] {
             let result = cache.interval(source, 0, first, frames).unwrap();
-            assert_eq!(result.pcm.interval(), (first, frames as usize, 6));
+            assert_eq!(result.pcm().interval(), (first, frames as usize, 6));
             let a = &expected[first as usize * 6..(first as usize + frames as usize) * 6];
             let error = a
                 .iter()
-                .zip(result.pcm.samples())
+                .zip(result.pcm().samples())
                 .map(|(a, b)| (a - b).abs())
                 .fold(0f32, f32::max);
             assert!(error <= 1e-6, "{codec} {first}: {error}");
@@ -87,7 +87,7 @@ fn original_channels_headroom_intervals_and_delayed_codec_match_native_sequentia
             assert!(expected.iter().any(|v| v.abs() > 1.));
         }
         let edge = cache.interval(source, 0, -16, 32).unwrap();
-        assert_eq!(&edge.pcm.samples()[..16 * 6], &[0.; 96]);
+        assert_eq!(&edge.pcm().samples()[..16 * 6], &[0.; 96]);
         cache.verify_sources().unwrap();
         let source_file = SourceFile::open(&path, &Cancellation::new().unwrap()).unwrap();
         let mut reader =
@@ -196,9 +196,13 @@ fn nonzero_container_origin_retains_absolute_samples_after_normalized_ingest() {
     )
     .unwrap();
     let decoded = cache.interval(source, 0, 96000, 4096).unwrap();
-    assert_eq!(decoded.pcm.samples(), &reference(&shifted)[..4096 * 6]);
+    assert_eq!(decoded.pcm().samples(), &reference(&shifted)[..4096 * 6]);
     assert_eq!(
-        cache.interval(source, 0, 95984, 32).unwrap().pcm.samples()[..96],
+        cache
+            .interval(source, 0, 95984, 32)
+            .unwrap()
+            .pcm()
+            .samples()[..96],
         [0.; 96]
     );
 }
