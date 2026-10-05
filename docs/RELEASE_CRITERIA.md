@@ -116,3 +116,16 @@ See [process evidence](evidence/r2-picture-worker/README.md).
 Current uncached source seek p95 is 254.661/324.550 ms, still above 250 ms. These
 are source/kernel receipts, not native surface/playback/audio/export qualification.
 The full R2 and enterprise/GTM release gates remain open.
+
+The native shared-device picture workspace passes its separate paused-viewer
+gates on camera/portrait at FP16/FP32: **160 inputs** with p95 <=33.257 ms, **152
+cached draws** with request-to-GPU-completion p95 <=38.215 ms and active cancel
+<=137.680 ms. Budgets remain 50 ms / 250 ms p95 / 2 s. The same frozen artifact
+passes fresh actual UI ingest and **100/100** kill/recover/reopen trials; 250
+regression inputs have p95 29.030 ms. The initial input candidate missed 50 ms
+and remains recorded separately. Exact GPU surface color/alpha/orientation,
+resource lifetimes, current native Flea recovery and source preservation pass;
+see [native preview evidence](evidence/r2-native-preview/README.md).
+These receipts qualify paused pictures and the preserved document foundation.
+Full sustained playback, uncached seek, sound drift, shared delivery, devices and
+enterprise/GTM gates remain open.

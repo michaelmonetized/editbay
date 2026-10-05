@@ -1,0 +1,815 @@
+{
+  "schema": 1,
+  "failed_input_candidate": {
+    "active_cancel": {
+      "details": {
+        "controls": {
+          "frame-number": [
+            296.1875,
+            269.0,
+            322.1875,
+            296.0
+          ],
+          "next-frame": [
+            149.1875,
+            269.0,
+            245.1875,
+            296.0
+          ],
+          "previous-frame": [
+            16.0,
+            269.0,
+            143.1875,
+            296.0
+          ],
+          "rename-project": [
+            233.1875,
+            112.0,
+            305.78125,
+            139.0
+          ],
+          "retry-viewer": [
+            16.0,
+            334.0,
+            127.59375,
+            361.0
+          ],
+          "scrub": [
+            16.0,
+            302.0,
+            976.0,
+            328.0
+          ],
+          "source-media": [
+            16.0,
+            203.0,
+            127.0,
+            230.0
+          ]
+        },
+        "creating": false,
+        "displayed_frame": null,
+        "displayed_serial": null,
+        "error": null,
+        "gpu_draw_completed_us": null,
+        "owner": null,
+        "preparation_us": null,
+        "rejected_results": 1,
+        "requested_frame": null,
+        "retiring": 0,
+        "sequence": null,
+        "serial": 49,
+        "stats": null,
+        "stopped": true,
+        "surface": "Bgra8Unorm",
+        "tab": null,
+        "worker_pid": null
+      },
+      "dropped_before": 0,
+      "kind": "preview",
+      "pid": 2384241,
+      "unix_us": 1791172062969272
+    },
+    "active_cancel_ms": 142.486,
+    "application_sha256": "b6e57e93428d9534b58b50e3cf27c8c368a295d4dd8a275156762a16b1d20325",
+    "cached_request_to_gpu_draw_completion": {
+      "count": 38,
+      "max_ms": 38.187,
+      "p50_ms": 29.026,
+      "p95_ms": 36.25
+    },
+    "checkpoint": {
+      "details": {
+        "active": "b2e0b7ff-d111-43f4-96e2-91aa4946a036",
+        "last_recovery_commit_us": 1113,
+        "recovery_publications": 3,
+        "tabs": [
+          {
+            "assets": 1,
+            "compositions": 1,
+            "dirty": true,
+            "name": "Recovered source sequence",
+            "path": "/home/michael/Projects/editbay/artifacts/r2-native-preview-initial/camera-full-5/Preview.editbay",
+            "project": "9d9f4066-bca2-412b-b0af-eac35681e60b",
+            "recovery_error": null,
+            "recovery_revision": 4,
+            "revision": 4,
+            "session": "b2e0b7ff-d111-43f4-96e2-91aa4946a036",
+            "sources": 1
+          }
+        ]
+      },
+      "dropped_before": 0,
+      "kind": "workspace",
+      "pid": 2384241,
+      "unix_us": 1791172065481560
+    },
+    "checkpoint_sha256": "91de2ab1f0c671556503991220d16c193bd195d63c9ac55b00d095f3d6e8e95f",
+    "created": {
+      "details": {
+        "active": "b2e0b7ff-d111-43f4-96e2-91aa4946a036",
+        "last_recovery_commit_us": null,
+        "recovery_publications": 0,
+        "tabs": [
+          {
+            "assets": 1,
+            "compositions": 1,
+            "dirty": true,
+            "name": "Native source sequence",
+            "path": "/home/michael/Projects/editbay/artifacts/r2-native-preview-initial/camera-full-5/Preview.editbay",
+            "project": "9d9f4066-bca2-412b-b0af-eac35681e60b",
+            "recovery_error": null,
+            "recovery_revision": null,
+            "revision": 1,
+            "session": "b2e0b7ff-d111-43f4-96e2-91aa4946a036",
+            "sources": 1
+          }
+        ]
+      },
+      "dropped_before": 0,
+      "kind": "workspace",
+      "pid": 2384241,
+      "unix_us": 1791172050946070
+    },
+    "first_native_draw": {
+      "details": {
+        "controls": {
+          "cancel-viewer": [
+            16.0,
+            423.0,
+            135.40625,
+            450.0
+          ],
+          "create-sequence:b8ff123b-21e5-458a-9d3a-04c493748f7b:1": [
+            40.0,
+            292.0,
+            260.8125,
+            319.0
+          ],
+          "frame-number": [
+            296.1875,
+            358.0,
+            322.1875,
+            385.0
+          ],
+          "next-frame": [
+            149.1875,
+            358.0,
+            245.1875,
+            385.0
+          ],
+          "previous-frame": [
+            16.0,
+            358.0,
+            143.1875,
+            385.0
+          ],
+          "rename-project": [
+            233.1875,
+            112.0,
+            305.78125,
+            139.0
+          ],
+          "scrub": [
+            16.0,
+            391.0,
+            976.0,
+            417.0
+          ],
+          "source-media": [
+            16.0,
+            203.0,
+            127.0,
+            230.0
+          ],
+          "source:b8ff123b-21e5-458a-9d3a-04c493748f7b": [
+            28.0,
+            236.0,
+            214.0,
+            263.0
+          ]
+        },
+        "creating": false,
+        "displayed_frame": 0,
+        "displayed_serial": 1,
+        "error": null,
+        "gpu_draw_completed_us": 223721,
+        "owner": {
+          "project_id": "9d9f4066-bca2-412b-b0af-eac35681e60b",
+          "revision": 1
+        },
+        "preparation_us": 217713,
+        "rejected_results": 0,
+        "requested_frame": 0,
+        "retiring": 0,
+        "sequence": "fdb0ce0d-c59f-4a3c-8ced-450fe4b587e0",
+        "serial": 1,
+        "stats": {
+          "cache_bytes": 29491200,
+          "dispatches": 2,
+          "entries": 2,
+          "evictions": 0,
+          "hits": 0,
+          "live_texture_bytes": 29491200,
+          "misses": 3,
+          "pending_submissions": 0,
+          "pictures": {
+            "cache_bytes": 3686400,
+            "decoders": 1,
+            "entries": 1,
+            "evictions": 0,
+            "hits": 0,
+            "live_bytes": 3686400,
+            "misses": 1,
+            "seeks": 0,
+            "sequential_decodes": 1,
+            "sources": 1
+          },
+          "readbacks": 0,
+          "uploads": 1
+        },
+        "stopped": false,
+        "surface": "Bgra8Unorm",
+        "tab": "b2e0b7ff-d111-43f4-96e2-91aa4946a036",
+        "worker_pid": 2384353
+      },
+      "dropped_before": 0,
+      "kind": "preview",
+      "pid": 2384241,
+      "unix_us": 1791172051172012
+    },
+    "idle_worker_failure": {
+      "details": {
+        "controls": {
+          "frame-number": [
+            296.1875,
+            269.0,
+            322.1875,
+            296.0
+          ],
+          "next-frame": [
+            149.1875,
+            269.0,
+            245.1875,
+            296.0
+          ],
+          "previous-frame": [
+            16.0,
+            269.0,
+            143.1875,
+            296.0
+          ],
+          "rename-project": [
+            233.1875,
+            112.0,
+            305.78125,
+            139.0
+          ],
+          "retry-viewer": [
+            16.0,
+            334.0,
+            127.59375,
+            361.0
+          ],
+          "scrub": [
+            16.0,
+            302.0,
+            976.0,
+            328.0
+          ],
+          "source-media": [
+            16.0,
+            203.0,
+            127.0,
+            230.0
+          ]
+        },
+        "creating": false,
+        "displayed_frame": null,
+        "displayed_serial": null,
+        "error": "Viewer worker stopped; retry the viewer",
+        "gpu_draw_completed_us": null,
+        "owner": null,
+        "preparation_us": null,
+        "rejected_results": 1,
+        "requested_frame": null,
+        "retiring": 1,
+        "sequence": null,
+        "serial": 47,
+        "stats": null,
+        "stopped": true,
+        "surface": "Bgra8Unorm",
+        "tab": null,
+        "worker_pid": null
+      },
+      "dropped_before": 0,
+      "kind": "preview",
+      "pid": 2384241,
+      "unix_us": 1791172061853703
+    },
+    "input_injection_to_request_acceptance": {
+      "count": 40,
+      "max_ms": 59.211,
+      "p50_ms": 44.765,
+      "p95_ms": 51.274
+    },
+    "kind": "native_preview_qualification",
+    "limits": [
+      "Indexing is a real native Rust seed; existing UI ingest has separate receipts",
+      "GPU command completion and inspected native screenshots; no physical input or display photon timing",
+      "Paused frame stepping and scrubbing; sound, sustained playback, delivery and other hardware remain open"
+    ],
+    "memory": [
+      "VmHWM:\t  127712 kB",
+      "VmRSS:\t  125136 kB"
+    ],
+    "pass": false,
+    "precision": "full",
+    "recovered_native_draw": {
+      "details": {
+        "controls": {
+          "cancel-viewer": [
+            16.0,
+            367.0,
+            135.40625,
+            394.0
+          ],
+          "frame-number": [
+            296.1875,
+            302.0,
+            322.1875,
+            329.0
+          ],
+          "next-frame": [
+            149.1875,
+            302.0,
+            245.1875,
+            329.0
+          ],
+          "previous-frame": [
+            16.0,
+            302.0,
+            143.1875,
+            329.0
+          ],
+          "rename-project": [
+            262.0,
+            112.0,
+            334.59375,
+            139.0
+          ],
+          "scrub": [
+            16.0,
+            335.0,
+            976.0,
+            361.0
+          ],
+          "source-media": [
+            16.0,
+            203.0,
+            127.0,
+            230.0
+          ],
+          "source:b8ff123b-21e5-458a-9d3a-04c493748f7b": [
+            28.0,
+            236.0,
+            214.0,
+            263.0
+          ]
+        },
+        "creating": false,
+        "displayed_frame": 0,
+        "displayed_serial": 1,
+        "error": null,
+        "gpu_draw_completed_us": 236789,
+        "owner": {
+          "project_id": "e1b20ddc-74c7-4fcc-96ab-e007c298c629",
+          "revision": 4
+        },
+        "preparation_us": 223298,
+        "rejected_results": 0,
+        "requested_frame": 0,
+        "retiring": 0,
+        "sequence": "fdb0ce0d-c59f-4a3c-8ced-450fe4b587e0",
+        "serial": 1,
+        "stats": {
+          "cache_bytes": 29491200,
+          "dispatches": 2,
+          "entries": 2,
+          "evictions": 0,
+          "hits": 0,
+          "live_texture_bytes": 29491200,
+          "misses": 3,
+          "pending_submissions": 0,
+          "pictures": {
+            "cache_bytes": 3686400,
+            "decoders": 1,
+            "entries": 1,
+            "evictions": 0,
+            "hits": 0,
+            "live_bytes": 3686400,
+            "misses": 1,
+            "seeks": 0,
+            "sequential_decodes": 1,
+            "sources": 1
+          },
+          "readbacks": 0,
+          "uploads": 1
+        },
+        "stopped": false,
+        "surface": "Bgra8Unorm",
+        "tab": "d4940f3e-95e8-403a-a81d-746162447156",
+        "worker_pid": 2385132
+      },
+      "dropped_before": 0,
+      "kind": "preview",
+      "pid": 2384897,
+      "unix_us": 1791172067892785
+    },
+    "recovered_sha256": "e382e20461719791fef2ddd14c59c8cfac456d0850a95de50a68e0a7f7e7bc25",
+    "redo": {
+      "details": {
+        "active": "b2e0b7ff-d111-43f4-96e2-91aa4946a036",
+        "last_recovery_commit_us": 421,
+        "recovery_publications": 2,
+        "tabs": [
+          {
+            "assets": 1,
+            "compositions": 1,
+            "dirty": true,
+            "name": "Native source sequence",
+            "path": "/home/michael/Projects/editbay/artifacts/r2-native-preview-initial/camera-full-5/Preview.editbay",
+            "project": "9d9f4066-bca2-412b-b0af-eac35681e60b",
+            "recovery_error": null,
+            "recovery_revision": 2,
+            "revision": 3,
+            "session": "b2e0b7ff-d111-43f4-96e2-91aa4946a036",
+            "sources": 1
+          }
+        ]
+      },
+      "dropped_before": 0,
+      "kind": "workspace",
+      "pid": 2384241,
+      "unix_us": 1791172063109463
+    },
+    "reopened_native_draw": {
+      "details": {
+        "controls": {
+          "cancel-viewer": [
+            16.0,
+            367.0,
+            135.40625,
+            394.0
+          ],
+          "frame-number": [
+            296.1875,
+            302.0,
+            322.1875,
+            329.0
+          ],
+          "next-frame": [
+            149.1875,
+            302.0,
+            245.1875,
+            329.0
+          ],
+          "previous-frame": [
+            16.0,
+            302.0,
+            143.1875,
+            329.0
+          ],
+          "rename-project": [
+            233.1875,
+            112.0,
+            305.78125,
+            139.0
+          ],
+          "scrub": [
+            16.0,
+            335.0,
+            976.0,
+            361.0
+          ],
+          "source-media": [
+            16.0,
+            203.0,
+            127.0,
+            230.0
+          ],
+          "source:b8ff123b-21e5-458a-9d3a-04c493748f7b": [
+            28.0,
+            236.0,
+            214.0,
+            263.0
+          ]
+        },
+        "creating": false,
+        "displayed_frame": 0,
+        "displayed_serial": 1,
+        "error": null,
+        "gpu_draw_completed_us": 236596,
+        "owner": {
+          "project_id": "9d9f4066-bca2-412b-b0af-eac35681e60b",
+          "revision": 3
+        },
+        "preparation_us": 229283,
+        "rejected_results": 0,
+        "requested_frame": 0,
+        "retiring": 0,
+        "sequence": "fdb0ce0d-c59f-4a3c-8ced-450fe4b587e0",
+        "serial": 1,
+        "stats": {
+          "cache_bytes": 29491200,
+          "dispatches": 2,
+          "entries": 2,
+          "evictions": 0,
+          "hits": 0,
+          "live_texture_bytes": 29491200,
+          "misses": 3,
+          "pending_submissions": 0,
+          "pictures": {
+            "cache_bytes": 3686400,
+            "decoders": 1,
+            "entries": 1,
+            "evictions": 0,
+            "hits": 0,
+            "live_bytes": 3686400,
+            "misses": 1,
+            "seeks": 0,
+            "sequential_decodes": 1,
+            "sources": 1
+          },
+          "readbacks": 0,
+          "uploads": 1
+        },
+        "stopped": false,
+        "surface": "Bgra8Unorm",
+        "tab": "a426b169-8370-447e-b92a-886598a12fb2",
+        "worker_pid": 2385212
+      },
+      "dropped_before": 0,
+      "kind": "preview",
+      "pid": 2385166,
+      "unix_us": 1791172068496912
+    },
+    "retry": {
+      "details": {
+        "controls": {
+          "cancel-viewer": [
+            16.0,
+            334.0,
+            135.40625,
+            361.0
+          ],
+          "frame-number": [
+            296.1875,
+            269.0,
+            322.1875,
+            296.0
+          ],
+          "next-frame": [
+            149.1875,
+            269.0,
+            245.1875,
+            296.0
+          ],
+          "previous-frame": [
+            16.0,
+            269.0,
+            143.1875,
+            296.0
+          ],
+          "rename-project": [
+            233.1875,
+            112.0,
+            305.78125,
+            139.0
+          ],
+          "scrub": [
+            16.0,
+            302.0,
+            976.0,
+            328.0
+          ],
+          "source-media": [
+            16.0,
+            203.0,
+            127.0,
+            230.0
+          ]
+        },
+        "creating": false,
+        "displayed_frame": 6,
+        "displayed_serial": 48,
+        "error": null,
+        "gpu_draw_completed_us": 299162,
+        "owner": {
+          "project_id": "9d9f4066-bca2-412b-b0af-eac35681e60b",
+          "revision": 1
+        },
+        "preparation_us": 270829,
+        "rejected_results": 1,
+        "requested_frame": 6,
+        "retiring": 0,
+        "sequence": "fdb0ce0d-c59f-4a3c-8ced-450fe4b587e0",
+        "serial": 48,
+        "stats": {
+          "cache_bytes": 29491200,
+          "dispatches": 2,
+          "entries": 2,
+          "evictions": 0,
+          "hits": 0,
+          "live_texture_bytes": 29491200,
+          "misses": 3,
+          "pending_submissions": 0,
+          "pictures": {
+            "cache_bytes": 3686400,
+            "decoders": 1,
+            "entries": 1,
+            "evictions": 0,
+            "hits": 0,
+            "live_bytes": 3686400,
+            "misses": 1,
+            "seeks": 1,
+            "sequential_decodes": 0,
+            "sources": 1
+          },
+          "readbacks": 0,
+          "uploads": 1
+        },
+        "stopped": false,
+        "surface": "Bgra8Unorm",
+        "tab": "b2e0b7ff-d111-43f4-96e2-91aa4946a036",
+        "worker_pid": 2384745
+      },
+      "dropped_before": 0,
+      "kind": "preview",
+      "pid": 2384241,
+      "unix_us": 1791172062453591
+    },
+    "saved_sha256": "221dd3e97900432e18ffa77ac2217ed19a48ff51a22d1583ad2a6588294c6572",
+    "source": "/home/michael/Downloads/iCloud Photos/IMG_0001.MP4",
+    "source_fingerprint": {
+      "bytes": 5235017,
+      "sha256": "498ec6c42b6b440886eb761dc4775c994f7578021890ceae3f370ffc6fb3e021"
+    },
+    "source_unchanged": true,
+    "superseded_scrub": {
+      "details": {
+        "controls": {
+          "cancel-viewer": [
+            16.0,
+            334.0,
+            135.40625,
+            361.0
+          ],
+          "frame-number": [
+            296.1875,
+            269.0,
+            322.1875,
+            296.0
+          ],
+          "next-frame": [
+            149.1875,
+            269.0,
+            245.1875,
+            296.0
+          ],
+          "previous-frame": [
+            16.0,
+            269.0,
+            143.1875,
+            296.0
+          ],
+          "rename-project": [
+            233.1875,
+            112.0,
+            305.78125,
+            139.0
+          ],
+          "scrub": [
+            16.0,
+            302.0,
+            976.0,
+            328.0
+          ],
+          "source-media": [
+            16.0,
+            203.0,
+            127.0,
+            230.0
+          ]
+        },
+        "creating": false,
+        "displayed_frame": 6,
+        "displayed_serial": 47,
+        "error": null,
+        "gpu_draw_completed_us": 90126,
+        "owner": {
+          "project_id": "9d9f4066-bca2-412b-b0af-eac35681e60b",
+          "revision": 1
+        },
+        "preparation_us": 84015,
+        "rejected_results": 1,
+        "requested_frame": 6,
+        "retiring": 0,
+        "sequence": "fdb0ce0d-c59f-4a3c-8ced-450fe4b587e0",
+        "serial": 47,
+        "stats": {
+          "cache_bytes": 88473600,
+          "dispatches": 6,
+          "entries": 6,
+          "evictions": 0,
+          "hits": 80,
+          "live_texture_bytes": 88473600,
+          "misses": 9,
+          "pending_submissions": 0,
+          "pictures": {
+            "cache_bytes": 11059200,
+            "decoders": 1,
+            "entries": 3,
+            "evictions": 0,
+            "hits": 40,
+            "live_bytes": 11059200,
+            "misses": 3,
+            "seeks": 1,
+            "sequential_decodes": 2,
+            "sources": 1
+          },
+          "readbacks": 0,
+          "uploads": 3
+        },
+        "stopped": false,
+        "surface": "Bgra8Unorm",
+        "tab": "b2e0b7ff-d111-43f4-96e2-91aa4946a036",
+        "worker_pid": 2384353
+      },
+      "dropped_before": 0,
+      "kind": "preview",
+      "pid": 2384241,
+      "unix_us": 1791172061676672
+    },
+    "undo": {
+      "details": {
+        "active": "b2e0b7ff-d111-43f4-96e2-91aa4946a036",
+        "last_recovery_commit_us": 713,
+        "recovery_publications": 1,
+        "tabs": [
+          {
+            "assets": 1,
+            "compositions": 0,
+            "dirty": true,
+            "name": "Native source sequence",
+            "path": "/home/michael/Projects/editbay/artifacts/r2-native-preview-initial/camera-full-5/Preview.editbay",
+            "project": "9d9f4066-bca2-412b-b0af-eac35681e60b",
+            "recovery_error": null,
+            "recovery_revision": 1,
+            "revision": 2,
+            "session": "b2e0b7ff-d111-43f4-96e2-91aa4946a036",
+            "sources": 1
+          }
+        ]
+      },
+      "dropped_before": 0,
+      "kind": "workspace",
+      "pid": 2384241,
+      "unix_us": 1791172063025151
+    }
+  },
+  "driver_failures": [
+    {
+      "directory": "artifacts/r2-native-preview-initial/camera-full",
+      "reason": "Owned window inherited fullscreen; corrected only its own state"
+    },
+    {
+      "directory": "artifacts/r2-native-preview-initial/camera-full-2",
+      "reason": "Rename control moved with the project name; switched to observed control geometry"
+    },
+    {
+      "directory": "artifacts/r2-native-preview-initial/camera-full-3",
+      "reason": "Recovery driver expected the retired Synchro portal"
+    },
+    {
+      "directory": "artifacts/r2-native-preview-initial/camera-full-4",
+      "reason": "Flea has no Ctrl+L field; driver used actual native folder and filename controls"
+    },
+    {
+      "directory": "artifacts/r2-native-preview-final/native-media",
+      "reason": "Flea rows are paginated; driver now navigates actual pages"
+    },
+    {
+      "directory": "artifacts/r2-native-preview-final/native-media-paged",
+      "reason": "Flea requires Space to select a file before Enter accepts it"
+    }
+  ],
+  "interrupted_regression": {
+    "directory": "artifacts/r2-native-preview/recovery-regression",
+    "application_sha256": "7254c5b5f98384dac89a0be1108ccec9c316baa0f04ccf208c157ee921ecdb4a",
+    "completed_trials": 39,
+    "qualified_current_artifact": false,
+    "reason": "Stopped deliberately for same-pass revision ownership correction; final artifact passed its own 100 trials"
+  },
+  "qualification_policy": "No failed or incomplete candidate counts toward final acceptance. Budgets remain unchanged. Injector button delay is now explicit at 8 ms and request acceptance has its own actual enqueue timestamp."
+}

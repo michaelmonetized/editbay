@@ -1,0 +1,27 @@
+{
+  "schema": 1,
+  "commands": [
+    "cargo test --workspace --locked",
+    "cargo test --workspace --all-features --locked",
+    "cargo clippy --workspace --all-targets --all-features --locked -- -D warnings",
+    "cargo fmt --all -- --check",
+    "cargo build --workspace --locked"
+  ],
+  "tests": {
+    "default": 126,
+    "all_features": 127,
+    "sdk_documentation_examples": 5,
+    "failed": 0,
+    "ignored": 0
+  },
+  "native_libtorch": "verified project-local 2.10.0+cpu for all-feature checks",
+  "architecture": "aarch64",
+  "native_qualification_started_utc": "2026-10-05T04:12:58Z",
+  "native_qualification_finished_utc": "2026-10-05T04:25:42Z",
+  "artifact_hashes": "d23d835f4b7d2e9f12a66cea4e42881efc75bb429ff16d6f7b0d4a9fb4178fd9  artifacts/r2-native-preview-qualified/bin/editbay-studio\n866022f7fb0f6c5009f571f05f4890b8a633f2be02c2399339937cb92eac6518  artifacts/r2-native-preview-qualified/bin/editbay-lab\nc3ee115b462424e280495b1fab99046bbd7e3771d651efa6e1ab4d157af431c8  artifacts/r2-native-preview-qualified/bin/editbay\ne99669e2830ae3ba89cd81031896fa7323779f69a05707720b83b9ced34f4b09  Cargo.lock",
+  "native_preview_budget_pass": true,
+  "native_media_preservation_pass": true,
+  "native_recovery_regression_pass": true,
+  "full_r2_gate_pass": false,
+  "enterprise_gtm_gate_pass": false
+}
