@@ -121,8 +121,10 @@ fn reference(path: &Path) -> Vec<f32> {
     assert!(result.status.success());
     result
         .stdout
-        .chunks_exact(4)
-        .map(|v| f32::from_le_bytes(v.try_into().unwrap()))
+        .as_chunks::<4>()
+        .0
+        .iter()
+        .map(|v| f32::from_le_bytes(*v))
         .collect()
 }
 #[test]
@@ -193,7 +195,7 @@ fn bandlimited_resampling_matches_analytic_passband_and_rejects_aliases() {
             let (s, mut r) = renderer(p.clone(), rate, SoundRenderBudget::default());
             let result = r.render(&s.prepare(2048, 4096).unwrap()).unwrap();
             let mut maximum = 0f64;
-            for (n, sample) in result.sound.samples().chunks_exact(2).enumerate() {
+            for (n, sample) in result.sound.samples().as_chunks::<2>().0.iter().enumerate() {
                 let coordinate = (2048.5 + n as f64) * 48000. / rate as f64 - 0.5;
                 let phase = 2. * std::f64::consts::PI * frequency as f64 * coordinate / 48000.;
                 let expected = if frequency == 18000 && rate == 24000 {
