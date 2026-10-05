@@ -299,6 +299,18 @@ impl TimeMap {
                 .ok_or_else(overflow)?;
             return SourcePosition::from_fraction(numerator, span);
         }
+        if let Some(scale) = span.checked_mul(denominator)
+            && let Ok(offset) = i128::try_from(offset)
+            && let Some(value) = (i128::from(b.source_tick) - i128::from(a.source_tick))
+                .checked_mul(offset)
+                .and_then(|delta| {
+                    i128::from(a.source_tick)
+                        .checked_mul(i128::from(scale))
+                        .and_then(|start| start.checked_add(delta))
+                })
+        {
+            return SourcePosition::from_fraction(value, scale);
+        }
         let offset = SourcePosition::from_fraction(
             i128::try_from(offset).map_err(|_| overflow())?,
             denominator,
