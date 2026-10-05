@@ -47,6 +47,30 @@ impl TimeBase {
         };
         i64::try_from(boundary).map_err(|_| overflow())
     }
+
+    /// Convert source ticks to exact frame or sample units.
+    /// `position` uses this time base and `rate` is units per second. Returns a
+    /// reduced fraction, including negative preroll, or an explicit range error.
+    pub fn at_rate(self, position: SourcePosition, rate: FrameRate) -> Result<SourcePosition> {
+        self.validate()?;
+        rate.validate()?;
+        if position.denominator == 0 {
+            return Err(Error::Invalid("source position denominator is zero".into()));
+        }
+        let numerator = i128::from(position.numerator)
+            .checked_mul(i128::from(self.numerator))
+            .and_then(|value| value.checked_mul(i128::from(rate.numerator)))
+            .ok_or_else(overflow)?;
+        let denominator = u128::from(position.denominator)
+            .checked_mul(u128::from(self.denominator))
+            .and_then(|value| value.checked_mul(u128::from(rate.denominator)))
+            .ok_or_else(overflow)?;
+        let factor = divisor(numerator.unsigned_abs(), denominator);
+        SourcePosition::from_fraction(
+            numerator / i128::try_from(factor).map_err(|_| overflow())?,
+            u64::try_from(denominator / factor).map_err(|_| overflow())?,
+        )
+    }
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
