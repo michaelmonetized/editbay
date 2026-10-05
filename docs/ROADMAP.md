@@ -69,7 +69,7 @@ and their separate receipts follow below. Full sound and playback/export remain 
 The decoded-picture slice now serves exact native indexed requests with bounded
 cache/live-payload accounting, retained sequential decoders, LRU output/decoder
 eviction, source preflight and version/generation rebinding. This is the raw CPU
-provider; native IPC/presentation still need integration. See
+provider; native presentation still needs integration. See
 [decoded pictures](PICTURE_CACHE.md) and its separate qualification limits.
 Quantitative enterprise/GTM budgets are set in [release criteria](RELEASE_CRITERIA.md).
 
@@ -77,9 +77,20 @@ The shared SDR subset of EB-024/026 now renders typed source/nested pictures,
 solids, animated affine transforms, over and scalar opacity into bounded resident
 FP16/FP32 working textures. Real-source steady completed-picture p95 passes the
 33.3 ms kernel budget at both precisions; display/output conversion, pinned cache
-ownership and active source cancellation are qualified. Native presentation/IPC,
+ownership and active source cancellation are qualified. Native presentation,
 audio intervals/clock, masks/HDR, delivery and full R2 gates remain open; see
 [GPU pictures](GPU_PICTURES.md) and [evidence](evidence/r2-gpu/README.md).
+
+The retained decoder now runs in supervised packaged Rust app/CLI processes,
+sharing immutable sealed RGBA planes through bounded private descriptor IPC.
+Source/time/interpretation and private job/version ownership are checked before
+the same GPU graph uploads them. Actual source pixels, pinned byte/handle limits,
+worker death/retry, cancellation and cleanup pass. Handoff p95 is 1.734/1.151 ms
+against its predeclared 10 ms budget; completed GPU p95 <=28.276 ms passes the
+33.3 ms picture-kernel budget. Uncached source seek p95 254.661/324.550 ms still
+misses 250 ms. See [process pictures](WORKER_PICTURES.md) and
+[evidence](evidence/r2-picture-worker/README.md). Native surface/audio/scheduling,
+full preview/export and the broader R2 hardware/release gates remain open.
 
 ## Milestone map
 

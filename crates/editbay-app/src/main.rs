@@ -3,6 +3,13 @@ use eframe::egui;
 use std::path::PathBuf;
 
 fn main() -> eframe::Result {
+    if std::env::args_os().nth(1).as_deref() == Some(std::ffi::OsStr::new("--picture-worker")) {
+        if let Err(error) = editbay_media::picture_worker::serve() {
+            eprintln!("editbay picture worker: {error}");
+            std::process::exit(1);
+        }
+        return Ok(());
+    }
     if std::env::args_os().nth(1).as_deref() == Some(std::ffi::OsStr::new("--media-worker")) {
         if let Err(error) = editbay_media::worker::serve() {
             eprintln!("editbay media worker: {error}");

@@ -87,21 +87,27 @@ authoring and complete-job release gates remain open.
   sequential decoders, bounded cache/live RGBA payload and handle limits, LRU
   eviction, charged consumer pins, fresh-token version/generation rebinding and
   full source verification. Real camera/portrait pixels, shared hits, cleanup and
-  active seek cancellation are qualified. Native IPC/presentation remain open.
+  active seek cancellation are qualified. Native presentation remains open.
 - Shared typed SDR GPU picture subset: real/nested sources, solids, animated
   affine transforms, unmasked over and scalar opacity. FP16/FP32 premultiplied
   linear working textures stay resident; display/output gamut and transfer are
   separate conversions. Bounded cache/live textures include consumer/in-flight
   pins, with worker/version/generation ownership. Actual pixels, shared hits,
   source interpretation/rotation guards and active source cancellation pass;
-  native presentation/process IPC/audio, masks/HDR and full delivery remain open.
+  native presentation/audio, masks/HDR and full delivery remain open.
+- Packaged app/CLI retained Rust codec processes share the exact cache and GPU
+  graph through sealed read-only RGBA planes. Native conversion writes directly
+  into the charged output and skips intermediate seek conversion. Bounded
+  byte/handle pins, source checks, private version/session/job/generation receipts,
+  cancellation, worker death/rebind and malformed transport are qualified; see
+  [isolated pictures](WORKER_PICTURES.md). Native viewer integration remains open.
 
 ## Validation
 
 | Check | Result |
 | --- | --- |
-| `cargo test --workspace --locked` | 109 tests and 5 SDK documentation examples passed; 0 failed or ignored |
-| `cargo test --workspace --all-features --locked` | 110 tests and 5 SDK documentation examples passed with native libtorch selected; 0 failed or ignored |
+| `cargo test --workspace --locked` | 119 tests and 5 SDK documentation examples passed; 0 failed or ignored |
+| `cargo test --workspace --all-features --locked` | 120 tests and 5 SDK documentation examples passed with native libtorch selected; 0 failed or ignored |
 | Core regression suite | 23 tests: identity/rational time, validation, round trips, permission preservation, concurrent/stale writers, corruption, source loss, bounded reads, unpublished preparation/cleanup and overwrite refusal |
 | CLI binary integration suite | 3 tests: complete recovery flow, command failures and real process interruption during save; paths contain spaces |
 | Native codec/GPU/worker/clock tests | 8 tests: lossless pictures and rational time; delayed video/audio drain; invalid codecs; output descriptor/path ownership; actual FP16/FP32 GPU parity; export/cancel cleanup; device-clock interpolation |
@@ -122,6 +128,8 @@ authoring and complete-job release gates remain open.
 | Decoded-picture cache | 50 pixel-equal real seek targets; 2,000 shared immutable hits. Camera/portrait hit p95 0.005/0.003417 ms; empty output-cache miss p95 295.999/941.064 ms still exceeds 250 ms. 120 sequential pictures per source p95 5.637/3.727 ms, including first binding separately in maximums. Active seek cancellation 8.689/3.381 ms; payload/handle cleanup zero; HWM 325,856/347,536 KiB. Raw CPU output only; full native seek/playback gate remains open |
 | Typed resident SDR GPU | 8 new actual GPU regressions; 480 completed native pictures, 4,000 shared GPU hits, 12 independent full-picture comparisons. Camera FP16/FP32 steady p95 12.051/12.878 ms; portrait 9.559/14.548 ms. Linear error <=0.000418425/0.000000119209. No sequence readback; explicit output conversion passes. Active native seek cancellation/join/cleanup 17.750/9.984 ms; HWM 455,808/575,248 KiB. First binding separate, ordinal fixture mapping; no native presentation, process IPC, audio/drop/drift or delivery proof |
 | Native recovery timing | 23 continuous edits: first durable publication 9,807.159 ms, latest idle publication 1,051.024 ms; input acceptance p95 16.844 ms; 1 s idle debounce with <= 250 ms publication allowance |
+| Isolated retained pictures | 10 new regressions; 50 real indexed pixel checks, 2,000 already-decoded shared handoffs, 240 sequential pictures. Camera/portrait handoff p95 1.734/1.151 ms against 10 ms. Empty-cache seek p95 254.661/324.550 ms still exceeds 250 ms. Active outstanding request cancel/join/reap 29.416/18.164 ms; SIGSTOP fallback 104.839/104.413 ms. Actual app/CLI children, independent handle/byte pin limits and zero cleanup pass |
+| GPU over codec IPC | Same real five-node graph: 480 pictures and 4,000 resident hits. Camera FP16/FP32 completed p95 21.625/23.983 ms; portrait 25.242/28.276 ms, all within the 33.3 ms picture-kernel budget. Every channel of 12 independent references agrees within existing tolerances. No timed sequence readback; native surface/audio/delivery gates remain open |
 | Native storage failures | Actual EACCES and ENOSPC errors displayed; no false checkpoint acknowledgement; retry published a valid checkpoint after repair |
 | Native layout/input/assets | Final 800x600 and 1440x900 dark/light welcome captures inspected; native portrait profiles, Fcitx IME, Ctrl+V/Shift+Insert, preferences and repeated portal imports/exports inspected; exact SVG/font byte round trips and unsaved-bank close guard |
 | `cargo clippy --workspace --all-targets --all-features --locked -- -D warnings` | Passed with native libtorch selected |
@@ -169,6 +177,13 @@ is declared.
 
 The shared SDR GPU picture subset and its real source/cache/output qualification
 are documented in [GPU pictures](GPU_PICTURES.md) and
-[GPU evidence](evidence/r2-gpu/README.md). Native codec IPC and shared UI-device
+[GPU evidence](evidence/r2-gpu/README.md). Shared UI-device
 presentation, audio intervals/clock, masks/HDR and full playback/export still need
 implementation and acceptance proof. EB-024/026 and R2 remain partial.
+
+The retained codec process/plane handoff and identical GPU evaluation are now
+qualified in [process evidence](evidence/r2-picture-worker/README.md). The initial
+portrait FP32 candidate missed 33.3 ms; its receipt is retained separately. Exact
+native output now avoids extra conversion/copying and passes the scoped picture
+budget. Full source seek, native presentation/sound/export, other hardware,
+complete workflows and GTM/enterprise gates remain open.

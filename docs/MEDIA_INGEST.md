@@ -96,3 +96,8 @@ proxies/waveforms/thumbnails, composition playback/export, long sound synchroniz
 or independent production jobs. EB-021 and R2 remain partially implemented.
 The real portrait's uncached CPU seek misses the predeclared warm-seek budget;
 cache and scheduling qualification must close that gate without relaxing it.
+
+Retained picture playback now has a separate packaged Rust endpoint over private
+Unix sockets and sealed binary planes; see [isolated pictures](WORKER_PICTURES.md).
+It shares the indexed decoder/source/cache and GPU graph while preserving this
+ingest path. Native preview, audio scheduling and delivery integration remain open.

@@ -1,0 +1,348 @@
+{
+  "active_cancel": {
+    "route": "isolated cancellation is qualified by picture-worker, separately from GPU completion"
+  },
+  "architecture": "aarch64",
+  "codec_runtime": "n9.0.1",
+  "composition_rate": {
+    "denominator": 1,
+    "numerator": 24
+  },
+  "fingerprint": {
+    "bytes": 5235017,
+    "sha256": "498ec6c42b6b440886eb761dc4775c994f7578021890ceae3f370ffc6fb3e021"
+  },
+  "full_r2_gate_pass": false,
+  "geometry": [
+    1280,
+    720
+  ],
+  "gpu_budget": {
+    "cache_bytes": 536870912,
+    "cache_entries": 256,
+    "live_bytes": 805306368,
+    "maximum_texture_bytes": 134217728,
+    "nesting_depth": 32,
+    "nodes_per_request": 4096,
+    "pending_submissions": 16
+  },
+  "includes_audio_or_long_playback": false,
+  "includes_codec_process_ipc": true,
+  "includes_native_presentation": false,
+  "kind": "typed_resident_sdr_gpu_picture_graph",
+  "mapping": "one composition frame per actual source picture ordinal; not natural VFR wall-clock playback",
+  "measured_pictures_per_precision": 120,
+  "memory": [
+    "VmHWM:\t  436000 kB",
+    "VmRSS:\t  173360 kB"
+  ],
+  "picture_budget": {
+    "cache_bytes": 268435456,
+    "cache_entries": 128,
+    "decoder_handles": 4,
+    "live_bytes": 402653184,
+    "maximum_picture_bytes": 67108864,
+    "source_handles": 16
+  },
+  "qualifications": [
+    {
+      "adapter": {
+        "backend": "Vulkan",
+        "device_type": "IntegratedGpu",
+        "driver": "Honeykrisp",
+        "driver_info": "Mesa 26.2.3-arch1.1",
+        "name": "Apple M1 Pro (G13S C0)"
+      },
+      "after_hits": {
+        "cache_bytes": 29491200,
+        "dispatches": 14,
+        "entries": 4,
+        "evictions": 0,
+        "hits": 4002,
+        "live_texture_bytes": 29491200,
+        "misses": 18,
+        "pending_submissions": 0,
+        "pictures": {
+          "cache_bytes": 3686400,
+          "decoders": 1,
+          "entries": 1,
+          "evictions": 0,
+          "hits": 1000,
+          "live_bytes": 3686400,
+          "misses": 1,
+          "seeks": 0,
+          "sequential_decodes": 1,
+          "sources": 1
+        },
+        "readbacks": 3,
+        "uploads": 4
+      },
+      "before_hits": {
+        "cache_bytes": 29491200,
+        "dispatches": 14,
+        "entries": 4,
+        "evictions": 0,
+        "hits": 2,
+        "live_texture_bytes": 29491200,
+        "misses": 18,
+        "pending_submissions": 0,
+        "pictures": {
+          "cache_bytes": 3686400,
+          "decoders": 1,
+          "entries": 1,
+          "evictions": 0,
+          "hits": 0,
+          "live_bytes": 3686400,
+          "misses": 1,
+          "seeks": 0,
+          "sequential_decodes": 1,
+          "sources": 1
+        },
+        "readbacks": 3,
+        "uploads": 4
+      },
+      "cleanup": {
+        "cache_bytes": 0,
+        "dispatches": 376,
+        "entries": 0,
+        "evictions": 290,
+        "hits": 4126,
+        "live_texture_bytes": 0,
+        "misses": 500,
+        "pending_submissions": 0,
+        "pictures": {
+          "cache_bytes": 0,
+          "decoders": 0,
+          "entries": 0,
+          "evictions": 48,
+          "hits": 0,
+          "live_bytes": 0,
+          "misses": 0,
+          "seeks": 0,
+          "sequential_decodes": 0,
+          "sources": 0
+        },
+        "readbacks": 4,
+        "uploads": 124
+      },
+      "encoded_output_maximum_error": 0.0004673004150390625,
+      "first_sequential_picture_ms": 217.851563,
+      "immutable_hits": {
+        "count": 1000,
+        "max_ms": 5.567812999999999,
+        "p50_ms": 1.3447660000000001,
+        "p95_ms": 2.3656520000000003
+      },
+      "independent_pixels": [
+        {
+          "maximum_linear_error": 0.0004184246063232422,
+          "ordinal": 0,
+          "source_rgba_sha256": "1e948726d5af08b4a341ad77ea1290f17dcfab6733e6d0297c9c991973841582",
+          "source_tick": 0,
+          "tolerance": 0.0020000000949949026
+        },
+        {
+          "maximum_linear_error": 0.0004184246063232422,
+          "ordinal": 60,
+          "source_rgba_sha256": "b7242f05fe031bbc849564bf35667b02c87d1121903ce6e20c8f216c1626c2eb",
+          "source_tick": 1500,
+          "tolerance": 0.0020000000949949026
+        },
+        {
+          "maximum_linear_error": 0.0004184246063232422,
+          "ordinal": 119,
+          "source_rgba_sha256": "39243879f0f84e9b0e12455871f009954bd2e9e160f61b5bd0f920b8512d9a58",
+          "source_tick": 2975,
+          "tolerance": 0.0020000000949949026
+        }
+      ],
+      "per_picture_budget_ms": 33.3,
+      "precision": "half",
+      "sequenced": {
+        "cache_bytes": 530841600,
+        "dispatches": 375,
+        "entries": 72,
+        "evictions": 289,
+        "hits": 4121,
+        "live_texture_bytes": 530841600,
+        "misses": 499,
+        "pending_submissions": 0,
+        "pictures": {
+          "cache_bytes": 265420800,
+          "decoders": 1,
+          "entries": 72,
+          "evictions": 48,
+          "hits": 0,
+          "live_bytes": 265420800,
+          "misses": 120,
+          "seeks": 0,
+          "sequential_decodes": 120,
+          "sources": 1
+        },
+        "readbacks": 3,
+        "uploads": 124
+      },
+      "steady_budget_pass": true,
+      "steady_completed_gpu_pictures": {
+        "count": 119,
+        "max_ms": 31.469649000000004,
+        "p50_ms": 9.803736,
+        "p95_ms": 21.625038
+      }
+    },
+    {
+      "adapter": {
+        "backend": "Vulkan",
+        "device_type": "IntegratedGpu",
+        "driver": "Honeykrisp",
+        "driver_info": "Mesa 26.2.3-arch1.1",
+        "name": "Apple M1 Pro (G13S C0)"
+      },
+      "after_hits": {
+        "cache_bytes": 58982400,
+        "dispatches": 14,
+        "entries": 4,
+        "evictions": 0,
+        "hits": 4002,
+        "live_texture_bytes": 58982400,
+        "misses": 18,
+        "pending_submissions": 0,
+        "pictures": {
+          "cache_bytes": 3686400,
+          "decoders": 1,
+          "entries": 1,
+          "evictions": 0,
+          "hits": 1000,
+          "live_bytes": 3686400,
+          "misses": 1,
+          "seeks": 0,
+          "sequential_decodes": 1,
+          "sources": 1
+        },
+        "readbacks": 3,
+        "uploads": 4
+      },
+      "before_hits": {
+        "cache_bytes": 58982400,
+        "dispatches": 14,
+        "entries": 4,
+        "evictions": 0,
+        "hits": 2,
+        "live_texture_bytes": 58982400,
+        "misses": 18,
+        "pending_submissions": 0,
+        "pictures": {
+          "cache_bytes": 3686400,
+          "decoders": 1,
+          "entries": 1,
+          "evictions": 0,
+          "hits": 0,
+          "live_bytes": 3686400,
+          "misses": 1,
+          "seeks": 0,
+          "sequential_decodes": 1,
+          "sources": 1
+        },
+        "readbacks": 3,
+        "uploads": 4
+      },
+      "cleanup": {
+        "cache_bytes": 0,
+        "dispatches": 376,
+        "entries": 0,
+        "evictions": 326,
+        "hits": 4126,
+        "live_texture_bytes": 0,
+        "misses": 500,
+        "pending_submissions": 0,
+        "pictures": {
+          "cache_bytes": 0,
+          "decoders": 0,
+          "entries": 0,
+          "evictions": 48,
+          "hits": 0,
+          "live_bytes": 0,
+          "misses": 0,
+          "seeks": 0,
+          "sequential_decodes": 0,
+          "sources": 0
+        },
+        "readbacks": 4,
+        "uploads": 124
+      },
+      "encoded_output_maximum_error": 1.1920928955078125e-7,
+      "first_sequential_picture_ms": 238.479906,
+      "immutable_hits": {
+        "count": 1000,
+        "max_ms": 7.033163,
+        "p50_ms": 1.515226,
+        "p95_ms": 2.940492
+      },
+      "independent_pixels": [
+        {
+          "maximum_linear_error": 1.1920928955078125e-7,
+          "ordinal": 0,
+          "source_rgba_sha256": "1e948726d5af08b4a341ad77ea1290f17dcfab6733e6d0297c9c991973841582",
+          "source_tick": 0,
+          "tolerance": 0.000019999999494757503
+        },
+        {
+          "maximum_linear_error": 1.1920928955078125e-7,
+          "ordinal": 60,
+          "source_rgba_sha256": "b7242f05fe031bbc849564bf35667b02c87d1121903ce6e20c8f216c1626c2eb",
+          "source_tick": 1500,
+          "tolerance": 0.000019999999494757503
+        },
+        {
+          "maximum_linear_error": 1.1920928955078125e-7,
+          "ordinal": 119,
+          "source_rgba_sha256": "39243879f0f84e9b0e12455871f009954bd2e9e160f61b5bd0f920b8512d9a58",
+          "source_tick": 2975,
+          "tolerance": 0.000019999999494757503
+        }
+      ],
+      "per_picture_budget_ms": 33.3,
+      "precision": "full",
+      "sequenced": {
+        "cache_bytes": 530841600,
+        "dispatches": 375,
+        "entries": 36,
+        "evictions": 325,
+        "hits": 4121,
+        "live_texture_bytes": 530841600,
+        "misses": 499,
+        "pending_submissions": 0,
+        "pictures": {
+          "cache_bytes": 265420800,
+          "decoders": 1,
+          "entries": 72,
+          "evictions": 48,
+          "hits": 0,
+          "live_bytes": 265420800,
+          "misses": 120,
+          "seeks": 0,
+          "sequential_decodes": 120,
+          "sources": 1
+        },
+        "readbacks": 3,
+        "uploads": 124
+      },
+      "steady_budget_pass": true,
+      "steady_completed_gpu_pictures": {
+        "count": 119,
+        "max_ms": 41.665679999999995,
+        "p50_ms": 11.157709,
+        "p95_ms": 23.983271000000002
+      }
+    }
+  ],
+  "schema": 1,
+  "selected_stream": 1,
+  "source": "/home/michael/Downloads/iCloud Photos/IMG_0001.MP4",
+  "source_color": {
+    "matrix": 1,
+    "primaries": 1,
+    "range": 1,
+    "transfer": 1
+  }
+}

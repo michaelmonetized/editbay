@@ -2,7 +2,7 @@ use crate::{Cancellation, Error, Result, SourceFile, VideoReader};
 use editbay_core::{
     AssetReference, DocumentVersion, EvaluationSnapshot, SourceRequest, StreamFormat,
 };
-use serde::Serialize;
+use serde::{Deserialize, Serialize};
 use std::{
     collections::{HashMap, HashSet},
     sync::{
@@ -13,7 +13,8 @@ use std::{
 use uuid::Uuid;
 
 /// Explicit budgets for retained RGBA8 outputs and native decoder handles.
-#[derive(Debug, Clone, Copy, Serialize)]
+#[derive(Debug, Clone, Copy, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
 pub struct PictureBudget {
     pub cache_bytes: usize,
     pub live_bytes: usize,
@@ -58,7 +59,8 @@ impl PictureBudget {
 }
 
 /// Actual cache residency, consumer pins and decode activity.
-#[derive(Debug, Clone, Copy, Serialize)]
+#[derive(Debug, Clone, Copy, Default, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
 pub struct PictureCacheStats {
     pub cache_bytes: usize,
     pub live_bytes: usize,
@@ -72,9 +74,9 @@ pub struct PictureCacheStats {
     pub sequential_decodes: u64,
 }
 
-struct Allocation {
-    bytes: usize,
-    live: Arc<AtomicUsize>,
+pub(crate) struct Allocation {
+    pub(crate) bytes: usize,
+    pub(crate) live: Arc<AtomicUsize>,
 }
 
 impl Drop for Allocation {
@@ -85,7 +87,7 @@ impl Drop for Allocation {
 
 /// Immutable native RGBA8 pixels with lifetime-charged output memory.
 pub struct DecodedPicture {
-    rgba: Vec<u8>,
+    pub(crate) rgba: Pixels,
     pub width: u32,
     pub height: u32,
     pub source_tick: i64,
@@ -93,14 +95,48 @@ pub struct DecodedPicture {
     pub alpha: editbay_core::AlphaMode,
     pub alpha_interpretation_required: bool,
     pub rotation_degrees: f64,
-    _allocation: Allocation,
+    pub(crate) _allocation: Allocation,
+    pub(crate) _handle: Option<HandleAllocation>,
+}
+
+pub(crate) struct HandleAllocation(pub(crate) Arc<AtomicUsize>);
+impl Drop for HandleAllocation {
+    fn drop(&mut self) {
+        self.0.fetch_sub(1, Ordering::AcqRel);
+    }
+}
+pub(crate) enum Pixels {
+    Owned(Vec<u8>),
+    Shared(crate::planes::Plane),
+}
+
+enum Output {
+    Owned(Vec<u8>),
+    Shared(crate::planes::MutablePlane),
+}
+impl Output {
+    fn bytes_mut(&mut self) -> &mut [u8] {
+        match self {
+            Self::Owned(bytes) => bytes,
+            Self::Shared(plane) => plane.bytes_mut(),
+        }
+    }
+    fn freeze(self) -> Result<Pixels> {
+        match self {
+            Self::Owned(bytes) => Ok(Pixels::Owned(bytes)),
+            Self::Shared(plane) => Ok(Pixels::Shared(plane.seal()?)),
+        }
+    }
 }
 
 impl DecodedPicture {
     /// Inspect shared decoded pixels without copying or permitting mutation.
     /// Takes no arguments. Returns full-range native RGBA8 bytes.
     pub fn rgba(&self) -> &[u8] {
-        &self.rgba
+        match &self.rgba {
+            Pixels::Owned(bytes) => bytes,
+            Pixels::Shared(plane) => plane.bytes(),
+        }
     }
 }
 
@@ -110,10 +146,11 @@ pub struct PictureResult {
     pub generation: u64,
     pub picture: Arc<DecodedPicture>,
     pub cache_hit: bool,
+    pub(crate) owner: Uuid,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
-struct Key {
+pub(crate) struct Key {
     bytes: u64,
     asset: String,
     interpretation: String,
@@ -123,6 +160,110 @@ struct Key {
 struct Entry {
     picture: Arc<DecodedPicture>,
     used: u64,
+}
+
+pub(crate) struct Selection<'a> {
+    pub(crate) reference: &'a AssetReference,
+    pub(crate) width: u32,
+    pub(crate) height: u32,
+    pub(crate) stream: u32,
+    pub(crate) tick: i64,
+    pub(crate) ordinal: u64,
+    pub(crate) size: usize,
+    pub(crate) key: Key,
+}
+
+pub(crate) fn selection<'a>(
+    snapshot: &'a EvaluationSnapshot,
+    request: &SourceRequest,
+    budget: PictureBudget,
+) -> Result<Option<Selection<'a>>> {
+    let SourceRequest::Media {
+        source,
+        stream,
+        asset,
+        asset_sha256,
+        stream_sha256,
+        position,
+        reverse,
+        picture,
+        sample,
+    } = request
+    else {
+        return Err(Error::Invalid(
+            "picture cache requires a media request".into(),
+        ));
+    };
+    let (reference, profile, interpretation) = snapshot.source_stream(*source, *stream)?;
+    if *asset != reference.id
+        || asset_sha256 != &reference.sha256
+        || stream_sha256 != interpretation
+        || sample.is_some()
+    {
+        return Err(Error::Invalid(
+            "picture request does not own the captured interpretation".into(),
+        ));
+    }
+    let StreamFormat::Video {
+        width,
+        height,
+        timing,
+        ..
+    } = &profile.format
+    else {
+        return Err(Error::Invalid(
+            "picture request selected a sound stream".into(),
+        ));
+    };
+    let selected = if *reverse {
+        timing.picture_before(*position, profile.time_base, profile.start_tick)?
+    } else {
+        timing.picture_at(*position, profile.time_base, profile.start_tick)?
+    };
+    if selected != *picture {
+        return Err(Error::Invalid(
+            "picture ordinal does not match source time".into(),
+        ));
+    }
+    let Some(ordinal) = selected else {
+        return Ok(None);
+    };
+    let tick = match timing {
+        editbay_core::PictureTiming::Variable {
+            presentation_ticks, ..
+        } => *presentation_ticks
+            .get(ordinal as usize)
+            .ok_or_else(|| Error::Invalid("picture ordinal is outside its index".into()))?,
+        _ => {
+            return Err(Error::Invalid(
+                "exact decoded cache requires an actual presentation index".into(),
+            ));
+        }
+    };
+    let size = (*width as usize)
+        .checked_mul(*height as usize)
+        .and_then(|size| size.checked_mul(4))
+        .ok_or_else(|| Error::Invalid("picture geometry overflow".into()))?;
+    if size > budget.maximum_picture_bytes || *width > 8192 || *height > 8192 {
+        return Err(Error::Invalid(
+            "picture exceeds this worker's decode budget".into(),
+        ));
+    }
+    Ok(Some(Selection {
+        reference,
+        width: *width,
+        height: *height,
+        stream: *stream,
+        tick,
+        ordinal,
+        size,
+        key: Key {
+            bytes: reference.bytes,
+            asset: reference.sha256.clone(),
+            interpretation: interpretation.into(),
+            ordinal,
+        },
+    }))
 }
 
 struct Decoder {
@@ -149,6 +290,8 @@ pub struct PictureCache {
     seeks: u64,
     sequential_decodes: u64,
     generation: u64,
+    worker: Uuid,
+    shared: bool,
 }
 
 impl PictureCache {
@@ -178,7 +321,19 @@ impl PictureCache {
             seeks: 0,
             sequential_decodes: 0,
             generation: 0,
+            worker: Uuid::new_v4(),
+            shared: false,
         })
+    }
+
+    pub(crate) fn new_shared(
+        snapshot: Arc<EvaluationSnapshot>,
+        budget: PictureBudget,
+        cancel: Cancellation,
+    ) -> Result<Self> {
+        let mut cache = Self::new(snapshot, budget, cancel)?;
+        cache.shared = true;
+        Ok(cache)
     }
 
     /// Serve an exact typed picture request on the owning worker.
@@ -189,87 +344,24 @@ impl PictureCache {
         if self.cancel.is_cancelled() {
             return Err(Error::Cancelled);
         }
-        let SourceRequest::Media {
-            source,
-            stream,
-            asset,
-            asset_sha256,
-            stream_sha256,
-            position,
-            reverse,
-            picture,
-            sample,
-        } = request
-        else {
-            return Err(Error::Invalid(
-                "picture cache requires a media request".into(),
-            ));
-        };
         let snapshot = self.snapshot.clone();
-        let (reference, profile, interpretation) = snapshot.source_stream(*source, *stream)?;
-        if *asset != reference.id
-            || asset_sha256 != &reference.sha256
-            || stream_sha256 != interpretation
-            || sample.is_some()
-        {
-            return Err(Error::Invalid(
-                "picture request does not own the captured interpretation".into(),
-            ));
-        }
-        let StreamFormat::Video {
-            width,
-            height,
-            timing,
-            ..
-        } = &profile.format
-        else {
-            return Err(Error::Invalid(
-                "picture request selected a sound stream".into(),
-            ));
-        };
-        let selected = if *reverse {
-            timing.picture_before(*position, profile.time_base, profile.start_tick)?
-        } else {
-            timing.picture_at(*position, profile.time_base, profile.start_tick)?
-        };
-        if selected != *picture {
-            return Err(Error::Invalid(
-                "picture ordinal does not match source time".into(),
-            ));
-        }
-        let Some(ordinal) = selected else {
+        let Some(selected) = selection(&snapshot, request, self.budget)? else {
             return Ok(None);
         };
-        let tick = match timing {
-            editbay_core::PictureTiming::Variable {
-                presentation_ticks, ..
-            } => *presentation_ticks
-                .get(ordinal as usize)
-                .ok_or_else(|| Error::Invalid("picture ordinal is outside its index".into()))?,
-            _ => {
-                return Err(Error::Invalid(
-                    "exact decoded cache requires an actual presentation index".into(),
-                ));
-            }
-        };
-        let size = (*width as usize)
-            .checked_mul(*height as usize)
-            .and_then(|size| size.checked_mul(4))
-            .ok_or_else(|| Error::Invalid("picture geometry overflow".into()))?;
-        if size > self.budget.maximum_picture_bytes || *width > 8192 || *height > 8192 {
-            return Err(Error::Invalid(
-                "picture exceeds this worker's decode budget".into(),
-            ));
-        }
+        let Selection {
+            reference,
+            width,
+            height,
+            stream,
+            tick,
+            ordinal,
+            size,
+            key,
+        } = selected;
+        let (width, height, stream) = (&width, &height, &stream);
         let owned = self.source(reference)?;
         owned.check_current(&self.cancel)?;
         self.serial = self.serial.saturating_add(1);
-        let key = Key {
-            bytes: reference.bytes,
-            asset: reference.sha256.clone(),
-            interpretation: interpretation.into(),
-            ordinal,
-        };
         if let Some(entry) = self.entries.get_mut(&key) {
             self.hits = self.hits.saturating_add(1);
             entry.used = self.serial;
@@ -278,6 +370,7 @@ impl PictureCache {
                 generation: self.generation,
                 picture: entry.picture.clone(),
                 cache_hit: true,
+                owner: self.worker,
             }));
         }
         self.misses = self.misses.saturating_add(1);
@@ -285,7 +378,12 @@ impl PictureCache {
             && self.evict()
         {}
         let allocation = self.reserve(size)?;
-        let decoder_key = (*asset, *stream);
+        let mut output = if self.shared {
+            Output::Shared(crate::planes::MutablePlane::new(size)?)
+        } else {
+            Output::Owned(vec![0; size])
+        };
+        let decoder_key = (reference.id, *stream);
         if !self.decoders.contains_key(&decoder_key) {
             if self.decoders.len() >= self.budget.decoder_handles {
                 let oldest = self
@@ -325,12 +423,24 @@ impl PictureCache {
         }
         let decoded = if decoder.next == Some(ordinal) {
             self.sequential_decodes = self.sequential_decodes.saturating_add(1);
-            decoder.reader.next_frame().and_then(|frame| {
-                frame.ok_or_else(|| Error::Invalid("indexed picture is unavailable at EOF".into()))
-            })
+            decoder
+                .reader
+                .read_picture(output.bytes_mut(), None)
+                .and_then(|frame| {
+                    frame.ok_or_else(|| {
+                        Error::Invalid("indexed picture is unavailable at EOF".into())
+                    })
+                })
         } else {
             self.seeks = self.seeks.saturating_add(1);
-            decoder.reader.frame_at(tick)
+            decoder
+                .reader
+                .read_picture(output.bytes_mut(), Some(tick))
+                .and_then(|frame| {
+                    frame.ok_or_else(|| {
+                        Error::Invalid("indexed picture is unavailable at EOF".into())
+                    })
+                })
         };
         let decoded = match decoded {
             Ok(decoded) => decoded,
@@ -339,7 +449,7 @@ impl PictureCache {
                 return Err(error);
             }
         };
-        if decoded.source_tick != Some(tick) || decoded.rgba.len() != size {
+        if decoded.source_tick != Some(tick) {
             self.decoders.remove(&decoder_key);
             return Err(Error::Invalid(
                 "native picture differs from the exact captured index".into(),
@@ -348,7 +458,7 @@ impl PictureCache {
         decoder.next = ordinal.checked_add(1);
         owned.check_current(&self.cancel)?;
         let picture = Arc::new(DecodedPicture {
-            rgba: decoded.rgba,
+            rgba: output.freeze()?,
             width: *width,
             height: *height,
             source_tick: tick,
@@ -357,6 +467,7 @@ impl PictureCache {
             alpha_interpretation_required: decoded.alpha_interpretation_required,
             rotation_degrees: decoded.rotation_degrees,
             _allocation: allocation,
+            _handle: None,
         });
         if size <= self.budget.cache_bytes && self.budget.cache_entries > 0 {
             while (self.bytes.saturating_add(size) > self.budget.cache_bytes
@@ -377,6 +488,7 @@ impl PictureCache {
             generation: self.generation,
             picture,
             cache_hit: false,
+            owner: self.worker,
         }))
     }
 
@@ -419,6 +531,7 @@ impl PictureCache {
         }
         if result.version != DocumentVersion::of(self.snapshot.project())
             || result.generation != self.generation
+            || result.owner != self.worker
         {
             return Err(Error::Invalid(
                 "picture receipt belongs to an obsolete worker generation".into(),
@@ -468,6 +581,7 @@ impl PictureCache {
         self.cancel = cancel;
         self.snapshot = snapshot;
         self.generation = generation;
+        self.worker = Uuid::new_v4();
         Ok(())
     }
 
@@ -485,6 +599,7 @@ impl PictureCache {
         self.sources.clear();
         self.used_sources.clear();
         self.generation = generation;
+        self.worker = Uuid::new_v4();
         Ok(())
     }
 
@@ -546,9 +661,82 @@ impl PictureCache {
             return false;
         };
         if let Some(entry) = self.entries.remove(&key) {
-            self.bytes -= entry.picture.rgba.len();
+            self.bytes -= entry.picture.rgba().len();
             self.evictions = self.evictions.saturating_add(1);
         }
         true
+    }
+}
+
+/// Interchangeable source-owned picture routes used by the same GPU graph.
+pub trait PictureProvider {
+    /// Inspect captured document ownership without media IO.
+    /// Takes no arguments. Returns the version served by this provider.
+    fn version(&self) -> DocumentVersion;
+    /// Decode or share one exact, validated source request.
+    /// `request` supplies temporal selection. Returns immutable pixels or no picture.
+    fn picture(&mut self, request: &SourceRequest) -> Result<Option<PictureResult>>;
+    /// Validate a receipt before upload or publication.
+    /// `result` supplies private provider ownership. Returns an error when stale.
+    fn validate_result(&self, result: &PictureResult) -> Result<()>;
+    /// Verify complete bytes of all used sources before final publication.
+    /// Takes no arguments. Returns success only for unchanged owned sources.
+    fn verify_sources(&mut self) -> Result<()>;
+    /// Inspect cache, live-payload and decoder activity without IO.
+    /// Takes no arguments. Returns current counters.
+    fn stats(&self) -> PictureCacheStats;
+    /// Release owned resources and invalidate old receipts.
+    /// Takes no arguments. Returns after cleanup; consumer pins remain charged.
+    fn clear(&mut self) -> Result<()>;
+    /// Adopt a captured document under a fresh cancellation token.
+    /// `snapshot` and `cancel` supply new ownership. Returns after stale work stops.
+    fn rebind(&mut self, snapshot: Arc<EvaluationSnapshot>, cancel: Cancellation) -> Result<()>;
+}
+
+impl PictureProvider for PictureCache {
+    fn version(&self) -> DocumentVersion {
+        DocumentVersion::of(self.snapshot.project())
+    }
+    fn picture(&mut self, request: &SourceRequest) -> Result<Option<PictureResult>> {
+        PictureCache::picture(self, request)
+    }
+    fn validate_result(&self, result: &PictureResult) -> Result<()> {
+        PictureCache::validate_result(self, result)
+    }
+    fn verify_sources(&mut self) -> Result<()> {
+        PictureCache::verify_sources(self)
+    }
+    fn stats(&self) -> PictureCacheStats {
+        PictureCache::stats(self)
+    }
+    fn clear(&mut self) -> Result<()> {
+        PictureCache::clear(self)
+    }
+    fn rebind(&mut self, snapshot: Arc<EvaluationSnapshot>, cancel: Cancellation) -> Result<()> {
+        PictureCache::rebind(self, snapshot, cancel)
+    }
+}
+
+impl<P: PictureProvider + ?Sized> PictureProvider for Box<P> {
+    fn version(&self) -> DocumentVersion {
+        (**self).version()
+    }
+    fn picture(&mut self, request: &SourceRequest) -> Result<Option<PictureResult>> {
+        (**self).picture(request)
+    }
+    fn validate_result(&self, result: &PictureResult) -> Result<()> {
+        (**self).validate_result(result)
+    }
+    fn verify_sources(&mut self) -> Result<()> {
+        (**self).verify_sources()
+    }
+    fn stats(&self) -> PictureCacheStats {
+        (**self).stats()
+    }
+    fn clear(&mut self) -> Result<()> {
+        (**self).clear()
+    }
+    fn rebind(&mut self, snapshot: Arc<EvaluationSnapshot>, cancel: Cancellation) -> Result<()> {
+        (**self).rebind(snapshot, cancel)
     }
 }

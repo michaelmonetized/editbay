@@ -100,3 +100,19 @@ delivery. The final portrait FP32 maximum is 18.340 ms; an earlier local candida
 51.263 ms, recorded separately. Full playback/seek/export and
 enterprise/GTM gates remain open; the prior 250 ms uncached seek failures persist.
 See `IMPLEMENTATION_STATUS.md` for implementation and measurement receipts.
+
+The isolated retained codec/plane dependency passes its separate predeclared
+**already-decoded IPC p95 <=10 ms** budget: camera 1.734 ms, portrait 1.151 ms
+over 1,000 handoffs each. Fifty indexed pixels match full independent sequential
+decode. Active outstanding request cancellation/join/reap is 29.416/18.164 ms;
+SIGSTOP fallback is 104.839/104.413 ms, within 2 s. Byte/handle consumer pins,
+worker death/rebind, stale/foreign/malformed rejection and zero owned cleanup pass.
+The same typed graph over these actual app/CLI children completes 480 pictures
+with camera FP16/FP32 p95 21.625/23.983 ms and portrait 25.242/28.276 ms, within
+33.3 ms. Twelve independent full-picture comparisons retain the established
+color bounds, with no timed sequence readback. The initial portrait FP32 run
+missed 33.3 ms and is retained as an earlier candidate, not a passing receipt.
+See [process evidence](evidence/r2-picture-worker/README.md).
+Current uncached source seek p95 is 254.661/324.550 ms, still above 250 ms. These
+are source/kernel receipts, not native surface/playback/audio/export qualification.
+The full R2 and enterprise/GTM release gates remain open.

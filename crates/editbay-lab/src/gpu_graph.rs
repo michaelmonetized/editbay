@@ -1,6 +1,10 @@
 use crate::{Result, memory, metrics};
 use editbay_core::*;
-use editbay_media::{Cancellation, PictureBudget, SourceFile, StreamType, VideoReader};
+use editbay_media::{
+    Cancellation, PictureBudget, PictureCache, PictureProvider, SourceFile, StreamType,
+    VideoReader,
+    picture_worker::{PictureWorker, WorkerBudget},
+};
 use editbay_render::{GraphBudget, GraphRenderer, ImageBoundary};
 use serde_json::{Value, json};
 use sha2::{Digest, Sha256};
@@ -52,6 +56,17 @@ fn linear(v: u8, transfer: i32) -> Result<f32> {
 /// `path` selects media. Returns FP16/FP32 pixel errors, completed GPU timings,
 /// shared-hit ownership and cache cleanup; never claims native playback or delivery.
 pub fn run(path: &Path) -> Result<Value> {
+    run_route(path, None)
+}
+
+/// Qualify identical temporal/color GPU evaluation over a packaged codec process.
+/// `path` selects real media and `executable` supplies --picture-worker.
+/// Returns scoped headless graph evidence, excluding presentation/audio/delivery.
+pub fn run_process(path: &Path, executable: &Path) -> Result<Value> {
+    run_route(path, Some(executable))
+}
+
+fn run_route(path: &Path, executable: Option<&Path>) -> Result<Value> {
     let cancel = Cancellation::new()?;
     let owned = SourceFile::open(path, &cancel)?;
     let probe = owned.probe(cancel.clone())?;
@@ -211,8 +226,22 @@ pub fn run(path: &Path) -> Result<Value> {
         let mut project = base.clone();
         project.color.precision = precision;
         let snapshot = Arc::new(EvaluationSnapshot::new(Arc::new(project))?);
-        let mut worker =
-            GraphRenderer::new(snapshot, picture_budget, budget, Cancellation::new()?)?;
+        let token = Cancellation::new()?;
+        let provider: Box<dyn PictureProvider> = if let Some(executable) = executable {
+            Box::new(PictureWorker::new(
+                executable,
+                snapshot.clone(),
+                WorkerBudget::default(),
+                token.clone(),
+            )?)
+        } else {
+            Box::new(PictureCache::new(
+                snapshot.clone(),
+                picture_budget,
+                token.clone(),
+            )?)
+        };
+        let mut worker = GraphRenderer::with_provider(snapshot, provider, budget, token)?;
         let mut checks = Vec::new();
         for ordinal in targets {
             let frame = worker.render(id(100), SourcePosition::new(ordinal as i64, 1)?, false)?;
@@ -324,13 +353,17 @@ pub fn run(path: &Path) -> Result<Value> {
         let timings = metrics(&mut times);
         qualifications.push(json!({"precision":precision,"adapter":{"name":worker.adapter.name,"backend":format!("{:?}",worker.adapter.backend),"device_type":format!("{:?}",worker.adapter.device_type),"driver":worker.adapter.driver,"driver_info":worker.adapter.driver_info},"independent_pixels":checks,"immutable_hits":metrics(&mut hits),"before_hits":before_hits,"after_hits":after_hits,"first_sequential_picture_ms":first_ms,"steady_completed_gpu_pictures":timings,"per_picture_budget_ms":33.3,"steady_budget_pass":timings["p95_ms"].as_f64().is_some_and(|v|v<=33.3),"sequenced":sequenced,"encoded_output_maximum_error":encoded_error,"cleanup":cleanup}));
     }
-    let cancellation = active_cancel(
-        Arc::new(EvaluationSnapshot::new(Arc::new(base.clone()))?),
-        count - 1,
-    )?;
+    let cancellation = if executable.is_none() {
+        active_cancel(
+            Arc::new(EvaluationSnapshot::new(Arc::new(base.clone()))?),
+            count - 1,
+        )?
+    } else {
+        json!({"route":"isolated cancellation is qualified by picture-worker, separately from GPU completion"})
+    };
     owned.verify(&cancel)?;
     Ok(
-        json!({"schema":1,"kind":"typed_resident_sdr_gpu_picture_graph","architecture":std::env::consts::ARCH,"source":path,"fingerprint":owned.fingerprint(),"codec_runtime":probe.codec_runtime,"selected_stream":stream.index,"geometry":[width,height],"source_color":color,"composition_rate":base.compositions[0].frame_rate,"mapping":"one composition frame per actual source picture ordinal; not natural VFR wall-clock playback","measured_pictures_per_precision":count,"gpu_budget":budget,"picture_budget":picture_budget,"qualifications":qualifications,"active_cancel":cancellation,"memory":memory()?,"includes_native_presentation":false,"includes_codec_process_ipc":false,"includes_audio_or_long_playback":false,"full_r2_gate_pass":false}),
+        json!({"schema":1,"kind":"typed_resident_sdr_gpu_picture_graph","architecture":std::env::consts::ARCH,"source":path,"fingerprint":owned.fingerprint(),"codec_runtime":probe.codec_runtime,"selected_stream":stream.index,"geometry":[width,height],"source_color":color,"composition_rate":base.compositions[0].frame_rate,"mapping":"one composition frame per actual source picture ordinal; not natural VFR wall-clock playback","measured_pictures_per_precision":count,"gpu_budget":budget,"picture_budget":picture_budget,"qualifications":qualifications,"active_cancel":cancellation,"memory":memory()?,"includes_native_presentation":false,"includes_codec_process_ipc":executable.is_some(),"includes_audio_or_long_playback":false,"full_r2_gate_pass":false}),
     )
 }
 

@@ -174,6 +174,15 @@ fn run(args: &[OsString]) -> Result<(), Box<dyn std::error::Error>> {
 }
 
 fn main() -> ExitCode {
+    if std::env::args_os().nth(1).as_deref() == Some(std::ffi::OsStr::new("--picture-worker")) {
+        return match editbay_media::picture_worker::serve() {
+            Ok(()) => ExitCode::SUCCESS,
+            Err(error) => {
+                eprintln!("editbay picture worker: {error}");
+                ExitCode::FAILURE
+            }
+        };
+    }
     if std::env::args_os().nth(1).as_deref() == Some(std::ffi::OsStr::new("--media-worker")) {
         return match editbay_media::worker::serve() {
             Ok(()) => ExitCode::SUCCESS,

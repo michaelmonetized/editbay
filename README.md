@@ -128,3 +128,10 @@ checkout. `/target/` and `/artifacts/` are ignored. Set `TMPDIR` as above for lo
 tests so their temporary fixtures also stay here. The older committed evidence
 retains its original artifact paths; those historical paths are not working
 storage instructions or promises that private binaries remain available.
+
+`editbay-lab picture-worker SOURCE [WORKER_BINARY]` qualifies the retained native
+codec process and sealed, bounded RGBA handoff. `render-graph-worker` runs the
+same typed GPU graph through that provider. The packaged app/CLI both host this
+Rust endpoint. See [isolated pictures](docs/WORKER_PICTURES.md) for source/receipt
+ownership, consumer pins, cancellation/retry and qualification limits. Native
+surface presentation, audio-clock scheduling and complete delivery remain open.
