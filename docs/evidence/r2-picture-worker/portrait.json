@@ -1,0 +1,359 @@
+{
+  "active_cancel": {
+    "after_cancel_ms": 18.163875,
+    "budget_ms": 2000.0,
+    "cancelled": true,
+    "cleanup": {
+      "cache_bytes": 0,
+      "cache_entries": 0,
+      "child": {
+        "cache_bytes": 0,
+        "decoders": 0,
+        "entries": 0,
+        "evictions": 0,
+        "hits": 0,
+        "live_bytes": 0,
+        "misses": 0,
+        "seeks": 0,
+        "sequential_decodes": 0,
+        "sources": 0
+      },
+      "mapped_bytes": 0,
+      "mapped_handles": 0,
+      "mapping_hits": 0,
+      "received_planes": 0,
+      "spawns": 1
+    },
+    "delay_ms": 10,
+    "joined": true,
+    "pass": true,
+    "phase": "outstanding first-binding/uncached picture IPC request; child native phase is not separately instrumented",
+    "reaped": true
+  },
+  "after_hits": {
+    "cache_bytes": 207360000,
+    "cache_entries": 25,
+    "child": {
+      "cache_bytes": 207360000,
+      "decoders": 1,
+      "entries": 25,
+      "evictions": 0,
+      "hits": 1002,
+      "live_bytes": 207360000,
+      "misses": 25,
+      "seeks": 24,
+      "sequential_decodes": 1,
+      "sources": 1
+    },
+    "mapped_bytes": 207360000,
+    "mapped_handles": 25,
+    "mapping_hits": 1002,
+    "received_planes": 1027,
+    "spawns": 1
+  },
+  "already_decoded_ipc_handoff": {
+    "count": 1000,
+    "max_ms": 3.407873,
+    "p50_ms": 0.47013000000000005,
+    "p95_ms": 1.1509289999999999
+  },
+  "before_clear": {
+    "cache_bytes": 207360000,
+    "cache_entries": 25,
+    "child": {
+      "cache_bytes": 207360000,
+      "decoders": 1,
+      "entries": 25,
+      "evictions": 0,
+      "hits": 1002,
+      "live_bytes": 207360000,
+      "misses": 25,
+      "seeks": 24,
+      "sequential_decodes": 1,
+      "sources": 1
+    },
+    "mapped_bytes": 207360000,
+    "mapped_handles": 25,
+    "mapping_hits": 1002,
+    "received_planes": 1027,
+    "spawns": 1
+  },
+  "before_hits": {
+    "cache_bytes": 207360000,
+    "cache_entries": 25,
+    "child": {
+      "cache_bytes": 207360000,
+      "decoders": 1,
+      "entries": 25,
+      "evictions": 0,
+      "hits": 2,
+      "live_bytes": 207360000,
+      "misses": 25,
+      "seeks": 24,
+      "sequential_decodes": 1,
+      "sources": 1
+    },
+    "mapped_bytes": 207360000,
+    "mapped_handles": 25,
+    "mapping_hits": 2,
+    "received_planes": 27,
+    "spawns": 1
+  },
+  "budget": {
+    "live_handles": 256,
+    "pictures": {
+      "cache_bytes": 268435456,
+      "cache_entries": 128,
+      "decoder_handles": 4,
+      "live_bytes": 402653184,
+      "maximum_picture_bytes": 67108864,
+      "source_handles": 16
+    }
+  },
+  "child_memory": [
+    {
+      "descriptors": 32,
+      "pid": 2298776,
+      "status": [
+        "VmHWM:\t   77536 kB",
+        "VmRSS:\t   71328 kB"
+      ]
+    },
+    {
+      "descriptors": 39,
+      "pid": 2299115,
+      "status": [
+        "VmHWM:\t   75440 kB",
+        "VmRSS:\t   69904 kB"
+      ]
+    }
+  ],
+  "cleanup": {
+    "cache_bytes": 0,
+    "cache_entries": 0,
+    "child": {
+      "cache_bytes": 0,
+      "decoders": 0,
+      "entries": 0,
+      "evictions": 0,
+      "hits": 0,
+      "live_bytes": 0,
+      "misses": 0,
+      "seeks": 0,
+      "sequential_decodes": 0,
+      "sources": 0
+    },
+    "mapped_bytes": 0,
+    "mapped_handles": 0,
+    "mapping_hits": 1004,
+    "received_planes": 1149,
+    "spawns": 3
+  },
+  "codec_runtime": "n9.0.1",
+  "fingerprint": {
+    "bytes": 777868,
+    "sha256": "872e2e7f3cb19ff13653bea9784c48d78969ceb4b8f7da18d1ea5c7cbaa9a48f"
+  },
+  "first_sequential_includes_restart_and_binding_ms": 57.725205,
+  "full_r2_gate_pass": false,
+  "geometry": [
+    1080,
+    1920
+  ],
+  "includes_gpu_or_native_surface": false,
+  "independent_pixels": [
+    {
+      "cache_hit": false,
+      "ordinal": 0,
+      "rgba_sha256": "6e915a9dfb4ceb7d806d8e45a04d2d7bd09af4a77530e45c4b649c265731f778",
+      "tick": 0
+    },
+    {
+      "cache_hit": false,
+      "ordinal": 21,
+      "rgba_sha256": "0a414178d53c16af4366b5e53e86cfd1b505b0f9a1994d610a67b1dc7d39bf3a",
+      "tick": 63000
+    },
+    {
+      "cache_hit": false,
+      "ordinal": 43,
+      "rgba_sha256": "eed5bb563ff8f1b5de4ae379c422c400acb467d508bd260fa9ac1afd0e25850b",
+      "tick": 129000
+    },
+    {
+      "cache_hit": false,
+      "ordinal": 65,
+      "rgba_sha256": "50242a94e7760fd8c29adcea361122080a9a207ab2f8358a6dba23cb5c8e6bb6",
+      "tick": 195000
+    },
+    {
+      "cache_hit": false,
+      "ordinal": 87,
+      "rgba_sha256": "750771da8d282bf8edacffe6626f89b713f4fe34f3ca9b71b8bf7bb5b9d697be",
+      "tick": 261000
+    },
+    {
+      "cache_hit": false,
+      "ordinal": 109,
+      "rgba_sha256": "fd94094249bde74e6a708c81ebed7d420cd5dd4b68f0075bea6f765889ba028e",
+      "tick": 327000
+    },
+    {
+      "cache_hit": false,
+      "ordinal": 131,
+      "rgba_sha256": "1b2d21fcba11655ee606883a4471b8a7c81d21beff069c4e988e92217249bff4",
+      "tick": 393000
+    },
+    {
+      "cache_hit": false,
+      "ordinal": 153,
+      "rgba_sha256": "d85017e79667590add8c277ce3f94b878fd2221f59f5e81e99c29d364b49126b",
+      "tick": 459000
+    },
+    {
+      "cache_hit": false,
+      "ordinal": 175,
+      "rgba_sha256": "979834e4c90c3de225afa51a07f4232f9cd517d2ee538d6d4aafe5015e2307cc",
+      "tick": 525000
+    },
+    {
+      "cache_hit": false,
+      "ordinal": 197,
+      "rgba_sha256": "aa435fd991934d4cff07b266171543742ee3f84d43f0410429746a8fbe9aa573",
+      "tick": 591000
+    },
+    {
+      "cache_hit": false,
+      "ordinal": 219,
+      "rgba_sha256": "bb66e03c1fe1194e8ca8e4f42169198a010822b8d8c10e161f690aaf06c96f74",
+      "tick": 657000
+    },
+    {
+      "cache_hit": false,
+      "ordinal": 241,
+      "rgba_sha256": "79da951269d089346a980f4f3d48b9399fa1ddb05dbffc70270f4b65737a98b6",
+      "tick": 723000
+    },
+    {
+      "cache_hit": false,
+      "ordinal": 263,
+      "rgba_sha256": "307a8dbbe8db92a7199ea65a80a0d2bc39b2945818fa91cdc588fb4cbc86f1a2",
+      "tick": 789000
+    },
+    {
+      "cache_hit": false,
+      "ordinal": 285,
+      "rgba_sha256": "79e56c5e683e037017350c918cd616748e32a4c0923d0e00d5fb4582995420c3",
+      "tick": 855000
+    },
+    {
+      "cache_hit": false,
+      "ordinal": 307,
+      "rgba_sha256": "b95cd90d475deee44ca121efbcb64044fcf4f5c601a153aebead27f41c79b17d",
+      "tick": 921000
+    },
+    {
+      "cache_hit": false,
+      "ordinal": 329,
+      "rgba_sha256": "a158f7966a71f748108be0abd90aa505549a3b4c67ba128c050f08dde4a3b5cb",
+      "tick": 987000
+    },
+    {
+      "cache_hit": false,
+      "ordinal": 351,
+      "rgba_sha256": "0e7ac906c7ff6b63125b853fdbf1bcb4ca7953d368360d12e7714c32242e4be8",
+      "tick": 1053000
+    },
+    {
+      "cache_hit": false,
+      "ordinal": 373,
+      "rgba_sha256": "208dffef521cf0ca29aac776ccd79ab065d12d3761c6c3031e41a6007892066c",
+      "tick": 1119000
+    },
+    {
+      "cache_hit": false,
+      "ordinal": 395,
+      "rgba_sha256": "1db588094b001870c70a6479ca81733b0e5ee58ccd5bbd1cf57c8010fc156e59",
+      "tick": 1185000
+    },
+    {
+      "cache_hit": false,
+      "ordinal": 417,
+      "rgba_sha256": "2b1e087ed6b4b65fb562f64f96fb720c9fe7a9514a0b37a2f8555f4570384b72",
+      "tick": 1251000
+    },
+    {
+      "cache_hit": false,
+      "ordinal": 439,
+      "rgba_sha256": "fe9efed7bb7731d81a347d33fa36f0a8c35326d0efefccee4e0a56356451d52e",
+      "tick": 1317000
+    },
+    {
+      "cache_hit": false,
+      "ordinal": 461,
+      "rgba_sha256": "49836f5a5c744f6cb98bbd479e9f25f1ce00ed49e0fd77fadb60cb52791c36ca",
+      "tick": 1383000
+    },
+    {
+      "cache_hit": false,
+      "ordinal": 483,
+      "rgba_sha256": "0e3963a6a85060f2ba0f9a4fe479628c4e917c7f11f2afa576d1371b052c8481",
+      "tick": 1449000
+    },
+    {
+      "cache_hit": false,
+      "ordinal": 505,
+      "rgba_sha256": "556fab6a7da8bbb23baa2309f58dae06aa562f8917588f228b8b35fc3ea11c83",
+      "tick": 1515000
+    },
+    {
+      "cache_hit": false,
+      "ordinal": 527,
+      "rgba_sha256": "bd7b7adb36f64170e728abd72968f6156af1573c4b3d644ff91cf52d687aaf5c",
+      "tick": 1581000
+    }
+  ],
+  "ipc_budget_pass": true,
+  "ipc_p95_budget_ms": 10.0,
+  "kind": "isolated_retained_sealed_picture_handoff",
+  "parent_memory": [
+    "VmHWM:\t  292336 kB",
+    "VmRSS:\t   96352 kB"
+  ],
+  "reverse_after_eof_equal": true,
+  "rgba_bytes": 8294400,
+  "schema": 1,
+  "selected_stream": 0,
+  "source": "/home/michael/Videos/omadesign/reels-42-2026-09-30/renders/41.mp4",
+  "source_index_pictures": 528,
+  "source_misses": {
+    "count": 25,
+    "max_ms": 325.139267,
+    "p50_ms": 177.03384499999999,
+    "p95_ms": 324.55042699999996
+  },
+  "startup_bind_ms": 17.547120999999997,
+  "steady_sequential_pictures": {
+    "count": 119,
+    "max_ms": 20.650612,
+    "p50_ms": 5.213019,
+    "p95_ms": 8.836350999999999
+  },
+  "stopped_cancel": {
+    "after_cancel_ms": 104.41278199999999,
+    "budget_ms": 2000.0,
+    "pass": true,
+    "phase": "SIGSTOP fault injection on the owned codec; EOF grace then kill/reap",
+    "reaped": true
+  },
+  "worker_death": {
+    "error_latency_ms": 2.920742,
+    "failed_visibly": true,
+    "matching_content_shared": true,
+    "old_receipt_rejected": true,
+    "reaped": true,
+    "retry_ms": 66.16276
+  },
+  "worker_executable": "/home/michael/Projects/editbay/artifacts/r2-picture-worker/bin/editbay",
+  "worker_limits": "Limit                     Soft Limit           Hard Limit           Units     \nMax cpu time              900                  unlimited            seconds   \nMax file size             unlimited            unlimited            bytes     \nMax data size             unlimited            unlimited            bytes     \nMax stack size            8388608              unlimited            bytes     \nMax core file size        unlimited            unlimited            bytes     \nMax resident set          unlimited            unlimited            bytes     \nMax processes             31077                31077                processes \nMax open files            512                  524288               files     \nMax locked memory         8388608              8388608              bytes     \nMax address space         3221225472           unlimited            bytes     \nMax file locks            unlimited            unlimited            locks     \nMax pending signals       31077                31077                signals   \nMax msgqueue size         819200               819200               bytes     \nMax nice priority         0                    0                    \nMax realtime priority     0                    0                    \nMax realtime timeout      unlimited            unlimited            us        \n"
+}

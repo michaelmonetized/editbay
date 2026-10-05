@@ -29,6 +29,13 @@ unsafe extern "C" {
         details: *mut RawFrame,
     ) -> c_int;
     fn eb_reader_seek(reader: *mut c_void, tick: i64) -> c_int;
+    fn eb_reader_picture_at(
+        reader: *mut c_void,
+        tick: i64,
+        output: *mut u8,
+        capacity: usize,
+        details: *mut RawFrame,
+    ) -> c_int;
     fn eb_cancel_create() -> *mut c_void;
     fn eb_cancel_destroy(cancel: *mut c_void);
     fn eb_cancel_request(cancel: *mut c_void);
@@ -368,6 +375,20 @@ impl Reader {
         let count = unsafe {
             eb_reader_next(
                 self.pointer.as_ptr(),
+                output.as_mut_ptr(),
+                output.len(),
+                &mut details,
+            )
+        };
+        Ok((check(count, &self.cancel)? as usize, details))
+    }
+
+    pub(crate) fn picture_at(&mut self, tick: i64, output: &mut [u8]) -> Result<(usize, RawFrame)> {
+        let mut details = RawFrame::default();
+        let count = unsafe {
+            eb_reader_picture_at(
+                self.pointer.as_ptr(),
+                tick,
                 output.as_mut_ptr(),
                 output.len(),
                 &mut details,

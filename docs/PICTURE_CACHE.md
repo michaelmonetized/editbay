@@ -3,9 +3,10 @@
 `editbay-media::PictureCache` serves exact indexed media requests from an immutable
 `EvaluationSnapshot`. Create and use it on its owning worker. It retains native
 decoder/file descriptors and immutable `Arc<DecodedPicture>` outputs. It performs
-blocking codec/file work and must never run on the UI thread. Native application
-IPC and codec process isolation for this cache still need integration; the existing
-isolated import worker remains intact.
+blocking codec/file work and must never run on the UI thread. The same provider now
+supports [isolated retained processes](WORKER_PICTURES.md) through sealed RGBA
+planes in the packaged app/CLI. Native surface presentation remains open; the
+existing isolated import worker remains intact.
 
 Each request must match the captured source/stream, asset byte hash/size and cached
 interpretation hash. Its picture ordinal must agree with exact source position and
@@ -81,4 +82,6 @@ interactive source matrix/range overrides still need an adapter/rendering route.
 The cache now retains actual decoded color, alpha/interpretation requirement and
 native rotation alongside raw pixels. [The shared SDR GPU picture worker](GPU_PICTURES.md)
 uses these to check captured interpretations before input conversion, including
-GPU cache hits. Native cache IPC/process isolation and presentation remain open.
+GPU cache hits. The isolated route writes native output directly into the sealed
+plane and skips RGBA conversion for intermediate pictures during exact seeks.
+Native surface presentation remains open.

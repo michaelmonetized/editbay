@@ -2,11 +2,16 @@
 
 #[allow(unsafe_code)]
 mod ffi;
+pub mod picture_worker;
 mod pictures;
+#[allow(unsafe_code)]
+mod planes;
 mod source;
 pub mod worker;
 
-pub use pictures::{DecodedPicture, PictureBudget, PictureCache, PictureCacheStats, PictureResult};
+pub use pictures::{
+    DecodedPicture, PictureBudget, PictureCache, PictureCacheStats, PictureProvider, PictureResult,
+};
 pub use source::{
     AudioBlock, Cancellation, IngestedSource, MediaProbe, NativeAudioReader, SourceFile,
     SourceFingerprint, StreamProfile, StreamType, VideoIndex,
@@ -60,6 +65,30 @@ pub struct DecodedFrame {
     pub rotation_degrees: f64,
 }
 
+pub(crate) struct PictureMetadata {
+    pub(crate) timestamp_ns: Option<i64>,
+    pub(crate) source_tick: Option<i64>,
+    pub(crate) duration_ticks: Option<u64>,
+    pub(crate) color: editbay_core::SourceColor,
+    pub(crate) alpha: editbay_core::AlphaMode,
+    pub(crate) alpha_interpretation_required: bool,
+    pub(crate) rotation_degrees: f64,
+}
+impl PictureMetadata {
+    fn with_pixels(self, rgba: Vec<u8>) -> DecodedFrame {
+        DecodedFrame {
+            rgba,
+            timestamp_ns: self.timestamp_ns,
+            source_tick: self.source_tick,
+            duration_ticks: self.duration_ticks,
+            color: self.color,
+            alpha: self.alpha,
+            alpha_interpretation_required: self.alpha_interpretation_required,
+            rotation_degrees: self.rotation_degrees,
+        }
+    }
+}
+
 pub struct VideoReader {
     inner: ffi::Reader,
     pub info: MediaInfo,
@@ -78,7 +107,30 @@ impl VideoReader {
     pub fn next_frame(&mut self) -> Result<Option<DecodedFrame>> {
         let size = self.info.width as usize * self.info.height as usize * 4;
         let mut rgba = vec![0; size];
-        let (length, details) = self.inner.next(&mut rgba)?;
+        Ok(self
+            .read_picture(&mut rgba, None)?
+            .map(|details| details.with_pixels(rgba)))
+    }
+
+    /// Decode one picture into an exclusively owned, geometry-checked output.
+    /// `output` supplies allocated RGBA bytes; `tick` optionally requests an exact
+    /// seek. Returns actual metadata or EOF, without converting skipped pictures.
+    pub(crate) fn read_picture(
+        &mut self,
+        output: &mut [u8],
+        tick: Option<i64>,
+    ) -> Result<Option<PictureMetadata>> {
+        let size = self.info.width as usize * self.info.height as usize * 4;
+        if output.len() != size {
+            return Err(Error::Invalid(
+                "decode output does not match source geometry".into(),
+            ));
+        }
+        let (length, details) = if let Some(tick) = tick {
+            self.inner.picture_at(tick, output)?
+        } else {
+            self.inner.next(output)?
+        };
         if length == 0 {
             return Ok(None);
         }
@@ -95,13 +147,12 @@ impl VideoReader {
                 .map_err(|_| Error::Invalid("picture timestamp overflow".into()))
             })
             .transpose()?;
-        Ok(Some(DecodedFrame {
+        Ok(Some(PictureMetadata {
             timestamp_ns,
             source_tick,
             duration_ticks: u64::try_from(details.duration)
                 .ok()
                 .filter(|value| *value > 0),
-            rgba,
             color: source::resolve_color(
                 details,
                 editbay_core::SourceColor {
@@ -142,21 +193,15 @@ impl VideoReader {
     /// `tick` is a previously indexed presentation timestamp. Returns its
     /// picture or an error rather than substituting a neighbouring frame.
     pub fn frame_at(&mut self, tick: i64) -> Result<DecodedFrame> {
-        self.seek(tick)?;
-        while let Some(frame) = self.next_frame()? {
-            let actual = frame
-                .source_tick
-                .ok_or_else(|| Error::Invalid("picture has no timestamp".into()))?;
-            if actual == tick {
-                return Ok(frame);
-            }
-            if actual > tick {
-                break;
-            }
+        let size = self.info.width as usize * self.info.height as usize * 4;
+        let mut rgba = vec![0; size];
+        let details = self.read_picture(&mut rgba, Some(tick))?.ok_or_else(|| {
+            Error::Invalid(format!("indexed picture at tick {tick} is unavailable"))
+        })?;
+        if details.source_tick != Some(tick) {
+            return Err(Error::Invalid("indexed picture timestamp differs".into()));
         }
-        Err(Error::Invalid(format!(
-            "indexed picture at tick {tick} is unavailable"
-        )))
+        Ok(details.with_pixels(rgba))
     }
 }
 

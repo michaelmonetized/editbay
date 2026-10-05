@@ -2,14 +2,14 @@ use crate::{
     AnimatedProperty, AnimationChannel, ClipSource, ColorConfiguration, DocumentVersion, Error,
     FrameRate, NodeOperation, Project, Result, SocketType, SourcePosition,
 };
-use serde::Serialize;
+use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
 use std::collections::{BTreeSet, HashMap};
 use std::sync::Arc;
 use uuid::Uuid;
 
-#[derive(Debug, Clone, PartialEq, Serialize)]
-#[serde(tag = "kind", rename_all = "snake_case")]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(tag = "kind", rename_all = "snake_case", deny_unknown_fields)]
 pub enum SourceRequest {
     Media {
         source: Uuid,

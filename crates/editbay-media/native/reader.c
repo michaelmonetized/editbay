@@ -340,7 +340,8 @@ int eb_reader_seek(EBReader *reader, int64_t tick) {
     return ret;
 }
 
-int eb_reader_next(EBReader *reader, uint8_t *output, size_t capacity, EBFrame *details) {
+static int reader_next(EBReader *reader, uint8_t *output, size_t capacity, EBFrame *details,
+    int selected, int64_t tick) {
     memset(details, 0, sizeof(*details));
     details->pts = details->sample_start = AV_NOPTS_VALUE;
 next_frame:
@@ -391,6 +392,10 @@ next_frame:
     }
     int width = reader->codec->width, height = reader->codec->height;
     if (frame->width != width || frame->height != height) return AVERROR(EINVAL);
+    if (selected) {
+        if (details->pts == AV_NOPTS_VALUE || details->pts > tick) return AVERROR(EINVAL);
+        if (details->pts < tick) goto next_frame;
+    }
     if (!output) return 1;
     if (capacity < (size_t)width * height * 4) return AVERROR(ENOBUFS);
     reader->scale = sws_getCachedContext(reader->scale, width, height, frame->format, width, height,
@@ -409,4 +414,16 @@ next_frame:
     ret = sws_scale(reader->scale, (const uint8_t * const *)frame->data, frame->linesize, 0, height, planes, strides);
     if (interrupted(&reader->input)) return AVERROR_EXIT;
     return ret < 0 ? ret : width * height * 4;
+}
+
+int eb_reader_next(EBReader *reader, uint8_t *output, size_t capacity, EBFrame *details) {
+    return reader_next(reader, output, capacity, details, 0, 0);
+}
+
+int eb_reader_picture_at(EBReader *reader, int64_t tick, uint8_t *output,
+    size_t capacity, EBFrame *details) {
+    if (reader->audio || !output) return AVERROR(EINVAL);
+    int ret = eb_reader_seek(reader, tick);
+    if (ret < 0) return ret;
+    return reader_next(reader, output, capacity, details, 1, tick);
 }

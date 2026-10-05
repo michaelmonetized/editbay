@@ -17,6 +17,7 @@ mod inventory;
 mod media_ingest;
 mod native_workspace;
 mod picture_cache;
+mod picture_worker;
 mod temporal;
 
 type Result<T> = std::result::Result<T, Box<dyn std::error::Error>>;
@@ -797,6 +798,18 @@ fn run(args: Vec<OsString>) -> Result<()> {
         ("media-ingest", 2) => media_ingest::run(Path::new(&args[1]))?,
         ("picture-cache", 2) => picture_cache::run(Path::new(&args[1]))?,
         ("render-graph", 2) => gpu_graph::run(Path::new(&args[1]))?,
+        ("picture-worker", 2 | 3) => picture_worker::run(
+            Path::new(&args[1]),
+            args.get(2)
+                .map(Path::new)
+                .unwrap_or(&std::env::current_exe()?),
+        )?,
+        ("render-graph-worker", 2 | 3) => gpu_graph::run_process(
+            Path::new(&args[1]),
+            args.get(2)
+                .map(Path::new)
+                .unwrap_or(&std::env::current_exe()?),
+        )?,
         ("evaluation", 3 | 4) => temporal::run(
             Path::new(&args[1]),
             number(&args[2])?,
@@ -878,7 +891,7 @@ fn run(args: Vec<OsString>) -> Result<()> {
         }
         ("--help", 0 | 1) => {
             println!(
-                "EditBay native feasibility lab\n  probe SOURCE FRAME_LIMIT\n  media-ingest SOURCE\n  picture-cache SOURCE\n  render-graph SOURCE\n  evaluation SOURCE ITERATIONS [SYNTHETIC_INDEX_PICTURES]\n  playback SOURCE SECONDS\n  export SOURCE NEW_MKV FRAME_LIMIT\n  cancel-export SOURCE NEW_MKV FRAME_LIMIT CANCEL_MS\n  runtime-info ORT_LIBRARY\n  inventory MEDIA_DIRECTORY NEW_JSON_REPORT\n  native-workspace APP_BINARY NEW_EVIDENCE_DIRECTORY TRIALS\n  native-media APP_BINARY CAMERA_SOURCE NEW_EVIDENCE_DIRECTORY\n  native-workspace-timing APP_BINARY NEW_EVIDENCE_DIRECTORY\n  native-workspace-errors APP_BINARY NEW_EVIDENCE_DIRECTORY\n  rvm SOURCE VERIFIED_MODEL ORT_LIBRARY FRAME_LIMIT\n  sam2 SOURCE VERIFIED_PACK ORT_LIBRARY FRAME_LIMIT X Y\n  sam2-fixture NEW_MKV"
+                "EditBay native feasibility lab\n  probe SOURCE FRAME_LIMIT\n  media-ingest SOURCE\n  picture-cache SOURCE\n  render-graph SOURCE\n  picture-worker SOURCE [WORKER_BINARY]\n  render-graph-worker SOURCE [WORKER_BINARY]\n  evaluation SOURCE ITERATIONS [SYNTHETIC_INDEX_PICTURES]\n  playback SOURCE SECONDS\n  export SOURCE NEW_MKV FRAME_LIMIT\n  cancel-export SOURCE NEW_MKV FRAME_LIMIT CANCEL_MS\n  runtime-info ORT_LIBRARY\n  inventory MEDIA_DIRECTORY NEW_JSON_REPORT\n  native-workspace APP_BINARY NEW_EVIDENCE_DIRECTORY TRIALS\n  native-media APP_BINARY CAMERA_SOURCE NEW_EVIDENCE_DIRECTORY\n  native-workspace-timing APP_BINARY NEW_EVIDENCE_DIRECTORY\n  native-workspace-errors APP_BINARY NEW_EVIDENCE_DIRECTORY\n  rvm SOURCE VERIFIED_MODEL ORT_LIBRARY FRAME_LIMIT\n  sam2 SOURCE VERIFIED_PACK ORT_LIBRARY FRAME_LIMIT X Y\n  sam2-fixture NEW_MKV"
             );
             #[cfg(feature = "torch-reference")]
             println!(
@@ -898,6 +911,15 @@ fn run(args: Vec<OsString>) -> Result<()> {
 }
 
 fn main() -> ExitCode {
+    if std::env::args_os().nth(1).as_deref() == Some(std::ffi::OsStr::new("--picture-worker")) {
+        return match editbay_media::picture_worker::serve() {
+            Ok(()) => ExitCode::SUCCESS,
+            Err(error) => {
+                eprintln!("editbay picture worker: {error}");
+                ExitCode::FAILURE
+            }
+        };
+    }
     match run(std::env::args_os().skip(1).collect()) {
         Ok(()) => ExitCode::SUCCESS,
         Err(error) => {

@@ -116,8 +116,10 @@ requests. The predeclared picture-kernel budget is p95 <=33.3 ms, with FP16 erro
 <=0.002 and FP32 <=0.00002. Source-ordinal mapping is explicitly a qualification
 fixture, not natural VFR wall-clock playback. See [evidence](evidence/r2-gpu/README.md).
 
-This worker uses its own headless device. Shared native UI-device presentation,
-codec process IPC, GPU display-surface quantization, transport/frame scheduling,
+The same graph now accepts the [isolated retained codec provider](WORKER_PICTURES.md),
+with private receipt validation before upload and qualified real source/output
+agreement. This worker still uses its own headless device. Shared native UI-device
+presentation, GPU display-surface quantization, transport/frame scheduling,
 audio blocks/clock, export encoders, masks/HDR and complete R2 hardware/playback
 qualification remain next work. `readback` is an explicit float inspection/export
 boundary, not a preview implementation or a delivery-file exporter.

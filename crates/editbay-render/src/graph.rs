@@ -3,7 +3,9 @@ use editbay_core::{
     AlphaMode, DocumentVersion, EvaluationSnapshot, FloatPrecision, NodeOperation, OutputTransfer,
     PreparedFrame, SocketType, SourcePosition, SourceRequest, StreamFormat, WorkingGamut,
 };
-use editbay_media::{Cancellation, PictureBudget, PictureCache, PictureCacheStats};
+use editbay_media::{
+    Cancellation, PictureBudget, PictureCache, PictureCacheStats, PictureProvider,
+};
 use half::f16;
 use serde::Serialize;
 use sha2::{Digest, Sha256};
@@ -164,9 +166,9 @@ impl Value {
 }
 
 /// Single owning worker for typed SDR picture graphs and resident float caches.
-pub struct GraphRenderer {
+pub struct GraphRenderer<P: PictureProvider = PictureCache> {
     snapshot: Arc<EvaluationSnapshot>,
-    pictures: PictureCache,
+    pictures: P,
     cancel: Cancellation,
     device: wgpu::Device,
     queue: wgpu::Queue,
@@ -198,7 +200,25 @@ impl GraphRenderer {
         budget: GraphBudget,
         cancel: Cancellation,
     ) -> Result<Self> {
+        let provider = PictureCache::new(snapshot.clone(), pictures, cancel.clone())?;
+        Self::with_provider(snapshot, provider, budget, cancel)
+    }
+}
+impl<P: PictureProvider> GraphRenderer<P> {
+    /// Create the shared GPU graph using a declared source-owned picture route.
+    /// `snapshot`, `provider`, `budget` and `cancel` capture document and resource
+    /// ownership. Returns compiled kernels; isolated and in-process sources use
+    /// identical temporal, color, cache and evaluation semantics.
+    pub fn with_provider(
+        snapshot: Arc<EvaluationSnapshot>,
+        provider: P,
+        budget: GraphBudget,
+        cancel: Cancellation,
+    ) -> Result<Self> {
         budget.validate()?;
+        if provider.version() != DocumentVersion::of(snapshot.project()) {
+            return Err("picture provider does not own this graph's document version".into());
+        }
         if cancel.is_cancelled() {
             return Err(editbay_media::Error::Cancelled.into());
         }
@@ -285,7 +305,7 @@ impl GraphRenderer {
             pipeline(FloatPrecision::Full),
         ];
         Ok(Self {
-            pictures: PictureCache::new(snapshot.clone(), pictures, cancel.clone())?,
+            pictures: provider,
             snapshot,
             cancel,
             device,
@@ -422,6 +442,7 @@ impl GraphRenderer {
                                 p.transfer = match color.transfer { 8 => OutputTransfer::Linear, 13 => OutputTransfer::Srgb, 1 => OutputTransfer::Bt709, _ => return Err("source transfer requires the HDR/log renderer or an explicit interpretation".into()) };
                                 let decoded = self.pictures.picture(request)?;
                                 if let Some(decoded) = decoded {
+                                    self.pictures.validate_result(&decoded)?;
                                     if decoded.picture.color != color
                                         || decoded.picture.alpha != alpha
                                         || decoded.picture.alpha_interpretation_required
@@ -716,7 +737,7 @@ impl GraphRenderer {
     }
     /// Verify all sources used in the current generation before publication.
     /// Takes no arguments. Returns success after full file checksum checks.
-    pub fn verify_sources(&self) -> Result<()> {
+    pub fn verify_sources(&mut self) -> Result<()> {
         self.pictures.verify_sources()?;
         Ok(())
     }
@@ -741,6 +762,11 @@ impl GraphRenderer {
             readbacks: self.readbacks,
             pictures: self.pictures.stats(),
         }
+    }
+    /// Inspect provider-specific transport and ownership counters.
+    /// Takes no arguments. Returns a shared provider borrow without GPU handles.
+    pub fn picture_provider(&self) -> &P {
+        &self.pictures
     }
     /// Release owned caches while externally held pictures remain charged.
     /// Takes no arguments. Returns after bounded GPU completion; previous receipts
@@ -1049,7 +1075,7 @@ impl GraphRenderer {
     }
 }
 
-impl Drop for GraphRenderer {
+impl<P: PictureProvider> Drop for GraphRenderer<P> {
     fn drop(&mut self) {
         self.cancel.cancel();
         let _ = self.wait(false);

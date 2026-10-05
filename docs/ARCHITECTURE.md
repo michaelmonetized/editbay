@@ -72,14 +72,15 @@ The native decoded-picture provider retains exact indexed source requests,
 immutable raw pixels, decoder cursors and declared cache/live-output/handle limits.
 Consumer-held pixels remain charged after eviction. Rebinding invalidates prior
 receipts and preserves matching content under a fresh cancellation token. Native
-IPC/process integration and native presentation remain open; see
+process ownership now uses the [isolated retained codec route](WORKER_PICTURES.md)
+over sealed binary planes. Shared native presentation remains open; see
 [decoded pictures](PICTURE_CACHE.md).
 The shared SDR GPU renderer now consumes exact prepared source/nested picture,
 solid, affine, over and scalar-opacity graphs. Linear premultiplied FP16/FP32
 textures stay resident; display/output conversion and readback are explicit.
 Cache/live texture limits retain consumer and submitted-work charges; private
 worker/version/generation receipts reject stale publication. Mask/HDR/full color,
-native codec IPC/shared-device presentation and the audio interval engine remain
+shared-device presentation and the audio interval engine remain
 open. See [GPU picture contracts](GPU_PICTURES.md) and their measured evidence.
 Schema 1 migrates after integrity verification without writing its source; unknown
 schemas fail. Format-copy migration uses a separate destination.
