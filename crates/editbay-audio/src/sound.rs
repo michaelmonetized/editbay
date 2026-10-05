@@ -181,8 +181,11 @@ impl SoundRenderer {
                 let out = &mut mixed[frame * channels..(frame + 1) * channels];
                 if point.exact {
                     let index = (point.start - start) as usize * channels;
-                    for channel in 0..channels {
-                        out[channel] += f64::from(input.pcm.samples()[index + channel]) * gain;
+                    for (value, sample) in out
+                        .iter_mut()
+                        .zip(&input.pcm.samples()[index..index + channels])
+                    {
+                        *value += f64::from(*sample) * gain;
                     }
                 } else {
                     let mut sum = [0f64; 64];
