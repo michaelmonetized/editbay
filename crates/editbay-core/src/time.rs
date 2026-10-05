@@ -47,6 +47,36 @@ impl TimeBase {
         };
         i64::try_from(boundary).map_err(|_| overflow())
     }
+
+    /// Convert source ticks to exact frame or sample units.
+    /// `position` uses this time base and `rate` is units per second. Returns a
+    /// reduced fraction, including negative preroll, or an explicit range error.
+    pub fn at_rate(self, position: SourcePosition, rate: FrameRate) -> Result<SourcePosition> {
+        self.validate()?;
+        rate.validate()?;
+        if position.denominator == 0 {
+            return Err(Error::Invalid("source position denominator is zero".into()));
+        }
+        if position.numerator == 0 {
+            return SourcePosition::new(0, 1);
+        }
+        if self.numerator == rate.denominator && self.denominator == rate.numerator {
+            return SourcePosition::new(position.numerator, position.denominator);
+        }
+        let numerator = i128::from(position.numerator)
+            .checked_mul(i128::from(self.numerator))
+            .and_then(|value| value.checked_mul(i128::from(rate.numerator)))
+            .ok_or_else(overflow)?;
+        let denominator = u128::from(position.denominator)
+            .checked_mul(u128::from(self.denominator))
+            .and_then(|value| value.checked_mul(u128::from(rate.denominator)))
+            .ok_or_else(overflow)?;
+        let factor = divisor(numerator.unsigned_abs(), denominator);
+        SourcePosition::from_fraction(
+            numerator / i128::try_from(factor).map_err(|_| overflow())?,
+            u64::try_from(denominator / factor).map_err(|_| overflow())?,
+        )
+    }
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
@@ -181,6 +211,21 @@ impl TimeMap {
         self.direction(index)
     }
 
+    /// Inspect the local source-tick slope for resampling.
+    /// `position` selects local frames and `before` owns an exact cut boundary.
+    /// Returns signed ticks per frame; exact temporal positions remain rational.
+    pub(crate) fn slope_validated(&self, position: SourcePosition, before: bool) -> Result<f64> {
+        let numerator = u128::try_from(position.numerator)
+            .map_err(|_| Error::Invalid("frame is outside the time map".into()))?;
+        let index = self.segment(numerator, position.denominator, before)?;
+        let a = self.points[index];
+        let b = self.points[index + 1];
+        Ok(
+            (i128::from(b.source_tick) - i128::from(a.source_tick)) as f64
+                / (b.frame - a.frame) as f64,
+        )
+    }
+
     /// Inspect the slope sign of a retained segment.
     /// `index` selects consecutive validated points. Returns -1, 0 or 1.
     fn direction(&self, index: usize) -> Result<i8> {
@@ -285,6 +330,12 @@ impl TimeMap {
 /// Find a shared integer factor.
 /// `a` and `b` are magnitudes. Returns their greatest common divisor.
 fn divisor(mut a: u128, mut b: u128) -> u128 {
+    if let (Ok(mut small_a), Ok(mut small_b)) = (u64::try_from(a), u64::try_from(b)) {
+        while small_b != 0 {
+            (small_a, small_b) = (small_b, small_a % small_b);
+        }
+        return u128::from(small_a);
+    }
     while b != 0 {
         (a, b) = (b, a % b);
     }

@@ -87,6 +87,11 @@ commands. FFmpeg development libraries and ALSA are required for those crates;
 the codec tests also use the FFmpeg executable to make synthetic fixtures.
 Rust 1.95 or newer matches the pinned Omadesign native stack requirements.
 
+`editbay-lab sound-blocks SOURCE` qualifies bounded original-channel sound
+against independent native PCM and declared worker timing/memory budgets.
+See [sound block contracts](docs/SOUND_BLOCKS.md). Native streaming playback
+and shared delivery are subsequent R2 dependencies.
+
 `editbay-lab inventory MEDIA_DIRECTORY NEW_JSON_REPORT` recursively inventories
 local source hashes and first decoded video pictures, reports incomplete/error
 states and refuses to overwrite an existing report. Native MCP currently exposes

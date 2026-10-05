@@ -1,0 +1,106 @@
+{
+  "active_cancellation_ms": 0.057333,
+  "actual_source_samples": 192000,
+  "budgets": {
+    "cancel": 2000,
+    "first_native": 250,
+    "high_water_kib": 262144,
+    "planning": 5,
+    "sinc_render": 40,
+    "warm_render": 20
+  },
+  "cancellation_ms": 0.000083,
+  "channels": [
+    "FL",
+    "FR",
+    "FC",
+    "LFE",
+    "BL",
+    "BR"
+  ],
+  "contributions": 2,
+  "first_native_ms": 3.657718,
+  "gates": {
+    "active_cancel_2s": true,
+    "active_cancel_cleanup": true,
+    "cancel_2s": true,
+    "cleanup": true,
+    "first_native_250ms": true,
+    "foreign_plan_rejected": true,
+    "foreign_result_rejected": true,
+    "memory_256mib": true,
+    "pcm_error_1e_6": true,
+    "pins_survive_clear": true,
+    "preparation_p95_5ms": false,
+    "sinc_p95_40ms": true,
+    "source_unchanged": true,
+    "stale_result_rejected": true,
+    "warm_unity_p95_20ms": true
+  },
+  "independent_pcm_sha256": "118b5d59a221d429ebf5d08eb9ce322f90e9406131502579c108ce8e11aafce7",
+  "independent_reference": "sequential FFmpeg CLI native f32le without resampling or channel conversion",
+  "kind": "native_sound_blocks",
+  "limits": [
+    "sound-only worker evidence; no callback, device, UI playback, drift or codec-process isolation proof",
+    "source interval uses whole natural seconds; fractional source-sequence sound tails remain open",
+    "channel layout retained; no downmix or device routing"
+  ],
+  "maximum_absolute_pcm_error": 0.0,
+  "memory": [
+    "VmHWM:\t   56320 kB",
+    "VmRSS:\t   56320 kB"
+  ],
+  "memory_high_water_kib": 56320,
+  "native_sinc_44100": {
+    "count": 30,
+    "max_ms": 28.845116,
+    "p50_ms": 26.929735,
+    "p95_ms": 27.644446
+  },
+  "native_unity_first_pass": {
+    "count": 46,
+    "max_ms": 3.657718,
+    "p50_ms": 0.669752,
+    "p95_ms": 0.857377
+  },
+  "native_unity_warm": {
+    "count": 100,
+    "max_ms": 0.528543,
+    "p50_ms": 0.48546,
+    "p95_ms": 0.5031680000000001
+  },
+  "nested_fps": 60,
+  "output_frames_per_block": 4096,
+  "pcm_stats": {
+    "cache_bytes": 4521984,
+    "decoded_frames": 188416,
+    "decoder_scratch_bytes": 1572864,
+    "decoder_scratch_limit_bytes": 33554432,
+    "decoders": 1,
+    "entries": 46,
+    "evictions": 0,
+    "hits": 246,
+    "live_bytes": 4521984,
+    "misses": 46,
+    "seeks": 0,
+    "sources": 1
+  },
+  "preparation": {
+    "count": 46,
+    "max_ms": 8.230604000000001,
+    "p50_ms": 3.967385,
+    "p95_ms": 5.474805999999999
+  },
+  "qualified": false,
+  "qualified_whole_seconds": 4,
+  "rendered_blocks_sha256": "b82f5b0900bef18c2201557fa6fc830897884a01556cd4fdc76cce7b47691568",
+  "root_fps": 24,
+  "sample_rate": 48000,
+  "schema": 1,
+  "source": "artifacts/sound-fixtures/delayed-51.m4a",
+  "source_fingerprint": {
+    "bytes": 173208,
+    "sha256": "d0dfc92cd2c8097ef21ba6a019e7dc31b139eb26fa03afa1c09cb46b1aa474ae"
+  },
+  "source_stream": 0
+}

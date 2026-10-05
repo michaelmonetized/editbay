@@ -1205,7 +1205,11 @@ name = "editbay-audio"
 version = "0.1.0"
 dependencies = [
  "cpal",
+ "editbay-core",
+ "editbay-media",
  "serde",
+ "tempfile",
+ "uuid",
 ]
 
 [[package]]

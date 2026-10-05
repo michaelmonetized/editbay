@@ -65,7 +65,8 @@ playback remains open. See [document model](DOCUMENT_MODEL.md).
 and source interpretation hashes once. Exact fractional/reverse preparation and
 integer inspection share that evaluator. Working image/mask keys include their
 dimensions, source/mask bytes, dependencies, gamut and float precision; document
-version separately controls publication. Audio keys describe a point, not a block.
+version separately controls publication. The point inspector's audio keys remain
+distinct from bounded sound blocks.
 The complete GPU/audio engines remain open; see
 [temporal evaluation](TEMPORAL_EVALUATION.md).
 The native decoded-picture provider retains exact indexed source requests,
@@ -90,6 +91,17 @@ coalesces requests, rejects obsolete results and cancels underlying work after
 session/revision/view changes. Source-sequence authoring validates off-thread and
 commits one normal undo group under captured ownership. See
 [native preview contracts](NATIVE_PREVIEW.md).
+`SoundSnapshot` compiles source, gain, mix and nested paths once, then resolves
+bounded intervals at exact rational sample centers. The retained native PCM cache
+preserves original rates/channel identities, decoded sample origins and float
+headroom. Container seeking uses the original native time base even when ingest
+normalizes document audio to sample units. Cache/live outputs and decoder scratch
+have separate bounds; consumer-held samples remain charged after eviction.
+The sound renderer uses exact unity-rate copies and declared anti-aliasing sinc
+interpolation, private compiler/worker ownership and native cancellation. Its
+camera/multichannel receipts are worker evidence. Streaming callback scheduling,
+sound codec process isolation and complete shared delivery remain open; see
+[sound blocks](SOUND_BLOCKS.md).
 Schema 1 migrates after integrity verification without writing its source; unknown
 schemas fail. Format-copy migration uses a separate destination.
 
