@@ -4,11 +4,17 @@ version.workspace = true
 edition.workspace = true
 rust-version.workspace = true
 license.workspace = true
-description = "Device callback clock for native playback feasibility"
+description = "Bounded shared sound evaluation and native device clock"
 
 [dependencies]
 cpal.workspace = true
 serde.workspace = true
+editbay-core = { path = "../editbay-core" }
+editbay-media = { path = "../editbay-media" }
+
+[dev-dependencies]
+tempfile.workspace = true
+uuid.workspace = true
 
 [lints]
 workspace = true

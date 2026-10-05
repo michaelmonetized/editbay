@@ -1,4 +1,7 @@
-//! Predecoded, bounded playback with a device-callback-owned sample clock.
+//! Bounded shared sound evaluation and device-clock playback feasibility.
+
+mod sound;
+pub use sound::{SoundBuffer, SoundRenderBudget, SoundRenderer, SoundResult};
 
 use cpal::{
     FromSample, SizedSample,

@@ -2,6 +2,7 @@
 
 #[allow(unsafe_code)]
 mod ffi;
+mod pcm;
 pub mod picture_worker;
 mod pictures;
 #[allow(unsafe_code)]
@@ -9,6 +10,7 @@ mod planes;
 mod source;
 pub mod worker;
 
+pub use pcm::{NativePcmCache, PcmBlock, PcmBudget, PcmResult, PcmStats};
 pub use pictures::{
     DecodedPicture, PictureBudget, PictureCache, PictureCacheStats, PictureProvider, PictureResult,
 };

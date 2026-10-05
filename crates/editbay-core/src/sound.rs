@@ -54,6 +54,7 @@ pub struct SoundSample {
     pub center: SourcePosition,
     pub gain: f64,
     pub reverse: bool,
+    pub step: f64,
 }
 
 /// One source contribution, retaining silence at inactive output samples.
@@ -287,6 +288,12 @@ impl SoundSnapshot {
         self.duration_samples
     }
 
+    /// Retain the exact validated document used by this sound compiler.
+    /// Takes no arguments and returns the shared evaluation owner for native IO.
+    pub fn evaluation(&self) -> &Arc<EvaluationSnapshot> {
+        &self.snapshot
+    }
+
     /// Check a block's private owner before native sample evaluation.
     /// `plan` is a prepared block. Returns an error for another compiled owner,
     /// including an otherwise identical document/profile and public revision.
@@ -325,6 +332,27 @@ impl SoundSnapshot {
             ));
         }
         let composition = &self.snapshot.project().compositions[self.root];
+        let centers = if self.leaves.is_empty() {
+            Vec::new()
+        } else {
+            (first_sample..first_sample + u64::from(frames))
+                .map(|index| {
+                    let position =
+                        sample_center(index, self.profile.sample_rate, composition.frame_rate)?;
+                    Ok((
+                        position,
+                        contains(
+                            FrameRange {
+                                start: 0,
+                                end: composition.duration,
+                            },
+                            position,
+                            false,
+                        )?,
+                    ))
+                })
+                .collect::<Result<Vec<_>>>()?
+        };
         let mut sources = Vec::with_capacity(self.leaves.len());
         for leaf in &self.leaves {
             let (asset, stream, fingerprint) =
@@ -333,20 +361,12 @@ impl SoundSnapshot {
                 return Err(invalid("sound source is not audio"));
             };
             let mut samples = Vec::with_capacity(frames as usize);
-            for index in first_sample..first_sample + u64::from(frames) {
-                let position =
-                    sample_center(index, self.profile.sample_rate, composition.frame_rate)?;
-                let mut position = position;
+            for &(mut position, mut active) in &centers {
                 let mut before = false;
                 let mut gain = 1.;
-                let mut active = contains(
-                    FrameRange {
-                        start: 0,
-                        end: composition.duration,
-                    },
-                    position,
-                    false,
-                )?;
+                let mut sample_step = f64::from(composition.frame_rate.numerator)
+                    / (f64::from(composition.frame_rate.denominator)
+                        * f64::from(self.profile.sample_rate));
                 for step in &leaf.steps {
                     if !active {
                         break;
@@ -380,6 +400,7 @@ impl SoundSnapshot {
                                         .map_err(|_| invalid("sound clip start overflow"))?,
                                 )?;
                                 let direction = clip.time_map.direction_validated(local, before)?;
+                                sample_step *= clip.time_map.slope_validated(local, before)?;
                                 active &= direction != 0;
                                 position = clip.time_map.position_validated(local)?;
                                 before = direction != 0 && ((direction < 0) != before);
@@ -394,6 +415,10 @@ impl SoundSnapshot {
                             .at_rate(position, FrameRate::new(sample_rate, 1)?)?,
                         gain,
                         reverse: before,
+                        step: sample_step
+                            * f64::from(stream.time_base.numerator)
+                            * f64::from(sample_rate)
+                            / f64::from(stream.time_base.denominator),
                     })
                 } else {
                     None
@@ -410,13 +435,7 @@ impl SoundSnapshot {
                 samples,
             });
         }
-        let sha256 = hash(&(
-            "editbay-sound-block-1",
-            &self.fingerprint,
-            first_sample,
-            frames,
-            &sources,
-        ))?;
+        let sha256 = block_hash(&self.fingerprint, first_sample, frames, &sources);
         Ok(SoundBlockPlan {
             owner: self.owner.clone(),
             version: DocumentVersion::of(self.snapshot.project()),
@@ -448,6 +467,37 @@ fn contains(range: FrameRange, position: SourcePosition, before: bool) -> Result
 }
 fn hash(value: &impl Serialize) -> Result<String> {
     Ok(format!("{:x}", Sha256::digest(serde_json::to_vec(value)?)))
+}
+/// Hash one complete block after temporal evaluation.
+/// `fingerprint`, interval and sources supply fixed-width semantic bytes.
+/// Returns one content digest without per-sample hashing or JSON encoding.
+fn block_hash(fingerprint: &str, first: u64, frames: u32, sources: &[SoundSourcePlan]) -> String {
+    let mut bytes = Vec::with_capacity(sources.len() * (frames as usize * 34 + 256));
+    bytes.extend_from_slice(b"editbay-sound-block-2");
+    bytes.extend_from_slice(fingerprint.as_bytes());
+    bytes.extend_from_slice(&first.to_le_bytes());
+    bytes.extend_from_slice(&frames.to_le_bytes());
+    bytes.extend_from_slice(&(sources.len() as u64).to_le_bytes());
+    for source in sources {
+        bytes.extend_from_slice(source.source.as_bytes());
+        bytes.extend_from_slice(&source.stream.to_le_bytes());
+        bytes.extend_from_slice(source.asset.as_bytes());
+        bytes.extend_from_slice(&source.bytes.to_le_bytes());
+        bytes.extend_from_slice(source.asset_sha256.as_bytes());
+        bytes.extend_from_slice(source.stream_sha256.as_bytes());
+        bytes.extend_from_slice(&source.sample_rate.to_le_bytes());
+        for sample in &source.samples {
+            bytes.push(u8::from(sample.is_some()));
+            if let Some(sample) = sample {
+                bytes.extend_from_slice(&sample.center.numerator.to_le_bytes());
+                bytes.extend_from_slice(&sample.center.denominator.to_le_bytes());
+                bytes.extend_from_slice(&sample.gain.to_bits().to_le_bytes());
+                bytes.push(u8::from(sample.reverse));
+                bytes.extend_from_slice(&sample.step.to_bits().to_le_bytes());
+            }
+        }
+    }
+    format!("{:x}", Sha256::digest(bytes))
 }
 fn invalid(message: &str) -> Error {
     Error::Invalid(message.into())
