@@ -210,6 +210,13 @@ Gate: documented representative 1080p/4K playback, seek, cache, export, and long
 audio-sync measurements across Intel/AMD/NVIDIA and ARM64. Set numerical budgets
 before measurement; publish actual results and degradation modes per workload.
 
+Issue #18 supplies bounded native sound blocks through the shared typed graph.
+Camera and six-channel delayed-codec worker gates pass exact independent PCM,
+declared preparation/render budgets, pin accounting and active cancellation;
+see [sound blocks](SOUND_BLOCKS.md). Audio-clock streaming/native transport,
+sound codec isolation and shared delivery are the next dependencies. The full
+R2 gate stays open until sustained playback, drift and hardware receipts pass.
+
 ## R3 — finish a paying edit
 
 - **EB-030:** Source/record monitors, in/out, three-point edits, track targeting,

@@ -129,3 +129,14 @@ see [native preview evidence](evidence/r2-native-preview/README.md).
 These receipts qualify paused pictures and the preserved document foundation.
 Full sustained playback, uncached seek, sound drift, shared delivery, devices and
 enterprise/GTM gates remain open.
+
+The bounded sound worker passes its separately predeclared gates on actual camera
+audio and six-channel AAC: preparation p95 **2.929/4.081 ms** against 5 ms;
+warmed unity render **0.458/0.504 ms** against 20 ms; sinc at 44.1 kHz
+**24.984/27.684 ms** against 40 ms; first native render **56.220/5.218 ms**
+against 250 ms. Qualified PCM matches independent native sequential samples
+exactly. Active cancellation/cleanup takes **0.133/0.087 ms** against 2 s;
+sound-only high-water memory is **50,592/56,976 KiB** against 256 MiB. Failed
+preparation candidates remain recorded; no budget was raised. See
+[sound block evidence](evidence/r2-sound/README.md). These receipts do not close
+device callback, sound codec isolation, two-hour drift or shared delivery gates.

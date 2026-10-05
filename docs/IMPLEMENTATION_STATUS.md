@@ -82,7 +82,17 @@ authoring and complete-job release gates remain open.
   step-animation boundaries and native picture/sample selection share the integer
   inspector. Working-content keys include source/mask bytes, dimensions, color,
   precision and dependencies; document version still controls publication.
-  This is temporal planning, not rendered pictures or sound-block evaluation.
+  This point inspector remains distinct from the sound interval evaluator.
+- Bounded native sound intervals from compiled source/gain/mix/nested paths.
+  Exact sample centers, fractional rates, reverse, cuts, gain curves and nesting
+  share existing temporal primitives. Original-channel float PCM uses retained
+  read-only/full-hash sources, sample-origin-aware native decoder cursors,
+  bounded cache/live/scratch memory and charged consumer pins. Private plans and
+  results reject foreign owners, stale cleanup, cancellation and changed sources.
+  Exact unity copies and anti-aliasing sinc render camera/six-channel AAC blocks
+  against independent sequential PCM. Worker gates pass; streaming callbacks,
+  physical devices, sound process isolation, drift and shared delivery remain open.
+  See [sound contracts and evidence](SOUND_BLOCKS.md).
 - Source-owned native decoded-picture cache: exact indexed requests, retained
   sequential decoders, bounded cache/live RGBA payload and handle limits, LRU
   eviction, charged consumer pins, fresh-token version/generation rebinding and
@@ -114,8 +124,8 @@ authoring and complete-job release gates remain open.
 
 | Check | Result |
 | --- | --- |
-| `cargo test --workspace --locked` | 126 tests and 5 SDK documentation examples passed; 0 failed or ignored |
-| `cargo test --workspace --all-features --locked` | 127 tests and 5 SDK documentation examples passed with native libtorch selected; 0 failed or ignored |
+| `cargo test --workspace --locked` | 142 tests and 7 documentation examples passed; 0 failed or ignored |
+| `cargo test --workspace --all-features --locked` | 143 tests and 7 documentation examples passed with native libtorch selected; 0 failed or ignored |
 | Core regression suite | 23 tests: identity/rational time, validation, round trips, permission preservation, concurrent/stale writers, corruption, source loss, bounded reads, unpublished preparation/cleanup and overwrite refusal |
 | CLI binary integration suite | 3 tests: complete recovery flow, command failures and real process interruption during save; paths contain spaces |
 | Native codec/GPU/worker/clock tests | 8 tests: lossless pictures and rational time; delayed video/audio drain; invalid codecs; output descriptor/path ownership; actual FP16/FP32 GPU parity; export/cancel cleanup; device-clock interpolation |

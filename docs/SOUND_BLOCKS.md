@@ -1,7 +1,8 @@
 # Native sound blocks
 
-Issue #18 follows the qualified native picture viewer. This implementation is
-under qualification. It is not an audio-clock playback or delivery release.
+Issue #18 follows the qualified native picture viewer. The bounded worker
+implementation is locally qualified in [sound evidence](evidence/r2-sound/README.md).
+Audio-clock playback and delivery remain separate release gates.
 
 The core compiles reachable source, gain, mix and nested paths once from the
 validated `EvaluationSnapshot`. Each prepared block owns exact rational output

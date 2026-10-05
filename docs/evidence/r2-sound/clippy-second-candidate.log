@@ -1,0 +1,34 @@
+    Checking editbay-render v0.1.0 (/home/michael/Projects/editbay/artifacts/worktrees/r2-sound-engine/crates/editbay-render)
+    Checking accesskit_winit v0.32.2
+    Checking tract-nnef v0.23.8
+    Checking egui-wgpu v0.36.1
+    Checking glutin-winit v0.5.0
+    Checking egui_inspection v0.36.1
+    Checking egui_glow v0.36.1
+    Checking rfd v0.15.4
+    Checking tract-hir v0.23.8
+    Checking rmcp v3.5.0
+    Checking egui-winit v0.36.1 (/home/michael/Projects/editbay/artifacts/worktrees/r2-sound-engine/vendor/egui-winit)
+    Checking editbay-audio v0.1.0 (/home/michael/Projects/editbay/artifacts/worktrees/r2-sound-engine/crates/editbay-audio)
+    Checking editbay-reference v0.1.0 (/home/michael/Projects/editbay/artifacts/worktrees/r2-sound-engine/crates/editbay-reference)
+    Checking directories v6.0.0
+error: using `chunks_exact` with a constant chunk size
+   --> crates/editbay-audio/tests/sound.rs:124:10
+    |
+124 |         .chunks_exact(4)
+    |          ^^^^^^^^^^^^^^^ help: consider using `as_chunks` instead: `as_chunks::<4>().0.iter()`
+    |
+    = help: for further information visit https://rust-lang.github.io/rust-clippy/rust-1.98.0/index.html#chunks_exact_to_as_chunks
+    = note: `-D clippy::chunks-exact-to-as-chunks` implied by `-D warnings`
+    = help: to override `-D warnings` add `#[allow(clippy::chunks_exact_to_as_chunks)]`
+
+error: using `chunks_exact` with a constant chunk size
+   --> crates/editbay-audio/tests/sound.rs:196:55
+    |
+196 |             for (n, sample) in result.sound.samples().chunks_exact(2).enumerate() {
+    |                                                       ^^^^^^^^^^^^^^^ help: consider using `as_chunks` instead: `as_chunks::<2>().0.iter()`
+    |
+    = help: for further information visit https://rust-lang.github.io/rust-clippy/rust-1.98.0/index.html#chunks_exact_to_as_chunks
+
+error: could not compile `editbay-audio` (test "sound") due to 2 previous errors
+warning: build failed, waiting for other jobs to finish...
