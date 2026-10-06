@@ -1,3 +1,5 @@
+mod completions;
+
 use crate::{Result, hash, metrics};
 use editbay_core::{Project, load, recovery_catalog, save_new};
 use serde_json::{Value, json};
@@ -1242,6 +1244,12 @@ pub fn continuous(binary: &Path, project: &Path, directory: &Path) -> Result<Val
         return Err("Continuous native sound missed the exact end".into());
     }
     let last = picture(&mut trace, composition.duration - 1, 0)?;
+    let drain_by = Instant::now() + Duration::from_millis(200);
+    while Instant::now() < drain_by {
+        thread::sleep(Duration::from_millis(10));
+        trace.read()?;
+    }
+    let completed = completions::audit(&trace.records, composition.duration)?;
     trace.focus()?;
     command(
         "grim",
@@ -1301,6 +1309,7 @@ pub fn continuous(binary: &Path, project: &Path, directory: &Path) -> Result<Val
     let receipt = json!({"kind":"native_continuous_sequence","application_sha256":hash(&binary)?,"original_project_sha256":original_hash,
         "duration_frames":composition.duration,"duration_seconds":seconds,"frame_rate":composition.frame_rate,
         "first":first,"playing":playing,"at_sound_end":finished,"last":last,"displayed_observations":observations,
+        "actual_draw_completions":completed,
         "request_to_gpu_completion":metrics(&mut times),"process_memory":memory.values().collect::<Vec<_>>(),
         "observed_peak_combined_rss_kib":observed_peak_combined_rss_kib,"memory_sample_interval_ms":50,
         "exact_sound_end":true,"source_project_preserved":true,"owned_processes_reaped":true,"full_R2_qualified":false,

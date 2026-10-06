@@ -1,4 +1,7 @@
+mod completion;
+
 use crate::workspace::{DocumentOwner, Workspace};
+use completion::CompletionLog;
 use editbay_audio::{
     MonitorRoute, PlaybackPhase, PlaybackStart, StreamingPlayback, StreamingStatus,
 };
@@ -455,6 +458,7 @@ impl Drop for Task {
 
 struct Callback {
     picture: Arc<Picture>,
+    completion: Option<completion::Publisher>,
     wake: egui::Context,
     compatible: AtomicBool,
 }
@@ -485,18 +489,18 @@ impl egui_wgpu::CallbackTrait for Callback {
             return;
         }
         let picture = self.picture.clone();
+        let completion = self.completion.clone();
         let wake = self.wake.clone();
         self.picture.draw.paint(pass, move || {
+            let elapsed_us = picture.requested.elapsed().as_micros() as u64;
             if picture
                 .completion_us
-                .compare_exchange(
-                    0,
-                    picture.requested.elapsed().as_micros() as u64,
-                    Ordering::AcqRel,
-                    Ordering::Acquire,
-                )
+                .compare_exchange(0, elapsed_us, Ordering::AcqRel, Ordering::Acquire)
                 .is_ok()
             {
+                if let Some(completion) = completion {
+                    completion.completed(picture.frame, picture.serial, elapsed_us);
+                }
                 wake.request_repaint();
             }
         });
@@ -520,6 +524,7 @@ pub struct PreviewPane {
     resume_sound: Option<ResumeSound>,
     monitor_route: MonitorRoute,
     skipped_frames: u64,
+    completions: Option<CompletionLog>,
     task: Option<Task>,
     retiring: Vec<Task>,
     picture: Option<Arc<Picture>>,
@@ -762,6 +767,9 @@ impl PreviewPane {
     }
 
     fn stop_sound(&mut self) -> Option<u64> {
+        if let Some(completions) = &mut self.completions {
+            completions.cancel();
+        }
         let mut task = self.sound.take()?;
         let status = task.playback.status();
         let frame = task.frame(&status);
@@ -817,6 +825,18 @@ impl PreviewPane {
             None
         };
         self.observe_owner(owner);
+        if let Some(completions) = &mut self.completions {
+            completions.poll();
+            let state = completions.summary();
+            if !state.cancelled
+                && (state.overflow > 0 || state.rejected > 0 || state.outside_history > 0)
+            {
+                self.stop_sound();
+                self.error = Some(
+                    "Viewer fell behind or completed an invalid picture; retry playback".into(),
+                );
+            }
+        }
         let mut retired_status = None;
         self.sound_retiring.retain_mut(|task| {
             let status = task.playback.status();
@@ -856,6 +876,9 @@ impl PreviewPane {
             self.stop_sound();
             self.error = Some(error);
         } else if sound_finished {
+            if let Some(completions) = &mut self.completions {
+                completions.observe_end();
+            }
             if let Some(task) = self.sound.take() {
                 self.sound_retiring.push(task);
             }
@@ -940,6 +963,10 @@ impl PreviewPane {
                 if (picture.serial == self.serial
                     && Some(picture.frame) == self.requested_frame)
                     || (self.sound.is_some()
+                        && self
+                            .completions
+                            .as_ref()
+                            .is_some_and(|log| log.contains_frame(picture.frame))
                         && self
                             .requested_frame
                             .is_some_and(|frame| picture.frame <= frame)
@@ -1101,18 +1128,22 @@ impl PreviewPane {
                         let start = self.resume_sound
                             .filter(|resume| resume.owner == owner && resume.sequence == selected.sequence)
                             .map_or(PlaybackStart::Frame(selected.frame), |resume| resume.start);
+                        let completions = CompletionLog::new(completion::Scope {
+                            tab: owner.tab, version: owner.version, sequence: selected.sequence,
+                        }, selected.frame, composition.duration)?;
                         StreamingPlayback::start(project.snapshot(), composition.id, start, self.monitor_route)
-                            .map(|playback| SoundTask {
+                            .map(|playback| (SoundTask {
                                 owner,
                                 sequence: selected.sequence,
                                 rate: composition.frame_rate,
                                 duration: composition.duration,
                                 playback,
-                            })
+                            }, completions))
                     });
                     match started {
-                        Ok(task) => {
+                        Ok((task, completions)) => {
                             self.sound = Some(task);
+                            self.completions = Some(completions);
                             self.sound_status = None;
                             self.error = None;
                             self.skipped_frames = 0;
@@ -1248,15 +1279,13 @@ impl PreviewPane {
                 rect,
                 Callback {
                     picture: picture.clone(),
+                    completion: self.completions.as_ref().map(CompletionLog::publisher),
                     wake: ui.ctx().clone(),
                     compatible: AtomicBool::new(false),
                 },
             ));
             if self.sound.is_some() {
-                ui.weak(format!(
-                    "Playing · frame {} · {} skipped",
-                    picture.frame, self.skipped_frames
-                ));
+                ui.weak(format!("Playing · frame {}", picture.frame));
             } else if picture.serial == self.serial {
                 ui.weak(format!("Showing frame {}", picture.frame));
             } else {
@@ -1280,6 +1309,15 @@ impl PreviewPane {
         }
     }
 
+    /// Inspect bounded actual display events for the native diagnostics writer.
+    /// Takes this pane. Returns a private play session and its latest numbered
+    /// receipts; consumers use their indices to avoid repeating observations.
+    pub(crate) fn completed_pictures(
+        &self,
+    ) -> Option<(Uuid, &std::collections::VecDeque<completion::Completed>)> {
+        self.completions.as_ref().map(CompletionLog::events)
+    }
+
     /// Inspect actual preview requests, completion and resource counters.
     /// Takes no arguments. Returns opt-in diagnostic metadata, without pixel IO.
     pub fn diagnostic_state(&self) -> serde_json::Value {
@@ -1296,6 +1334,7 @@ impl PreviewPane {
             "adapter":self.gpu.as_ref().map(|gpu|format!("{:?}",gpu.adapter.get_info())),
             "rejected_results":self.rejected,"retiring":self.retiring.len(),"creating":self.creation.is_some(),"stopped":self.stopped,"error":self.error,"controls":self.controls,
             "sound":self.sound_status,"sound_active":self.sound.is_some(),"sound_retiring":self.sound_retiring.len(),"skipped_frames":self.skipped_frames,
+            "accepted_picture_gaps":self.skipped_frames,"display":self.completions.as_ref().map(CompletionLog::summary),
             "resume_sound":self.resume_sound.map(|resume|resume.start)})
     }
 }

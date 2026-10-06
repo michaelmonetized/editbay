@@ -1,0 +1,112 @@
+use super::*;
+use std::collections::HashSet;
+
+pub(super) fn audit(records: &[Value], duration: u64) -> Result<Value> {
+    let Some(summary) = records.iter().rev().find_map(|r| {
+        (r["kind"] == "preview" && r["details"]["display"].is_object())
+            .then_some(&r["details"]["display"])
+    }) else {
+        return Ok(json!({"supported":false,"complete_evidence":false}));
+    };
+    let session = &summary["session"];
+    let scope = &summary["scope"];
+    let ended = summary["observed_sound_end_us"]
+        .as_u64()
+        .ok_or("Display run has no observed sound end")?;
+    if !session.is_string()
+        || !scope.is_object()
+        || summary["cancelled"] != false
+        || summary["overflow"] != 0
+        || summary["rejected"] != 0
+        || summary["outside_history"] != 0
+        || summary["first_frame"] != 0
+        || summary["end_frame_exclusive"] != duration
+    {
+        return Err("Display session has incomplete or foreign evidence".into());
+    }
+    let mut unique = HashSet::new();
+    let mut timely = HashSet::new();
+    let mut events = Vec::new();
+    for record in records
+        .iter()
+        .filter(|r| r["kind"] == "display" && &r["details"]["session"] == session)
+    {
+        let event = &record["details"];
+        let frame = event["frame"].as_u64().ok_or("Display frame absent")?;
+        if record["dropped_before"] != 0
+            || &event["scope"] != scope
+            || event["index"] != events.len() as u64 + 1
+            || frame >= duration
+        {
+            return Err("Display event was lost, reordered or belongs to another document".into());
+        }
+        unique.insert(frame);
+        if event["elapsed_us"]
+            .as_u64()
+            .ok_or("Display completion time absent")?
+            <= ended
+        {
+            timely.insert(frame);
+        }
+        events.push(event.clone());
+    }
+    let missing = duration - timely.len() as u64;
+    if summary["received"] != events.len() as u64
+        || summary["unique_completed"] != unique.len() as u64
+        || summary["completed_by_observed_end"] != timely.len() as u64
+        || summary["missing_by_observed_end"] != missing
+    {
+        return Err(
+            "Display completion events disagree with the bounded application counters".into(),
+        );
+    }
+    Ok(
+        json!({"supported":true,"complete_evidence":true,"summary":summary,
+        "missing_by_observed_end":missing,"every_frame_completed_by_observed_end":missing == 0,"events":events}),
+    )
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn records() -> Vec<Value> {
+        let scope = json!({"tab":"tab","version":{"revision":2},"sequence":"sequence"});
+        let mut records = Vec::new();
+        for (index, frame, elapsed) in [(1, 1, 10), (2, 3, 20), (3, 2, 15), (4, 4, 30)] {
+            records.push(json!({"kind":"display","dropped_before":0,"details":{
+                "session":"run","scope":scope,"index":index,"frame":frame,"elapsed_us":elapsed}}));
+        }
+        records.push(json!({"kind":"preview","details":{"display":{
+            "session":"run","scope":scope,"first_frame":0,"end_frame_exclusive":5,
+            "observed_sound_end_us":25,"cancelled":false,"overflow":0,"rejected":0,"outside_history":0,
+            "received":4,"unique_completed":4,"completed_by_observed_end":3,"missing_by_observed_end":2}}}));
+        records
+    }
+
+    #[test]
+    fn actual_events_keep_initial_tail_and_late_omissions() {
+        let receipt = audit(&records(), 5).unwrap();
+        assert_eq!(receipt["missing_by_observed_end"], 2);
+        assert_eq!(receipt["complete_evidence"], true);
+        assert_eq!(receipt["every_frame_completed_by_observed_end"], false);
+        assert_eq!(audit(&[], 5).unwrap()["supported"], false);
+    }
+
+    #[test]
+    fn missing_foreign_or_overflowed_events_cannot_pass() {
+        for mutation in 0..5 {
+            let mut records = records();
+            match mutation {
+                0 => {
+                    records.remove(0);
+                }
+                1 => records[0]["details"]["scope"]["tab"] = json!("other"),
+                2 => records[0]["dropped_before"] = json!(1),
+                3 => records[4]["details"]["display"]["overflow"] = json!(1),
+                _ => records[4]["details"]["display"]["missing_by_observed_end"] = json!(0),
+            }
+            assert!(audit(&records, 5).is_err());
+        }
+    }
+}
