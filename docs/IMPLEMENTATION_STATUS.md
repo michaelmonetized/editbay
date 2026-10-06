@@ -7,6 +7,16 @@ editorial and complete-job release gates remain open.
 
 ## Implemented
 
+- Exact source-picture preparation for dense cuts runs in the background through
+  supervised Rust codec workers. Private read-only disk packs retain checksum,
+  source/interpretation and document ownership, bounded storage and reader pins.
+  Native preparation, cancellation, retry and edit invalidation feed the same
+  GPU graph and sound clock. [Native evidence](evidence/r2-exact-pictures/README.md)
+  completes 128/128 camera and six-channel dense-cut draws with exact sound ends
+  and unchanged masters. Seek p95 <=71.087 ms, edit input <=47.288 ms and retirement
+  <=139.854 ms pass the existing scoped gates. See [exact pictures](EXACT_PICTURES.md).
+  Complete R2 hardware, long-drift and release gates remain open.
+
 - Bounded GPU picture preparation precedes sound startup, then selects pictures
   from the exact device clock. Actual per-play GPU completion receipts distinguish
   missing draws, late callbacks and incomplete evidence; underflow stops visibly.

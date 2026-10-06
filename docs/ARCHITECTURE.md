@@ -310,3 +310,14 @@ underflow stops playback visibly. GPU callbacks publish bounded, owner-tagged
 completion records independently of accepted-picture counters. See
 [prepared pictures](PREPARED_PICTURES.md) for queue, pin, cancellation and evidence
 limits. The isolated sound callback is unchanged.
+
+Dense-cut source preparation resolves that same snapshot into unique exact native
+picture requests, ordered by source index for background decoding. An anonymous
+RGBA8 pack, capped at 8 GiB/4096 pictures across live reservations, passes its
+read-only descriptor and bounded index to the supervised picture codec. Each hit
+validates source ownership, source interpretation and payload checksum before
+the existing sealed-plane/GPU path consumes it. Reader pins retain the storage
+charge through replacement. UI ownership changes cancel preparation and discard
+ready handles; cleanup closes descriptors without unlinking user paths. See
+[exact picture preparation](EXACT_PICTURES.md). Existing decoded, mapped, GPU and
+callback budgets remain unchanged.

@@ -1,0 +1,48 @@
+{
+  "scope": "Issue 41 exact source-picture storage and short native 128-cut workflows",
+  "runtime_commit": "3ecb330f33721b83de14de965d7c59465118acfd",
+  "declared": {
+    "disk_bytes_across_reservations": 8589934592,
+    "stored_entries_across_reservations": 4096,
+    "planning_nodes": 1000000,
+    "planning_depth": 32,
+    "native_seek_p95_ms": 250,
+    "native_input_p95_ms": 50,
+    "cancellation_retirement_ms": 2000,
+    "sampled_app_descendant_rss_kib": 4194304,
+    "prepared_resident_pictures": 8,
+    "prepared_picture_pinned_bytes": 268435456
+  },
+  "final_camera": {
+    "qualified": true,
+    "draws_by_observed_sound_end": 128,
+    "missing_draws": 0,
+    "seek_p95_ms": 71.087,
+    "edit_input_p95_ms": 44.006,
+    "cancel_preparation_ms": 125.366,
+    "kill_preparation_ms": 16.544,
+    "edit_invalidates_preparation_ms": 132.518,
+    "sampled_peak_combined_rss_kib": 550272,
+    "exact_source_pictures": 128,
+    "exact_sound_end_sample": 235200
+  },
+  "final_six_channel": {
+    "qualified": true,
+    "draws_by_observed_sound_end": 128,
+    "missing_draws": 0,
+    "seek_p95_ms": 43.238,
+    "edit_input_p95_ms": 47.288,
+    "cancel_preparation_ms": 123.758,
+    "kill_preparation_ms": 16.089,
+    "edit_invalidates_preparation_ms": 139.854,
+    "sampled_peak_combined_rss_kib": 298560,
+    "exact_source_pictures": 44,
+    "exact_sound_end_sample": 235436,
+    "monitor_clipped_samples": 24927
+  },
+  "release": {
+    "full_R2_qualified": false,
+    "physical_display_audibility_drift_proven": false,
+    "independent_user_or_client_acceptance_proven": false
+  }
+}

@@ -49,6 +49,16 @@ separately. Passing software checks cannot close those gates.
 
 ## Evidence and current disposition
 
+The dense-cut dependency now has [exact-picture evidence](evidence/r2-exact-pictures/README.md).
+Both recorded 128-cut camera/six-channel native workflows complete all 128 GPU
+draws by the observed sound end and retain identical verified masters. Seek p95
+71.087/43.238 ms, edit-input p95 44.006/47.288 ms and preparation retirement
+<=139.854 ms pass their unchanged scoped limits. Anonymous cache storage remains
+bounded and lifetime-charged; independent raw pixels, malformed inputs, source
+changes, stale work, worker failure and cleanup pass. Earlier failures are retained.
+These short ARM64 receipts do not close the broader R2 hardware, sustained workload,
+physical display/audibility, two-hour drift or remaining release/adoption gates.
+
 The shared GPU renderer now reuses validated transparent compositing inputs.
 [Picture-identity evidence](evidence/r2-active-pictures/README.md) proves fixed
 FP16/FP32 pixels and bounded allocation ownership, plus native whole-master
