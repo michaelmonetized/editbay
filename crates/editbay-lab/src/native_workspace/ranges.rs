@@ -14,12 +14,14 @@ fn input(trace: &mut Trace, field: &str, value: u64) -> Result<()> {
 }
 
 fn options(trace: &mut Trace, start: u64, end: u64, after: u64) -> Result<Value> {
+    let start = start.to_string();
+    let end = end.to_string();
     trace.wait("native range options", |r| {
         r["kind"] == "delivery"
             && r["unix_us"].as_u64().is_some_and(|time| time >= after)
             && r["details"]["choice"]["full"] == false
-            && r["details"]["choice"]["start"] == start.to_string()
-            && r["details"]["choice"]["end"] == end.to_string()
+            && r["details"]["choice"]["start"].as_str() == Some(start.as_str())
+            && r["details"]["choice"]["end"].as_str() == Some(end.as_str())
     })
 }
 
@@ -75,7 +77,19 @@ pub fn run(binary: &Path, project: &Path, reference: &Path, directory: &Path) ->
         input(&mut trace, "export-end", 2)?;
         let invalid = options(&mut trace, 7, 2, after)?;
         let blocked = click_control(&mut trace, "export-continue")?;
-        options(&mut trace, 7, 2, blocked)?;
+        trace.wait("disabled range action input", |r| {
+            r["kind"] == "frame" && r["unix_us"].as_u64().is_some_and(|time| time >= blocked)
+        })?;
+        trace.read()?;
+        let unchanged = trace
+            .records
+            .iter()
+            .rev()
+            .find(|r| r["kind"] == "delivery")
+            .ok_or("Range options state absent")?;
+        if unchanged["details"] != invalid["details"] {
+            return Err("Invalid native range escaped its options".into());
+        }
         input(&mut trace, "export-start", 2)?;
         input(&mut trace, "export-end", 7)?;
         let selected = options(&mut trace, 2, 7, blocked)?;

@@ -27,6 +27,8 @@ pub(crate) struct Session {
     samples: u64,
     first_sample: u64,
     total_samples: u64,
+    preparing_frame: u64,
+    prepared_samples: u64,
     expected_pixels: Sha256,
     expected_pcm: Sha256,
     decoded: Sha256,
@@ -104,11 +106,17 @@ impl Session {
             plan,
             writer,
             file,
-            phase: Phase::Rendering,
+            phase: if first_sample == 0 {
+                Phase::Rendering
+            } else {
+                Phase::Preparing
+            },
             pictures: 0,
             samples: 0,
             first_sample,
             total_samples,
+            preparing_frame: 0,
+            prepared_samples: 0,
             expected_pixels: Sha256::new(),
             expected_pcm: Sha256::new(),
             decoded: Sha256::new(),
@@ -123,6 +131,8 @@ impl Session {
     pub(crate) fn progress(&self) -> Progress {
         Progress {
             phase: self.phase,
+            prepared_samples: self.prepared_samples,
+            total_preparation_samples: self.first_sample,
             pictures: self.pictures,
             samples: self.samples,
             total_pictures: self.profile.frames,
@@ -140,11 +150,30 @@ impl Session {
             Phase::VerifyingPictures => self.verify_picture(),
             Phase::VerifyingSound => self.verify_sound(),
             Phase::Complete => Err("Delivery is already complete".into()),
-            Phase::Preparing => Err("Delivery is not initialized".into()),
+            Phase::Preparing => self.prepare_sound(),
             Phase::VerifyingFile | Phase::Publishing => {
                 Err("File publication belongs to the parent".into())
             }
         }
+    }
+
+    fn prepare_sound(&mut self) -> Result<()> {
+        let mut full = self.profile.clone();
+        full.frames += full.first_frame;
+        full.first_frame = 0;
+        let end = full.samples_through(self.preparing_frame + 1)?;
+        let count = (end - self.prepared_samples).min(4096) as u32;
+        let plan = self.plan.prepare(self.prepared_samples, count)?;
+        let sound = self.sound.render(&plan)?;
+        self.sound.validate_result(&sound)?;
+        self.prepared_samples += u64::from(count);
+        if self.prepared_samples == end {
+            self.preparing_frame += 1;
+        }
+        if self.prepared_samples == self.first_sample {
+            self.phase = Phase::Rendering;
+        }
+        Ok(())
     }
 
     fn render(&mut self) -> Result<()> {

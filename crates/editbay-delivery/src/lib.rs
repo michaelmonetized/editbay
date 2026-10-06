@@ -57,6 +57,8 @@ pub enum Phase {
 #[serde(deny_unknown_fields)]
 pub struct Progress {
     pub phase: Phase,
+    pub prepared_samples: u64,
+    pub total_preparation_samples: u64,
     pub pictures: u64,
     pub samples: u64,
     pub total_pictures: u64,

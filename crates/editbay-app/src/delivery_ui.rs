@@ -327,6 +327,9 @@ impl DeliveryPane {
                         };
                         ui.label(label);
                         if let Some(progress) = &job.progress {
+                            if progress.phase == Phase::Preparing && progress.total_preparation_samples > 0 {
+                                ui.label(format!("Preparing source sound: {} / {} samples", progress.prepared_samples, progress.total_preparation_samples));
+                            }
                             let fraction = match progress.phase {
                                 Phase::Rendering => 0.8 * progress.pictures as f32 / progress.total_pictures.max(1) as f32,
                                 Phase::VerifyingPictures => 0.8 + 0.1 * progress.pictures as f32 / progress.total_pictures.max(1) as f32,

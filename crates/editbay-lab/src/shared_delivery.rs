@@ -28,6 +28,7 @@ pub fn run_range(
         "stall",
         "collision",
         "cancel-verify",
+        "cancel-preparation",
         "source-change",
     ]
     .contains(&mode)
@@ -96,7 +97,9 @@ pub fn run_range(
                     json!({"elapsed_ms":began.elapsed().as_secs_f64()*1000., "progress":status}),
                 );
             }
-            let trigger = if ["collision", "cancel-verify"].contains(&mode) {
+            let trigger = if mode == "cancel-preparation" {
+                status.phase == Phase::Preparing && status.prepared_samples > 0
+            } else if ["collision", "cancel-verify"].contains(&mode) {
                 status.phase == Phase::VerifyingFile
             } else if mode == "source-change" {
                 status.phase == Phase::VerifyingSound
@@ -114,7 +117,7 @@ pub fn run_range(
                                 .open(changed_source.as_ref().ok_or("Private source missing")?)?
                                 .write_all(b"changed during verification")?;
                         }
-                        "cancel" | "cancel-verify" => {
+                        "cancel" | "cancel-verify" | "cancel-preparation" => {
                             if !control.cancel() {
                                 return Err("Cancellation was not accepted".into());
                             }

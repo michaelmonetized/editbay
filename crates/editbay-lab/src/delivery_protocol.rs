@@ -65,7 +65,7 @@ pub fn run(project: &Path, composition: &str) -> Result<Value> {
             "named-file" => (begin, Some(&file)),
             _ => {
                 let reply = child.request(&begin, Some(&file), &cancel)?;
-                if reply["outcome"]["progress"]["phase"] != "rendering" {
+                if reply["outcome"]["progress"]["phase"] != "preparing" {
                     return Err(format!("Protocol trial could not bind: {reply}").into());
                 }
                 let mut request = json!({"owner":owner,"serial":1,"operation":{"kind":"step"}});

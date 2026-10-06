@@ -149,6 +149,8 @@ pub fn deliver(
     progress(
         &Progress {
             phase: Phase::Preparing,
+            prepared_samples: 0,
+            total_preparation_samples: expected.sample_origin()?,
             pictures: 0,
             samples: 0,
             total_pictures: 0,
@@ -220,6 +222,8 @@ pub fn deliver(
     progress(
         &Progress {
             phase: Phase::Publishing,
+            prepared_samples: expected.sample_origin()?,
+            total_preparation_samples: expected.sample_origin()?,
             pictures: receipt.profile.frames,
             samples: receipt.profile.samples_through(receipt.profile.frames)?,
             total_pictures: receipt.profile.frames,
@@ -252,11 +256,13 @@ fn validate_reply(
         return Ok(());
     };
     let samples = expected.samples_through(expected.frames)?;
+    let preparation = expected.sample_origin()?;
     let rank = |phase| match phase {
-        Phase::Rendering => Some(0),
-        Phase::VerifyingPictures => Some(1),
-        Phase::VerifyingSound => Some(2),
-        Phase::Complete => Some(3),
+        Phase::Preparing => Some(0),
+        Phase::Rendering => Some(1),
+        Phase::VerifyingPictures => Some(2),
+        Phase::VerifyingSound => Some(3),
+        Phase::Complete => Some(4),
         _ => None,
     };
     let phase = rank(progress.phase).ok_or("Worker returned a parent-owned phase")?;
@@ -264,6 +270,9 @@ fn validate_reply(
         || progress.total_samples != samples
         || progress.pictures > expected.frames
         || progress.samples > samples
+        || progress.total_preparation_samples != preparation
+        || progress.prepared_samples > preparation
+        || (progress.phase != Phase::Preparing && progress.prepared_samples != preparation)
     {
         return Err("Delivery returned invalid progress bounds".into());
     }
@@ -271,15 +280,23 @@ fn validate_reply(
         let prior = rank(previous.phase).ok_or("Invalid previous delivery phase")?;
         if phase < prior
             || phase > prior + 1
+            || progress.prepared_samples < previous.prepared_samples
             || (phase == prior
                 && (progress.pictures < previous.pictures || progress.samples < previous.samples))
         {
             return Err("Delivery progress skipped or replayed work".into());
         }
-    } else if phase != 0 || progress.pictures != 0 || progress.samples != 0 {
+    } else if phase != u8::from(preparation == 0)
+        || progress.pictures != 0
+        || progress.samples != 0
+        || progress.prepared_samples != 0
+    {
         return Err("Delivery did not begin with an empty render".into());
     }
     match progress.phase {
+        Phase::Preparing if preparation == 0 || progress.pictures != 0 || progress.samples != 0 => {
+            return Err("Sound preparation returned output before the selected range".into());
+        }
         Phase::Rendering if progress.samples != expected.samples_through(progress.pictures)? => {
             return Err("Rendered picture and sound counters disagree".into());
         }
@@ -350,6 +367,87 @@ mod tests {
     };
 
     #[test]
+    fn range_preparation_cannot_skip_rewind_or_claim_another_origin() {
+        let owner = Owner {
+            job: Uuid::new_v4(),
+            version: DocumentVersion::of(&Project::new("Range").unwrap()),
+        };
+        let profile = LosslessMovProfile {
+            width: 32,
+            height: 18,
+            frame_rate: editbay_core::FrameRate::new(30, 1).unwrap(),
+            first_frame: 4,
+            frames: 3,
+            sample_rate: 48000,
+            channels: vec!["FL".into(), "FR".into()],
+        };
+        let begin = Progress {
+            phase: Phase::Preparing,
+            prepared_samples: 0,
+            total_preparation_samples: 6400,
+            pictures: 0,
+            samples: 0,
+            total_pictures: 3,
+            total_samples: 4800,
+        };
+        let response = |progress| Response {
+            owner,
+            serial: 0,
+            outcome: Outcome::Progress {
+                progress,
+                receipt: None,
+            },
+        };
+        assert!(validate_reply(&response(begin.clone()), owner, 0, &profile, None).is_ok());
+        let partial = Progress {
+            prepared_samples: 4096,
+            ..begin.clone()
+        };
+        assert!(
+            validate_reply(&response(partial.clone()), owner, 0, &profile, Some(&begin)).is_ok()
+        );
+        let ready = Progress {
+            phase: Phase::Rendering,
+            prepared_samples: 6400,
+            ..begin.clone()
+        };
+        assert!(
+            validate_reply(&response(ready.clone()), owner, 0, &profile, Some(&partial)).is_ok()
+        );
+        for invalid in [
+            Progress {
+                prepared_samples: 4095,
+                ..partial.clone()
+            },
+            Progress {
+                prepared_samples: 6401,
+                ..partial.clone()
+            },
+            Progress {
+                total_preparation_samples: 6401,
+                ..partial.clone()
+            },
+            Progress {
+                phase: Phase::Rendering,
+                ..partial.clone()
+            },
+            Progress {
+                pictures: 1,
+                ..partial.clone()
+            },
+            Progress {
+                samples: 1,
+                ..partial.clone()
+            },
+        ] {
+            assert!(
+                validate_reply(&response(invalid), owner, 0, &profile, Some(&partial)).is_err()
+            );
+        }
+        assert!(validate_reply(&response(ready), owner, 0, &profile, None).is_err());
+    }
+
+    #[test]
     fn replies_reject_foreign_owners_stale_serials_skipped_phases_and_malformed_receipts() {
         let owner = Owner {
             job: Uuid::new_v4(),
@@ -366,6 +464,8 @@ mod tests {
         };
         let start = Progress {
             phase: Phase::Rendering,
+            prepared_samples: 0,
+            total_preparation_samples: 0,
             pictures: 0,
             samples: 0,
             total_pictures: 3,

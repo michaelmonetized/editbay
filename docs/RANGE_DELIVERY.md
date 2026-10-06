@@ -28,3 +28,14 @@ after execution; implementation alone does not establish these gates.
 
 Delivery queues, additional profiles, sustained playback, physical timing and
 complete R2/R3/R7/R11 production acceptance remain open.
+
+The first actual six-channel tail trial found equal sample counts but different
+PCM after a cold compressed-audio seek (maximum absolute error 0.158394814).
+The failed outputs and trace are retained. A ranged export now prepares its
+preceding sound with the same composition-frame/block boundaries as a whole
+export before writing any selected samples. Each worker preparation step renders
+at most 4096 samples, reports exact preparation counters and remains cancellable.
+No preceding pictures are rendered or written. Preparation time grows with the
+range's start; a later canonical PCM store can remove repeated decode work without
+changing this exact-output contract. This does not claim that arbitrary standalone
+audio seeks are independently canonical yet.
