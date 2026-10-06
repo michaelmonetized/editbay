@@ -1,6 +1,6 @@
 use crate::{
     AnimatedProperty, ClipSource, DocumentVersion, Error, EvaluationSnapshot, FrameRange,
-    FrameRate, NodeOperation, Result, SourcePosition, StreamFormat,
+    FrameRate, NodeOperation, Result, SourcePosition, SourceStream, StreamFormat,
 };
 use serde::Serialize;
 use sha2::{Digest, Sha256};
@@ -58,6 +58,7 @@ struct Leaf {
     source: Uuid,
     stream: u32,
     steps: Vec<Step>,
+    linear: bool,
 }
 
 /// Retained sound path and interval counts, independent of playback duration.
@@ -75,6 +76,7 @@ pub struct SoundPreparationStats {
     pub active_paths: usize,
     pub positions: usize,
     pub evaluated_positions: usize,
+    pub linear_positions: usize,
     pub operations: usize,
 }
 
@@ -367,7 +369,22 @@ impl SoundSnapshot {
                             .ok_or_else(|| {
                                 invalid("compiled sound graph exceeds its total step budget")
                             })?;
+                        let linear = steps.iter().all(|step| match *step {
+                            Step::Node(scene, node) => self.snapshot.project().compositions[scene]
+                                .nodes[node]
+                                .animation
+                                .is_empty(),
+                            Step::Clip(scene, track, clip) => {
+                                self.snapshot.project().compositions[scene].tracks[track].clips
+                                    [clip]
+                                    .time_map
+                                    .points
+                                    .len()
+                                    == 2
+                            }
+                        });
                         self.leaves.push(Leaf {
+                            linear,
                             source,
                             stream,
                             steps,
@@ -530,11 +547,12 @@ impl SoundSnapshot {
             .checked_add(lookup_nodes)
             .filter(|count| *count <= self.budget.operations)
             .ok_or_else(|| invalid("sound block exceeds its operation budget"))?;
-        let work = SoundPreparationStats {
+        let mut work = SoundPreparationStats {
             lookup_nodes,
             active_paths: paths.len(),
             positions,
             evaluated_positions: ranges.iter().map(|range| range.len()).sum(),
+            linear_positions: 0,
             operations,
         };
         let centers = if paths.is_empty() {
@@ -567,70 +585,24 @@ impl SoundSnapshot {
                 return Err(invalid("sound source is not audio"));
             };
             let mut samples = vec![None; frames as usize];
-            for (sample, &(mut position, mut active)) in
-                samples[range.clone()].iter_mut().zip(&centers[range])
-            {
-                let mut before = false;
-                let mut gain = 1.;
-                let mut sample_step = f64::from(composition.frame_rate.numerator)
-                    / (f64::from(composition.frame_rate.denominator)
-                        * f64::from(self.profile.sample_rate));
-                for step in &leaf.steps {
-                    if !active {
-                        break;
-                    }
-                    match *step {
-                        Step::Node(scene, node) => {
-                            let node = &self.snapshot.project().compositions[scene].nodes[node];
-                            active &= contains(node.range, position, before)?;
-                            if active
-                                && let NodeOperation::Gain { gain: value, .. } = node.operation
-                            {
-                                gain *= node
-                                    .animation
-                                    .iter()
-                                    .find(|channel| channel.property == AnimatedProperty::Gain)
-                                    .map_or(Ok(value), |channel| {
-                                        channel.value_validated(position, before)
-                                    })?;
-                                if !gain.is_finite() {
-                                    return Err(invalid("combined sound gain is not finite"));
-                                }
-                            }
-                        }
-                        Step::Clip(scene, track, clip) => {
-                            let track = &self.snapshot.project().compositions[scene].tracks[track];
-                            let clip = &track.clips[clip];
-                            active &= track.enabled && contains(clip.range, position, before)?;
-                            if active {
-                                let local = position.relative_to(
-                                    i64::try_from(clip.range.start)
-                                        .map_err(|_| invalid("sound clip start overflow"))?,
-                                )?;
-                                let direction = clip.time_map.direction_validated(local, before)?;
-                                sample_step *= clip.time_map.slope_validated(local, before)?;
-                                active &= direction != 0;
-                                position = clip.time_map.position_validated(local)?;
-                                before = direction != 0 && ((direction < 0) != before);
-                            }
-                        }
-                    }
+            let evaluate = |center| self.evaluate_sample(leaf, stream, sample_rate, center);
+            let cropped = &centers[range.clone()];
+            let linear = if leaf.linear && !cropped.is_empty() {
+                fill_linear(
+                    &mut samples[range.clone()],
+                    evaluate(cropped[0])?,
+                    evaluate(cropped[(cropped.len() - 1).min(1)])?,
+                    evaluate(cropped[cropped.len() - 1])?,
+                )
+            } else {
+                false
+            };
+            if !linear {
+                for (sample, &center) in samples[range].iter_mut().zip(cropped) {
+                    *sample = evaluate(center)?;
                 }
-                *sample = if active {
-                    Some(SoundSample {
-                        center: stream
-                            .time_base
-                            .at_rate(position, FrameRate::new(sample_rate, 1)?)?,
-                        gain,
-                        reverse: before,
-                        step: sample_step
-                            * f64::from(stream.time_base.numerator)
-                            * f64::from(sample_rate)
-                            / f64::from(stream.time_base.denominator),
-                    })
-                } else {
-                    None
-                };
+            } else {
+                work.linear_positions += cropped.len();
             }
             sources.push(SoundSourcePlan {
                 source: leaf.source,
@@ -656,6 +628,133 @@ impl SoundSnapshot {
             sha256,
         })
     }
+    /// Resolve one center through the full temporal path.
+    /// `leaf`, `stream`, `sample_rate` and root center select exact source time.
+    /// Returns the contribution or explicit silence under all range/gain rules.
+    fn evaluate_sample(
+        &self,
+        leaf: &Leaf,
+        stream: &SourceStream,
+        sample_rate: u32,
+        (mut position, mut active): (SourcePosition, bool),
+    ) -> Result<Option<SoundSample>> {
+        let composition = &self.snapshot.project().compositions[self.root];
+        let mut before = false;
+        let mut gain = 1.;
+        let mut sample_step = f64::from(composition.frame_rate.numerator)
+            / (f64::from(composition.frame_rate.denominator) * f64::from(self.profile.sample_rate));
+        for step in &leaf.steps {
+            if !active {
+                break;
+            }
+            match *step {
+                Step::Node(scene, node) => {
+                    let node = &self.snapshot.project().compositions[scene].nodes[node];
+                    active &= contains(node.range, position, before)?;
+                    if active && let NodeOperation::Gain { gain: value, .. } = node.operation {
+                        gain *= node
+                            .animation
+                            .iter()
+                            .find(|channel| channel.property == AnimatedProperty::Gain)
+                            .map_or(Ok(value), |channel| {
+                                channel.value_validated(position, before)
+                            })?;
+                        if !gain.is_finite() {
+                            return Err(invalid("combined sound gain is not finite"));
+                        }
+                    }
+                }
+                Step::Clip(scene, track, clip) => {
+                    let track = &self.snapshot.project().compositions[scene].tracks[track];
+                    let clip = &track.clips[clip];
+                    active &= track.enabled && contains(clip.range, position, before)?;
+                    if active {
+                        let local = position.relative_to(
+                            i64::try_from(clip.range.start)
+                                .map_err(|_| invalid("sound clip start overflow"))?,
+                        )?;
+                        let direction = clip.time_map.direction_validated(local, before)?;
+                        sample_step *= clip.time_map.slope_validated(local, before)?;
+                        active &= direction != 0;
+                        position = clip.time_map.position_validated(local)?;
+                        before = direction != 0 && ((direction < 0) != before);
+                    }
+                }
+            }
+        }
+        Ok(if active {
+            Some(SoundSample {
+                center: stream
+                    .time_base
+                    .at_rate(position, FrameRate::new(sample_rate, 1)?)?,
+                gain,
+                reverse: before,
+                step: sample_step * f64::from(stream.time_base.numerator) * f64::from(sample_rate)
+                    / f64::from(stream.time_base.denominator),
+            })
+        } else {
+            None
+        })
+    }
+}
+
+/// Step a proven constant-rate path in exact rational sample coordinates.
+/// `output` is the active span; `first`, `second` and `last` are full evaluations.
+/// Returns false for inactive endpoints, changed metadata or unsafe arithmetic,
+/// allowing the caller to overwrite the span with the full temporal evaluator.
+fn fill_linear(
+    output: &mut [Option<SoundSample>],
+    first: Option<SoundSample>,
+    second: Option<SoundSample>,
+    last: Option<SoundSample>,
+) -> bool {
+    let (Some(first), Some(second), Some(last)) = (first, second, last) else {
+        return false;
+    };
+    if [second, last].iter().any(|sample| {
+        sample.gain.to_bits() != first.gain.to_bits()
+            || sample.step.to_bits() != first.step.to_bits()
+            || sample.reverse != first.reverse
+    }) {
+        return false;
+    }
+    let mut a = first.center.denominator;
+    let mut b = second.center.denominator;
+    while b != 0 {
+        (a, b) = (b, a % b);
+    }
+    let Some(denominator) = (first.center.denominator / a).checked_mul(second.center.denominator)
+    else {
+        return false;
+    };
+    let start =
+        i128::from(first.center.numerator) * i128::from(denominator / first.center.denominator);
+    let next =
+        i128::from(second.center.numerator) * i128::from(denominator / second.center.denominator);
+    let Some(delta) = next.checked_sub(start) else {
+        return false;
+    };
+    let Some(end) = delta
+        .checked_mul(output.len().saturating_sub(1) as i128)
+        .and_then(|offset| start.checked_add(offset))
+    else {
+        return false;
+    };
+    if SourcePosition::from_fraction(end, denominator).ok() != Some(last.center) {
+        return false;
+    }
+    let mut position = start;
+    for sample in output {
+        let Ok(center) = SourcePosition::from_fraction(position, denominator) else {
+            return false;
+        };
+        *sample = Some(SoundSample { center, ..first });
+        let Some(next) = position.checked_add(delta) else {
+            return false;
+        };
+        position = next;
+    }
+    true
 }
 
 fn sample_center(sample: u64, rate: u32, frames: FrameRate) -> Result<SourcePosition> {

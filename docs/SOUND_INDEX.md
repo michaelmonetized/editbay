@@ -30,6 +30,16 @@ Only those offsets run the temporal evaluator; all remaining slots are silence.
 This avoids evaluating an entire block for a short cut near one edge. Multiple
 intervals of one path use an enclosing union, with the evaluator deciding gaps.
 
+Paths with one linear segment per clip and no animated node parameters can step
+exact rational sample positions. The full evaluator resolves the first, second
+and last center; all must be active with identical gain, direction and sample
+step. Their exact affine prediction must match the last center. Checked integer
+arithmetic fills the interior, preserving canonical fractions and float metadata
+bits. Any failed proof or arithmetic bound falls back to full evaluation. With
+single-segment maps, each node/clip range has a convex preimage, so active
+endpoints cannot hide an inactive interior. Piecewise maps and animated gains
+always use the full evaluator.
+
 ## Bounds and identity
 
 Default `SoundBudget` distinguishes retained storage from playback work:
@@ -53,7 +63,8 @@ to reject foreign plans and results even when public versions match.
 
 `SoundSnapshot::index_stats()` exposes retained counts. A prepared block's `work()`
 reports visited nodes, possible active paths, allocated sample slots, evaluated
-positions and charged operations. Operations charge the evaluated spans, while
+positions, exact linear positions and charged operations. Operations
+conservatively charge full path evaluation for the selected spans, while
 the position budget still charges every allocated slot, including silence.
 
 ## Qualification

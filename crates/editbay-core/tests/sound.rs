@@ -714,3 +714,56 @@ fn compiled_storage_and_active_block_budgets_remain_independent() {
         .is_err()
     );
 }
+
+#[test]
+fn constant_rate_fast_path_matches_full_evaluator_at_every_sample() {
+    for reverse in [false, true] {
+        for source_end in [96000, 96003] {
+            for rate in [8000, 44100, 48000, 96000] {
+                let mut p = project();
+                p.sources[0].streams[0].duration_ticks = Some(source_end as u64);
+                p.compositions[0].frame_rate = FrameRate::new(24000, 1001).unwrap();
+                p.compositions[0].tracks[0].clips[0].time_map = if reverse {
+                    map(48, source_end, 0)
+                } else {
+                    map(48, 0, source_end)
+                };
+                p.compositions[0].nodes.push(node(
+                    51,
+                    NodeOperation::Gain {
+                        audio: id(50),
+                        gain: 0.375,
+                    },
+                ));
+                p.compositions[0].audio = Some(id(51));
+                let mut reference = p.clone();
+                let points = &mut reference.compositions[0].tracks[0].clips[0].time_map.points;
+                let tick =
+                    points[0].source_tick + (points[1].source_tick - points[0].source_tick) / 3;
+                points.insert(
+                    1,
+                    TimePoint {
+                        frame: 16,
+                        source_tick: tick,
+                    },
+                );
+                let fast = sound(p, rate, SoundBudget::default());
+                let full = sound(reference, rate, SoundBudget::default());
+                let middle = 16 * u64::from(rate) * 1001 / 24000;
+                for first in [0, middle - 1, fast.duration_samples() - 4096] {
+                    let a = fast.prepare(first, 4096).unwrap();
+                    let b = full.prepare(first, 4096).unwrap();
+                    assert_eq!(
+                        serde_json::to_value(a.sources()).unwrap(),
+                        serde_json::to_value(b.sources()).unwrap(),
+                        "{reverse} {source_end} {rate} {first}"
+                    );
+                    if first == 0 {
+                        assert_eq!(a.work().linear_positions, 4096);
+                    }
+                    assert_eq!(b.work().linear_positions, 0);
+                }
+            }
+        }
+    }
+}
