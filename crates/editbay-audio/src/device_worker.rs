@@ -323,7 +323,10 @@ impl Bounds {
 }
 
 fn valid_device(device: &DeviceProfile) -> bool {
-    !device.name.is_empty()
+    cpal::ALL_HOSTS
+        .iter()
+        .any(|host| host.name() == device.host)
+        && !device.name.is_empty()
         && device.name.len() <= 1024
         && (8000..=384000).contains(&device.sample_rate)
         && (1..=2).contains(&device.channels)
@@ -564,6 +567,7 @@ mod tests {
         let mut status = preparing(owner.version, MonitorRoute::Stereo);
         status.phase = PlaybackPhase::Playing;
         status.device = Some(DeviceProfile {
+            host: "ALSA".into(),
             name: "Declared device".into(),
             sample_rate: 48000,
             channels: 2,
@@ -663,6 +667,7 @@ mod tests {
             ("/status/start_sample", json!(2001)),
             ("/status/end_sample", json!(48049)),
             ("/status/device/channels", json!(6)),
+            ("/status/device/host", json!("forged host")),
             ("/status/device/requested_callback_frames", json!(0)),
             ("/status/device/reported_callback_frames", json!(16385)),
             ("/status/device/sample_rate", json!(0)),

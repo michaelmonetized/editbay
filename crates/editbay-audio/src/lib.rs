@@ -35,6 +35,7 @@ type Result<T> = std::result::Result<T, Box<dyn std::error::Error>>;
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct DeviceProfile {
+    pub host: String,
     pub name: String,
     pub sample_rate: u32,
     pub channels: u16,
@@ -110,11 +111,11 @@ impl Playback {
                 "playback needs finite stereo 48 kHz samples within the 30 s probe budget".into(),
             );
         }
-        let device = cpal::default_host()
-            .default_output_device()
-            .ok_or("no output device")?;
+        let host = cpal::default_host();
+        let device = host.default_output_device().ok_or("no output device")?;
         let config = device.default_output_config()?;
         let mut profile = DeviceProfile {
+            host: host.id().name().into(),
             name: device.description()?.name().into(),
             sample_rate: config.sample_rate(),
             channels: config.channels(),

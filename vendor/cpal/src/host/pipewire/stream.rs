@@ -234,6 +234,7 @@ pub struct UserData<D> {
     pending_device_changed: Arc<AtomicBool>,
     spa_io_clock: *const spa_io_clock,
     xrun_recovering: bool,
+    output_clock_ready: bool,
     #[cfg(feature = "realtime")]
     rt_promoted_frames: FrameCount,
     #[cfg(all(target_os = "linux", feature = "realtime"))]
@@ -310,7 +311,6 @@ fn pw_stream_time(stream: &pw::stream::Stream) -> Option<Time> {
     if t.now() <= 0 || t.rate().denom == 0 {
         return None;
     }
-    debug_assert_eq!(t.rate().num, 1, "unexpected pw_time rate.num");
     Some(t)
 }
 
@@ -360,7 +360,7 @@ where
         stream: &pw::stream::Stream,
         frames: FrameCount,
         data: &mut Data,
-    ) {
+    ) -> Result<(), Error> {
         self.last_quantum.store(frames, Ordering::Relaxed);
 
         #[cfg(feature = "realtime")]
@@ -370,24 +370,31 @@ where
 
         let (callback, playback) = match pw_stream_time(stream) {
             Some(t) => {
-                // `pw_stream_time` guarantees `now > 0` and `denom != 0`.
-                let now = t.now() as u64;
-                let delay_ns = (t.delay() * 1_000_000_000i64 / t.rate().denom as i64).max(0) as u64;
+                let (_, playback) = super::output::presentation(
+                    t.now(),
+                    t.delay(),
+                    t.rate().num,
+                    t.rate().denom,
+                    t.queued(),
+                    t.buffered(),
+                    self.format.rate(),
+                )
+                .ok_or(ErrorKind::BackendError)?;
+                self.output_clock_ready = true;
                 (
-                    StreamInstant::from_nanos(now),
-                    StreamInstant::from_nanos(now.saturating_add(delay_ns)),
+                    monotonic_stream_instant().ok_or(ErrorKind::BackendError)?,
+                    StreamInstant::from_nanos(playback),
                 )
             }
-            None => {
-                let cb = monotonic_stream_instant()
-                    .unwrap_or_else(|| stream_instant_from_start(self.start));
-                let pl = cb + frames_to_duration(frames, self.format.rate());
-                (cb, pl)
+            None if !self.output_clock_ready && self.start.elapsed().as_secs() == 0 => {
+                return Ok(());
             }
+            None => return Err(ErrorKind::BackendError.into()),
         };
         let timestamp = OutputStreamTimestamp { callback, playback };
         let info = OutputCallbackInfo { timestamp };
         (self.data_callback)(data, &info);
+        Ok(())
     }
 }
 
@@ -614,6 +621,7 @@ where
         pending_device_changed: pending_device_changed.clone(),
         spa_io_clock: std::ptr::null(),
         xrun_recovering: false,
+        output_clock_ready: false,
         #[cfg(feature = "realtime")]
         rt_promoted_frames: 0,
         #[cfg(all(target_os = "linux", feature = "realtime"))]
@@ -730,40 +738,26 @@ where
                 return; // format not yet negotiated by param_changed
             }
 
-            if let Some(mut buffer) = stream.dequeue_buffer() {
-                // Read the requested frame count before mutably borrowing datas_mut().
-                let requested = buffer.requested() as usize;
-                let datas = buffer.datas_mut();
-                if datas.is_empty() {
-                    return;
+            if let Some(mut buffer) = super::output::OutputBuffer::take(stream) {
+                let result = (|| -> Result<(), Error> {
+                    let (frames, active) = buffer.active(
+                        n_channels as usize,
+                        user_data.sample_format.sample_size(),
+                    )?;
+                    fill_equilibrium(active, user_data.sample_format);
+                    let mut data = unsafe {
+                        Data::from_parts(
+                            active.as_mut_ptr().cast(),
+                            frames * n_channels as usize,
+                            user_data.sample_format,
+                        )
+                    };
+                    user_data.publish_data_out(stream, frames as FrameCount, &mut data)?;
+                    buffer.submit()
+                })();
+                if let Err(error) = result {
+                    let _ = try_emit_error(&user_data.error_callback, error);
                 }
-                let buf_data = &mut datas[0];
-
-                let stride = user_data.sample_format.sample_size() * n_channels as usize;
-                // frames = samples / channels or frames = data_len / stride
-                // Honor the frame count PipeWire requests this cycle, capped by the
-                // mapped buffer capacity to guard against any mismatch.
-                let frames = requested.min(buf_data.as_raw().maxsize as usize / stride);
-                let Some(samples) = buf_data.data() else {
-                    return;
-                };
-
-                // samples = frames * channels or samples = data_len / sample_size
-                let n_samples = frames * n_channels as usize;
-
-                // Pre-fill only the active region with equilibrium before handing it to the
-                // callback.
-                let active = &mut samples[..frames * stride];
-                fill_equilibrium(active, user_data.sample_format);
-
-                let data = active.as_mut_ptr() as *mut ();
-                let mut data =
-                    unsafe { Data::from_parts(data, n_samples, user_data.sample_format) };
-                user_data.publish_data_out(stream, frames as FrameCount, &mut data);
-                let chunk = buf_data.chunk_mut();
-                *chunk.offset_mut() = 0;
-                *chunk.stride_mut() = stride as i32;
-                *chunk.size_mut() = (frames * stride) as u32;
             }
         })
         .register()?;
@@ -874,6 +868,7 @@ where
         pending_device_changed: pending_device_changed.clone(),
         spa_io_clock: std::ptr::null(),
         xrun_recovering: false,
+        output_clock_ready: false,
         #[cfg(feature = "realtime")]
         rt_promoted_frames: 0,
         #[cfg(all(target_os = "linux", feature = "realtime"))]
