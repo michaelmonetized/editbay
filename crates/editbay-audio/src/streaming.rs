@@ -845,10 +845,8 @@ mod tests {
         assert_eq!(chosen.sample_rate(), 48000);
         assert_eq!(chosen.channels(), 2);
         assert_eq!(chosen.sample_format(), SampleFormat::F32);
-        let fallback = video_output_config(
-            default,
-            [range(2, 44100, SampleFormat::F32)].into_iter(),
-        );
+        let fallback =
+            video_output_config(default, [range(2, 44100, SampleFormat::F32)].into_iter());
         assert_eq!(fallback.sample_rate(), 44100);
         assert_eq!(
             video_output_config(default, std::iter::empty()).sample_rate(),

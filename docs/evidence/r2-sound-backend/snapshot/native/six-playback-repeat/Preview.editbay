@@ -1,0 +1,329 @@
+{
+  "schema": 2,
+  "id": "17d0bc0b-821b-4bba-86cb-303562737c90",
+  "revision": 3,
+  "name": "Native source sequence",
+  "sequences": [
+    {
+      "id": "e09238bd-ab3e-47d5-afe8-b6f189ac5af2",
+      "name": "Native source sequence",
+      "width": 320,
+      "height": 180,
+      "frame_rate": {
+        "numerator": 24000,
+        "denominator": 1001
+      },
+      "composition": "241029ea-f04f-4259-8e20-42958f457fc2"
+    }
+  ],
+  "assets": [
+    {
+      "id": "306aef58-b215-4162-8b50-431c33ee7fa8",
+      "kind": "media",
+      "path": "/home/michael/Projects/editbay/artifacts/worktrees/r2-sound-worker/artifacts/natural-sound/fixtures/qualified-six-channel.mov",
+      "sha256": "a6ce0012de62432f8d30e3b7e65532f37651ed0a8650ea4c62c54bd8f141e9b2",
+      "bytes": 214558,
+      "provenance": "native FFmpeg n9.0.1 ingest; source bytes preserved"
+    }
+  ],
+  "sources": [
+    {
+      "id": "8ad2b960-e280-48b2-b40c-9cdfe0a05b8c",
+      "name": "Native source sequence",
+      "asset": "306aef58-b215-4162-8b50-431c33ee7fa8",
+      "streams": [
+        {
+          "index": 0,
+          "codec": "h264",
+          "time_base": {
+            "numerator": 1,
+            "denominator": 24000
+          },
+          "start_tick": 0,
+          "duration_ticks": 44044,
+          "format": {
+            "kind": "video",
+            "width": 320,
+            "height": 180,
+            "sample_aspect": {
+              "numerator": 1,
+              "denominator": 1
+            },
+            "timing": {
+              "kind": "variable",
+              "presentation_ticks": [
+                0,
+                1001,
+                2002,
+                3003,
+                4004,
+                5005,
+                6006,
+                7007,
+                8008,
+                9009,
+                10010,
+                11011,
+                12012,
+                13013,
+                14014,
+                15015,
+                16016,
+                17017,
+                18018,
+                19019,
+                20020,
+                21021,
+                22022,
+                23023,
+                24024,
+                25025,
+                26026,
+                27027,
+                28028,
+                29029,
+                30030,
+                31031,
+                32032,
+                33033,
+                34034,
+                35035,
+                36036,
+                37037,
+                38038,
+                39039,
+                40040,
+                41041,
+                42042,
+                43043
+              ],
+              "end_tick": 44044
+            },
+            "color": {
+              "primaries": 1,
+              "transfer": 1,
+              "matrix": 1,
+              "range": 1
+            },
+            "alpha": "opaque"
+          },
+          "metadata": {
+            "editbay.display_rotation_degrees": "0",
+            "editbay.last_frame_duration": "decoded_frame_duration",
+            "encoder": "Lavc63.1.101 libx264",
+            "handler_name": "VideoHandler",
+            "vendor_id": "FFMP"
+          }
+        },
+        {
+          "index": 1,
+          "codec": "aac",
+          "time_base": {
+            "numerator": 1,
+            "denominator": 48000
+          },
+          "start_tick": 4976,
+          "duration_ticks": 151600,
+          "format": {
+            "kind": "audio",
+            "sample_rate": 48000,
+            "channels": [
+              "FL",
+              "FR",
+              "FC",
+              "LFE",
+              "BL",
+              "BR"
+            ]
+          },
+          "metadata": {
+            "editbay.display_rotation_degrees": "0",
+            "editbay.original_time_base": "1/48000",
+            "editbay.timing": "decoded native sample boundaries",
+            "handler_name": "SoundHandler",
+            "vendor_id": "[0][0][0][0]"
+          }
+        }
+      ],
+      "metadata": {
+        "compatible_brands": "qt  ",
+        "encoder": "Lavf63.1.101",
+        "major_brand": "qt  ",
+        "minor_version": "512"
+      }
+    }
+  ],
+  "compositions": [
+    {
+      "id": "0405a6ec-0370-4cd6-9731-5c1aaef409a0",
+      "name": "Native source sequence · Original sound",
+      "width": 320,
+      "height": 180,
+      "frame_rate": {
+        "numerator": 48000,
+        "denominator": 1
+      },
+      "duration": 158158,
+      "tracks": [
+        {
+          "id": "20b3508e-12a8-44e6-bd14-b7d425e291fe",
+          "name": "Original channels",
+          "kind": "audio",
+          "enabled": true,
+          "clips": [
+            {
+              "id": "b3f9309f-25eb-42a9-8ebf-09c2a902dc5c",
+              "name": "Native source sequence",
+              "range": {
+                "start": 4976,
+                "end": 156576
+              },
+              "source": {
+                "kind": "media",
+                "source": "8ad2b960-e280-48b2-b40c-9cdfe0a05b8c",
+                "stream": 1
+              },
+              "time_map": {
+                "points": [
+                  {
+                    "frame": 0,
+                    "source_tick": 4976
+                  },
+                  {
+                    "frame": 151600,
+                    "source_tick": 156576
+                  }
+                ]
+              },
+              "linked": null
+            }
+          ]
+        }
+      ],
+      "nodes": [
+        {
+          "id": "8eab8589-13a4-42c4-8146-f309dce96156",
+          "range": {
+            "start": 4976,
+            "end": 156576
+          },
+          "operation": {
+            "kind": "source",
+            "clip": "b3f9309f-25eb-42a9-8ebf-09c2a902dc5c"
+          },
+          "animation": []
+        }
+      ],
+      "picture": null,
+      "audio": "8eab8589-13a4-42c4-8146-f309dce96156"
+    },
+    {
+      "id": "241029ea-f04f-4259-8e20-42958f457fc2",
+      "name": "Native source sequence",
+      "width": 320,
+      "height": 180,
+      "frame_rate": {
+        "numerator": 24000,
+        "denominator": 1001
+      },
+      "duration": 79,
+      "tracks": [
+        {
+          "id": "19fabd7f-6540-4e57-b075-432c8e81909c",
+          "name": "Video 1",
+          "kind": "video",
+          "enabled": true,
+          "clips": [
+            {
+              "id": "dd695563-5f6f-42c8-82f7-25ebf3dd880f",
+              "name": "Native source sequence",
+              "range": {
+                "start": 0,
+                "end": 44
+              },
+              "source": {
+                "kind": "media",
+                "source": "8ad2b960-e280-48b2-b40c-9cdfe0a05b8c",
+                "stream": 0
+              },
+              "time_map": {
+                "points": [
+                  {
+                    "frame": 0,
+                    "source_tick": 0
+                  },
+                  {
+                    "frame": 44,
+                    "source_tick": 44044
+                  }
+                ]
+              },
+              "linked": "e63077fb-e431-4715-b3ea-9bd19bf88b2b"
+            }
+          ]
+        },
+        {
+          "id": "96c019b4-f67b-4f04-be73-da5726f2159a",
+          "name": "Audio 1",
+          "kind": "audio",
+          "enabled": true,
+          "clips": [
+            {
+              "id": "e63077fb-e431-4715-b3ea-9bd19bf88b2b",
+              "name": "Native source sequence",
+              "range": {
+                "start": 0,
+                "end": 79
+              },
+              "source": {
+                "kind": "composition",
+                "composition": "0405a6ec-0370-4cd6-9731-5c1aaef409a0"
+              },
+              "time_map": {
+                "points": [
+                  {
+                    "frame": 0,
+                    "source_tick": 0
+                  },
+                  {
+                    "frame": 79,
+                    "source_tick": 158158
+                  }
+                ]
+              },
+              "linked": "dd695563-5f6f-42c8-82f7-25ebf3dd880f"
+            }
+          ]
+        }
+      ],
+      "nodes": [
+        {
+          "id": "8774080b-945a-4319-a8ae-e36e051fefe6",
+          "range": {
+            "start": 0,
+            "end": 44
+          },
+          "operation": {
+            "kind": "source",
+            "clip": "dd695563-5f6f-42c8-82f7-25ebf3dd880f"
+          },
+          "animation": []
+        },
+        {
+          "id": "e2778d73-a669-4bb9-8a96-e574e17ecf1a",
+          "range": {
+            "start": 0,
+            "end": 79
+          },
+          "operation": {
+            "kind": "source",
+            "clip": "e63077fb-e431-4715-b3ea-9bd19bf88b2b"
+          },
+          "animation": []
+        }
+      ],
+      "picture": "8774080b-945a-4319-a8ae-e36e051fefe6",
+      "audio": "e2778d73-a669-4bb9-8a96-e574e17ecf1a"
+    }
+  ]
+}

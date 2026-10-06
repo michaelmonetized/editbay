@@ -662,15 +662,15 @@ fn native_playback(trace: &mut Trace, directory: &Path, last: u64) -> Result<Val
                 .zip(sound["device"]["sample_rate"].as_u64())
                 .is_some_and(|(sample, rate)| sample >= rate / 2)
     })?;
+    let paused = pause_sound(trace)?;
     command(
         "grim",
         &[
             "-g",
             "80,80 1440x900",
-            directory.join("playing.png").to_str().unwrap(),
+            directory.join("paused.png").to_str().unwrap(),
         ],
     )?;
-    let paused = pause_sound(trace)?;
     let bookmark = paused["details"]["resume_sound"]["Sample"]["position"]
         .as_u64()
         .ok_or("Pause lost exact sample position")?;
@@ -892,8 +892,10 @@ pub fn preview(
         .ok_or("Missing native codec process")?;
     command("kill", &["-STOP", &pid.to_string()])?;
     let scrub_at = click_control(&mut trace, "next-frame")?;
+    let mut last_scrub_at = scrub_at;
     for _ in 0..5 {
         thread::sleep(Duration::from_millis(30));
+        last_scrub_at = now();
         command("ydotool", &["click", "0xC0"])?;
     }
     let requested = trace.wait("coalesced scrub request", |record| {
@@ -901,6 +903,9 @@ pub fn preview(
             .as_u64()
             .is_some_and(|time| time >= scrub_at)
             && record["kind"] == "preview"
+            && record["details"]["request_accepted_unix_us"]
+                .as_u64()
+                .is_some_and(|time| time >= last_scrub_at)
             && record["details"]["requested_frame"]
                 .as_u64()
                 .is_some_and(|frame| frame >= 4)

@@ -196,7 +196,9 @@ Issue [#47](https://github.com/michaelmonetized/editbay/issues/47) / draft
 [native sound backend](SOUND_BACKEND.md), bounds actual callback geometry and
 retains rejected clock evidence. The first upstream candidate fails its sustained
 pilot; [raw evidence](evidence/r2-sound-backend/README.md) remains explicit.
-The ALSA snapshot correction is under qualification. Full R2/R8 stay open.
+The ALSA snapshot correction passes a three-minute pilot and 18 real fault trials;
+its concurrent two-hour attempt fails after 47 seconds. A fresh baseline is
+running, with native driver requalification still pending. Full R2/R8 stay open.
 
 Issue #45 adds [bounded procedural GPU masks](PROCEDURAL_MASKS.md) to the shared
 preview/export graph. Native drawing tools, asset-mask formats and full artist

@@ -1,0 +1,195 @@
+{
+  "application_sha256": "9b2c4819f9725e1b5553394df0a0dae8932cca3893609e5e4e53f4f02e52a726",
+  "authored": {
+    "audio_stream": 0,
+    "composition": "b8763e37-900f-40bc-9766-168379902df3",
+    "fingerprint": {
+      "bytes": 5235017,
+      "sha256": "498ec6c42b6b440886eb761dc4775c994f7578021890ceae3f370ffc6fb3e021"
+    },
+    "frames": 144,
+    "history_and_reopen_exact": true,
+    "linked_intervals": 1,
+    "project_sha256": "b567e28e4c2d7e05bf19f1e933589b02a7098038775ad450e3516e878da80754",
+    "rate": {
+      "denominator": 1,
+      "numerator": 24
+    },
+    "seconds_requested": 6,
+    "source": "/home/michael/Downloads/iCloud Photos/IMG_0001.MP4",
+    "source_frames": 314,
+    "version": {
+      "project_id": "742adc74-bff2-4725-aa47-ac8643b0274d",
+      "revision": 4
+    },
+    "video_stream": 1
+  },
+  "backend_clock_gate": true,
+  "complete": true,
+  "device_thread_schedules": [
+    {
+      "name": "editbay-lab",
+      "nice": 0,
+      "policy": 0,
+      "process": 1132557,
+      "realtime_priority": 0,
+      "thread": 1132557
+    },
+    {
+      "name": "editbay-streami",
+      "nice": 0,
+      "policy": 0,
+      "process": 1132557,
+      "realtime_priority": 0,
+      "thread": 1132560
+    },
+    {
+      "name": "editbay-codec-s",
+      "nice": 0,
+      "policy": 0,
+      "process": 1132557,
+      "realtime_priority": 0,
+      "thread": 1132567
+    },
+    {
+      "name": "editbay-codec-r",
+      "nice": 0,
+      "policy": 0,
+      "process": 1132557,
+      "realtime_priority": 0,
+      "thread": 1132568
+    },
+    {
+      "name": "module-rt",
+      "nice": 0,
+      "policy": 0,
+      "process": 1132557,
+      "realtime_priority": 0,
+      "thread": 1132571
+    },
+    {
+      "name": "alsa-pipewire",
+      "nice": 0,
+      "policy": 0,
+      "process": 1132557,
+      "realtime_priority": 0,
+      "thread": 1132572
+    },
+    {
+      "name": "data-loop.0",
+      "nice": 0,
+      "policy": 2,
+      "process": 1132557,
+      "realtime_priority": 20,
+      "thread": 1132573
+    },
+    {
+      "name": "cpal_alsa_out",
+      "nice": 0,
+      "policy": 0,
+      "process": 1132557,
+      "realtime_priority": 0,
+      "thread": 1132579
+    }
+  ],
+  "drift": {
+    "absolute_p50_upper_ms": 0.1,
+    "absolute_p95_upper_ms": 0.1,
+    "definition": "Elapsed device frames minus the elapsed sum of backend callback time and reported playback latency; relative to the first observed callback after one backend second. Host time and raw callback jitter are reported separately.",
+    "final_signed_ms": -0.006628,
+    "first": {
+      "backend_elapsed_ns": 1023989542,
+      "backend_epoch": 0,
+      "buffer_start_frames": 51200,
+      "callback_elapsed_ns": 1161371964,
+      "callbacks": 26,
+      "reported_latency_ns": 250291667,
+      "submitted_frames": 53248,
+      "valid_end_sample": 288000
+    },
+    "histogram_overflow_at_ms": 200,
+    "histogram_overflow_observations": 0,
+    "histogram_resolution_ms": 0.1,
+    "host_latency_adjusted_maximum_absolute_ms": 0.059148,
+    "last": {
+      "backend_elapsed_ns": 6186642003,
+      "backend_epoch": 0,
+      "buffer_start_frames": 299008,
+      "callback_elapsed_ns": 6324063475,
+      "callbacks": 147,
+      "reported_latency_ns": 250312500,
+      "submitted_frames": 301056,
+      "valid_end_sample": 288000
+    },
+    "maximum_absolute_ms": 0.020086,
+    "observations": 53,
+    "raw_callback_maximum_absolute_ms": 0.095126,
+    "settling_backend_seconds": 1
+  },
+  "elapsed_seconds": 7.166688109,
+  "failure": null,
+  "final": {
+    "callbacks": 147,
+    "clipped_monitor_samples": 0,
+    "clock_observation": {
+      "backend_elapsed_ns": 6186642003,
+      "backend_epoch": 0,
+      "buffer_start_frames": 299008,
+      "callback_elapsed_ns": 6324063475,
+      "callbacks": 147,
+      "reported_latency_ns": 250312500,
+      "submitted_frames": 301056,
+      "valid_end_sample": 288000
+    },
+    "clock_rejection": null,
+    "device": {
+      "channels": 2,
+      "name": "Default Audio Device",
+      "reported_callback_frames": 2048,
+      "requested_callback_frames": 2048,
+      "sample_format": "F32",
+      "sample_rate": 48000
+    },
+    "device_worker_pid": 1132557,
+    "end_sample": 288000,
+    "error": null,
+    "phase": "finished",
+    "position_samples": 288000,
+    "prepared_capacity_frames": 16384,
+    "prepared_frames": 0,
+    "reported_latency_ns": 250312500,
+    "route": "Stereo",
+    "start_sample": 0,
+    "version": {
+      "project_id": "742adc74-bff2-4725-aa47-ac8643b0274d",
+      "revision": 4
+    },
+    "worker_pid": 1132566
+  },
+  "kind": "sustained_native_sound",
+  "limits": [
+    "Actual native device callbacks; backend and host latency-adjusted clock estimates only. No physical speaker, display, audibility or independent-user proof.",
+    "RSS includes the lab and observed descendants, may double count shared memory, and excludes unmapped page cache and unreported driver/device allocations.",
+    "One backend second of startup is retained in raw samples and excluded from steady clock drift; 100 ms sampling does not observe every callback or memory spike. Thread schedules are sampled once per second; enabling priority support is not proof of promotion."
+  ],
+  "owned_processes_reaped": true,
+  "peak_combined_rss_kib": 144688,
+  "peak_prepared_frames": 16384,
+  "prepared_capacity_frames": 16384,
+  "processes": [
+    1132184,
+    1132557,
+    1132566
+  ],
+  "project_unchanged": true,
+  "qualified": true,
+  "receipt_bytes": 64589,
+  "receipt_limit_bytes": 134217728,
+  "sample_interval_ms": 100,
+  "sampled_callback_frames_max": 2048,
+  "sampled_callback_frames_min": 2048,
+  "samples": 66,
+  "source_unchanged": true,
+  "thread_schedule_sample_interval_ms": 1000,
+  "two_hour_run_complete": false
+}

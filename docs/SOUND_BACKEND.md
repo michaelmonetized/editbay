@@ -81,6 +81,33 @@ retire and original hashes remain unchanged. Accepted backend/host maxima are
 The actual 300 ms owned-device STOP/CONT test passes its visible-failure gate.
 This trial ran amid substantial host memory pressure and is retained as a failure.
 
-The snapshot fix, rejection receipt and full workspace checks are in progress.
+The snapshot runtime `61c09af` passes both short source runs and the 180-second
+repeated AAC pilot: backend/host drift 0.520998/0.849249 ms, peak combined RSS
+135440 KiB, exact endpoint, original hashes and complete cleanup. All 18 camera
+and six-channel streaming fault trials pass. STOP/CONT retains the actual first
+rejection (-298.509959 ms) without advancing accepted sound.
+
+Its first 7200-second attempt overlaps native device fault injection and fails
+after 47.417638 seconds, with 14336 prepared frames. The rejected clock records
+-20.883398 ms, beyond the unchanged 20 ms limit. Accepted backend/host maxima
+are 3.737521/3.422970 ms. Peak combined RSS is 145296 KiB and all children retire.
+The overlap is recorded, not asserted as causation. A fresh baseline without
+intentional device faults is currently running; it is not a passing receipt yet.
+
+Both camera and six-channel native edit/history/save/recovery/reopen/export
+workflows pass with exact independent picture/PCM comparison and five edit inputs
+each: p95 29.332/31.458 ms. Prepared-picture playback passes for both. Camera's
+full native playback regression passes with input/draw p95 25.192/30.572 ms and
+129.393 ms cancellation. The six-channel full playback driver remains incomplete:
+its first attempt captures a screenshot long enough to miss Pause, and its repeat
+waits for an earlier coalesced scrub target while frame 7 has already drawn. Both
+raw traces remain. The driver now pauses before screenshot capture and waits for
+the final scrub input's acknowledgement; native requalification remains pending.
+
+Default/all-feature workspace tests pass 231/232 plus seven doc tests. Final
+all-target/all-feature Clippy passes. A test-only formatting miss after the Copy
+cleanup is retained and corrected; see the evidence checks/provenance.txt for exact revisions.
+The full sustained, physical timing, hardware and adoption gates stay open.
+
 Physical audibility, speaker/display timing, other hardware, client approval and
 independent-user acceptance remain separate open gates.
