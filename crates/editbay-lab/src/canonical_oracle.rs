@@ -48,14 +48,13 @@ pub fn run(
             .ok_or("Source asset missing")?;
         for stream in &source.streams {
             if let StreamFormat::Audio { sample_rate, .. } = stream.format {
-                if stream.start_tick != 0
-                    || stream.time_base
-                        != (TimeBase {
-                            numerator: 1,
-                            denominator: sample_rate,
-                        })
+                if stream.time_base
+                    != (TimeBase {
+                        numerator: 1,
+                        denominator: sample_rate,
+                    })
                 {
-                    return Err("Oracle requires normalized zero-origin source sample grids".into());
+                    return Err("Oracle requires normalized source sample grids".into());
                 }
                 selected.push((source.id, asset.path.clone(), stream.clone()));
             }
@@ -96,7 +95,7 @@ pub fn run(
         let replacement = &mut imported.source.streams[0];
         if replacement.format != profile.format
             || replacement.time_base != profile.time_base
-            || replacement.start_tick != profile.start_tick
+            || replacement.start_tick != 0
             || replacement.duration_ticks < profile.duration_ticks
         {
             return Err("Independent PCM interpretation differs from captured sound".into());
@@ -111,6 +110,13 @@ pub fn run(
                             stream: profile.index,
                         })
                     {
+                        for point in &mut clip.time_map.points {
+                            point.source_tick =
+                                point
+                                    .source_tick
+                                    .checked_sub(profile.start_tick)
+                                    .ok_or("Independent source origin offset overflow")?;
+                        }
                         clip.source = ClipSource::Media {
                             source: imported.source.id,
                             stream: 0,
@@ -124,7 +130,7 @@ pub fn run(
         if hash(path)? != original_hash {
             return Err("Oracle preparation changed original media".into());
         }
-        sources.push(json!({"original":path,"original_sha256":original_hash,"original_stream":profile.index,"independent_pcm_sha256":reference_hash,"uncompressed":pcm_path,"uncompressed_sha256":hash(&pcm_path)?,"sample_bits_equal":true}));
+        sources.push(json!({"original":path,"original_sha256":original_hash,"original_stream":profile.index,"original_sample_origin":profile.start_tick,"reference_sample_origin":0,"independent_pcm_sha256":reference_hash,"uncompressed":pcm_path,"uncompressed_sha256":hash(&pcm_path)?,"sample_bits_equal":true}));
     }
     project.validate()?;
     let snapshot = Arc::new(SoundSnapshot::at_output_rate(
