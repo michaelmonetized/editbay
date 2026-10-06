@@ -2,8 +2,9 @@
 
 Issue [#43](https://github.com/michaelmonetized/editbay/issues/43), stacked after
 [PR #42](https://github.com/michaelmonetized/editbay/pull/42).
-The current frozen app/lab runtime is `ef5bc8d`; full source, lockfile and binary
-identities are in [candidate/](candidate/). See
+The current frozen app/lab runtime is `b890c16`; full source, lockfile and binary
+identities are in [final/](final/). Earlier `ef5bc8d` receipts are in
+[candidate/](candidate/). See
 [the clock and qualification contract](../../SUSTAINED_PLAYBACK.md).
 
 **The two-hour gate remains open.** These receipts qualify coherent callback
@@ -12,7 +13,39 @@ They do not qualify uninterrupted playback while the host experiences sustained
 memory stalls. No physical speaker/display drift, audibility or independent-user
 acceptance is claimed.
 
-## Current candidate
+## Final callback implementation
+
+The device route now prefers supported 48 kHz with the default channel count and
+sample format; otherwise it preserves the reported default. Candidate `0d2c9ec`
+completes a real 180-second repeated AAC run with maximum backend/host drift
+0.825966/1.072761 ms, exact endpoint and cleanup; see [rate/](rate/).
+The callback now checks continuity before consuming source sound and stops on a
+backend timing gap over 20 ms. The original callback failure survives decoder
+cancellation and stream teardown.
+
+Frozen `b890c16` passes **220 default tests + 7 doc tests**, **221 all-feature
+tests + 7 doc tests**, fmt and all-target/all-feature Clippy with warnings denied.
+A real 300 ms STOP/CONT of the owned device worker is detected as backend timing
+loss, with both workers reaped in 316.575 ms. The earlier driver candidate stops
+but reports generic cancellation instead of the original fault; that failed
+classification and the earlier Clippy failure are retained in `earlier/continuity-driver/`.
+
+Both actual native workflows pass ingest, source selection, Play/Pause, exact
+sample resume, seeks/end, failure/retry, edit cancellation, save/recovery/reopen
+and source preservation. Independently decoded saved PCM agrees exactly.
+Camera/six-channel input p95 is 21.259/21.195 ms over 40 inputs each; cached GPU
+draw p95 is 19.292/20.076 ms over 38 draws each. Active cancellation is
+122.534/122.726 ms; preparation cancellation is 122.617/127.491 ms, playing-worker
+death is 89.783/39.225 ms and stopped-picture underflow is 601.054/589.827 ms.
+Full traces and the inspected 1440×900 camera / 800×600 six-channel captures are
+in [final/regressions/](final/regressions/). At 800×600, expanded edit controls push
+the viewer below the visible area; that compact-layout issue remains open.
+
+A new actual 7200-second run on `b890c16` started at **09:19:34 UTC on 2026-10-06**.
+Its exact invocation and frozen identities are in [pending/](pending/).
+It remains pending; neither short success nor process startup closes two hours.
+
+## Earlier 2048-frame candidate
 
 | Observation | Camera | Six-channel AAC | Quiet repeated AAC |
 | --- | ---: | ---: | ---: |

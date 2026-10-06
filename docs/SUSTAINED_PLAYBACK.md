@@ -29,6 +29,13 @@ serialization and status observation stay outside it. This statement is about
 EditBay's callback; it does not certify every internal allocation in CPAL/ALSA or
 the external sound server.
 
+After one backend second, the callback compares elapsed submitted frames with
+the change in predicted backend presentation time. A difference over 20 ms
+silences the current device buffer before consuming more source sound and latches
+a visible continuity failure. The cleanup path preserves that original failure
+when codec cancellation also returns an error. A real owned-device STOP/CONT
+trial covers a recovered backend interruption, separately from source underflow.
+
 Supervised device replies retain session/version/serial checks and now reject
 missing, mixed or regressing callback observations, overlapping device intervals,
 oversized callback buffers and submissions beyond the bounded tail allowance.
@@ -41,6 +48,10 @@ is 46.4 ms. The earlier 512-frame request was 11.6 ms and encountered a backend
 reset during the first sustained candidate. Reported backend latency and actual
 callback intervals are measured separately; requested buffering is not a measured
 speaker latency. The maximum accepted callback remains the preparation capacity.
+The current route prefers supported 48 kHz output with the reported default
+channel count and sample format; otherwise it retains the default configuration.
+The shared renderer performs exact-rate conversion. Actual device rate and sample
+boundaries remain explicit in every playback status.
 
 ## Repeatable local qualification
 
@@ -90,6 +101,8 @@ the startup-epoch failure, a later 512-frame clock failure and a 2048-frame sour
 underflow during concurrent builds/native fault trials. The 2048-frame candidate
 passes six-second camera/six-channel trials, a repeated 60-second AAC run, native
 fault/retry regressions and local locked checks. Its separate baseline fails
-after 174 seconds with accumulated clock error and source underflow. A supported
-48 kHz output candidate is being tested; there is no two-hour pass. Short passes
-do not erase sustained failures or prove physical output timing.
+after 174 seconds with accumulated clock error and source underflow. Supported
+48 kHz output completes a three-minute run within 1.073 ms clock error. The final
+continuity/error-preservation runtime passes native regressions and local checks;
+its new two-hour run remains pending. Short passes do not erase sustained
+failures or prove physical output timing.
