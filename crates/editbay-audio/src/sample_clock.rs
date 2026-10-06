@@ -17,6 +17,29 @@ pub struct ClockObservation {
     pub valid_end_sample: u64,
 }
 
+#[derive(Default)]
+pub(crate) struct ClockContinuity {
+    anchor: Option<(u64, i128)>,
+}
+impl ClockContinuity {
+    /// Check elapsed submitted sound against one continuous backend epoch.
+    /// `frames`, backend ns, latency ns and `rate` come from the current callback.
+    /// Returns false for a gap over 20 ms after one second of startup. The check
+    /// uses fixed integer state and must precede consumption of new source sound.
+    pub(crate) fn observe(&mut self, frames: u64, backend: u64, latency: u64, rate: u32) -> bool {
+        if backend < 1_000_000_000 {
+            return true;
+        }
+        let presentation = i128::from(backend) + i128::from(latency);
+        let (first, began) = *self.anchor.get_or_insert((frames, presentation));
+        let Some(elapsed) = frames.checked_sub(first) else {
+            return false;
+        };
+        let sample_ns = i128::from(elapsed) * 1_000_000_000 / i128::from(rate);
+        (sample_ns - (presentation - began)).abs() <= 20_000_000
+    }
+}
+
 pub(crate) struct SampleClock {
     rate: u32,
     first: u64,
@@ -159,6 +182,16 @@ impl SampleClock {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn backend_continuity_accepts_queue_variation_but_rejects_missing_time() {
+        let mut clock = ClockContinuity::default();
+        assert!(clock.observe(0, 0, 30000000, 48000));
+        assert!(clock.observe(48000, 1000000000, 30000000, 48000));
+        assert!(clock.observe(48480, 1012000000, 28000000, 48000));
+        assert!(clock.observe(48960, 1020000000, 30000000, 48000));
+        assert!(!clock.observe(49440, 1060000000, 30000000, 48000));
+    }
 
     #[test]
     fn partial_tail_finishes_when_latency_spans_multiple_buffers() {

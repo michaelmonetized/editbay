@@ -1,7 +1,7 @@
 use crate::{
     ClockObservation, DeviceProfile, MonitorRoute, SoundRenderBudget, SoundRenderer,
     monitor::MonitorMatrix,
-    sample_clock::SampleClock,
+    sample_clock::{ClockContinuity, SampleClock},
     transport::{self, Control, Reader, State, Writer},
 };
 use cpal::{
@@ -432,6 +432,7 @@ fn run(request: &Request, sender: &SyncSender<Event>) -> Result<()> {
         backend_origin: None,
         backend_previous: None,
         backend_epoch: 0,
+        continuity: ClockContinuity::default(),
         end,
     };
     let mut config: cpal::StreamConfig = supported.clone().into();
@@ -502,6 +503,7 @@ struct Callback {
     backend_origin: Option<cpal::StreamInstant>,
     backend_previous: Option<cpal::StreamInstant>,
     backend_epoch: u64,
+    continuity: ClockContinuity,
     end: u64,
 }
 
@@ -511,6 +513,7 @@ fn build<T: SizedSample + FromSample<f32>>(
     mut callback: Callback,
 ) -> Result<cpal::Stream> {
     let channels = usize::from(config.channels);
+    let rate = config.sample_rate.0;
     let error_control = callback.control.clone();
     let error_cancel = callback.cancel.clone();
     device
@@ -520,16 +523,6 @@ fn build<T: SizedSample + FromSample<f32>>(
                 if callback.cancel.is_cancelled() {
                     callback.control.stop(State::Cancelled);
                 }
-                let delivered = callback.reader.consume(output, T::from_sample);
-                let state = callback.control.state();
-                let limit = if matches!(state, State::Running | State::Ended) {
-                    callback.end
-                } else {
-                    delivered.first + delivered.frames
-                };
-                let submitted = callback
-                    .cursor
-                    .saturating_add((output.len() / channels) as u64);
                 let timestamp = info.timestamp();
                 let callback_ns = elapsed_ns(callback.origin);
                 if callback
@@ -539,6 +532,7 @@ fn build<T: SizedSample + FromSample<f32>>(
                     if callback.backend_epoch != 0 || callback_ns >= 1_000_000_000 {
                         callback.control.stop(State::BackendClockReset);
                         callback.cancel.cancel();
+                        output.fill(T::from_sample(0.));
                         return;
                     }
                     callback.backend_epoch = 1;
@@ -550,20 +544,38 @@ fn build<T: SizedSample + FromSample<f32>>(
                 else {
                     callback.control.stop(State::InvalidOutput);
                     callback.cancel.cancel();
+                    output.fill(T::from_sample(0.));
                     return;
                 };
                 let latency = timestamp
                     .playback
                     .duration_since(&timestamp.callback)
                     .map_or(0, |v| v.as_nanos().min(u128::from(u64::MAX)) as u64);
+                let backend_ns = backend_elapsed.as_nanos().min(u128::from(u64::MAX)) as u64;
+                if !callback
+                    .continuity
+                    .observe(callback.cursor, backend_ns, latency, rate)
+                {
+                    callback.control.stop(State::BackendDiscontinuity);
+                    callback.cancel.cancel();
+                    output.fill(T::from_sample(0.));
+                    return;
+                }
+                let delivered = callback.reader.consume(output, T::from_sample);
+                let state = callback.control.state();
+                let limit = if matches!(state, State::Running | State::Ended) {
+                    callback.end
+                } else {
+                    delivered.first + delivered.frames
+                };
+                let submitted = callback
+                    .cursor
+                    .saturating_add((output.len() / channels) as u64);
                 if !callback.clock.record(
                     callback.cursor,
                     submitted,
                     callback_ns,
-                    (
-                        callback.backend_epoch,
-                        backend_elapsed.as_nanos().min(u128::from(u64::MAX)) as u64,
-                    ),
+                    (callback.backend_epoch, backend_ns),
                     latency,
                     limit,
                 ) {
@@ -661,6 +673,9 @@ fn fault(state: State) -> Option<&'static str> {
         State::BackendClockReset => {
             Some("Sound backend timestamp reset after playback started; retry playback")
         }
+        State::BackendDiscontinuity => Some(
+            "Sound backend timing lost continuity; playback stopped without skipping source samples",
+        ),
         State::Underrun => Some(
             "Sound preparation fell behind the device; playback stopped without skipping source samples",
         ),

@@ -13,6 +13,7 @@ pub(crate) enum State {
     Underrun,
     InvalidOutput,
     BackendClockReset,
+    BackendDiscontinuity,
 }
 
 struct Shared {
@@ -76,6 +77,7 @@ impl Control {
             4 => State::DeviceFailed,
             5 => State::Underrun,
             7 => State::BackendClockReset,
+            8 => State::BackendDiscontinuity,
             _ => State::InvalidOutput,
         }
     }
@@ -89,8 +91,10 @@ impl Control {
                 self.0
                     .state
                     .compare_exchange(0, state as u8, Ordering::AcqRel, Ordering::Acquire);
-            if matches!(state, State::DeviceFailed | State::BackendClockReset)
-                && previous == Err(State::Ended as u8)
+            if matches!(
+                state,
+                State::DeviceFailed | State::BackendClockReset | State::BackendDiscontinuity
+            ) && previous == Err(State::Ended as u8)
             {
                 let _ = self.0.state.compare_exchange(
                     State::Ended as u8,

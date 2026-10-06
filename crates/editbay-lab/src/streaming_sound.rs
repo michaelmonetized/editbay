@@ -22,10 +22,11 @@ pub fn run(path: &Path, mode: &str) -> Result<Value> {
         "stall-device",
         "cancel-stalled-device",
         "prepare-cancel",
+        "resume-device",
     ]
     .contains(&mode)
     {
-        return Err("Choose full, cancel, kill, underrun, kill-device, stall-device, cancel-stalled-device or prepare-cancel".into());
+        return Err("Choose full, cancel, kill, underrun, kill-device, stall-device, cancel-stalled-device, prepare-cancel or resume-device".into());
     }
     rustix::process::set_child_subreaper(Some(rustix::process::Pid::INIT))?;
     let cancel = Cancellation::new()?;
@@ -84,6 +85,7 @@ pub fn run(path: &Path, mode: &str) -> Result<Value> {
     )?;
     let began = Instant::now();
     let mut requested = None;
+    let mut resumed = false;
     let mut pid = None;
     let mut device_pid = None;
     let mut samples = Vec::new();
@@ -110,6 +112,10 @@ pub fn run(path: &Path, mode: &str) -> Result<Value> {
         if mode != "full"
             && requested.is_none()
             && (status.callbacks >= 10 || (mode == "prepare-cancel" && device_pid.is_some()))
+            && (mode != "resume-device"
+                || status
+                    .clock_observation
+                    .is_some_and(|clock| clock.backend_elapsed_ns >= 1_200_000_000))
         {
             requested = Some(Instant::now());
             if matches!(mode, "cancel" | "prepare-cancel") {
@@ -137,6 +143,22 @@ pub fn run(path: &Path, mode: &str) -> Result<Value> {
                     playback.stop();
                 }
             }
+        }
+        if mode == "resume-device"
+            && !resumed
+            && requested.is_some_and(|began| began.elapsed() >= Duration::from_millis(300))
+        {
+            if !Command::new("kill")
+                .args([
+                    "-CONT",
+                    &device_pid.ok_or("Missing paused device")?.to_string(),
+                ])
+                .status()?
+                .success()
+            {
+                return Err("Could not resume the owned device worker".into());
+            }
+            resumed = true;
         }
         if playback.is_finished() {
             playback.reap();
@@ -183,6 +205,12 @@ pub fn run(path: &Path, mode: &str) -> Result<Value> {
         && reaped
         && device_reaped
         && (mode != "full" || final_status.position_samples == final_status.end_sample)
+        && (mode != "resume-device"
+            || (resumed
+                && final_status.error.as_ref().is_some_and(|error| {
+                    error.contains("backend timestamp reset")
+                        || error.contains("backend timing lost continuity")
+                })))
         && (mode != "underrun"
             || final_status
                 .error
@@ -190,7 +218,7 @@ pub fn run(path: &Path, mode: &str) -> Result<Value> {
                 .is_some_and(|e| e.contains("fell behind")));
     let receipt = json!({"kind":"native_streaming_sound","source":path.canonicalize()?,"source_fingerprint":owned.fingerprint(),"mode":mode,
         "application_sha256":crate::hash(&std::env::current_exe()?)?,"elapsed_seconds":began.elapsed().as_secs_f64(),"retirement_ms":retirement_ms,
-        "final":final_status,"samples":samples,"worker_reaped":reaped,"device_worker_reaped":device_reaped,"adopted_pcm_reaped":adopted,"source_unchanged":true,"memory":memory()?,"qualified":qualified,
+        "final":final_status,"samples":samples,"resumed_after_stall":resumed,"worker_reaped":reaped,"device_worker_reaped":device_reaped,"adopted_pcm_reaped":adopted,"source_unchanged":true,"memory":memory()?,"qualified":qualified,
         "limits":["Actual default output device callbacks and backend latency estimate; no physical audibility or speaker timing claim",
             "Lab-authored graph; native window controls and long hardware drift require separate evidence"]});
     if !qualified {
