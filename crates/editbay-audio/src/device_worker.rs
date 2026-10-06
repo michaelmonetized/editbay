@@ -318,6 +318,12 @@ fn valid_device(device: &DeviceProfile) -> bool {
         && (8000..=384000).contains(&device.sample_rate)
         && (1..=2).contains(&device.channels)
         && ["F32", "F64", "I16", "I32", "U16"].contains(&device.sample_format.as_str())
+        && device
+            .requested_callback_frames
+            .is_none_or(|frames| (1..=CAPACITY).contains(&frames))
+        && device
+            .reported_callback_frames
+            .is_none_or(|frames| (1..=CAPACITY).contains(&frames))
 }
 
 fn validate(
@@ -524,6 +530,8 @@ mod tests {
             sample_rate: 48000,
             channels: 2,
             sample_format: "F32".into(),
+            requested_callback_frames: Some(2048),
+            reported_callback_frames: Some(2048),
         });
         status.worker_pid = Some(123);
         status.start_sample = Some(2002);
@@ -610,6 +618,8 @@ mod tests {
             ("/status/start_sample", json!(2001)),
             ("/status/end_sample", json!(48049)),
             ("/status/device/channels", json!(6)),
+            ("/status/device/requested_callback_frames", json!(0)),
+            ("/status/device/reported_callback_frames", json!(16385)),
             ("/status/device/sample_rate", json!(0)),
             ("/status/device/sample_format", json!("invalid")),
             ("/status/device/name", json!("Changed device")),

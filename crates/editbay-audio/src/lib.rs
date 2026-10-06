@@ -34,6 +34,8 @@ pub struct DeviceProfile {
     pub sample_rate: u32,
     pub channels: u16,
     pub sample_format: String,
+    pub requested_callback_frames: Option<u32>,
+    pub reported_callback_frames: Option<u32>,
 }
 
 #[derive(Default)]
@@ -107,11 +109,13 @@ impl Playback {
             .default_output_device()
             .ok_or("no output device")?;
         let config = device.default_output_config()?;
-        let profile = DeviceProfile {
-            name: device.name()?,
-            sample_rate: config.sample_rate().0,
+        let mut profile = DeviceProfile {
+            name: device.description()?.name().into(),
+            sample_rate: config.sample_rate(),
             channels: config.channels(),
             sample_format: format!("{:?}", config.sample_format()),
+            requested_callback_frames: None,
+            reported_callback_frames: None,
         };
         let clock = Arc::new(Clock::default());
         let origin = Instant::now();
@@ -135,6 +139,7 @@ impl Playback {
             }
             other => Err(format!("unsupported output sample format {other:?}").into()),
         }?;
+        profile.reported_callback_frames = stream.buffer_size().ok();
         stream.play()?;
         Ok(Self {
             stream,
@@ -181,18 +186,18 @@ fn build<T: SizedSample + FromSample<f32>>(
     origin: Instant,
 ) -> Result<cpal::Stream> {
     let channels = usize::from(config.channels);
-    let rate = u64::from(config.sample_rate.0);
+    let rate = u64::from(config.sample_rate);
     let mut cursor = 0u64;
     let error_clock = clock.clone();
     Ok(device.build_output_stream(
-        config,
+        *config,
         move |output: &mut [T], info| {
             let start = cursor;
             let callback_ns = origin.elapsed().as_nanos() as u64;
             let timestamp = info.timestamp();
             let latency_ns = timestamp
                 .playback
-                .duration_since(&timestamp.callback)
+                .checked_duration_since(timestamp.callback)
                 .map_or(0, |delay| delay.as_nanos() as u64);
             for frame in output.chunks_mut(channels) {
                 let position = cursor * 48_000;
