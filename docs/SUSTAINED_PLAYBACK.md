@@ -104,5 +104,8 @@ fault/retry regressions and local locked checks. Its separate baseline fails
 after 174 seconds with accumulated clock error and source underflow. Supported
 48 kHz output completes a three-minute run within 1.073 ms clock error. The final
 continuity/error-preservation runtime passes native regressions and local checks;
-its new two-hour run remains pending. Short passes do not erase sustained
+its actual two-hour attempt fails after 1100.104 seconds with explicit backend
+timing discontinuity, queued source sound and complete child retirement. Observed
+backend/host maxima are 19.030482/25.783440 ms; the rejected callback is not
+published as an accepted clock observation. Short passes do not erase sustained
 failures or prove physical output timing.

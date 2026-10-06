@@ -41,9 +41,18 @@ Full traces and the inspected 1440×900 camera / 800×600 six-channel captures a
 in [final/regressions/](final/regressions/). At 800×600, expanded edit controls push
 the viewer below the visible area; that compact-layout issue remains open.
 
-A new actual 7200-second run on `b890c16` started at **09:19:34 UTC on 2026-10-06**.
-Its exact invocation and frozen identities are in [pending/](pending/).
-It remains pending; neither short success nor process startup closes two hours.
+The actual 7200-second run on `b890c16` started at **09:19:34 UTC on 2026-10-06**
+and **fails after 1100.104 seconds** with visible backend timing discontinuity.
+Its exact invocation, completed receipt and full periodic observations are in
+[final/sustained/](final/sustained/). Maximum observed backend/host drift is
+19.030482/25.783440 ms; the callback rejects the next discontinuous observation
+before consuming more sound, so the 100 ms trace does not include that rejected
+callback as an accepted clock receipt. Source preparation still contains 13824
+frames at failure. Sampled combined RSS peaks at 148192 KiB, all owned children
+reap, and source/project hashes remain unchanged. Host memory-stall counters rise
+near failure while local builds run; that correlation does not establish the
+precise cause. Both `qualified` and `two_hour_run_complete` are false. This remains
+a failed sustained qualification, not a two-hour result or a source-underflow pass.
 
 ## Earlier 2048-frame candidate
 
