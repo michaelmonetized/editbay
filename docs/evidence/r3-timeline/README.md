@@ -1,6 +1,7 @@
 # Linked timeline qualification
 
-Issue [#29](https://github.com/michaelmonetized/editbay/issues/29), stacked on
+Issue [#29](https://github.com/michaelmonetized/editbay/issues/29) is implemented in
+[PR #31](https://github.com/michaelmonetized/editbay/pull/31), stacked on
 shared delivery [PR #28](https://github.com/michaelmonetized/editbay/pull/28).
 Runtime source: `0978a6f`. The compiled-input manifest, frozen binary hashes,
 build log and machine receipt identify the exact local build. Final trials ran
