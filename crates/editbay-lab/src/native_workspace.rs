@@ -1991,7 +1991,9 @@ fn flea_state(pid: &str) -> Result<Value> {
     )?)?)
 }
 
+#[track_caller]
 fn flea_wait(pid: &str, predicate: impl Fn(&Value) -> bool) -> Result<Value> {
+    let caller = std::panic::Location::caller();
     let deadline = Instant::now() + Duration::from_secs(5);
     loop {
         let state = flea_state(pid)?;
@@ -1999,7 +2001,11 @@ fn flea_wait(pid: &str, predicate: impl Fn(&Value) -> bool) -> Result<Value> {
             return Ok(state);
         }
         if Instant::now() >= deadline {
-            return Err("Owned Flea picker did not acknowledge native input".into());
+            let observed = json!({"path":state["path"],"state":state["state"],"cursor":state["cursor"],"held":state["held"],"listFocus":state["listFocus"],"railFocus":state["railFocus"],"backendUnavailable":state["backendUnavailable"],"message":state["message"]});
+            return Err(format!(
+                "Owned Flea picker did not acknowledge native input at {caller}: {observed}"
+            )
+            .into());
         }
         thread::sleep(Duration::from_millis(20));
     }
@@ -2016,6 +2022,14 @@ fn flea_point(pid: &str, point: &str) -> Result<()> {
     let pid = pid.parse::<u64>()?;
     let native =
         window(|window| window["pid"] == pid && window["class"] == "com.thisisgm.flea.picker")?;
+    let address = native["address"]
+        .as_str()
+        .ok_or("Missing Flea window identity")?;
+    if !address.starts_with("0x") || !address[2..].bytes().all(|byte| byte.is_ascii_hexdigit()) {
+        return Err("Invalid owned Flea window identity".into());
+    }
+    dispatch(&format!("hl.dsp.focus({{window=\"address:{address}\"}})"))?;
+    focused(pid)?;
     click(
         native["at"][0].as_i64().ok_or("Missing Flea x")? + point[0],
         native["at"][1].as_i64().ok_or("Missing Flea y")? + point[1],
@@ -2042,6 +2056,7 @@ fn flea_entry(pid: &str, name: &str) -> Result<()> {
             ],
         )?;
         flea_point(pid, point.trim())?;
+        flea_wait(pid, |state| state["listFocus"] == true)?;
     }
     key(102, false, false)?;
     state = flea_wait(pid, |state| state["cursor"] == 0 && state["held"] == 0)?;
