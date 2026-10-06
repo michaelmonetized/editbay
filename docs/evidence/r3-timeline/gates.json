@@ -1,0 +1,64 @@
+{
+  "qualified": true,
+  "native_input_ms": {
+    "camera": {
+      "count": 5,
+      "max_ms": 24.354,
+      "p50_ms": 20.54,
+      "p95_ms": 24.354
+    },
+    "six_channel": {
+      "count": 5,
+      "max_ms": 22.383,
+      "p50_ms": 20.525,
+      "p95_ms": 22.383
+    }
+  },
+  "saved_recovered": {
+    "camera": true,
+    "six_channel": true
+  },
+  "profiles": {
+    "camera": {
+      "channels": [
+        "FC"
+      ],
+      "frame_rate": {
+        "denominator": 1,
+        "numerator": 24
+      },
+      "frames": 35,
+      "height": 720,
+      "sample_rate": 48000,
+      "width": 1280
+    },
+    "six_channel": {
+      "channels": [
+        "FL",
+        "FR",
+        "FC",
+        "LFE",
+        "BL",
+        "BR"
+      ],
+      "frame_rate": {
+        "denominator": 1001,
+        "numerator": 24000
+      },
+      "frames": 35,
+      "height": 180,
+      "sample_rate": 48000,
+      "width": 320
+    }
+  },
+  "cli_stale_rejections": 6,
+  "checks": {
+    "default_tests": 179,
+    "all_feature_tests": 180,
+    "doc_tests_each": 7,
+    "failed": 0,
+    "ignored": 0,
+    "fmt": true,
+    "all_feature_clippy": true
+  }
+}

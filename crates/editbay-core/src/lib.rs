@@ -12,6 +12,7 @@ mod prepared;
 mod sound;
 mod storage;
 mod time;
+mod timeline;
 
 pub use command::{
     ChangeImpact, CommandGroup, CommandReceipt, DocumentCommand, DocumentEditor, DocumentVersion,
@@ -34,6 +35,9 @@ pub use storage::{
     save_if_unchanged, save_new,
 };
 pub use time::{SourcePosition, TimeBase, TimeMap, TimePoint};
+pub use timeline::{
+    SourceSelection, TimelineAction, TimelineChange, TimelineClip, timeline_clips, timeline_edit,
+};
 
 #[derive(Debug, thiserror::Error)]
 pub enum Error {

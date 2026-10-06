@@ -2,10 +2,23 @@
 
 Validated locally on 2026-10-05, Linux ARM64, Rust/Cargo 1.98.0.
 This is the native local workspace, project/recovery foundation and native
-engine/inference feasibility tools. The local R1 workspace gates pass; timeline
-authoring and complete-job release gates remain open.
+engine/inference feasibility tools. The local R1 workspace gates pass; complete
+editorial and complete-job release gates remain open.
 
 ## Implemented
+
+- Linked timeline commands and native source/record editing controls: create,
+  append/insert, split, source trim, move and ripple removal retain exact nested
+  picture/sound time and reciprocal identities. Rust planning runs off-thread;
+  stale/foreign sessions cannot commit. Each edit is one ordinary undo group.
+  The CLI requires an expected version and preserves a concurrently changed file.
+  This is the first EB-030/031 layer with matching profiles and one linked track
+  pair; see [timeline authoring](TIMELINE_AUTHORING.md). Full R3 remains open.
+  [Final timeline evidence](evidence/r3-timeline/README.md) covers real native
+  camera/six-channel edits, keyboard marks/edits, undo/redo, playback, recovery,
+  export and correct recovered-cut viewing at both window sizes. Ten edit inputs
+  have p95 <=24.354 ms. Forward and reversed cut order match independent RGBA/PCM
+  slices exactly; saved/recovered masters share whole-file hashes.
 
 - Shared full-sequence delivery through `editbay-delivery`: the same picture and
   sound graph produces a declared PNG RGBA8/float-PCM MOV with exact clocks,

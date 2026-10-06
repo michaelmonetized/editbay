@@ -1,0 +1,377 @@
+{
+  "cli_sha256": "e2d0f7c3c9f12db82fe584aae0365f877ad78cba4fd4b1f8258d7adf44d58625",
+  "comparison": {
+    "channels": [
+      "FL",
+      "FR",
+      "FC",
+      "LFE",
+      "BL",
+      "BR"
+    ],
+    "composition": "6b22c064-7dc5-49a7-8915-ec880d136143",
+    "frames": 35,
+    "kind": "independent_timeline_slices",
+    "output_sha256": "c61f70f167548604a4b34b676a2b4a3e8635713771dbecf1508c766b7c477073",
+    "qualified": true,
+    "reference_sha256": "508d0b6a675b3b2efbfa6afe13e6b7ec1549052e68b040e4e6849f141ca09517",
+    "sample_rate": 48000,
+    "samples_per_frame": 2002,
+    "source": "8692a2b3-18c2-4d6b-ac7c-b5e2b5f36983",
+    "streams": [
+      {
+        "boundaries": [
+          {
+            "bytes": 5299200,
+            "record": {
+              "end": 23,
+              "start": 0
+            },
+            "sha256": "490c80f85526f0dbe31ee18ecbfbe4b451a4904fbbdb6c8ed787c0636f004139",
+            "source": {
+              "end": 65,
+              "start": 42
+            }
+          },
+          {
+            "bytes": 2764800,
+            "record": {
+              "end": 35,
+              "start": 23
+            },
+            "sha256": "007b323ea5bb85c30b757d04ca21dd6d3ebd57eb7c6a297e7d6d390fe58d2b0c",
+            "source": {
+              "end": 28,
+              "start": 16
+            }
+          }
+        ],
+        "bytes": 8064000,
+        "exact": true,
+        "expected_sha256": "e45d9e7f75bd6f127b4620a1a7d0f4ac50e67e11df450388c449630d320627f8",
+        "kind": "picture",
+        "sha256": "e45d9e7f75bd6f127b4620a1a7d0f4ac50e67e11df450388c449630d320627f8"
+      },
+      {
+        "boundaries": [
+          {
+            "bytes": 1105104,
+            "record": {
+              "end": 23,
+              "start": 0
+            },
+            "sha256": "dd47baac66c3584cdca3170db7ea9fda6d325a6a71de3a0f1aefec1dd863acbb",
+            "source": {
+              "end": 65,
+              "start": 42
+            }
+          },
+          {
+            "bytes": 576576,
+            "record": {
+              "end": 35,
+              "start": 23
+            },
+            "sha256": "d3452cdf216172e36d85dbc68998852322c9f6563b0a6d30fd64cfff7db08274",
+            "source": {
+              "end": 28,
+              "start": 16
+            }
+          }
+        ],
+        "bytes": 1681680,
+        "exact": true,
+        "expected_sha256": "59169397da6f79f3bc3dfb9f3c7de639dd130b85d7a68328da84867bc4105102",
+        "kind": "sound",
+        "sha256": "59169397da6f79f3bc3dfb9f3c7de639dd130b85d7a68328da84867bc4105102"
+      }
+    ]
+  },
+  "delivery": {
+    "binary_sha256": "f6daeb8efb4164187e793e8d8af4970232f757a51c6df3771c3bbcf77fd0d110",
+    "collision_preserved": true,
+    "destination": "artifacts/timeline/qualified-reorder-six/Reordered.mov",
+    "elapsed_ms": 581.754446,
+    "error": null,
+    "independent": {
+      "metadata": {
+        "format": {
+          "bit_rate": "10910102",
+          "duration": "1.459792",
+          "filename": "artifacts/timeline/qualified-reorder-six/Reordered.mov",
+          "format_long_name": "QuickTime / MOV",
+          "format_name": "mov,mp4,m4a,3gp,3g2,mj2",
+          "nb_programs": 0,
+          "nb_stream_groups": 0,
+          "nb_streams": 2,
+          "probe_score": 100,
+          "size": "1990810",
+          "start_time": "0.000000",
+          "tags": {
+            "compatible_brands": "qt  ",
+            "encoder": "Lavf63.1.101",
+            "major_brand": "qt  ",
+            "minor_version": "512"
+          }
+        },
+        "streams": [
+          {
+            "avg_frame_rate": "24000/1001",
+            "bit_rate": "1684886",
+            "codec_long_name": "PNG (Portable Network Graphics) image",
+            "codec_name": "png",
+            "codec_tag": "0x20676e70",
+            "codec_tag_string": "png ",
+            "codec_type": "video",
+            "coded_height": 180,
+            "coded_width": 320,
+            "color_primaries": "bt709",
+            "color_range": "pc",
+            "color_space": "gbr",
+            "color_transfer": "iec61966-2-1",
+            "disposition": {
+              "attached_pic": 0,
+              "captions": 0,
+              "clean_effects": 0,
+              "comment": 0,
+              "default": 1,
+              "dependent": 0,
+              "descriptions": 0,
+              "dub": 0,
+              "forced": 0,
+              "hearing_impaired": 0,
+              "karaoke": 0,
+              "lyrics": 0,
+              "metadata": 0,
+              "multilayer": 0,
+              "non_diegetic": 0,
+              "original": 0,
+              "still_image": 0,
+              "timed_thumbnails": 0,
+              "visual_impaired": 0
+            },
+            "duration": "1.459792",
+            "duration_ts": 35035,
+            "has_b_frames": 0,
+            "height": 180,
+            "id": "0x1",
+            "index": 0,
+            "level": -99,
+            "nb_frames": "35",
+            "pix_fmt": "rgba",
+            "r_frame_rate": "24000/1001",
+            "start_pts": 0,
+            "start_time": "0.000000",
+            "tags": {
+              "handler_name": "VideoHandler",
+              "vendor_id": "FFMP"
+            },
+            "time_base": "1/24000",
+            "width": 320
+          },
+          {
+            "avg_frame_rate": "0/0",
+            "bit_rate": "9216000",
+            "bits_per_sample": 32,
+            "channel_layout": "5.1",
+            "channels": 6,
+            "codec_long_name": "PCM 32-bit floating point little-endian",
+            "codec_name": "pcm_f32le",
+            "codec_tag": "0x6d63706c",
+            "codec_tag_string": "lpcm",
+            "codec_type": "audio",
+            "disposition": {
+              "attached_pic": 0,
+              "captions": 0,
+              "clean_effects": 0,
+              "comment": 0,
+              "default": 1,
+              "dependent": 0,
+              "descriptions": 0,
+              "dub": 0,
+              "forced": 0,
+              "hearing_impaired": 0,
+              "karaoke": 0,
+              "lyrics": 0,
+              "metadata": 0,
+              "multilayer": 0,
+              "non_diegetic": 0,
+              "original": 0,
+              "still_image": 0,
+              "timed_thumbnails": 0,
+              "visual_impaired": 0
+            },
+            "duration": "1.459792",
+            "duration_ts": 70070,
+            "id": "0x2",
+            "index": 1,
+            "initial_padding": 0,
+            "nb_frames": "70070",
+            "r_frame_rate": "0/0",
+            "sample_fmt": "flt",
+            "sample_rate": "48000",
+            "start_pts": 0,
+            "start_time": "0.000000",
+            "tags": {
+              "handler_name": "SoundHandler",
+              "vendor_id": "[0][0][0][0]"
+            },
+            "time_base": "1/48000"
+          }
+        ]
+      },
+      "streams": [
+        {
+          "bytes": 8064000,
+          "exact": true,
+          "kind": "picture",
+          "sha256": "e45d9e7f75bd6f127b4620a1a7d0f4ac50e67e11df450388c449630d320627f8",
+          "transparent_last_picture_pixels": 0
+        },
+        {
+          "bytes": 1681680,
+          "exact": true,
+          "kind": "sound",
+          "sha256": "59169397da6f79f3bc3dfb9f3c7de639dd130b85d7a68328da84867bc4105102",
+          "transparent_last_picture_pixels": null
+        }
+      ]
+    },
+    "kind": "shared_delivery_qualification",
+    "memory": [
+      "VmHWM:\t   31760 kB",
+      "VmRSS:\t   31760 kB"
+    ],
+    "mode": "full",
+    "published": true,
+    "qualified": true,
+    "receipt": {
+      "adapter": "AdapterInfo { name: \"Apple M1 Pro (G13S C0)\", vendor: 65541, device: 0, device_type: IntegratedGpu, device_pci_bus_id: \"\", driver: \"Honeykrisp\", driver_info: \"Mesa 26.2.3-arch1.1\", backend: Vulkan, subgroup_min_size: 32, subgroup_max_size: 32, transient_saves_memory: Some(false), limit_bucket: None }",
+      "clipped_picture_values": 0,
+      "file_bytes": 1990810,
+      "file_sha256": "c61f70f167548604a4b34b676a2b4a3e8635713771dbecf1508c766b7c477073",
+      "pcm_sha256": "59169397da6f79f3bc3dfb9f3c7de639dd130b85d7a68328da84867bc4105102",
+      "pixel_sha256": "e45d9e7f75bd6f127b4620a1a7d0f4ac50e67e11df450388c449630d320627f8",
+      "profile": {
+        "channels": [
+          "FL",
+          "FR",
+          "FC",
+          "LFE",
+          "BL",
+          "BR"
+        ],
+        "frame_rate": {
+          "denominator": 1001,
+          "numerator": 24000
+        },
+        "frames": 35,
+        "height": 180,
+        "sample_rate": 48000,
+        "width": 320
+      },
+      "version": {
+        "project_id": "4f509bef-6fd0-4773-ae1d-2191d9bcb1d4",
+        "revision": 13
+      }
+    },
+    "retirement_ms": null,
+    "schema": 1,
+    "worker_high_water_kib": 116464,
+    "worker_reaped": true
+  },
+  "kind": "cli_timeline_reorder",
+  "original_project_sha256": "3b1541c0c580bde0bd240621abd43fa57c823ecf535c79fa3c84b72ac1536ae0",
+  "original_unchanged": true,
+  "qualified": true,
+  "receipts": [
+    {
+      "applied": {
+        "clip": "7bc89325-df17-4af2-9214-f3f1a5577ef8",
+        "composition": "6b22c064-7dc5-49a7-8915-ec880d136143",
+        "receipt": {
+          "after": {
+            "project_id": "4f509bef-6fd0-4773-ae1d-2191d9bcb1d4",
+            "revision": 11
+          },
+          "before": {
+            "project_id": "4f509bef-6fd0-4773-ae1d-2191d9bcb1d4",
+            "revision": 10
+          },
+          "changed": true,
+          "impact": {
+            "color_changed": false,
+            "compositions": [
+              "6b22c064-7dc5-49a7-8915-ec880d136143"
+            ],
+            "entities": [
+              "6b22c064-7dc5-49a7-8915-ec880d136143"
+            ]
+          }
+        },
+        "saved": true
+      },
+      "saved_sha256": "478da20895dc230298c218893d2b5397094dc23ef502ee1bff3469eb2744e6c5",
+      "stale_rejected": true
+    },
+    {
+      "applied": {
+        "clip": "80b3d9d3-31da-4e14-8d0f-ae4f43331266",
+        "composition": "6b22c064-7dc5-49a7-8915-ec880d136143",
+        "receipt": {
+          "after": {
+            "project_id": "4f509bef-6fd0-4773-ae1d-2191d9bcb1d4",
+            "revision": 12
+          },
+          "before": {
+            "project_id": "4f509bef-6fd0-4773-ae1d-2191d9bcb1d4",
+            "revision": 11
+          },
+          "changed": true,
+          "impact": {
+            "color_changed": false,
+            "compositions": [
+              "6b22c064-7dc5-49a7-8915-ec880d136143"
+            ],
+            "entities": [
+              "6b22c064-7dc5-49a7-8915-ec880d136143"
+            ]
+          }
+        },
+        "saved": true
+      },
+      "saved_sha256": "176174488bfc15c7ea62a14c60bccd49a8e4f8884b1a2f24afce3c0277d49944",
+      "stale_rejected": true
+    },
+    {
+      "applied": {
+        "clip": "7bc89325-df17-4af2-9214-f3f1a5577ef8",
+        "composition": "6b22c064-7dc5-49a7-8915-ec880d136143",
+        "receipt": {
+          "after": {
+            "project_id": "4f509bef-6fd0-4773-ae1d-2191d9bcb1d4",
+            "revision": 13
+          },
+          "before": {
+            "project_id": "4f509bef-6fd0-4773-ae1d-2191d9bcb1d4",
+            "revision": 12
+          },
+          "changed": true,
+          "impact": {
+            "color_changed": false,
+            "compositions": [
+              "6b22c064-7dc5-49a7-8915-ec880d136143"
+            ],
+            "entities": [
+              "6b22c064-7dc5-49a7-8915-ec880d136143"
+            ]
+          }
+        },
+        "saved": true
+      },
+      "saved_sha256": "1b0da35dd7591221a79291bfcaf750bf73cb7c5cc2fe827399773363e75225c2",
+      "stale_rejected": true
+    }
+  ],
+  "raw_trace": "reorder-six.json.gz"
+}

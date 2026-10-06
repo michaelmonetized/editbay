@@ -1,0 +1,542 @@
+   Compiling editbay-core v0.1.0 (/home/michael/Projects/editbay/artifacts/worktrees/r2-sound-worker/crates/editbay-core)
+   Compiling editbay-media v0.1.0 (/home/michael/Projects/editbay/artifacts/worktrees/r2-sound-worker/crates/editbay-media)
+   Compiling editbay-render v0.1.0 (/home/michael/Projects/editbay/artifacts/worktrees/r2-sound-worker/crates/editbay-render)
+   Compiling editbay-audio v0.1.0 (/home/michael/Projects/editbay/artifacts/worktrees/r2-sound-worker/crates/editbay-audio)
+   Compiling editbay-automation v0.1.0 (/home/michael/Projects/editbay/artifacts/worktrees/r2-sound-worker/crates/editbay-automation)
+   Compiling editbay-delivery v0.1.0 (/home/michael/Projects/editbay/artifacts/worktrees/r2-sound-worker/crates/editbay-delivery)
+   Compiling editbay-app v0.1.0 (/home/michael/Projects/editbay/artifacts/worktrees/r2-sound-worker/crates/editbay-app)
+   Compiling editbay-cli v0.1.0 (/home/michael/Projects/editbay/artifacts/worktrees/r2-sound-worker/crates/editbay-cli)
+   Compiling editbay-lab v0.1.0 (/home/michael/Projects/editbay/artifacts/worktrees/r2-sound-worker/crates/editbay-lab)
+    Finished `test` profile [unoptimized] target(s) in 35.62s
+     Running unittests src/lib.rs (/home/michael/Projects/editbay/artifacts/worktrees/r2-sound-engine/target/native-build/debug/deps/editbay_ai-3e17ef70c8a478dd)
+
+running 4 tests
+test sam2::tests::source_coordinate_resampling_preserves_constants_and_pixel_centers ... ok
+test sam2::tests::forged_memory_nonfinite_prompts_and_wrong_source_geometry_are_rejected ... ok
+test runtime::tests::shape_overflow_nonfinite_data_and_cancelled_jobs_fail_before_native_work ... ok
+test rvm::tests::resume_cannot_substitute_zero_state_or_unrelated_recurrent_geometry ... ok
+
+test result: ok. 4 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+     Running unittests src/lib.rs (/home/michael/Projects/editbay/artifacts/worktrees/r2-sound-engine/target/native-build/debug/deps/editbay_app-a78f914abbc92473)
+
+running 12 tests
+test preview::tests::authoring_after_edit_tab_switch_or_welcome_cannot_publish ... ok
+test preferences::tests::invalid_preferences_preserve_the_source_and_colliding_chords_are_rejected ... ok
+test studio::tests::project_undo_works_after_button_focus_and_text_fields_keep_their_history ... ok
+test preview::tests::finished_worker_keeps_its_specific_failure_during_concurrent_polling ... ok
+test brand_ui::tests::refresh_keeps_local_fields_and_imports_other_writers_unmodified_fields ... ok
+test timeline_ui::tests::background_cut_commits_one_group_and_initializes_exact_trim_selection ... ok
+test preview::tests::native_background_authoring_commits_one_group_and_undo_preserves_sources ... ok
+test brand_ui::tests::asset_and_save_acknowledgements_preserve_unsaved_and_newer_bank_details ... ok
+test timeline_ui::tests::changed_revision_closed_tab_or_hidden_workspace_cannot_receive_prepared_cut ... ok
+test preferences::tests::atomic_preferences_coalesce_changes_and_detect_stale_writers ... ok
+test studio::tests::batched_native_shortcut_text_and_enter_create_and_rename_without_losing_input ... ok
+test brand_ui::tests::typing_keeps_focus_when_unsaved_status_changes_the_window_layout ... ok
+
+test result: ok. 12 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.05s
+
+     Running unittests src/main.rs (/home/michael/Projects/editbay/artifacts/worktrees/r2-sound-engine/target/native-build/debug/deps/editbay_studio-aa14a0a9d0af2fb6)
+
+running 0 tests
+
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+     Running tests/brand.rs (/home/michael/Projects/editbay/artifacts/worktrees/r2-sound-engine/target/native-build/debug/deps/brand-6ad92916534a31ee)
+
+running 3 tests
+test unknown_shared_manifests_legacy_markers_and_invalid_namespaced_metadata_are_preserved ... ok
+test cancellation_symlinks_and_replaced_bank_ownership_cannot_publish ... ok
+test shared_bank_roundtrips_bytes_palettes_and_client_metadata_without_replacing_omadesign ... ok
+
+test result: ok. 3 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+     Running tests/catalog.rs (/home/michael/Projects/editbay/artifacts/worktrees/r2-sound-engine/target/native-build/debug/deps/catalog-d721b5b348ba8f1f)
+
+running 3 tests
+test desktop_palettes_select_readable_light_and_dark_surfaces_and_reject_bad_colors ... ok
+test incremental_catalog_finds_deep_nested_brands_and_visible_invalid_work ... ok
+test cancellation_stops_a_backpressured_scan_and_missing_roots_report_incomplete ... ok
+
+test result: ok. 3 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.09s
+
+     Running tests/media.rs (/home/michael/Projects/editbay/artifacts/worktrees/r2-sound-engine/target/native-build/debug/deps/media-a55db6bccaca34fa)
+
+running 2 tests
+test isolated_native_import_uses_normal_undo_and_rejects_late_ownership ... ok
+test cancellation_and_worker_failure_preserve_the_live_document ... ok
+
+test result: ok. 2 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.13s
+
+     Running tests/workspace.rs (/home/michael/Projects/editbay/artifacts/worktrees/r2-sound-engine/target/native-build/debug/deps/workspace-f5082bdba51c46a4)
+
+running 4 tests
+test document_mutations_cancel_exports_before_return_without_needing_a_ui_poll ... ok
+test late_preparations_after_close_or_manual_save_never_publish_and_newer_edits_stay_dirty ... ok
+test checked_save_copy_and_source_loss_recovery_preserve_originals_and_visible_errors ... ok
+test one_hundred_inactive_and_untitled_documents_keep_latest_acknowledged_recovery ... ok
+
+test result: ok. 4 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.11s
+
+     Running unittests src/lib.rs (/home/michael/Projects/editbay/artifacts/worktrees/r2-sound-engine/target/native-build/debug/deps/editbay_audio-dcfaf46a4865f10e)
+
+running 10 tests
+test monitor::tests::monitor_reports_clipping_and_rejects_undeclared_routes_or_malformed_blocks ... ok
+test sample_clock::tests::jitter_failure_caps_and_invalid_publications_never_advance_missing_sound ... ok
+test monitor::tests::mono_stereo_and_explicit_surround_monitor_routes_preserve_channel_positions ... ok
+test sound::tests::fractional_kernel_phase_survives_large_absolute_source_origins ... ok
+test sample_clock::tests::partial_tail_finishes_when_latency_spans_multiple_buffers ... ok
+test tests::clock_interpolates_buffers_with_latency_and_stops_at_submitted_sound ... ok
+test transport::tests::invalid_stale_underrun_and_cancellation_never_resume_queued_sound ... ok
+test transport::tests::wraparound_partial_end_and_absolute_clock_preserve_every_channel ... ok
+test sample_clock::tests::two_hour_integer_clock_has_no_accumulated_rounding_or_submission_overrun ... ok
+test transport::tests::concurrent_bounded_delivery_survives_many_wraps_without_loss ... ok
+
+test result: ok. 10 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.01s
+
+     Running tests/sound.rs (/home/michael/Projects/editbay/artifacts/worktrees/r2-sound-engine/target/native-build/debug/deps/sound-be630a48967583ef)
+
+running 3 tests
+test sound_pins_foreign_owners_and_work_budgets_are_enforced ... ok
+test unchanged_samples_reverse_and_mix_preserve_original_channel_order_and_headroom ... ok
+test bandlimited_resampling_matches_analytic_passband_and_rejects_aliases ... ok
+
+test result: ok. 3 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.80s
+
+     Running unittests src/lib.rs (/home/michael/Projects/editbay/artifacts/worktrees/r2-sound-engine/target/native-build/debug/deps/editbay_automation-67d376755eaf4534)
+
+running 0 tests
+
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+     Running unittests src/main.rs (/home/michael/Projects/editbay/artifacts/worktrees/r2-sound-engine/target/native-build/debug/deps/editbay_mcp-37010367a9c22bc6)
+
+running 0 tests
+
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+     Running tests/stdio.rs (/home/michael/Projects/editbay/artifacts/worktrees/r2-sound-engine/target/native-build/debug/deps/stdio-399dfaef5af2013f)
+
+running 4 tests
+test two_actual_server_processes_cannot_acknowledge_conflicting_edits ... ok
+test actual_mcp_authors_inspects_undoes_and_recovers_typed_composition ... ok
+test outside_edits_and_deletion_preserve_history_and_never_resurrect_the_source ... ok
+test modern_and_legacy_clients_edit_undo_checkpoint_and_restart_real_files ... ok
+
+test result: ok. 4 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.06s
+
+     Running unittests src/main.rs (/home/michael/Projects/editbay/artifacts/worktrees/r2-sound-engine/target/native-build/debug/deps/editbay-779f46d45866d507)
+
+running 0 tests
+
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+     Running tests/compositions.rs (/home/michael/Projects/editbay/artifacts/worktrees/r2-sound-engine/target/native-build/debug/deps/compositions-2fb4848962a64437)
+
+running 3 tests
+editbay: destination already exists: /home/michael/Projects/editbay/artifacts/worktrees/r2-sound-worker/artifacts/tmp/.tmpy5rzCI/Migrated.editbay
+test real_cli_migration_writes_a_separate_destination_and_preserves_legacy_source ... ok
+test timeline_cli_requires_captured_revision_and_failed_requests_preserve_saved_bytes ... ok
+test real_cli_builds_inspects_and_checkpoints_editable_composition_and_rejects_stale_requests ... ok
+
+test result: ok. 3 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.07s
+
+     Running tests/media.rs (/home/michael/Projects/editbay/artifacts/worktrees/r2-sound-engine/target/native-build/debug/deps/media-000b23367f192dd7)
+
+running 3 tests
+test format_copy_migration_enforces_the_actual_document_read_budget ... ok
+test cli_ingest_is_durable_and_recovery_preserves_real_stream_data ... ok
+test isolated_worker_retains_source_ownership_and_cancels_active_native_decode ... ok
+
+test result: ok. 3 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.32s
+
+     Running tests/workflow.rs (/home/michael/Projects/editbay/artifacts/worktrees/r2-sound-engine/target/native-build/debug/deps/workflow-7f57cd784326b21e)
+
+running 3 tests
+test invalid_commands_and_names_report_failure_without_creating_work ... ok
+test project_edit_checkpoint_and_source_loss_recovery_work_through_the_binary ... ok
+test killing_a_real_save_process_keeps_the_published_project_and_checkpoint_valid ... ok
+
+test result: ok. 3 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 1.81s
+
+     Running unittests src/lib.rs (/home/michael/Projects/editbay/artifacts/worktrees/r2-sound-engine/target/native-build/debug/deps/editbay_core-18f03121b7ee0cf1)
+
+running 0 tests
+
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+     Running tests/authoring.rs (/home/michael/Projects/editbay/artifacts/worktrees/r2-sound-engine/target/native-build/debug/deps/authoring-40844bb98d61d68c)
+
+running 6 tests
+test invalid_or_absent_source_timing_is_rejected_before_authoring ... ok
+test natural_sound_refuses_wrong_streams_absent_overlap_and_clock_overflow_before_mutation ... ok
+test vfr_sequence_keeps_natural_integer_boundaries_and_explicit_partial_tail ... ok
+test exact_uniform_sequence_is_one_reversible_saved_and_recoverable_group ... ok
+test linked_natural_sound_survives_one_undo_group_save_checkpoint_and_independent_recovery ... ok
+test natural_sound_keeps_every_exact_sample_center_at_fractional_picture_rates_and_origins ... ok
+
+test result: ok. 6 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 1.32s
+
+     Running tests/commands.rs (/home/michael/Projects/editbay/artifacts/worktrees/r2-sound-engine/target/native-build/debug/deps/commands-42ec54747e9369f9)
+
+running 3 tests
+test a_group_consumes_one_revision_at_the_counter_boundary_and_undo_failure_preserves_state ... ok
+test groups_are_atomic_and_undo_redo_never_reuse_an_old_revision ... ok
+test no_op_preserves_history_and_new_edits_discard_the_redo_branch ... ok
+
+test result: ok. 3 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+     Running tests/compositions.rs (/home/michael/Projects/editbay/artifacts/worktrees/r2-sound-engine/target/native-build/debug/deps/compositions-e04fd5c10dca2f5a)
+
+running 15 tests
+test exact_retimes_vfr_and_samples_keep_their_distinct_boundaries ... ok
+test channels_evaluate_and_history_restores_collection_order_and_dependency_impact ... ok
+test graph_cycles_socket_errors_global_duplicate_ids_and_invalid_links_fail_atomically ... ok
+test compiled_integer_inspection_preserves_the_published_receipt ... ok
+test nested_different_rates_keep_fractional_picture_sample_and_animation_time ... ok
+test rational_retimes_cancel_large_factors_and_preserve_unsigned_endpoints ... ok
+test captured_document_and_cloned_sessions_keep_independent_revision_ownership ... ok
+test reverse_nested_end_owns_the_last_picture_sample_and_preceding_step ... ok
+test old_checkpoint_is_verified_before_migration_and_original_bytes_are_retained ... ok
+test retained_operations_and_held_picture_keys_reuse_only_matching_dependencies ... ok
+test freeze_and_range_boundaries_choose_the_correct_source_side ... ok
+test mask_bytes_working_color_precision_and_dimensions_invalidate_working_keys ... ok
+test frame_plans_resolve_animation_sources_and_transitive_content_without_global_revision_churn ... ok
+test structured_job_survives_atomic_commands_undo_save_and_independent_recovery ... ok
+test document_and_recovery_read_and_write_budgets_preserve_existing_files ... ok
+
+test result: ok. 15 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 2.60s
+
+     Running tests/prepared.rs (/home/michael/Projects/editbay/artifacts/worktrees/r2-sound-engine/target/native-build/debug/deps/prepared-2781f35f6ac23da4)
+
+running 3 tests
+test bounded_reads_reject_large_documents_without_replacing_the_source ... ok
+test recovery_preparation_is_invisible_until_owned_commit_and_stale_drop_removes_it ... ok
+test deleted_original_directory_does_not_prevent_rescuing_dirty_work_or_allow_original_recreation ... ok
+
+test result: ok. 3 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+     Running tests/recovery.rs (/home/michael/Projects/editbay/artifacts/worktrees/r2-sound-engine/target/native-build/debug/deps/recovery-c53b7b852595cb4d)
+
+running 16 tests
+test duplicate_ids_and_empty_sequences_are_invalid ... ok
+test rational_time_has_no_fractional_rate_drift ... ok
+test a_competing_writer_is_reported_without_touching_saved_work ... ok
+test creation_refuses_to_replace_existing_work ... ok
+test invalid_edits_cannot_replace_a_valid_saved_project ... ok
+test changed_checkpoint_payload_fails_integrity_without_creating_a_file ... ok
+test unsupported_schemas_fail_explicitly ... ok
+test checked_saves_require_identity_and_revision_continuity ... ok
+test save_reopen_preserves_identity_revision_and_profiles ... ok
+test incomplete_temporary_files_are_not_recovery_candidates ... ok
+test recovery_does_not_overwrite_another_project ... ok
+test stale_edits_cannot_replace_newer_work_or_recreate_a_deleted_project ... ok
+test untitled_project_can_be_checkpointed_without_a_saved_original ... ok
+test corrupt_latest_checkpoint_keeps_older_recoverable_work_visible ... ok
+test symlink_destinations_are_rejected_and_permissions_survive_save ... ok
+test checkpoint_survives_source_loss_and_recovers_to_an_independent_copy ... ok
+
+test result: ok. 16 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.01s
+
+     Running tests/reference.rs (/home/michael/Projects/editbay/artifacts/worktrees/r2-sound-engine/target/native-build/debug/deps/reference-cc588442385e0de0)
+
+running 1 test
+test immutable_reference_replays_native_roundtrip_and_recovery_without_conversion_loss ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+     Running tests/sound.rs (/home/michael/Projects/editbay/artifacts/worktrees/r2-sound-engine/target/native-build/debug/deps/sound-0f03fe2f7add02a6)
+
+running 9 tests
+test cuts_inactive_tracks_and_freeze_are_explicit_silence ... ok
+test device_rate_uses_only_reachable_channels_and_rejects_implicit_mixing ... ok
+test limits_reject_unbounded_work_and_undeclared_channel_conversion ... ok
+test rational_conversion_reduces_before_narrowing_and_normalizes_extreme_zero ... ok
+test fractional_composition_tail_is_silence_beyond_the_exact_duration ... ok
+test identical_public_versions_cannot_cross_private_owners_and_labels_do_not_change_content ... ok
+test finite_gain_overflow_and_compiled_leaf_explosion_are_rejected ... ok
+test gain_interpolation_mix_and_nested_rates_match_closed_form ... ok
+test exact_sample_centers_rate_conversion_reverse_and_final_sample ... ok
+
+test result: ok. 9 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.02s
+
+     Running tests/timeline.rs (/home/michael/Projects/editbay/artifacts/worktrees/r2-sound-engine/target/native-build/debug/deps/timeline-ff618ea30c8ddf35)
+
+running 6 tests
+test fractional_output_sample_centers_and_silent_gaps_keep_exact_time ... ok
+test unrecognized_graph_and_implicit_profile_conversion_are_rejected ... ok
+test overlap_overflow_invalid_ranges_and_recursive_insert_leave_document_untouched ... ok
+test insert_inside_linked_clip_preserves_exact_sample_centers_across_both_cuts ... ok
+test undo_redo_save_recovery_preserve_groups_and_stale_commands_fail ... ok
+test ripple_trim_remove_and_move_preserve_linked_identity_and_source_ranges ... ok
+
+test result: ok. 6 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.07s
+
+     Running unittests src/lib.rs (/home/michael/Projects/editbay/artifacts/worktrees/r2-sound-engine/target/native-build/debug/deps/editbay_delivery-378308582e6497bc)
+
+running 4 tests
+test job::tests::private_verification_rejects_mutation_and_named_descriptors ... ok
+test job::tests::replies_reject_foreign_owners_stale_serials_skipped_phases_and_malformed_receipts ... ok
+test job::tests::anonymous_output_has_no_cleanup_path_and_publication_never_clobbers ... ok
+test job::tests::cancellation_and_publication_have_one_atomic_winner_and_cannot_be_reused ... ok
+
+test result: ok. 4 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+     Running unittests src/main.rs (/home/michael/Projects/editbay/artifacts/worktrees/r2-sound-engine/target/native-build/debug/deps/editbay_lab-74b202c09d050127)
+
+running 0 tests
+
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+     Running tests/natural_sound.rs (/home/michael/Projects/editbay/artifacts/worktrees/r2-sound-engine/target/native-build/debug/deps/natural_sound-592f955921a5b24d)
+
+running 1 test
+test real_source_sequences_preserve_pcm_delays_preroll_and_fractional_tails has been running for over 60 seconds
+test real_source_sequences_preserve_pcm_delays_preroll_and_fractional_tails ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 93.86s
+
+     Running tests/pcm_worker.rs (/home/michael/Projects/editbay/artifacts/worktrees/r2-sound-engine/target/native-build/debug/deps/pcm_worker-f462a379ae002e1b)
+
+running 5 tests
+test changed_source_rejects_cached_samples_and_publication_without_touching_either_file ... ok
+test death_and_stopped_request_cancellation_reap_children_and_require_explicit_retry ... ok
+test parent_byte_and_handle_pins_remain_charged_through_eviction_clear_and_rebind ... ok
+test actual_pcm_process_preserves_original_channels_headroom_seeks_and_padding ... ok
+test shared_renderer_uses_identical_fractional_reverse_gain_and_mix_over_codec_ipc ... ok
+
+test result: ok. 5 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 3.64s
+
+     Running tests/picture_worker.rs (/home/michael/Projects/editbay/artifacts/worktrees/r2-sound-engine/target/native-build/debug/deps/picture_worker-204473baaf981a37)
+
+running 6 tests
+test replaced_source_is_rejected_without_altering_original_or_replacement_bytes ... ok
+test shared_handle_budget_is_independent_of_byte_budget_and_remains_charged_after_clear ... ok
+test actual_process_planes_match_selected_vfr_delayed_native_decode_and_backward_after_eof ... ok
+test pinned_shared_outputs_remain_charged_through_eviction_worker_death_and_retry ... ok
+test isolated_and_in_process_sources_use_identical_gpu_temporal_color_and_output_evaluation ... ok
+test stopped_codec_cancellation_reaps_underlying_process_and_fresh_retry_rejects_old_receipts ... ok
+
+test result: ok. 6 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.78s
+
+     Running tests/worker.rs (/home/michael/Projects/editbay/artifacts/worktrees/r2-sound-engine/target/native-build/debug/deps/worker-d0bd64499807df2f)
+
+running 3 tests
+test source_inventory_checks_real_pictures_and_reports_failures_without_following_symlinks_or_replacing_files ... ok
+test cancellation_and_codec_failure_leave_no_partial_destination_or_worker_files ... ok
+test actual_background_export_verifies_pixels_and_preserves_existing_work ... ok
+
+test result: ok. 3 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.82s
+
+     Running unittests src/lib.rs (/home/michael/Projects/editbay/artifacts/worktrees/r2-sound-engine/target/native-build/debug/deps/editbay_media-882f24476c281a67)
+
+running 6 tests
+test picture_worker::tests::response_ownership_rejects_foreign_sessions_jobs_workers_versions_generations_and_serials ... ok
+test planes::tests::metadata_framing_refuses_oversized_and_truncated_input_before_parse ... ok
+test pcm_worker::tests::pcm_replies_reject_foreign_receipts_intervals_layouts_and_unsealed_payloads ... ok
+test planes::tests::rejected_extra_and_truncated_ancillary_handles_are_all_closed ... ok
+test planes::tests::sealed_planes_survive_sender_drop_and_refuse_mutation_geometry_and_unsealed_files ... ok
+test pcm_worker::tests::codec_service_rejects_replayed_serials_and_unsolicited_descriptors ... ok
+
+test result: ok. 6 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+     Running tests/aac.rs (/home/michael/Projects/editbay/artifacts/worktrees/r2-sound-engine/target/native-build/debug/deps/aac-bd39c5122ae560cd)
+
+running 1 test
+test aac_priming_and_packet_timestamps_do_not_introduce_a_false_sound_gap ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.04s
+
+     Running tests/codecs.rs (/home/michael/Projects/editbay/artifacts/worktrees/r2-sound-engine/target/native-build/debug/deps/codecs-ad0dae131d03041d)
+
+running 4 tests
+[mov,mp4,m4a,3gp,3g2,mj2 @ 0xfffef8000f80] Format mov,mp4,m4a,3gp,3g2,mj2 detected only with low score of 1, misdetection possible!
+[mov,mp4,m4a,3gp,3g2,mj2 @ 0xfffef8000f80] moov atom not found
+[mov,mp4,m4a,3gp,3g2,mj2 @ 0xfffef8000f80] Format mov,mp4,m4a,3gp,3g2,mj2 detected only with low score of 1, misdetection possible!
+[mov,mp4,m4a,3gp,3g2,mj2 @ 0xfffef8000f80] moov atom not found
+test invalid_local_media_and_profiles_fail_explicitly ... ok
+test encoder_preserves_existing_assets_and_owns_the_opened_file_after_path_replacement ... ok
+test lossless_export_preserves_unaligned_rgba_and_rational_timestamps ... ok
+test delayed_video_and_resampled_sound_drain_without_losing_the_tail ... ok
+
+test result: ok. 4 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.04s
+
+     Running tests/delivery.rs (/home/michael/Projects/editbay/artifacts/worktrees/r2-sound-engine/target/native-build/debug/deps/delivery-3593c7e0fd770b48)
+
+running 2 tests
+test delivery_refuses_incomplete_stale_unbounded_cancelled_and_invalid_work ... ok
+test native_lossless_mov_preserves_every_pixel_sample_channel_and_exact_clock ... ok
+
+test result: ok. 2 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.10s
+
+     Running tests/ingest.rs (/home/michael/Projects/editbay/artifacts/worktrees/r2-sound-engine/target/native-build/debug/deps/ingest-eaa466fedcc3b820)
+
+running 5 tests
+test declared_wav_channel_order_and_float_headroom_survive_native_decode ... ok
+[concat @ 0xffff5c0ba210] Format not on whitelist 'mov,mp4,m4a,3gp,3g2,mj2,matroska,webm,avi,mpegts,mpeg,mp3,wav,flac,ogg,aac,aiff,image2pipe,png_pipe,jpeg_pipe,tiff_pipe,webp_pipe,exr_pipe,bmp_pipe,gif'
+test native_cancellation_and_secondary_resource_denial_are_real ... ok
+test seeking_after_drain_and_path_replacement_never_substitutes_media ... ok
+[swscaler @ 0xffff50021b50] deprecated pixel format used, make sure you did set range correctly
+test single_still_sources_are_real_decoded_pictures_with_original_alpha ... ok
+test explicit_streams_preserve_vfr_timecode_and_six_original_channels ... ok
+
+test result: ok. 5 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.19s
+
+     Running tests/pcm.rs (/home/michael/Projects/editbay/artifacts/worktrees/r2-sound-engine/target/native-build/debug/deps/pcm-f45226671f0aa7d8)
+
+running 4 tests
+test changed_sources_cached_hits_and_cancelled_work_are_rejected ... ok
+test consumer_pins_survive_eviction_cleanup_and_rebind_while_receipts_reject_foreign_owners ... ok
+test nonzero_container_origin_retains_absolute_samples_after_normalized_ingest ... ok
+test original_channels_headroom_intervals_and_delayed_codec_match_native_sequential_pcm ... ok
+
+test result: ok. 4 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 2.13s
+
+     Running tests/pictures.rs (/home/michael/Projects/editbay/artifacts/worktrees/r2-sound-engine/target/native-build/debug/deps/pictures-1c4d7c81e2ac0fe5)
+
+running 5 tests
+test consumer_pins_stay_charged_through_eviction_and_clear_invalidates_receipts ... ok
+test hits_refuse_changed_sources_forged_interpretations_and_cancellation ... ok
+test oversize_cache_outputs_remain_bounded_and_geometry_is_checked_before_decode ... ok
+[swscaler @ 0xffff740e3090] No accelerated colorspace conversion found from yuv420p to rgba.
+test sequential_reverse_eof_and_decoder_eviction_match_independent_native_pixels ... ok
+test revision_rebind_reuses_matching_content_and_rejects_previous_receipts ... ok
+
+test result: ok. 5 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.04s
+
+     Running unittests src/lib.rs (/home/michael/Projects/editbay/artifacts/worktrees/r2-sound-engine/target/native-build/debug/deps/editbay_reference-d321735715310024)
+
+running 0 tests
+
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+     Running unittests src/lib.rs (/home/michael/Projects/editbay/artifacts/worktrees/r2-sound-engine/target/native-build/debug/deps/editbay_render-99b93d1864c7da5b)
+
+running 0 tests
+
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+     Running tests/float_composition.rs (/home/michael/Projects/editbay/artifacts/worktrees/r2-sound-engine/target/native-build/debug/deps/float_composition-dcf1575e0ece9408)
+
+running 1 test
+test actual_gpu_matches_independent_color_and_alpha_reference_at_both_precisions ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.14s
+
+     Running tests/graph.rs (/home/michael/Projects/editbay/artifacts/worktrees/r2-sound-engine/target/native-build/debug/deps/graph-8ce887fda768b444)
+
+running 8 tests
+test unsupported_mask_and_budgeted_nesting_fail_without_fake_output ... ok
+test consumer_pins_eviction_pending_work_cleanup_and_cancel_obey_limits ... ok
+test real_source_pixels_cached_hits_interpretation_orientation_and_replacement_are_checked ... ok
+test signed_gamut_display_output_and_rebind_keep_working_content_separate ... ok
+test actual_typed_transform_over_and_animated_opacity_match_independent_pixels ... ok
+test nested_fraction_reverse_step_and_empty_ranges_match_exact_shared_evaluation ... ok
+test source_pixel_aspect_is_applied_and_native_rotation_cannot_be_hidden_by_metadata ... ok
+test affine_scale_rotation_mirror_zero_and_fractional_edges_follow_pixel_center_semantics ... ok
+
+test result: ok. 8 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.31s
+
+     Running tests/presentation.rs (/home/michael/Projects/editbay/artifacts/worktrees/r2-sound-engine/target/native-build/debug/deps/presentation-846863fc284b0dc5)
+
+running 2 tests
+test native_surface_pixels_match_orientation_alpha_scaling_and_color_reference ... ok
+test unsubmitted_and_submitted_native_draws_keep_allocations_charged ... ok
+
+test result: ok. 2 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.12s
+
+     Running unittests src/lib.rs (/home/michael/Projects/editbay/artifacts/worktrees/r2-sound-engine/target/native-build/debug/deps/eframe-578e322e50dfc9be)
+
+running 5 tests
+test native::file_storage::tests::storage_path_matches_directories ... ok
+test native::run::redraw_poll_guard_tests::delivered_or_removed_windows_do_not_poison_later_requests ... ok
+test native::run::redraw_poll_guard_tests::a_progressing_window_keeps_polling_beside_an_occluded_window ... ok
+test native::run::redraw_poll_guard_tests::repeated_requests_do_not_extend_the_stall_deadline ... ok
+test native::run::redraw_poll_guard_tests::explicit_waits_timers_and_other_backends_keep_their_control_flow ... ok
+
+test result: ok. 5 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+     Running unittests src/lib.rs (/home/michael/Projects/editbay/artifacts/worktrees/r2-sound-engine/target/native-build/debug/deps/egui_winit-4c6b07a5c9efec90)
+
+running 5 tests
+test clipboard_chord_tests::clipboard_payload_and_single_semantic_event_are_preserved ... ok
+test clipboard_chord_tests::modified_paste_retains_press_even_without_clipboard_text ... ok
+test clipboard_chord_tests::history_shift_insert_and_command_paste_keep_image_only_key_events ... ok
+test clipboard_chord_tests::ordinary_keys_do_not_read_or_emit_clipboard_events ... ok
+test clipboard_chord_tests::native_super_survives_without_becoming_control ... ok
+
+test result: ok. 5 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+   Doc-tests editbay_ai
+
+running 0 tests
+
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+   Doc-tests editbay_app
+
+running 0 tests
+
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+   Doc-tests editbay_audio
+
+running 1 test
+test crates/editbay-audio/src/sound.rs - sound::SoundResult (line 68) - compile fail ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.06s
+
+   Doc-tests editbay_automation
+
+running 0 tests
+
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+   Doc-tests editbay_core
+
+running 0 tests
+
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+   Doc-tests editbay_delivery
+
+running 0 tests
+
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+   Doc-tests editbay_media
+
+running 1 test
+test crates/editbay-media/src/pcm.rs - pcm::PcmResult (line 113) - compile fail ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.02s
+
+   Doc-tests editbay_reference
+
+running 0 tests
+
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+   Doc-tests editbay_render
+
+running 0 tests
+
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+   Doc-tests eframe
+
+running 5 tests
+test vendor/eframe/src/lib.rs - (line 25) - compile ... ok
+test vendor/eframe/src/lib.rs - run_native (line 253) - compile ... ok
+test vendor/eframe/src/lib.rs - run_ui_native (line 448) - compile ... ok
+test vendor/eframe/src/lib.rs - (line 56) - compile ... ok
+test vendor/eframe/src/lib.rs - create_native (line 334) - compile ... ok
+
+test result: ok. 5 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+all doctests ran in 1.48s; merged doctests compilation took 1.48s
+   Doc-tests egui_winit
+
+running 0 tests
+
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s

@@ -8,6 +8,7 @@ use crate::{
     preferences::{PreferenceStore, Preferences, Startup},
     preview::PreviewPane,
     theme::LiveTheme,
+    timeline_ui::TimelinePane,
     workspace::{DocumentOwner, Workspace},
 };
 use editbay_core::{DocumentCommand, DocumentVersion, Project};
@@ -88,6 +89,7 @@ pub struct Studio {
     media: MediaPane,
     preview: PreviewPane,
     delivery: DeliveryPane,
+    timeline: TimelinePane,
     preferences_applied: bool,
     explicit_paths: bool,
     restoring: bool,
@@ -176,6 +178,7 @@ impl Studio {
             media: MediaPane::default(),
             preview: PreviewPane::default(),
             delivery: DeliveryPane::default(),
+            timeline: TimelinePane::default(),
             preferences_applied: false,
             explicit_paths,
             restoring: false,
@@ -233,6 +236,8 @@ impl Studio {
             self.welcome = false;
         }
         self.preview.poll(&mut self.workspace, !self.welcome, ctx);
+        self.timeline
+            .poll(&mut self.workspace, &mut self.preview, !self.welcome, ctx);
         if self.workspace.take_catalog_dirty() {
             self.rescan();
         }
@@ -1426,7 +1431,43 @@ impl Studio {
         egui::ScrollArea::vertical()
             .id_salt("document")
             .show(ui, |ui| {
-                self.preview.show(ui, &self.workspace, id, project.clone());
+                let interactive = self.dialog.is_none()
+                    && self.create_name.is_none()
+                    && self.rename.is_none()
+                    && self.close_guard.is_none()
+                    && self.settings.is_none()
+                    && !self.manual
+                    && !self.bank.opened;
+                if ui.available_width() >= 1000. {
+                    ui.columns(2, |columns| {
+                        self.timeline.show(
+                            &mut columns[1],
+                            &self.workspace,
+                            &mut self.preview,
+                            id,
+                            project.clone(),
+                            interactive,
+                        );
+                        self.preview
+                            .show(&mut columns[0], &self.workspace, id, project.clone());
+                    });
+                } else {
+                    let controls = egui::CollapsingHeader::new("Edit controls")
+                        .default_open(true)
+                        .show(ui, |ui| {
+                            self.timeline.show(
+                                ui,
+                                &self.workspace,
+                                &mut self.preview,
+                                id,
+                                project.clone(),
+                                interactive,
+                            );
+                        });
+                    self.preview
+                        .observe_control("edit-controls", &controls.header_response, ui);
+                    self.preview.show(ui, &self.workspace, id, project.clone());
+                }
                 for sequence in project
                     .sequences
                     .iter()
@@ -1977,7 +2018,13 @@ impl eframe::App for Studio {
             });
         self.modals(&ctx);
         if let Some(diagnostics) = &mut self.diagnostics {
-            diagnostics.observe(&self.workspace, &self.media, &self.preview, &self.delivery);
+            diagnostics.observe(
+                &self.workspace,
+                &self.media,
+                &self.preview,
+                &self.delivery,
+                &self.timeline,
+            );
             diagnostics.record("frame", serde_json::json!({"cpu_us":self.frame_started.elapsed().as_micros() as u64,"catalog_running":self.scan.is_some(),"workspace_busy":self.workspace.busy(),"bank_busy":self.bank.busy(),"welcome":self.welcome,"recovered":self.recovered,"recovery_preview":self.recovery_preview.is_some(),"recoveries_valid":self.workspace.recoveries.valid.len(),"dialog_pending":self.dialog.is_some(),"new_project_name":self.create_name,"rename_name":self.rename.as_ref().map(|(_,_,name)|name),"desktop_font_ready":self.theme.font_path.is_some()}));
         }
     }

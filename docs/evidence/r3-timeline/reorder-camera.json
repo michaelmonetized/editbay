@@ -1,0 +1,367 @@
+{
+  "cli_sha256": "e2d0f7c3c9f12db82fe584aae0365f877ad78cba4fd4b1f8258d7adf44d58625",
+  "comparison": {
+    "channels": [
+      "FC"
+    ],
+    "composition": "f02096ca-201d-4369-8408-e14c27b93360",
+    "frames": 35,
+    "kind": "independent_timeline_slices",
+    "output_sha256": "86162213737fd76944130b274775da92f5cf4317c77e829da9b1f6cb164f40b9",
+    "qualified": true,
+    "reference_sha256": "84f6dd1a78874ee66b980520a68dddce78d1edbcad0b7eb53ab9d2ca35e7a431",
+    "sample_rate": 48000,
+    "samples_per_frame": 2000,
+    "source": "d1410cfa-579c-40e1-8c6a-4301d22b48e5",
+    "streams": [
+      {
+        "boundaries": [
+          {
+            "bytes": 84787200,
+            "record": {
+              "end": 23,
+              "start": 0
+            },
+            "sha256": "305aff18b3aee37292b6a77175056fbb44d0ba4939fb13c28d793a0a876cc943",
+            "source": {
+              "end": 65,
+              "start": 42
+            }
+          },
+          {
+            "bytes": 44236800,
+            "record": {
+              "end": 35,
+              "start": 23
+            },
+            "sha256": "65da4a6cd66f3edfd40cbb0001cea32a8e61b2a2ee7a382246fceb5fc54308dd",
+            "source": {
+              "end": 28,
+              "start": 16
+            }
+          }
+        ],
+        "bytes": 129024000,
+        "exact": true,
+        "expected_sha256": "78da1fd22f154c6744b5176ad9c1dc8e54319fa1e6a75a8b8cab323f40954e7a",
+        "kind": "picture",
+        "sha256": "78da1fd22f154c6744b5176ad9c1dc8e54319fa1e6a75a8b8cab323f40954e7a"
+      },
+      {
+        "boundaries": [
+          {
+            "bytes": 184000,
+            "record": {
+              "end": 23,
+              "start": 0
+            },
+            "sha256": "e87f087adf142a475a8a86cf41d09fc312207cd336c03c9c94971844e08e5e39",
+            "source": {
+              "end": 65,
+              "start": 42
+            }
+          },
+          {
+            "bytes": 96000,
+            "record": {
+              "end": 35,
+              "start": 23
+            },
+            "sha256": "8e99c2495f66c87652bc8a02c95f9df2dc77220d0455ce03f4d3359137b4a0d8",
+            "source": {
+              "end": 28,
+              "start": 16
+            }
+          }
+        ],
+        "bytes": 280000,
+        "exact": true,
+        "expected_sha256": "34e4d7e1c78963ae996714291a04b223fe0ab856e7c0f80b46e4fb5e0b979ee7",
+        "kind": "sound",
+        "sha256": "34e4d7e1c78963ae996714291a04b223fe0ab856e7c0f80b46e4fb5e0b979ee7"
+      }
+    ]
+  },
+  "delivery": {
+    "binary_sha256": "f6daeb8efb4164187e793e8d8af4970232f757a51c6df3771c3bbcf77fd0d110",
+    "collision_preserved": true,
+    "destination": "artifacts/timeline/qualified-reorder-camera/Reordered.mov",
+    "elapsed_ms": 5812.902859,
+    "error": null,
+    "independent": {
+      "metadata": {
+        "format": {
+          "bit_rate": "185295819",
+          "duration": "1.458333",
+          "filename": "artifacts/timeline/qualified-reorder-camera/Reordered.mov",
+          "format_long_name": "QuickTime / MOV",
+          "format_name": "mov,mp4,m4a,3gp,3g2,mj2",
+          "nb_programs": 0,
+          "nb_stream_groups": 0,
+          "nb_streams": 2,
+          "probe_score": 100,
+          "size": "33777876",
+          "start_time": "0.000000",
+          "tags": {
+            "compatible_brands": "qt  ",
+            "encoder": "Lavf63.1.101",
+            "major_brand": "qt  ",
+            "minor_version": "512"
+          }
+        },
+        "streams": [
+          {
+            "avg_frame_rate": "24/1",
+            "bit_rate": "183750451",
+            "codec_long_name": "PNG (Portable Network Graphics) image",
+            "codec_name": "png",
+            "codec_tag": "0x20676e70",
+            "codec_tag_string": "png ",
+            "codec_type": "video",
+            "coded_height": 720,
+            "coded_width": 1280,
+            "color_primaries": "bt709",
+            "color_range": "pc",
+            "color_space": "gbr",
+            "color_transfer": "iec61966-2-1",
+            "disposition": {
+              "attached_pic": 0,
+              "captions": 0,
+              "clean_effects": 0,
+              "comment": 0,
+              "default": 1,
+              "dependent": 0,
+              "descriptions": 0,
+              "dub": 0,
+              "forced": 0,
+              "hearing_impaired": 0,
+              "karaoke": 0,
+              "lyrics": 0,
+              "metadata": 0,
+              "multilayer": 0,
+              "non_diegetic": 0,
+              "original": 0,
+              "still_image": 0,
+              "timed_thumbnails": 0,
+              "visual_impaired": 0
+            },
+            "duration": "1.458333",
+            "duration_ts": 35,
+            "has_b_frames": 0,
+            "height": 720,
+            "id": "0x1",
+            "index": 0,
+            "level": -99,
+            "nb_frames": "35",
+            "pix_fmt": "rgba",
+            "r_frame_rate": "24/1",
+            "start_pts": 0,
+            "start_time": "0.000000",
+            "tags": {
+              "handler_name": "VideoHandler",
+              "vendor_id": "FFMP"
+            },
+            "time_base": "1/24",
+            "width": 1280
+          },
+          {
+            "avg_frame_rate": "0/0",
+            "bit_rate": "1536000",
+            "bits_per_sample": 32,
+            "channel_layout": "mono",
+            "channels": 1,
+            "codec_long_name": "PCM 32-bit floating point little-endian",
+            "codec_name": "pcm_f32le",
+            "codec_tag": "0x32336c66",
+            "codec_tag_string": "fl32",
+            "codec_type": "audio",
+            "disposition": {
+              "attached_pic": 0,
+              "captions": 0,
+              "clean_effects": 0,
+              "comment": 0,
+              "default": 1,
+              "dependent": 0,
+              "descriptions": 0,
+              "dub": 0,
+              "forced": 0,
+              "hearing_impaired": 0,
+              "karaoke": 0,
+              "lyrics": 0,
+              "metadata": 0,
+              "multilayer": 0,
+              "non_diegetic": 0,
+              "original": 0,
+              "still_image": 0,
+              "timed_thumbnails": 0,
+              "visual_impaired": 0
+            },
+            "duration": "1.458333",
+            "duration_ts": 70000,
+            "id": "0x2",
+            "index": 1,
+            "initial_padding": 0,
+            "nb_frames": "70000",
+            "r_frame_rate": "0/0",
+            "sample_fmt": "flt",
+            "sample_rate": "48000",
+            "start_pts": 0,
+            "start_time": "0.000000",
+            "tags": {
+              "handler_name": "SoundHandler",
+              "vendor_id": "[0][0][0][0]"
+            },
+            "time_base": "1/48000"
+          }
+        ]
+      },
+      "streams": [
+        {
+          "bytes": 129024000,
+          "exact": true,
+          "kind": "picture",
+          "sha256": "78da1fd22f154c6744b5176ad9c1dc8e54319fa1e6a75a8b8cab323f40954e7a",
+          "transparent_last_picture_pixels": 0
+        },
+        {
+          "bytes": 280000,
+          "exact": true,
+          "kind": "sound",
+          "sha256": "34e4d7e1c78963ae996714291a04b223fe0ab856e7c0f80b46e4fb5e0b979ee7",
+          "transparent_last_picture_pixels": null
+        }
+      ]
+    },
+    "kind": "shared_delivery_qualification",
+    "memory": [
+      "VmHWM:\t   30896 kB",
+      "VmRSS:\t   30896 kB"
+    ],
+    "mode": "full",
+    "published": true,
+    "qualified": true,
+    "receipt": {
+      "adapter": "AdapterInfo { name: \"Apple M1 Pro (G13S C0)\", vendor: 65541, device: 0, device_type: IntegratedGpu, device_pci_bus_id: \"\", driver: \"Honeykrisp\", driver_info: \"Mesa 26.2.3-arch1.1\", backend: Vulkan, subgroup_min_size: 32, subgroup_max_size: 32, transient_saves_memory: Some(false), limit_bucket: None }",
+      "clipped_picture_values": 0,
+      "file_bytes": 33777876,
+      "file_sha256": "86162213737fd76944130b274775da92f5cf4317c77e829da9b1f6cb164f40b9",
+      "pcm_sha256": "34e4d7e1c78963ae996714291a04b223fe0ab856e7c0f80b46e4fb5e0b979ee7",
+      "pixel_sha256": "78da1fd22f154c6744b5176ad9c1dc8e54319fa1e6a75a8b8cab323f40954e7a",
+      "profile": {
+        "channels": [
+          "FC"
+        ],
+        "frame_rate": {
+          "denominator": 1,
+          "numerator": 24
+        },
+        "frames": 35,
+        "height": 720,
+        "sample_rate": 48000,
+        "width": 1280
+      },
+      "version": {
+        "project_id": "44c766fe-d29f-468b-adea-de29a4b05f25",
+        "revision": 13
+      }
+    },
+    "retirement_ms": null,
+    "schema": 1,
+    "worker_high_water_kib": 291744,
+    "worker_reaped": true
+  },
+  "kind": "cli_timeline_reorder",
+  "original_project_sha256": "075458cdf1e657f1bbc74f55ad1f2becee5090577034afbf1de486f107d98250",
+  "original_unchanged": true,
+  "qualified": true,
+  "receipts": [
+    {
+      "applied": {
+        "clip": "0b72991e-9218-4912-9ca6-2f1d0adf27df",
+        "composition": "f02096ca-201d-4369-8408-e14c27b93360",
+        "receipt": {
+          "after": {
+            "project_id": "44c766fe-d29f-468b-adea-de29a4b05f25",
+            "revision": 11
+          },
+          "before": {
+            "project_id": "44c766fe-d29f-468b-adea-de29a4b05f25",
+            "revision": 10
+          },
+          "changed": true,
+          "impact": {
+            "color_changed": false,
+            "compositions": [
+              "f02096ca-201d-4369-8408-e14c27b93360"
+            ],
+            "entities": [
+              "f02096ca-201d-4369-8408-e14c27b93360"
+            ]
+          }
+        },
+        "saved": true
+      },
+      "saved_sha256": "74fcbb8a0f8d533b897e51c4913b38e47ce89586655c2b3c701b0760ae2447e5",
+      "stale_rejected": true
+    },
+    {
+      "applied": {
+        "clip": "6daa1bca-40b2-474e-9735-24dd54062ccf",
+        "composition": "f02096ca-201d-4369-8408-e14c27b93360",
+        "receipt": {
+          "after": {
+            "project_id": "44c766fe-d29f-468b-adea-de29a4b05f25",
+            "revision": 12
+          },
+          "before": {
+            "project_id": "44c766fe-d29f-468b-adea-de29a4b05f25",
+            "revision": 11
+          },
+          "changed": true,
+          "impact": {
+            "color_changed": false,
+            "compositions": [
+              "f02096ca-201d-4369-8408-e14c27b93360"
+            ],
+            "entities": [
+              "f02096ca-201d-4369-8408-e14c27b93360"
+            ]
+          }
+        },
+        "saved": true
+      },
+      "saved_sha256": "76cbf55da61d0609d5f8fb82ae792dd219234fdbda4c3296043444c8275c1636",
+      "stale_rejected": true
+    },
+    {
+      "applied": {
+        "clip": "0b72991e-9218-4912-9ca6-2f1d0adf27df",
+        "composition": "f02096ca-201d-4369-8408-e14c27b93360",
+        "receipt": {
+          "after": {
+            "project_id": "44c766fe-d29f-468b-adea-de29a4b05f25",
+            "revision": 13
+          },
+          "before": {
+            "project_id": "44c766fe-d29f-468b-adea-de29a4b05f25",
+            "revision": 12
+          },
+          "changed": true,
+          "impact": {
+            "color_changed": false,
+            "compositions": [
+              "f02096ca-201d-4369-8408-e14c27b93360"
+            ],
+            "entities": [
+              "f02096ca-201d-4369-8408-e14c27b93360"
+            ]
+          }
+        },
+        "saved": true
+      },
+      "saved_sha256": "c9759db10d12f42565cf72fd86e786f512ed8eefd5e6d83a33db93276cebbc05",
+      "stale_rejected": true
+    }
+  ],
+  "raw_trace": "reorder-camera.json.gz"
+}

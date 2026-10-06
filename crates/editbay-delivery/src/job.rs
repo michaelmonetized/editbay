@@ -91,6 +91,11 @@ pub fn deliver(
     }
     let _lifetime = Lifetime(control);
     control.check()?;
+    if editbay_core::timeline_clips(&project, request.composition)
+        .is_ok_and(|clips| clips.is_empty())
+    {
+        return Err("The cut is empty; append a source range before exporting".into());
+    }
     let evaluation = Arc::new(EvaluationSnapshot::new(project.clone())?);
     let sound = SoundSnapshot::at_output_rate(
         evaluation,

@@ -1,0 +1,87 @@
+{
+  "channels": [
+    "FL",
+    "FR",
+    "FC",
+    "LFE",
+    "BL",
+    "BR"
+  ],
+  "composition": "6b22c064-7dc5-49a7-8915-ec880d136143",
+  "frames": 35,
+  "kind": "independent_timeline_slices",
+  "output_sha256": "8ca0a06de8aab5afc8aebf09e1c618a456d8a0bb62e62f230c10ad4c0b63daf7",
+  "qualified": true,
+  "reference_sha256": "508d0b6a675b3b2efbfa6afe13e6b7ec1549052e68b040e4e6849f141ca09517",
+  "sample_rate": 48000,
+  "samples_per_frame": 2002,
+  "source": "8692a2b3-18c2-4d6b-ac7c-b5e2b5f36983",
+  "streams": [
+    {
+      "boundaries": [
+        {
+          "bytes": 2764800,
+          "record": {
+            "end": 12,
+            "start": 0
+          },
+          "sha256": "007b323ea5bb85c30b757d04ca21dd6d3ebd57eb7c6a297e7d6d390fe58d2b0c",
+          "source": {
+            "end": 28,
+            "start": 16
+          }
+        },
+        {
+          "bytes": 5299200,
+          "record": {
+            "end": 35,
+            "start": 12
+          },
+          "sha256": "490c80f85526f0dbe31ee18ecbfbe4b451a4904fbbdb6c8ed787c0636f004139",
+          "source": {
+            "end": 65,
+            "start": 42
+          }
+        }
+      ],
+      "bytes": 8064000,
+      "exact": true,
+      "expected_sha256": "f79899aede5511612f19ea9a5d89f928351af8400993cd5f4480e825f562b4a9",
+      "kind": "picture",
+      "sha256": "f79899aede5511612f19ea9a5d89f928351af8400993cd5f4480e825f562b4a9"
+    },
+    {
+      "boundaries": [
+        {
+          "bytes": 576576,
+          "record": {
+            "end": 12,
+            "start": 0
+          },
+          "sha256": "d3452cdf216172e36d85dbc68998852322c9f6563b0a6d30fd64cfff7db08274",
+          "source": {
+            "end": 28,
+            "start": 16
+          }
+        },
+        {
+          "bytes": 1105104,
+          "record": {
+            "end": 35,
+            "start": 12
+          },
+          "sha256": "dd47baac66c3584cdca3170db7ea9fda6d325a6a71de3a0f1aefec1dd863acbb",
+          "source": {
+            "end": 65,
+            "start": 42
+          }
+        }
+      ],
+      "bytes": 1681680,
+      "exact": true,
+      "expected_sha256": "e31f7b39819b7d1438c7868d2979c53daa3aff8b9b8dddffe09d2d9e9104379e",
+      "kind": "sound",
+      "sha256": "e31f7b39819b7d1438c7868d2979c53daa3aff8b9b8dddffe09d2d9e9104379e"
+    }
+  ]
+}

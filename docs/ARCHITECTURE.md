@@ -253,3 +253,16 @@ budgets and actual measurements for input latency, frame time, seek latency,
 audio drift, memory, job cancellation, and exports. Compile success does not
 prove the artist's workflow or a GPU/model route. No fake frames, fake progress,
 placeholder exporters, or enabled-but-unimplemented controls.
+
+## Linked timeline commands
+
+The first source-to-record assembly editor derives clip selections from existing
+composition tracks and nodes. Canonical linked V1/A1 groups reference reusable
+source picture/sound compositions through exact unity-rate frame maps. Factories
+produce normal SetComposition/SetSequence groups; undo and recovery persist the
+same graph. Graph reconstruction preserves unaffected IDs and rejects additional
+unsupported effects instead of silently dropping them. The core validates source
+bounds, reciprocal timing, cycles and bounded sound preparation before publication.
+Native inspection/planning run off-thread; workspace ownership and export guards
+apply at commit. The CLI also requires expected revision and conditional save.
+See [timeline contracts](TIMELINE_AUTHORING.md) for profile and track limits.
