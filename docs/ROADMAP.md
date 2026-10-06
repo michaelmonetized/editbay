@@ -214,8 +214,16 @@ Issue #18 supplies bounded native sound blocks through the shared typed graph.
 Camera and six-channel delayed-codec worker gates pass exact independent PCM,
 declared preparation/render budgets, pin accounting and active cancellation;
 see [sound blocks](SOUND_BLOCKS.md). Audio-clock streaming/native transport,
-sound codec isolation and shared delivery are the next dependencies. The full
+shared delivery are the next dependencies. The full
 R2 gate stays open until sustained playback, drift and hardware receipts pass.
+
+Issue #21 now supplies bounded original-channel sound through supervised packaged
+codec children. The unchanged shared sound graph passes exact PCM and worker
+budgets through both app and CLI endpoints, including process death/retry,
+cancellation, source ownership and charged output pins. See
+[isolated sound](WORKER_SOUND.md) and [process evidence](evidence/r2-sound-worker/README.md).
+Natural source-sequence sound timing (#22), streaming transport, shared delivery
+and complete R2 acceptance remain following dependencies.
 
 ## R3 — finish a paying edit
 

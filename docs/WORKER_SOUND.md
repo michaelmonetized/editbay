@@ -59,3 +59,6 @@ Native tests also compare reverse, fractional rate, gain and mix across routes.
 Natural source-sequence sound tails, native streaming callback scheduling, device
 routing, sustained playback and drift, shared delivery and remaining R2 gates
 follow this dependency. No enabled playback control is implied by a worker route.
+
+The final camera and six-channel app/CLI receipts pass their declared gates;
+see [qualification and earlier candidates](evidence/r2-sound-worker/README.md).

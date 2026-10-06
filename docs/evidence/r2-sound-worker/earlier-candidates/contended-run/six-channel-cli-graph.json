@@ -1,0 +1,113 @@
+{
+  "active_cancellation_ms": 4.600936,
+  "actual_source_samples": 192000,
+  "budgets": {
+    "cancel": 2000,
+    "combined_high_water_kib": 524288,
+    "first_native": 250,
+    "high_water_kib": 262144,
+    "planning": 5,
+    "sinc_render": 40,
+    "warm_render": 20
+  },
+  "cancellation_ms": 0.000959,
+  "channels": [
+    "FL",
+    "FR",
+    "FC",
+    "LFE",
+    "BL",
+    "BR"
+  ],
+  "combined_high_water_kib": 85696,
+  "contributions": 2,
+  "first_native_ms": 10.077833,
+  "gates": {
+    "active_cancel_2s": true,
+    "active_cancel_cleanup": true,
+    "cancel_2s": true,
+    "cleanup": true,
+    "combined_memory_512mib": true,
+    "first_native_250ms": true,
+    "foreign_plan_rejected": true,
+    "foreign_result_rejected": true,
+    "memory_256mib": true,
+    "pcm_error_1e_6": true,
+    "pins_survive_clear": true,
+    "preparation_p95_5ms": true,
+    "sinc_p95_40ms": false,
+    "source_unchanged": true,
+    "stale_result_rejected": true,
+    "warm_unity_p95_20ms": true
+  },
+  "independent_pcm_sha256": "118b5d59a221d429ebf5d08eb9ce322f90e9406131502579c108ce8e11aafce7",
+  "independent_reference": "sequential FFmpeg CLI native f32le without resampling or channel conversion",
+  "kind": "isolated_sound_blocks",
+  "limits": [
+    "isolated sound worker evidence; no callback, device, UI playback or drift proof",
+    "source interval uses whole natural seconds; fractional source-sequence sound tails remain open",
+    "channel layout retained; no downmix or device routing"
+  ],
+  "maximum_absolute_pcm_error": 0.0,
+  "memory": [
+    "VmHWM:\t   46976 kB",
+    "VmRSS:\t   25488 kB"
+  ],
+  "memory_high_water_kib": 46976,
+  "native_sinc_44100": {
+    "count": 30,
+    "max_ms": 50.902375,
+    "p50_ms": 31.077169,
+    "p95_ms": 44.662767
+  },
+  "native_unity_first_pass": {
+    "count": 46,
+    "max_ms": 10.077833,
+    "p50_ms": 1.163047,
+    "p95_ms": 2.9189279999999997
+  },
+  "native_unity_warm": {
+    "count": 100,
+    "max_ms": 4.414726,
+    "p50_ms": 0.924338,
+    "p95_ms": 2.313676
+  },
+  "nested_fps": 60,
+  "output_frames_per_block": 4096,
+  "pcm_stats": {
+    "cache_bytes": 4521984,
+    "decoded_frames": 188416,
+    "decoder_scratch_bytes": 1572864,
+    "decoder_scratch_limit_bytes": 33554432,
+    "decoders": 1,
+    "entries": 46,
+    "evictions": 0,
+    "hits": 246,
+    "live_bytes": 4521984,
+    "misses": 46,
+    "seeks": 0,
+    "sources": 1
+  },
+  "preparation": {
+    "count": 46,
+    "max_ms": 5.219063,
+    "p50_ms": 2.997888,
+    "p95_ms": 4.41881
+  },
+  "qualified": false,
+  "qualified_whole_seconds": 4,
+  "rendered_blocks_sha256": "b82f5b0900bef18c2201557fa6fc830897884a01556cd4fdc76cce7b47691568",
+  "root_fps": 24,
+  "sample_rate": 48000,
+  "schema": 1,
+  "sinc_child_high_water_kib": 38720,
+  "source": "artifacts/qualification/fixtures/six-channel.m4a",
+  "source_fingerprint": {
+    "bytes": 173208,
+    "sha256": "d0dfc92cd2c8097ef21ba6a019e7dc31b139eb26fa03afa1c09cb46b1aa474ae"
+  },
+  "source_stream": 0,
+  "unity_child_high_water_kib": 34000,
+  "worker_executable": "artifacts/qualification/bin/editbay",
+  "worker_sha256": "9c9e81875623f8b4825aed215067c1d651fdf0abab5a54bef8e053657f437de1"
+}
