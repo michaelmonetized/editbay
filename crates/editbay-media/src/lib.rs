@@ -1,8 +1,10 @@
 //! Local-file decode and lossless prototype encoding through a narrow FFmpeg adapter.
 
 mod codec_process;
+mod delivery;
 #[allow(unsafe_code)]
 mod ffi;
+pub mod native_job;
 mod pcm;
 pub mod pcm_worker;
 pub mod picture_worker;
@@ -11,6 +13,9 @@ mod pictures;
 mod planes;
 mod source;
 pub mod worker;
+
+pub use delivery::LosslessMovProfile;
+pub use ffi::LosslessMovWriter;
 
 pub use pcm::{NativePcmCache, PcmBlock, PcmBudget, PcmProvider, PcmResult, PcmStats};
 pub use pictures::{

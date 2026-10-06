@@ -168,3 +168,13 @@ worker retirement <=432.493 ms and zero saved/recovered original PCM error retai
 their unchanged limits. This completes the bounded transport dependency;
 physical audibility, two-hour hardware drift, sustained 1080p/4K and shared
 delivery remain open R2/R8 gates.
+
+The first shared master now has separate [native/media evidence](evidence/r2-shared-delivery/README.md).
+Actual camera and delayed six-channel exports preserve exact graph picture/PCM
+hashes through independent FFmpeg decode, native retry, save and recovered projects.
+Eight viewer inputs have p95 <=19.548 ms; six were accepted during export. Native
+cancellation/retirement <=126.322 ms and stopped-child retirement <=172.906 ms
+retain 50/2000 ms gates. Existing destinations, changed sources, malformed/stale
+work and abrupt controller death are exercised; no unpublished files survive.
+This closes one declared SDR full-sequence master. Broader profiles/ranges/queues,
+long workloads, hardware/drift and R3–R11 workflow/adoption gates stay open.

@@ -79,6 +79,18 @@ unsafe extern "C" {
     fn eb_writer_close(writer: *mut c_void);
     fn eb_writer_frame(writer: *mut c_void, rgba: *const u8, length: usize) -> c_int;
     fn eb_writer_finish(writer: *mut c_void) -> c_int;
+    fn eb_delivery_open(
+        descriptor: c_int,
+        width: c_int,
+        height: c_int,
+        num: c_int,
+        den: c_int,
+        rate: c_int,
+        layout: *const c_char,
+        cancel: *mut c_void,
+        error: *mut c_int,
+    ) -> *mut c_void;
+    fn eb_delivery_sound(writer: *mut c_void, samples: *const f32, length: usize) -> c_int;
     fn eb_error(code: c_int, message: *mut c_char, length: usize);
     fn eb_version() -> *const c_char;
 }
@@ -437,6 +449,128 @@ impl Drop for Reader {
 }
 
 pub struct VideoWriter(NonNull<c_void>);
+
+/// Bounded, consecutive picture and sound encoding into a caller-owned file.
+pub struct LosslessMovWriter {
+    writer: VideoWriter,
+    profile: crate::LosslessMovProfile,
+    cancel: Cancellation,
+    pictures: u64,
+    sound: u64,
+    failed: bool,
+}
+
+impl LosslessMovWriter {
+    /// Open an empty regular file as a declared lossless MOV delivery.
+    /// `file` is private unpublished storage; `profile` and `cancel` bound native
+    /// encoding. Returns an exclusive writer. Publication belongs to the caller.
+    pub fn new(
+        file: &File,
+        profile: crate::LosslessMovProfile,
+        cancel: Cancellation,
+    ) -> Result<Self> {
+        profile.validate()?;
+        check(0, &cancel)?;
+        let metadata = file.metadata()?;
+        if !metadata.is_file() || metadata.len() != 0 {
+            return Err(Error::Invalid(
+                "delivery requires an empty regular file".into(),
+            ));
+        }
+        let layout = CString::new(profile.channels.join("+"))
+            .map_err(|_| Error::Invalid("invalid delivery channel names".into()))?;
+        let mut code = 0;
+        let pointer = unsafe {
+            eb_delivery_open(
+                file.as_raw_fd(),
+                profile.width as i32,
+                profile.height as i32,
+                profile.frame_rate.numerator as i32,
+                profile.frame_rate.denominator as i32,
+                profile.sample_rate as i32,
+                layout.as_ptr(),
+                cancel.0.pointer(),
+                &mut code,
+            )
+        };
+        let pointer = NonNull::new(pointer)
+            .ok_or_else(|| check(code, &cancel).err().unwrap_or_else(|| error(code)))?;
+        Ok(Self {
+            writer: VideoWriter(pointer),
+            profile,
+            cancel,
+            pictures: 0,
+            sound: 0,
+            failed: false,
+        })
+    }
+
+    /// Append one full-range straight-alpha Rec.709/sRGB RGBA8 picture.
+    /// `frame` is the consecutive relative ordinal; `rgba` is the exact geometry.
+    /// Returns after encoding. Sound must catch up before the following picture.
+    pub fn picture(&mut self, frame: u64, rgba: &[u8]) -> Result<()> {
+        check(0, &self.cancel)?;
+        if self.failed
+            || frame != self.pictures
+            || frame >= self.profile.frames
+            || self.sound < self.profile.samples_through(frame)?
+            || rgba.len() != self.profile.width as usize * self.profile.height as usize * 4
+        {
+            return Err(Error::Invalid(
+                "invalid, stale or unbounded delivery picture".into(),
+            ));
+        }
+        let result = self.writer.write(rgba);
+        self.failed = result.is_err();
+        result?;
+        self.pictures += 1;
+        Ok(())
+    }
+
+    /// Append original-channel float PCM for already written pictures.
+    /// `first` is the consecutive relative sample; `samples` has at most 4096
+    /// frames. Returns after muxing, retaining finite headroom without clipping.
+    pub fn sound(&mut self, first: u64, samples: &[f32]) -> Result<()> {
+        check(0, &self.cancel)?;
+        let channels = self.profile.channels.len();
+        let frames = (samples.len() / channels) as u64;
+        let limit = self.profile.samples_through(self.pictures)?;
+        if self.failed
+            || first != self.sound
+            || samples.is_empty()
+            || !samples.len().is_multiple_of(channels)
+            || frames > 4096
+            || first.checked_add(frames).is_none_or(|end| end > limit)
+            || samples.iter().any(|v| !v.is_finite())
+        {
+            return Err(Error::Invalid(
+                "invalid, stale or unbounded delivery sound".into(),
+            ));
+        }
+        let code =
+            unsafe { eb_delivery_sound(self.writer.0.as_ptr(), samples.as_ptr(), samples.len()) };
+        let result = check(code, &self.cancel);
+        self.failed = result.is_err();
+        result?;
+        self.sound += frames;
+        Ok(())
+    }
+
+    /// Drain the encoder only when the entire declared interval was written.
+    /// Consumes this writer; returns after trailer flush, never publishing a path.
+    pub fn finish(self) -> Result<()> {
+        check(0, &self.cancel)?;
+        if self.failed
+            || self.pictures != self.profile.frames
+            || self.sound != self.profile.samples_through(self.profile.frames)?
+        {
+            return Err(Error::Invalid("delivery is incomplete".into()));
+        }
+        let code = unsafe { eb_writer_finish(self.writer.0.as_ptr()) };
+        check(code, &self.cancel)?;
+        Ok(())
+    }
+}
 
 impl VideoWriter {
     /// Encode a prototype lossless picture stream.

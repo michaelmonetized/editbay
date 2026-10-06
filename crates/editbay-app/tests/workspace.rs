@@ -40,6 +40,67 @@ fn rename(workspace: &mut Workspace, id: uuid::Uuid, name: &str) {
 }
 
 #[test]
+fn document_mutations_cancel_exports_before_return_without_needing_a_ui_poll() {
+    use editbay_delivery::DeliveryControl;
+    let directory = tempfile::tempdir().unwrap();
+    let mut workspace = Workspace::new(
+        directory.path().join("Recovery"),
+        eframe::egui::Context::default(),
+    );
+    let id = workspace.create(Project::new("Captured").unwrap()).unwrap();
+    let other = workspace
+        .create(Project::new("Independent").unwrap())
+        .unwrap();
+    let bind = |workspace: &mut Workspace| {
+        let (owner, _) = workspace.edit_snapshot(id).unwrap();
+        let control = DeliveryControl::new().unwrap();
+        workspace.guard_export(owner, control.clone()).unwrap();
+        control
+    };
+    let first = bind(&mut workspace);
+    rename(&mut workspace, other, "Other revision");
+    rename(&mut workspace, id, "Captured");
+    assert!(first.cancellable());
+    let (stale, _) = workspace.edit_snapshot(id).unwrap();
+    rename(&mut workspace, id, "Revised");
+    assert!(!first.cancellable());
+    assert!(
+        workspace
+            .guard_export(stale, DeliveryControl::new().unwrap())
+            .is_err()
+    );
+    let history = bind(&mut workspace);
+    workspace.history(id, false).unwrap();
+    assert!(!history.cancellable());
+    let history = bind(&mut workspace);
+    workspace.history(id, true).unwrap();
+    assert!(!history.cancellable());
+    let background = bind(&mut workspace);
+    let (owner, mut editor) = workspace.edit_snapshot(id).unwrap();
+    editor
+        .apply(
+            owner.version,
+            "Background rename".into(),
+            &[DocumentCommand::RenameProject {
+                name: "Background".into(),
+            }],
+        )
+        .unwrap();
+    workspace.commit_edit(owner, editor).unwrap();
+    assert!(!background.cancellable());
+    let saving = bind(&mut workspace);
+    let (owner, _) = workspace.edit_snapshot(id).unwrap();
+    workspace
+        .save(id, owner.version, directory.path().join("Saved.editbay"))
+        .unwrap();
+    assert!(!saving.cancellable());
+    settle(&mut workspace);
+    let closing = bind(&mut workspace);
+    workspace.close(id, false).unwrap();
+    assert!(!closing.cancellable());
+}
+
+#[test]
 fn one_hundred_inactive_and_untitled_documents_keep_latest_acknowledged_recovery() {
     let directory = tempfile::tempdir().unwrap();
     let root = directory.path().join("Recovery");

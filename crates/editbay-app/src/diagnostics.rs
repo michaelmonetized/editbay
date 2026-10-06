@@ -32,6 +32,7 @@ pub struct Diagnostics {
     dropped: u64,
     previous_media: Value,
     previous_preview: Value,
+    previous_delivery: Value,
 }
 
 impl Diagnostics {
@@ -78,6 +79,7 @@ impl Diagnostics {
             dropped: 0,
             previous_media: Value::Null,
             previous_preview: Value::Null,
+            previous_delivery: Value::Null,
         })
     }
 
@@ -100,6 +102,7 @@ impl Diagnostics {
         workspace: &Workspace,
         media: &crate::media_ui::MediaPane,
         preview: &crate::preview::PreviewPane,
+        delivery: &crate::delivery_ui::DeliveryPane,
     ) {
         let current: Vec<_> = workspace
             .tabs
@@ -132,6 +135,11 @@ impl Diagnostics {
         if current_preview != self.previous_preview {
             self.record("preview", current_preview.clone());
             self.previous_preview = current_preview;
+        }
+        let current_delivery = delivery.diagnostic_state();
+        if current_delivery != self.previous_delivery {
+            self.record("delivery", current_delivery.clone());
+            self.previous_delivery = current_delivery;
         }
     }
 

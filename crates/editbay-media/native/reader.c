@@ -17,7 +17,7 @@
 #include <libswscale/swscale.h>
 #include <libswresample/swresample.h>
 
-typedef struct { atomic_int requested; } EBCancel;
+typedef struct EBCancel { atomic_int requested; } EBCancel;
 _Static_assert(ATOMIC_INT_LOCK_FREE == 2, "Cancellation requires lock-free integer atomics");
 
 EBCancel *eb_cancel_create(void) {

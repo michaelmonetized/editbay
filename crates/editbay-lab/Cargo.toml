@@ -7,6 +7,7 @@ license.workspace = true
 description = "Native hardware feasibility and evidence tools"
 
 [dependencies]
+editbay-delivery = { path = "../editbay-delivery" }
 editbay-core = { path = "../editbay-core" }
 editbay-reference = { path = "../editbay-reference", optional = true, features = ["libtorch"] }
 editbay-media = { path = "../editbay-media" }
@@ -18,6 +19,7 @@ serde_json.workspace = true
 sha2.workspace = true
 tempfile.workspace = true
 uuid.workspace = true
+rustix = { workspace = true, features = ["process"] }
 
 [lints]
 workspace = true

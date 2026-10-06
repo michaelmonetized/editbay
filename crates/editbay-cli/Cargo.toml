@@ -13,6 +13,8 @@ path = "src/main.rs"
 [dependencies]
 editbay-core = { path = "../editbay-core" }
 editbay-media = { path = "../editbay-media" }
+editbay-delivery = { path = "../editbay-delivery" }
+tokio = { workspace = true, features = ["signal", "sync"] }
 serde.workspace = true
 serde_json.workspace = true
 sha2.workspace = true

@@ -18,6 +18,7 @@ Usage:
   editbay probe-media SOURCE
   editbay ingest FILE SOURCE STREAM_INDICES
   editbay decode-frame SOURCE STREAM_INDEX SOURCE_TICK
+  editbay export FILE COMPOSITION_ID NEW_MOV [SAMPLE_RATE]
   editbay checkpoint FILE RECOVERY_DIRECTORY
   editbay recoveries RECOVERY_DIRECTORY
   editbay recover CHECKPOINT NEW_FILE
@@ -49,6 +50,71 @@ fn read_bounded(path: &Path, limit: u64) -> Result<Vec<u8>, Box<dyn std::error::
     Ok(bytes)
 }
 
+fn export(args: &[OsString]) -> Result<(), Box<dyn std::error::Error>> {
+    let request = editbay_delivery::DeliveryRequest {
+        composition: name(&args[2])?.parse()?,
+        sample_rate: match args.get(4) {
+            Some(rate) => name(rate)?.parse()?,
+            None => 48000,
+        },
+    };
+    let project = std::sync::Arc::new(load(Path::new(&args[1]))?);
+    let control = editbay_delivery::DeliveryControl::new()?;
+    let runtime = tokio::runtime::Builder::new_current_thread()
+        .enable_all()
+        .build()?;
+    let (mut interrupt, mut terminate) = {
+        let _entered = runtime.enter();
+        (
+            tokio::signal::unix::signal(tokio::signal::unix::SignalKind::interrupt())?,
+            tokio::signal::unix::signal(tokio::signal::unix::SignalKind::terminate())?,
+        )
+    };
+    let (stop, stopped) = tokio::sync::oneshot::channel::<()>();
+    let cancel = control.clone();
+    let signals = std::thread::Builder::new()
+        .name("editbay-export-signals".into())
+        .spawn(move || {
+            runtime.block_on(async move {
+                tokio::select! {
+                    _ = interrupt.recv() => { cancel.cancel(); },
+                    _ = terminate.recv() => { cancel.cancel(); },
+                    _ = stopped => {},
+                }
+            });
+        })?;
+    let mut last = std::time::Instant::now();
+    let mut phase = None;
+    let result = editbay_delivery::deliver(
+        &std::env::current_exe()?,
+        project,
+        request,
+        Path::new(&args[3]),
+        &control,
+        |progress, _| {
+            if phase != Some(progress.phase)
+                || last.elapsed() >= std::time::Duration::from_millis(500)
+            {
+                eprintln!(
+                    "{:?}: {}/{} pictures, {}/{} samples",
+                    progress.phase,
+                    progress.pictures,
+                    progress.total_pictures,
+                    progress.samples,
+                    progress.total_samples
+                );
+                phase = Some(progress.phase);
+                last = std::time::Instant::now();
+            }
+        },
+    );
+    let _ = stop.send(());
+    signals
+        .join()
+        .map_err(|_| "Delivery signal handler failed")?;
+    print(result?)
+}
+
 fn run(args: &[OsString]) -> Result<(), Box<dyn std::error::Error>> {
     let command = args
         .first()
@@ -66,6 +132,7 @@ fn run(args: &[OsString]) -> Result<(), Box<dyn std::error::Error>> {
             print(project)?;
         }
         ("info", 2) => print(load(Path::new(&args[1]))?)?,
+        ("export", 4 | 5) => export(args)?,
         ("rename", 3) => {
             let path = Path::new(&args[1]);
             let expected = load(path)?;
@@ -174,6 +241,15 @@ fn run(args: &[OsString]) -> Result<(), Box<dyn std::error::Error>> {
 }
 
 fn main() -> ExitCode {
+    if std::env::args_os().nth(1).as_deref() == Some(std::ffi::OsStr::new("--delivery-worker")) {
+        return match editbay_delivery::serve() {
+            Ok(()) => ExitCode::SUCCESS,
+            Err(error) => {
+                eprintln!("editbay delivery worker: {error}");
+                ExitCode::FAILURE
+            }
+        };
+    }
     if std::env::args_os().nth(1).as_deref() == Some(std::ffi::OsStr::new("--pcm-worker")) {
         return match editbay_media::pcm_worker::serve() {
             Ok(()) => ExitCode::SUCCESS,

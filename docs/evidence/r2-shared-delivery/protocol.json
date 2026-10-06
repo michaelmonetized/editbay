@@ -1,0 +1,161 @@
+{
+  "application_sha256": "1672057ebc6cdee40fe1a13680cda4b376be8250fe8d38b9b9d3c3dc7996feda",
+  "kind": "shared_delivery_worker_protocol",
+  "qualified": true,
+  "reports": [
+    {
+      "error": "invalid media request: codec worker failed: invalid media request: codec worker closed its socket; ",
+      "mode": "malformed",
+      "rejected": true,
+      "retired": true,
+      "retirement_ms": 14.275978
+    },
+    {
+      "error": "invalid media request: codec worker failed: invalid media request: codec worker closed its socket; editbay delivery worker: invalid media request: unknown field `foreign`, expected one of `owner`, `serial`, `operation` at line 1 column 10\n",
+      "mode": "unknown-field",
+      "rejected": true,
+      "retired": true,
+      "retirement_ms": 17.602752
+    },
+    {
+      "error": {
+        "outcome": {
+          "kind": "failed",
+          "message": "Delivery has no private output descriptor"
+        },
+        "owner": {
+          "job": "7d722bf1-9dec-461d-abd7-3503a1894fa9",
+          "version": {
+            "project_id": "4f509bef-6fd0-4773-ae1d-2191d9bcb1d4",
+            "revision": 3
+          }
+        },
+        "serial": 0
+      },
+      "mode": "missing-file",
+      "rejected": true,
+      "retired": true,
+      "retirement_ms": 18.441175
+    },
+    {
+      "error": {
+        "outcome": {
+          "kind": "failed",
+          "message": "Delivery requires an anonymous private output file"
+        },
+        "owner": {
+          "job": "da593cd0-0b38-4563-ac2a-62d38926557d",
+          "version": {
+            "project_id": "4f509bef-6fd0-4773-ae1d-2191d9bcb1d4",
+            "revision": 3
+          }
+        },
+        "serial": 0
+      },
+      "mode": "named-file",
+      "rejected": true,
+      "retired": true,
+      "retirement_ms": 18.139048000000003
+    },
+    {
+      "error": {
+        "outcome": {
+          "kind": "failed",
+          "message": "Delivery operation is stale or belongs to another owner"
+        },
+        "owner": {
+          "job": "25af694f-24b1-431f-b055-f24dc8bd7d08",
+          "version": {
+            "project_id": "4f509bef-6fd0-4773-ae1d-2191d9bcb1d4",
+            "revision": 3
+          }
+        },
+        "serial": 0
+      },
+      "mode": "stale",
+      "rejected": true,
+      "retired": true,
+      "retirement_ms": 6.222295
+    },
+    {
+      "error": {
+        "outcome": {
+          "kind": "failed",
+          "message": "Delivery operation is stale or belongs to another owner"
+        },
+        "owner": {
+          "job": "8f7e8141-0d36-420d-8a40-a790a288c357",
+          "version": {
+            "project_id": "4f509bef-6fd0-4773-ae1d-2191d9bcb1d4",
+            "revision": 3
+          }
+        },
+        "serial": 1
+      },
+      "mode": "foreign",
+      "rejected": true,
+      "retired": true,
+      "retirement_ms": 6.208753
+    },
+    {
+      "error": {
+        "outcome": {
+          "kind": "failed",
+          "message": "Delivery operation is stale or belongs to another owner"
+        },
+        "owner": {
+          "job": "da145795-21cf-441a-abbe-cce4e153700c",
+          "version": {
+            "project_id": "4f509bef-6fd0-4773-ae1d-2191d9bcb1d4",
+            "revision": 4
+          }
+        },
+        "serial": 1
+      },
+      "mode": "foreign-version",
+      "rejected": true,
+      "retired": true,
+      "retirement_ms": 6.244712000000001
+    },
+    {
+      "error": {
+        "outcome": {
+          "kind": "failed",
+          "message": "Delivery step included a foreign descriptor"
+        },
+        "owner": {
+          "job": "2ba8068a-ac25-4955-a23b-e7a9f58d3abf",
+          "version": {
+            "project_id": "4f509bef-6fd0-4773-ae1d-2191d9bcb1d4",
+            "revision": 3
+          }
+        },
+        "serial": 1
+      },
+      "mode": "extra-file",
+      "rejected": true,
+      "retired": true,
+      "retirement_ms": 6.226211
+    },
+    {
+      "error": {
+        "outcome": {
+          "kind": "failed",
+          "message": "Delivery binding does not own its document"
+        },
+        "owner": {
+          "job": "34d6302d-bf92-45b2-b9ca-e4049bf341d1",
+          "version": {
+            "project_id": "4f509bef-6fd0-4773-ae1d-2191d9bcb1d4",
+            "revision": 3
+          }
+        },
+        "serial": 1
+      },
+      "mode": "duplicate-begin",
+      "rejected": true,
+      "retired": true,
+      "retirement_ms": 6.284128
+    }
+  ]
+}

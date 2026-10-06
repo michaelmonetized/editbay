@@ -1,0 +1,194 @@
+{
+  "binary_sha256": "1672057ebc6cdee40fe1a13680cda4b376be8250fe8d38b9b9d3c3dc7996feda",
+  "collision_preserved": true,
+  "destination": "artifacts/delivery/qualified-six-full.mov",
+  "elapsed_ms": 776.7708319999999,
+  "error": null,
+  "independent": {
+    "metadata": {
+      "format": {
+        "bit_rate": "11466646",
+        "duration": "3.294958",
+        "filename": "artifacts/delivery/qualified-six-full.mov",
+        "format_long_name": "QuickTime / MOV",
+        "format_name": "mov,mp4,m4a,3gp,3g2,mj2",
+        "nb_programs": 0,
+        "nb_stream_groups": 0,
+        "nb_streams": 2,
+        "probe_score": 100,
+        "size": "4722765",
+        "start_time": "0.000000",
+        "tags": {
+          "compatible_brands": "qt  ",
+          "encoder": "Lavf63.1.101",
+          "major_brand": "qt  ",
+          "minor_version": "512"
+        }
+      },
+      "streams": [
+        {
+          "avg_frame_rate": "24000/1001",
+          "bit_rate": "2245279",
+          "codec_long_name": "PNG (Portable Network Graphics) image",
+          "codec_name": "png",
+          "codec_tag": "0x20676e70",
+          "codec_tag_string": "png ",
+          "codec_type": "video",
+          "coded_height": 180,
+          "coded_width": 320,
+          "color_primaries": "bt709",
+          "color_range": "pc",
+          "color_space": "gbr",
+          "color_transfer": "iec61966-2-1",
+          "disposition": {
+            "attached_pic": 0,
+            "captions": 0,
+            "clean_effects": 0,
+            "comment": 0,
+            "default": 1,
+            "dependent": 0,
+            "descriptions": 0,
+            "dub": 0,
+            "forced": 0,
+            "hearing_impaired": 0,
+            "karaoke": 0,
+            "lyrics": 0,
+            "metadata": 0,
+            "multilayer": 0,
+            "non_diegetic": 0,
+            "original": 0,
+            "still_image": 0,
+            "timed_thumbnails": 0,
+            "visual_impaired": 0
+          },
+          "duration": "3.294958",
+          "duration_ts": 79079,
+          "has_b_frames": 0,
+          "height": 180,
+          "id": "0x1",
+          "index": 0,
+          "level": -99,
+          "nb_frames": "79",
+          "pix_fmt": "rgba",
+          "r_frame_rate": "24000/1001",
+          "start_pts": 0,
+          "start_time": "0.000000",
+          "tags": {
+            "handler_name": "VideoHandler",
+            "vendor_id": "FFMP"
+          },
+          "time_base": "1/24000",
+          "width": 320
+        },
+        {
+          "avg_frame_rate": "0/0",
+          "bit_rate": "9216000",
+          "bits_per_sample": 32,
+          "channel_layout": "5.1",
+          "channels": 6,
+          "codec_long_name": "PCM 32-bit floating point little-endian",
+          "codec_name": "pcm_f32le",
+          "codec_tag": "0x6d63706c",
+          "codec_tag_string": "lpcm",
+          "codec_type": "audio",
+          "disposition": {
+            "attached_pic": 0,
+            "captions": 0,
+            "clean_effects": 0,
+            "comment": 0,
+            "default": 1,
+            "dependent": 0,
+            "descriptions": 0,
+            "dub": 0,
+            "forced": 0,
+            "hearing_impaired": 0,
+            "karaoke": 0,
+            "lyrics": 0,
+            "metadata": 0,
+            "multilayer": 0,
+            "non_diegetic": 0,
+            "original": 0,
+            "still_image": 0,
+            "timed_thumbnails": 0,
+            "visual_impaired": 0
+          },
+          "duration": "3.294958",
+          "duration_ts": 158158,
+          "id": "0x2",
+          "index": 1,
+          "initial_padding": 0,
+          "nb_frames": "158158",
+          "r_frame_rate": "0/0",
+          "sample_fmt": "flt",
+          "sample_rate": "48000",
+          "start_pts": 0,
+          "start_time": "0.000000",
+          "tags": {
+            "handler_name": "SoundHandler",
+            "vendor_id": "[0][0][0][0]"
+          },
+          "time_base": "1/48000"
+        }
+      ]
+    },
+    "streams": [
+      {
+        "bytes": 18201600,
+        "exact": true,
+        "kind": "picture",
+        "sha256": "264bbfafed6c77a20f2316a32fbedc11f810d7ae8ccceb1932634f805921a757",
+        "transparent_last_picture_pixels": 57600
+      },
+      {
+        "bytes": 3795792,
+        "exact": true,
+        "kind": "sound",
+        "sha256": "9a9f7641004bf3108fc5731c6fd99bec314d10e36f2368631afdd0f7db52c351",
+        "transparent_last_picture_pixels": null
+      }
+    ]
+  },
+  "kind": "shared_delivery_qualification",
+  "memory": [
+    "VmHWM:\t   30752 kB",
+    "VmRSS:\t   30752 kB"
+  ],
+  "mode": "full",
+  "published": true,
+  "qualified": true,
+  "receipt": {
+    "adapter": "AdapterInfo { name: \"Apple M1 Pro (G13S C0)\", vendor: 65541, device: 0, device_type: IntegratedGpu, device_pci_bus_id: \"\", driver: \"Honeykrisp\", driver_info: \"Mesa 26.2.3-arch1.1\", backend: Vulkan, subgroup_min_size: 32, subgroup_max_size: 32, transient_saves_memory: Some(false), limit_bucket: None }",
+    "clipped_picture_values": 0,
+    "file_bytes": 4722765,
+    "file_sha256": "508d0b6a675b3b2efbfa6afe13e6b7ec1549052e68b040e4e6849f141ca09517",
+    "pcm_sha256": "9a9f7641004bf3108fc5731c6fd99bec314d10e36f2368631afdd0f7db52c351",
+    "pixel_sha256": "264bbfafed6c77a20f2316a32fbedc11f810d7ae8ccceb1932634f805921a757",
+    "profile": {
+      "channels": [
+        "FL",
+        "FR",
+        "FC",
+        "LFE",
+        "BL",
+        "BR"
+      ],
+      "frame_rate": {
+        "denominator": 1001,
+        "numerator": 24000
+      },
+      "frames": 79,
+      "height": 180,
+      "sample_rate": 48000,
+      "width": 320
+    },
+    "version": {
+      "project_id": "4f509bef-6fd0-4773-ae1d-2191d9bcb1d4",
+      "revision": 3
+    }
+  },
+  "retirement_ms": null,
+  "schema": 1,
+  "worker_high_water_kib": 116992,
+  "worker_reaped": true,
+  "observations_file": "six-full.json.gz"
+}

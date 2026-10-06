@@ -1,6 +1,6 @@
 [workspace]
-members = ["crates/editbay-core", "crates/editbay-cli", "crates/editbay-media", "crates/editbay-render", "crates/editbay-audio", "crates/editbay-lab", "crates/editbay-ai", "crates/editbay-reference", "crates/editbay-automation", "crates/editbay-app", "vendor/eframe", "vendor/egui-winit"]
-default-members = ["crates/editbay-core", "crates/editbay-cli", "crates/editbay-media", "crates/editbay-render", "crates/editbay-audio", "crates/editbay-lab", "crates/editbay-ai", "crates/editbay-reference", "crates/editbay-automation", "crates/editbay-app"]
+members = ["crates/editbay-core", "crates/editbay-cli", "crates/editbay-media", "crates/editbay-render", "crates/editbay-audio", "crates/editbay-delivery", "crates/editbay-lab", "crates/editbay-ai", "crates/editbay-reference", "crates/editbay-automation", "crates/editbay-app", "vendor/eframe", "vendor/egui-winit"]
+default-members = ["crates/editbay-core", "crates/editbay-cli", "crates/editbay-media", "crates/editbay-render", "crates/editbay-audio", "crates/editbay-delivery", "crates/editbay-lab", "crates/editbay-ai", "crates/editbay-reference", "crates/editbay-automation", "crates/editbay-app"]
 resolver = "3"
 
 [workspace.package]
@@ -17,6 +17,7 @@ sha2 = "0.10"
 thiserror = "2.0"
 fs2 = "0.4"
 tempfile = "3.27"
+rustix = { version = "1.1.5", features = ["fs"] }
 wgpu = "=30.0.1"
 pollster = "0.4"
 half = "2.7"
