@@ -490,7 +490,10 @@ fn run(request: &Request, sender: &SyncSender<Event>) -> Result<()> {
     let paused = stream.pause().map_err(|e| e.to_string());
     drop(stream);
     producer.renderer.clear();
-    result.and(paused)
+    match fault(control.state()) {
+        Some(error) => Err(error.into()),
+        None => result.and(paused),
+    }
 }
 
 struct Callback {
@@ -616,6 +619,24 @@ fn elapsed_ns(origin: Instant) -> u64 {
     origin.elapsed().as_nanos().min(u128::from(u64::MAX)) as u64
 }
 
+fn fault(state: State) -> Option<&'static str> {
+    match state {
+        State::SourceFailed => Some("Sound preparation stopped before the sequence ended"),
+        State::DeviceFailed => Some("Sound output device failed; retry playback"),
+        State::BackendClockReset => {
+            Some("Sound backend timestamp reset after playback started; retry playback")
+        }
+        State::BackendDiscontinuity => Some(
+            "Sound backend timing lost continuity; playback stopped without skipping source samples",
+        ),
+        State::Underrun => Some(
+            "Sound preparation fell behind the device; playback stopped without skipping source samples",
+        ),
+        State::InvalidOutput => Some("Sound output device returned an invalid buffer or clock"),
+        _ => None,
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -664,22 +685,5 @@ mod tests {
                 .0,
             44100
         );
-    }
-}
-fn fault(state: State) -> Option<&'static str> {
-    match state {
-        State::SourceFailed => Some("Sound preparation stopped before the sequence ended"),
-        State::DeviceFailed => Some("Sound output device failed; retry playback"),
-        State::BackendClockReset => {
-            Some("Sound backend timestamp reset after playback started; retry playback")
-        }
-        State::BackendDiscontinuity => Some(
-            "Sound backend timing lost continuity; playback stopped without skipping source samples",
-        ),
-        State::Underrun => Some(
-            "Sound preparation fell behind the device; playback stopped without skipping source samples",
-        ),
-        State::InvalidOutput => Some("Sound output device returned an invalid buffer or clock"),
-        _ => None,
     }
 }
