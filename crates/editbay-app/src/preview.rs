@@ -894,11 +894,19 @@ impl PreviewPane {
     fn stop_sound(&mut self) -> Option<u64> {
         self.starting = None;
         if let Some(prepared) = self.prepared.take() {
-            if let Ok(mut pictures) = prepared.lock() {
+            let in_flight = if let Ok(mut pictures) = prepared.lock() {
+                let active = pictures.state().in_flight;
                 pictures.cancel();
-            }
+                active
+            } else {
+                true
+            };
             self.requested_frame = None;
-            if let Some(task) = &self.task {
+            if in_flight && let Some(task) = self.task.take() {
+                task.stop();
+                self.retiring.push(task);
+                self.worker_pid = None;
+            } else if let Some(task) = &self.task {
                 task.mailbox.1.notify_one();
             }
         }

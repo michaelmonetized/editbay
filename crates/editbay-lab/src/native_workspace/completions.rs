@@ -60,9 +60,71 @@ pub(super) fn audit(records: &[Value], duration: u64) -> Result<Value> {
             "Display completion events disagree with the bounded application counters".into(),
         );
     }
+    let mut selection_ms: Vec<_> = events
+        .iter()
+        .filter_map(|e| e["selection_to_draw_us"].as_u64())
+        .map(|us| us as f64 / 1000.)
+        .collect();
+    let prepared: Vec<_> = records
+        .iter()
+        .filter(|r| {
+            r["kind"] == "preview"
+                && &r["details"]["display"]["session"] == session
+                && r["details"]["prepared_pictures"].is_object()
+        })
+        .collect();
+    let mut maximum_queued = 0;
+    let mut maximum_prepared = 0;
+    for r in &prepared {
+        let q = &r["details"]["prepared_pictures"];
+        let capacity = q["capacity"]
+            .as_u64()
+            .ok_or("Prepared picture capacity absent")?;
+        let queued = q["queued"]
+            .as_u64()
+            .ok_or("Prepared picture occupancy absent")?;
+        let pending = u64::from(
+            q["in_flight"]
+                .as_bool()
+                .ok_or("Prepared picture work state absent")?,
+        );
+        let bytes = q["maximum_picture_bytes"]
+            .as_u64()
+            .ok_or("Prepared picture size absent")?;
+        if !(1..=8).contains(&capacity)
+            || queued + pending > capacity
+            || q["maximum_pinned_bytes"] != bytes * (capacity + 1)
+            || bytes * (capacity + 1) > 256 * 1024 * 1024
+            || q["session"] != prepared[0]["details"]["prepared_pictures"]["session"]
+        {
+            return Err("Prepared pictures exceeded their declared bounds or changed owner".into());
+        }
+        maximum_queued = maximum_queued.max(queued);
+        maximum_prepared = maximum_prepared.max(
+            q["prepared"]
+                .as_u64()
+                .ok_or("Prepared picture count absent")?,
+        );
+    }
+    let first_sound = prepared
+        .iter()
+        .find(|r| r["details"]["sound_active"] == true);
+    if !prepared.is_empty()
+        && first_sound.is_none_or(|r| {
+            r["details"]["displayed_frame"] != 0
+                || r["details"]["gpu_draw_completed_us"]
+                    .as_u64()
+                    .is_none_or(|us| us == 0)
+        })
+    {
+        return Err("Sound started before the first prepared picture completed its draw".into());
+    }
     Ok(
         json!({"supported":true,"complete_evidence":true,"summary":summary,
-        "missing_by_observed_end":missing,"every_frame_completed_by_observed_end":missing == 0,"events":events}),
+        "missing_by_observed_end":missing,"every_frame_completed_by_observed_end":missing == 0,"events":events,
+        "selection_to_gpu_completion":(!selection_ms.is_empty()).then(||metrics(&mut selection_ms)),
+        "prepared_queue": (!prepared.is_empty()).then(||json!({"bounded":true,"maximum_queued":maximum_queued,
+            "prepared":maximum_prepared,"first_picture_completed_before_sound_started":true}))}),
     )
 }
 

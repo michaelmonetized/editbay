@@ -905,6 +905,11 @@ fn run(args: Vec<OsString>) -> Result<()> {
             Path::new(&args[2]),
             Path::new(&args[3]),
         )?,
+        ("native-prepared", 4) => native_workspace::prepared::run(
+            Path::new(&args[1]),
+            Path::new(&args[2]),
+            Path::new(&args[3]),
+        )?,
         ("timeline-compare", 5) => timeline_evidence::compare(
             Path::new(&args[1]),
             args[2]
@@ -1030,6 +1035,7 @@ fn run(args: Vec<OsString>) -> Result<()> {
             println!("  native-preview APP_BINARY SOURCE NEW_EVIDENCE_DIRECTORY [full|half]");
             println!("  native-playback APP_BINARY SOURCE NEW_EVIDENCE_DIRECTORY [full|half]");
             println!("  native-continuous APP_BINARY SAVED_PROJECT NEW_EVIDENCE_DIRECTORY");
+            println!("  native-prepared APP_BINARY SAVED_PROJECT NEW_EVIDENCE_DIRECTORY");
             println!("  native-delivery APP_BINARY PROJECT NEW_EVIDENCE_DIRECTORY");
             println!("  timeline-compare PROJECT COMPOSITION UNCUT_MASTER CUT_MASTER");
             println!("  timeline-reorder CLI PROJECT COMPOSITION UNCUT_MASTER NEW_DIRECTORY");

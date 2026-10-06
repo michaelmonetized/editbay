@@ -1,4 +1,5 @@
 mod completions;
+pub mod prepared;
 
 use crate::{Result, hash, metrics};
 use editbay_core::{Project, load, recovery_catalog, save_new};
