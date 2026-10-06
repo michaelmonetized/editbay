@@ -42,6 +42,12 @@ incremental = false
 [profile.dev.package.sha2]
 opt-level = 3
 
+[profile.dev.package.editbay-core]
+opt-level = 2
+
+[profile.dev.package.editbay-audio]
+opt-level = 2
+
 [workspace.lints.rust]
 unsafe_code = "forbid"
 

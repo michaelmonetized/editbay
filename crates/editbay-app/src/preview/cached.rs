@@ -46,6 +46,7 @@ impl Drop for Job {
 
 #[derive(Default)]
 pub(super) struct Cache {
+    attempt: u64,
     directory: Option<PathBuf>,
     space: Option<StoreSpace>,
     scope: Option<(DocumentOwner, Uuid)>,
@@ -110,6 +111,10 @@ impl Cache {
         if owner.version != DocumentVersion::of(&project) {
             return Err("Picture preparation document changed".into());
         }
+        let attempt = self
+            .attempt
+            .checked_add(1)
+            .ok_or("Picture preparation counter exhausted")?;
         let directory = self
             .directory
             .clone()
@@ -176,6 +181,7 @@ impl Cache {
             .map_err(|e| e.to_string())?;
         self.ready = None;
         self.scope = Some((owner, sequence));
+        self.attempt = attempt;
         self.error = None;
         self.progress = progress;
         self.job = Some(Job {
@@ -236,7 +242,7 @@ impl Cache {
         String::new()
     }
     pub(super) fn diagnostic(&self) -> serde_json::Value {
-        serde_json::json!({"preparing":self.preparing(),"retiring":self.retiring.len(),
+        serde_json::json!({"attempt":self.attempt,"preparing":self.preparing(),"retiring":self.retiring.len(),
             "ready":self.ready.as_ref().map(PreparedStore::summary),"error":self.error,
             "progress":self.progress.lock().ok().map(|p|p.clone()),"usage":self.space.as_ref().map(StoreSpace::usage)})
     }

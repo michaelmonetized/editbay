@@ -111,10 +111,23 @@ fn state(
     }
 }
 
+fn attempt(trace: &mut Trace) -> Result<u64> {
+    trace.read()?;
+    trace
+        .records
+        .iter()
+        .rev()
+        .find(|r| r["kind"] == "preview")
+        .and_then(|r| r["details"]["picture_cache"]["attempt"].as_u64())
+        .ok_or_else(|| "Preparation attempt identity absent".into())
+}
+
 pub(super) fn prepare(trace: &mut Trace) -> Result<Value> {
+    let previous = attempt(trace)?;
     let after = click_control(trace, "prepare-picture-cache")?;
     let completed = state(trace, after, "complete preparation", |s| {
-        s["ready"].is_object() || s["error"].is_string()
+        s["attempt"].as_u64().is_some_and(|id| id > previous)
+            && (s["ready"].is_object() || s["error"].is_string())
     })?;
     if completed["details"]["picture_cache"]["error"].is_string() {
         return Err(format!(
@@ -141,9 +154,12 @@ pub(super) fn prepare(trace: &mut Trace) -> Result<Value> {
 }
 
 pub(super) fn stalled(trace: &mut Trace) -> Result<(u64, Value)> {
+    let previous = attempt(trace)?;
     let after = click_control(trace, "prepare-picture-cache")?;
     let preparing = state(trace, after, "preparation codec", |s| {
-        s["preparing"] == true && s["progress"]["worker_pid"].is_number()
+        s["attempt"].as_u64().is_some_and(|id| id > previous)
+            && s["preparing"] == true
+            && s["progress"]["worker_pid"].is_number()
     })?;
     let pid = preparing["details"]["picture_cache"]["progress"]["worker_pid"]
         .as_u64()

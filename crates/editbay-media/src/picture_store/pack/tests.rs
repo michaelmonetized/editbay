@@ -166,6 +166,14 @@ fn exact_disk_pixels_match_independent_decode_and_keep_storage_pinned() {
     reader
         .attach_store(store.file().unwrap(), store.manifest())
         .unwrap();
+    reader.picture(&requests[0]).unwrap().unwrap();
+    let original = &snapshot.project().assets[0].path;
+    let writer = fs::OpenOptions::new().write(true).open(original).unwrap();
+    writer.write_all_at(b"changed", 0).unwrap();
+    assert!(
+        matches!(reader.picture(&requests[0]), Err(Error::SourceChanged(_))),
+        "prepared pixels cannot hide changed source bytes"
+    );
     fs::remove_file(&snapshot.project().assets[0].path).unwrap();
     assert!(
         reader.picture(&requests[0]).is_err(),
