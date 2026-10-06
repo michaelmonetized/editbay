@@ -1,6 +1,7 @@
 # Bounded forward picture decoding
 
-Issue [#36](https://github.com/michaelmonetized/editbay/issues/36) follows
+Issue [#36](https://github.com/michaelmonetized/editbay/issues/36) is published in
+[PR #39](https://github.com/michaelmonetized/editbay/pull/39), following
 [PR #37](https://github.com/michaelmonetized/editbay/pull/37). Production, lab and
 software qualification use **7802f7aa7df134aa3d6bec21f99fc04becdbeba9**. Frozen
 app/CLI/lab, compiled-input, source, project and lockfile hashes are retained.

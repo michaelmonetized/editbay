@@ -42,7 +42,8 @@ in more than one process's RSS; GPU allocation counters remain separate. It
 reaps the application and every observed owned child. Short source trials do not
 establish physical audibility, two-hour drift or the 1080p/4K hardware matrix.
 
-Issue [#36](https://github.com/michaelmonetized/editbay/issues/36) follows
+Issue [#36](https://github.com/michaelmonetized/editbay/issues/36) is published in
+[PR #39](https://github.com/michaelmonetized/editbay/pull/39), following
 [PR #37](https://github.com/michaelmonetized/editbay/pull/37). Dense random edits,
 prepared proxy/render caches and hardware decode remain further R2 work; none of
 the existing frame, seek, memory or cancellation gates is relaxed.
