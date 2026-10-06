@@ -2262,6 +2262,7 @@ pub fn run(binary: &Path, directory: &Path, count: usize) -> Result<Value> {
     let mut latencies = Vec::new();
     let mut frames = Vec::new();
     let mut commits = Vec::new();
+    let mut accepts = Vec::new();
     for index in 0..count {
         let folder = directory.join(format!("trial-{index:03}"));
         fs::create_dir(&folder)?;
@@ -2396,9 +2397,14 @@ pub fn run(binary: &Path, directory: &Path, count: usize) -> Result<Value> {
                 frames.push(cpu as f64 / 1000.);
             }
             if record["kind"] == "workspace"
-                && let Some(time) = record["details"]["last_recovery_commit_us"].as_u64()
+                && let Some(time) = record["details"]["last_recovery_worker_commit_us"].as_u64()
             {
                 commits.push(time as f64 / 1000.);
+            }
+            if record["kind"] == "workspace"
+                && let Some(time) = record["details"]["last_recovery_accept_us"].as_u64()
+            {
+                accepts.push(time as f64 / 1000.);
             }
         }
         let report = json!({"index":index,"saved_original":saved,"original_sha256":original_hash,"checkpoint_sha256":checkpoint_hash,"inactive_checkpoint_sha256":inactive_hash,"recovered_sha256":hash(&recovered_path)?,"original_project":active_id,"recovered_project":recovered.id,"revision":recovered.revision,"checkpoint_acknowledged_unix_us":acknowledged["unix_us"],"memory":memory,"native_ui_recovery":true,"native_reopen":true});
@@ -2414,7 +2420,7 @@ pub fn run(binary: &Path, directory: &Path, count: usize) -> Result<Value> {
         }
     }
     let input = metrics(&mut latencies);
-    let receipt = json!({"schema":1,"kind":"native_workspace_qualification","application_sha256":hash(&binary)?,"architecture":std::env::consts::ARCH,"desktop":"Hyprland Wayland / installed native portal","catalog_documents":4000,"trials":count,"passed":reports.len(),"latest_revision":3,"input_injection_to_ui_acceptance":input,"cpu_frame_work":metrics(&mut frames),"checkpoint_main_thread_commit":metrics(&mut commits),"input_gate_pass":input["p95_ms"].as_f64().is_some_and(|latency|latency <= 50.),"reports":reports,"limits":["Software-injected Wayland text/portal keys and persistent Linux keyboard/pointer events; no physical-device input measurement","Native UI recovery uses the installed native file chooser","These fixtures qualify local workspace behavior, not completed client edits or media playback"]});
+    let receipt = json!({"schema":1,"kind":"native_workspace_qualification","application_sha256":hash(&binary)?,"architecture":std::env::consts::ARCH,"desktop":"Hyprland Wayland / installed native portal","catalog_documents":4000,"trials":count,"passed":reports.len(),"latest_revision":3,"input_injection_to_ui_acceptance":input,"cpu_frame_work":metrics(&mut frames),"checkpoint_worker_commit":metrics(&mut commits),"checkpoint_main_thread_accept":metrics(&mut accepts),"input_gate_pass":input["p95_ms"].as_f64().is_some_and(|latency|latency <= 50.),"reports":reports,"limits":["Software-injected Wayland text/portal keys and persistent Linux keyboard/pointer events; no physical-device input measurement","Native UI recovery uses the installed native file chooser","These fixtures qualify local workspace behavior, not completed client edits or media playback"]});
     File::create_new(directory.join("qualification.json"))?
         .write_all(&serde_json::to_vec_pretty(&receipt)?)?;
     Ok(receipt)

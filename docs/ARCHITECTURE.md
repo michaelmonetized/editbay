@@ -219,8 +219,12 @@ Adapt Omadesign's revision ownership and worker preparation pattern:
 1. Edits mark a document/revision dirty. Idle debounce and bounded maximum delay
    schedule recovery for active and inactive documents without interrupting gestures.
 2. A worker prepares a durable checkpoint. It reports disk-full/permission errors.
-3. A main-thread ownership check commits only a still-relevant result. Manual
-   saves, replacement, and close cannot resurrect an obsolete checkpoint.
+3. A main-thread ownership check approves a still-relevant result. The same
+   worker atomically claims publication against cancellation, then links and
+   synchronizes the checkpoint. Save, replacement and close revoke unclaimed
+   work without waiting for disk I/O. A claim that wins first completes its
+   already-authorized immutable snapshot; a stale result cannot acknowledge a
+   different tab/path generation. Only durable success advances recovery status.
 4. Checkpoints contain stable identity, schema, revision, time, source path, and
    an integrity check. A broken newest checkpoint leaves older valid ones visible.
 5. Recovery opens a separate copy. Recovered work appears in the welcome catalog;
@@ -236,7 +240,11 @@ reject stale updates. Account for filesystem-specific durability rather than
 promise arbitrary network filesystem behavior.
 
 The Rust foundation and native workspace implement validated save/load and a
-worker-prepared checkpoint with a short ownership-checked publication. Every dirty
+worker-prepared checkpoint with ownership-checked background publication. Preparation,
+publication and abandoned-file cleanup all stay on the filesystem worker. At most
+four filesystem jobs include workers awaiting approval; UI acceptance handles
+metadata only. Worker commit and UI acceptance timings are reported separately.
+Every dirty
 tab participates in idle/maximum-delay recovery. Native history/preview and
 separate-copy recovery are implemented. History pruning and native timeline gestures
 remain later work. EditBay's local settings and bank metadata have their

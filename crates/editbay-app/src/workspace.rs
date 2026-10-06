@@ -1,6 +1,6 @@
 use editbay_core::{
-    DocumentCommand, DocumentEditor, DocumentVersion, PreparedCheckpoint, Project, RecoveryCatalog,
-    load_bounded, prepare_checkpoint, recover_copy, recovery_catalog, save_if_unchanged, save_new,
+    DocumentCommand, DocumentEditor, DocumentVersion, Project, RecoveryCatalog, load_bounded,
+    prepare_checkpoint, recover_copy, recovery_catalog, save_if_unchanged, save_new,
 };
 use eframe::egui;
 use std::{
@@ -14,6 +14,8 @@ use std::{
     time::{Duration, Instant},
 };
 use uuid::Uuid;
+
+mod recovery;
 
 pub struct Tab {
     pub id: Uuid,
@@ -62,6 +64,7 @@ enum Pending {
         tab: Uuid,
         generation: u64,
         version: DocumentVersion,
+        publication: recovery::Publication,
     },
     Copy,
     Recoveries,
@@ -76,7 +79,9 @@ enum Outcome {
         path: PathBuf,
         project: Arc<Project>,
     },
-    Prepared(PreparedCheckpoint),
+    Prepared,
+    Checkpoint(Duration),
+    RecoveryCancelled,
     Copy(PathBuf),
     Recoveries(RecoveryCatalog),
 }
@@ -88,7 +93,8 @@ pub struct Workspace {
     pub recoveries: RecoveryCatalog,
     pub errors: VecDeque<String>,
     pub last_saved_copy: Option<PathBuf>,
-    pub recovery_commit_times: Vec<Duration>,
+    pub recovery_publication_times: Vec<Duration>,
+    pub recovery_accept_times: Vec<Duration>,
     recovery_root: PathBuf,
     pending: HashMap<Uuid, Pending>,
     open_queue: VecDeque<PathBuf>,
@@ -194,7 +200,8 @@ impl Workspace {
             recoveries: RecoveryCatalog::default(),
             errors: VecDeque::new(),
             last_saved_copy: None,
-            recovery_commit_times: Vec::new(),
+            recovery_publication_times: Vec::new(),
+            recovery_accept_times: Vec::new(),
             recovery_root,
             pending: HashMap::new(),
             open_queue: VecDeque::new(),
@@ -363,6 +370,7 @@ impl Workspace {
                 })
             },
         )?;
+        self.cancel_recovery(id);
         let tab = self.tab_mut(id)?;
         tab.cancel_exports();
         tab.generation = generation;
@@ -441,19 +449,43 @@ impl Workspace {
         let project = tab.editor.snapshot();
         let original = tab.path.clone();
         let root = self.recovery_root.clone();
-        self.spawn(
-            Pending::Recovery {
-                tab: id,
-                generation: tab.generation,
-                version: DocumentVersion::of(&project),
-            },
-            move || {
-                Ok(Outcome::Prepared(
-                    prepare_checkpoint(&project, original.as_deref(), root)
-                        .map_err(|e| e.to_string())?,
-                ))
-            },
-        )
+        if self.pending.len() >= 4 {
+            return Err("Finishing other disk work; try this action again shortly".into());
+        }
+        let job = Uuid::new_v4();
+        let (publication, permit) = recovery::Publication::new();
+        let pending = Pending::Recovery {
+            tab: id,
+            generation: tab.generation,
+            version: DocumentVersion::of(&project),
+            publication,
+        };
+        let sender = self.sender.clone();
+        let wake = self.wake.clone();
+        std::thread::Builder::new()
+            .name("editbay-recovery".into())
+            .spawn(move || {
+                let result = (|| {
+                    let prepared = prepare_checkpoint(&project, original.as_deref(), root)
+                        .map_err(|e| e.to_string())?;
+                    sender
+                        .send((job, Ok(Outcome::Prepared)))
+                        .map_err(|e| e.to_string())?;
+                    wake.request_repaint();
+                    permit
+                        .publish(|| {
+                            let started = Instant::now();
+                            prepared.commit().map_err(|e| e.to_string())?;
+                            Ok(Outcome::Checkpoint(started.elapsed()))
+                        })
+                        .unwrap_or(Ok(Outcome::RecoveryCancelled))
+                })();
+                let _ = sender.send((job, result));
+                wake.request_repaint();
+            })
+            .map_err(|e| e.to_string())?;
+        self.pending.insert(job, pending);
+        Ok(job)
     }
 
     /// Close clean work or discard only after an explicit user choice.
@@ -471,6 +503,7 @@ impl Workspace {
         if tab.dirty() && !discard {
             return Err("Save or discard this project's changes before closing".into());
         }
+        self.cancel_recovery(id);
         self.tab_mut(id)?.cancel_exports();
         self.tabs.retain(|tab| tab.id != id);
         if self.active == Some(id) {
@@ -488,8 +521,8 @@ impl Workspace {
     }
 
     /// Consume bounded worker results and schedule due recovery for every tab.
-    /// `now` supplies monotonic time. Returns immediately except the short
-    /// publication of already synchronized recovery bytes after ownership checks.
+    /// `now` supplies monotonic time. Returns after ownership checks and metadata
+    /// acceptance; recovery publication and cleanup remain on their worker.
     /// Inactive/untitled work uses 1-second idle and 10-second maximum scheduling.
     pub fn poll(&mut self, now: Instant) {
         for _ in 0..8 {
@@ -499,6 +532,25 @@ impl Workspace {
             let Some(pending) = self.pending.remove(&id) else {
                 continue;
             };
+            if matches!(result, Ok(Outcome::Prepared))
+                && let Pending::Recovery {
+                    tab,
+                    generation,
+                    version,
+                    publication,
+                } = &pending
+            {
+                if self.recovery_current(*tab, *generation, *version) {
+                    if let Err(error) = publication.approve() {
+                        publication.cancel();
+                        self.error(error);
+                    }
+                } else {
+                    publication.cancel();
+                }
+                self.pending.insert(id, pending);
+                continue;
+            }
             if let Err(error) = self.accept(pending, result, now) {
                 self.error(error);
             }
@@ -548,21 +600,7 @@ impl Workspace {
             if self.pending.len() >= 4 {
                 break;
             }
-            let tab = self.tabs.iter().find(|tab| tab.id == id).unwrap();
-            let project = tab.editor.snapshot();
-            let original = tab.path.clone();
-            let root = self.recovery_root.clone();
-            let job = Pending::Recovery {
-                tab: id,
-                generation: tab.generation,
-                version: DocumentVersion::of(&project),
-            };
-            if let Err(error) = self.spawn(job, move || {
-                Ok(Outcome::Prepared(
-                    prepare_checkpoint(&project, original.as_deref(), root)
-                        .map_err(|e| e.to_string())?,
-                ))
-            }) {
+            if let Err(error) = self.checkpoint_now(id) {
                 self.error(error);
             }
         }
@@ -585,6 +623,30 @@ impl Workspace {
             .iter_mut()
             .find(|tab| tab.id == id)
             .ok_or_else(|| "This document is no longer open".into())
+    }
+
+    fn cancel_recovery(&self, id: Uuid) {
+        for pending in self.pending.values() {
+            if let Pending::Recovery {
+                tab, publication, ..
+            } = pending
+                && *tab == id
+            {
+                publication.cancel();
+            }
+        }
+    }
+
+    fn recovery_current(&self, id: Uuid, generation: u64, version: DocumentVersion) -> bool {
+        self.tabs.iter().any(|tab| {
+            tab.id == id
+                && tab.generation == generation
+                && tab.editor.project().id == version.project_id
+                && tab.editor.project().revision >= version.revision
+                && !tab
+                    .recovery_revision
+                    .is_some_and(|revision| revision >= version.revision)
+        })
     }
 
     fn error(&mut self, error: String) {
@@ -628,42 +690,28 @@ impl Workspace {
                     tab,
                     generation,
                     version,
+                    ..
                 },
                 result,
             ) => {
-                let Some(tab) = self.tabs.iter_mut().find(|t| t.id == tab) else {
-                    return Ok(());
-                };
-                if tab.generation != generation
-                    || tab.editor.project().id != version.project_id
-                    || tab.editor.project().revision < version.revision
-                    || tab
-                        .recovery_revision
-                        .is_some_and(|revision| revision >= version.revision)
-                {
+                if !self.recovery_current(tab, generation, version) {
                     return Ok(());
                 }
+                let started = Instant::now();
+                let tab = self.tabs.iter_mut().find(|t| t.id == tab).unwrap();
                 match result {
-                    Ok(Outcome::Prepared(prepared)) => {
-                        let started = Instant::now();
-                        let result = prepared.commit();
-                        self.recovery_commit_times.push(started.elapsed());
-                        if self.recovery_commit_times.len() > 1024 {
-                            self.recovery_commit_times.remove(0);
-                        }
-                        match result {
-                            Ok(_) => {
-                                tab.recovery_revision = Some(version.revision);
-                                tab.recovery_error = None;
-                                tab.recovery_since = now;
-                            }
-                            Err(error) => {
-                                tab.retry_after = now + Duration::from_secs(2);
-                                tab.recovery_error = Some(error.to_string());
-                                return Err(error.to_string());
-                            }
+                    Ok(Outcome::Checkpoint(elapsed)) => {
+                        tab.recovery_revision = Some(version.revision);
+                        tab.recovery_error = None;
+                        tab.recovery_since = now;
+                        self.recovery_publication_times.push(elapsed);
+                        self.recovery_accept_times.push(started.elapsed());
+                        if self.recovery_publication_times.len() > 1024 {
+                            self.recovery_publication_times.remove(0);
+                            self.recovery_accept_times.remove(0);
                         }
                     }
+                    Ok(Outcome::RecoveryCancelled) => {}
                     Err(error) => {
                         tab.retry_after = now + Duration::from_secs(2);
                         tab.recovery_error = Some(error.clone());
@@ -720,4 +768,118 @@ fn absolute_destination(path: &Path) -> Result<PathBuf, String> {
         .canonicalize()
         .map_err(|e| e.to_string())?
         .join(path.file_name().ok_or("Destination needs a filename")?))
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn settle(workspace: &mut Workspace) {
+        let deadline = Instant::now() + Duration::from_secs(5);
+        while workspace.busy() {
+            assert!(Instant::now() < deadline);
+            workspace.poll(Instant::now());
+            std::thread::sleep(Duration::from_millis(1));
+        }
+    }
+
+    #[test]
+    fn failed_publication_is_not_acknowledged_and_retry_preserves_older_history() {
+        let directory = tempfile::tempdir().unwrap();
+        let mut workspace = Workspace::new(directory.path().to_owned(), egui::Context::default());
+        let tab = workspace.create(Project::new("Original").unwrap()).unwrap();
+        workspace.checkpoint_now(tab).unwrap();
+        settle(&mut workspace);
+        let original = recovery_catalog(directory.path()).unwrap().valid.remove(0);
+        let version = DocumentVersion::of(workspace.tabs[0].editor.project());
+        workspace
+            .apply(
+                tab,
+                version,
+                "Rename".into(),
+                &[DocumentCommand::RenameProject {
+                    name: "Latest".into(),
+                }],
+            )
+            .unwrap();
+        let job = workspace.checkpoint_now(tab).unwrap();
+        let (ready, result) = workspace
+            .receiver
+            .recv_timeout(Duration::from_secs(5))
+            .unwrap();
+        assert_eq!(ready, job);
+        assert!(matches!(result, Ok(Outcome::Prepared)));
+        let folder = directory.path().join(version.project_id.to_string());
+        let temporary = fs::read_dir(&folder)
+            .unwrap()
+            .map(|entry| entry.unwrap().path())
+            .find(|path| path.extension().is_some_and(|extension| extension == "tmp"))
+            .unwrap();
+        fs::remove_file(temporary).unwrap();
+        workspace.sender.send((ready, result)).unwrap();
+        settle(&mut workspace);
+        assert_eq!(workspace.tabs[0].recovery_revision, Some(0));
+        assert!(workspace.tabs[0].recovery_error.is_some());
+        assert!(!workspace.errors.is_empty());
+        let history = recovery_catalog(directory.path()).unwrap();
+        assert_eq!(history.valid.len(), 1);
+        assert_eq!(history.valid[0].path, original.path);
+        workspace.poll(Instant::now() + Duration::from_secs(3));
+        settle(&mut workspace);
+        assert_eq!(workspace.tabs[0].recovery_revision, Some(1));
+        assert!(workspace.tabs[0].recovery_error.is_none());
+        let history = recovery_catalog(directory.path()).unwrap();
+        assert_eq!(history.valid.len(), 2);
+        assert!(
+            history
+                .valid
+                .iter()
+                .any(|record| record.path == original.path)
+        );
+        assert!(
+            history
+                .valid
+                .iter()
+                .any(|record| record.revision == 1 && record.name == "Latest")
+        );
+    }
+
+    #[test]
+    fn awaiting_approval_keeps_worker_slots_bounded_and_close_releases_them() {
+        let directory = tempfile::tempdir().unwrap();
+        let mut workspace = Workspace::new(directory.path().to_owned(), egui::Context::default());
+        let tabs: Vec<_> = (0..5)
+            .map(|i| {
+                workspace
+                    .create(Project::new(format!("Job {i}")).unwrap())
+                    .unwrap()
+            })
+            .collect();
+        for &tab in &tabs[..4] {
+            workspace.checkpoint_now(tab).unwrap();
+        }
+        let mut ready = Vec::new();
+        for _ in 0..4 {
+            let result = workspace
+                .receiver
+                .recv_timeout(Duration::from_secs(5))
+                .unwrap();
+            assert!(matches!(&result.1, Ok(Outcome::Prepared)));
+            ready.push(result);
+        }
+        assert!(workspace.checkpoint_now(tabs[4]).is_err());
+        assert!(recovery_catalog(directory.path()).unwrap().valid.is_empty());
+        for &tab in &tabs[..4] {
+            workspace.close(tab, true).unwrap();
+        }
+        for result in ready {
+            workspace.sender.send(result).unwrap();
+        }
+        settle(&mut workspace);
+        assert!(workspace.errors.is_empty());
+        assert!(recovery_catalog(directory.path()).unwrap().valid.is_empty());
+        workspace.checkpoint_now(tabs[4]).unwrap();
+        settle(&mut workspace);
+        assert_eq!(recovery_catalog(directory.path()).unwrap().valid.len(), 1);
+    }
 }

@@ -129,7 +129,7 @@ impl Diagnostics {
             })
             .collect();
         if current != self.previous || workspace.active != self.previous_active {
-            self.record("workspace", json!({"tabs":&current,"active":workspace.active,"recovery_publications":workspace.recovery_commit_times.len(),"last_recovery_commit_us":workspace.recovery_commit_times.last().map(|time|time.as_micros() as u64)}));
+            self.record("workspace", json!({"tabs":&current,"active":workspace.active,"recovery_publications":workspace.recovery_publication_times.len(),"last_recovery_worker_commit_us":workspace.recovery_publication_times.last().map(|time|time.as_micros() as u64),"last_recovery_accept_us":workspace.recovery_accept_times.last().map(|time|time.as_micros() as u64)}));
             self.previous = current;
             self.previous_active = workspace.active;
         }
