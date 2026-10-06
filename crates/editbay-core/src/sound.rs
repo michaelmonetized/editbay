@@ -74,6 +74,7 @@ pub struct SoundPreparationStats {
     pub lookup_nodes: usize,
     pub active_paths: usize,
     pub positions: usize,
+    pub evaluated_positions: usize,
     pub operations: usize,
 }
 
@@ -501,7 +502,7 @@ impl SoundSnapshot {
         &self,
         first_sample: u64,
         frames: u32,
-        paths: &[usize],
+        paths: &[index::Candidate],
         lookup_nodes: usize,
     ) -> Result<SoundBlockPlan> {
         let positions = paths
@@ -509,21 +510,33 @@ impl SoundSnapshot {
             .checked_mul(frames as usize)
             .filter(|count| *count <= self.budget.positions)
             .ok_or_else(|| invalid("sound block exceeds its position budget"))?;
+        let composition = &self.snapshot.project().compositions[self.root];
+        let ranges = paths
+            .iter()
+            .map(|path| {
+                path.samples(
+                    first_sample,
+                    frames,
+                    self.profile.sample_rate,
+                    composition.frame_rate,
+                )
+            })
+            .collect::<Vec<_>>();
         let operations = paths
             .iter()
-            .map(|id| self.leaves[*id].steps.len())
+            .zip(&ranges)
+            .map(|(path, range)| self.leaves[path.leaf].steps.len() * range.len())
             .sum::<usize>()
-            .checked_mul(frames as usize)
-            .and_then(|count| count.checked_add(lookup_nodes))
+            .checked_add(lookup_nodes)
             .filter(|count| *count <= self.budget.operations)
             .ok_or_else(|| invalid("sound block exceeds its operation budget"))?;
         let work = SoundPreparationStats {
             lookup_nodes,
             active_paths: paths.len(),
             positions,
+            evaluated_positions: ranges.iter().map(|range| range.len()).sum(),
             operations,
         };
-        let composition = &self.snapshot.project().compositions[self.root];
         let centers = if paths.is_empty() {
             Vec::new()
         } else {
@@ -546,15 +559,17 @@ impl SoundSnapshot {
                 .collect::<Result<Vec<_>>>()?
         };
         let mut sources = Vec::with_capacity(paths.len());
-        for id in paths {
-            let leaf = &self.leaves[*id];
+        for (path, range) in paths.iter().zip(ranges) {
+            let leaf = &self.leaves[path.leaf];
             let (asset, stream, fingerprint) =
                 self.snapshot.source_stream(leaf.source, leaf.stream)?;
             let StreamFormat::Audio { sample_rate, .. } = stream.format else {
                 return Err(invalid("sound source is not audio"));
             };
-            let mut samples = Vec::with_capacity(frames as usize);
-            for &(mut position, mut active) in &centers {
+            let mut samples = vec![None; frames as usize];
+            for (sample, &(mut position, mut active)) in
+                samples[range.clone()].iter_mut().zip(&centers[range])
+            {
                 let mut before = false;
                 let mut gain = 1.;
                 let mut sample_step = f64::from(composition.frame_rate.numerator)
@@ -601,7 +616,7 @@ impl SoundSnapshot {
                         }
                     }
                 }
-                samples.push(if active {
+                *sample = if active {
                     Some(SoundSample {
                         center: stream
                             .time_base
@@ -615,7 +630,7 @@ impl SoundSnapshot {
                     })
                 } else {
                     None
-                });
+                };
             }
             sources.push(SoundSourcePlan {
                 source: leaf.source,

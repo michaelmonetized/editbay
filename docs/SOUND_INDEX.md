@@ -24,6 +24,12 @@ indices in original mix order. Floating-point accumulation order therefore stays
 unchanged. Fully inactive paths can be absent from `SoundBlockPlan::sources()`;
 possible contributors still carry explicit per-sample silence.
 
+The query retains each selected path's enclosing span. Exact integer conversion
+maps that closed frame interval to sample offsets inside the requested block.
+Only those offsets run the temporal evaluator; all remaining slots are silence.
+This avoids evaluating an entire block for a short cut near one edge. Multiple
+intervals of one path use an enclosing union, with the evaluator deciding gaps.
+
 ## Bounds and identity
 
 Default `SoundBudget` distinguishes retained storage from playback work:
@@ -46,8 +52,9 @@ tracks, timing and animation remain inside. Private snapshot ownership continues
 to reject foreign plans and results even when public versions match.
 
 `SoundSnapshot::index_stats()` exposes retained counts. A prepared block's `work()`
-reports visited nodes, possible active paths, resolved positions and charged
-operations. These are measured selections, not estimates based on total history.
+reports visited nodes, possible active paths, allocated sample slots, evaluated
+positions and charged operations. Operations charge the evaluated spans, while
+the position budget still charges every allocated slot, including silence.
 
 ## Qualification
 

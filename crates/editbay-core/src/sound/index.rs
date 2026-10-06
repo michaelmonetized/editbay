@@ -1,5 +1,6 @@
 use super::invalid;
-use crate::{Clip, FrameRange, Result, SourcePosition};
+use crate::{Clip, FrameRange, FrameRate, Result, SourcePosition};
+use std::ops::Range;
 
 const MAX_BUILD_OPERATIONS: usize = 4_194_304;
 const MAX_LOOKUP_NODES: usize = 4096;
@@ -154,6 +155,36 @@ struct Entry {
     maximum: i64,
 }
 
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(super) struct Candidate {
+    pub leaf: usize,
+    span: Span,
+}
+
+impl Candidate {
+    /// Bound block offsets by the path's closed root-frame interval.
+    /// `first`, `frames`, `rate` and `fps` describe exact output sample centers.
+    /// Returns the enclosing sample range, clamped before narrowing to offsets.
+    pub fn samples(&self, first: u64, frames: u32, rate: u32, fps: FrameRate) -> Range<usize> {
+        let scaled = |frame: i64| {
+            u128::try_from(frame).unwrap_or(0) * 2 * u128::from(rate) * u128::from(fps.denominator)
+        };
+        let numerator = u128::from(fps.numerator);
+        let divisor = numerator * 2;
+        let start = scaled(self.span.start)
+            .saturating_sub(numerator)
+            .div_ceil(divisor);
+        let end = if self.span.end < 0 || scaled(self.span.end) < numerator {
+            0
+        } else {
+            (scaled(self.span.end) - numerator) / divisor + 1
+        };
+        let first = u128::from(first);
+        let limit = first + u128::from(frames);
+        (start.clamp(first, limit) - first) as usize..(end.clamp(first, limit) - first) as usize
+    }
+}
+
 #[derive(Default)]
 pub(super) struct Index {
     entries: Vec<Entry>,
@@ -196,13 +227,13 @@ impl Index {
 
     /// Query the balanced interval index with exact sample-center endpoints.
     /// `first`, `last` and `limit` bound the block and active paths. Returns unique
-    /// path indices in original mix order and the number of inspected tree nodes.
+    /// paths and enclosing spans in mix order, and the inspected tree node count.
     pub fn query(
         &self,
         first: SourcePosition,
         last: SourcePosition,
         limit: usize,
-    ) -> Result<(Vec<usize>, usize)> {
+    ) -> Result<(Vec<Candidate>, usize)> {
         let mut found = Vec::new();
         let mut visited = 0;
         query(&self.entries, first, last, limit, &mut found, &mut visited)?;
@@ -226,7 +257,7 @@ fn query(
     first: SourcePosition,
     last: SourcePosition,
     limit: usize,
-    found: &mut Vec<usize>,
+    found: &mut Vec<Candidate>,
     visited: &mut usize,
 ) -> Result<()> {
     if entries.is_empty() {
@@ -244,14 +275,26 @@ fn query(
         return Ok(());
     }
     query(&entries[..middle], first, last, limit, found, visited)?;
-    if first.compare_tick(entry.span.end)?.is_le()
-        && last.compare_tick(entry.span.start)?.is_ge()
-        && let Err(position) = found.binary_search(&entry.leaf)
-    {
-        if found.len() >= limit {
-            return Err(invalid("sound block exceeds its active source budget"));
+    if first.compare_tick(entry.span.end)?.is_le() && last.compare_tick(entry.span.start)?.is_ge() {
+        match found.binary_search_by_key(&entry.leaf, |candidate| candidate.leaf) {
+            Ok(position) => {
+                let span = &mut found[position].span;
+                span.start = span.start.min(entry.span.start);
+                span.end = span.end.max(entry.span.end);
+            }
+            Err(position) => {
+                if found.len() >= limit {
+                    return Err(invalid("sound block exceeds its active source budget"));
+                }
+                found.insert(
+                    position,
+                    Candidate {
+                        leaf: entry.leaf,
+                        span: entry.span,
+                    },
+                );
+            }
         }
-        found.insert(position, entry.leaf);
     }
     if last.compare_tick(entry.span.start)?.is_ge() {
         query(&entries[middle + 1..], first, last, limit, found, visited)?;
@@ -264,6 +307,44 @@ mod tests {
     use super::*;
     use crate::{ClipSource, TimeMap, TimePoint};
     use uuid::Uuid;
+
+    #[test]
+    fn candidate_offsets_match_exact_centers_at_fractional_rates_and_boundaries() {
+        for (rate, fps) in [
+            (48000, FrameRate::new(24, 1).unwrap()),
+            (44100, FrameRate::new(24000, 1001).unwrap()),
+            (8000, FrameRate::new(1000, 1).unwrap()),
+        ] {
+            for span in [
+                Span { start: -4, end: -1 },
+                Span { start: 0, end: 0 },
+                Span { start: 1, end: 3 },
+                Span { start: 4, end: 4 },
+                Span { start: 7, end: 11 },
+                Span {
+                    start: i64::MAX - 1,
+                    end: i64::MAX,
+                },
+            ] {
+                let path = Candidate { leaf: 0, span };
+                for first in [0, 3, 1999, 4096, 11997, u64::MAX - 4096] {
+                    let range = path.samples(first, 4096, rate, fps);
+                    for offset in 0..4096 {
+                        let numerator =
+                            (i128::from(first + offset) * 2 + 1) * i128::from(fps.numerator);
+                        let denominator = i128::from(rate) * i128::from(fps.denominator) * 2;
+                        let active = numerator >= i128::from(span.start) * denominator
+                            && numerator <= i128::from(span.end) * denominator;
+                        assert_eq!(
+                            range.contains(&(offset as usize)),
+                            active,
+                            "{first} + {offset}, {span:?}, {rate}, {fps:?}"
+                        );
+                    }
+                }
+            }
+        }
+    }
 
     fn clip() -> Clip {
         Clip {
@@ -437,7 +518,10 @@ mod tests {
         index.finish();
         let first = SourcePosition::new(163831, 1).unwrap();
         let (paths, visited) = index.query(first, first, 2).unwrap();
-        assert_eq!(paths, [0, 16383]);
+        assert_eq!(
+            paths.iter().map(|path| path.leaf).collect::<Vec<_>>(),
+            [0, 16383]
+        );
         assert!(visited < 64, "inspected {visited} nodes");
         assert!(index.query(first, first, 1).is_err());
         let empty = SourcePosition::new(300000, 1).unwrap();
@@ -465,7 +549,10 @@ mod tests {
                     3
                 )
                 .unwrap()
-                .0,
+                .0
+                .iter()
+                .map(|path| path.leaf)
+                .collect::<Vec<_>>(),
             [0, 1, 2]
         );
         assert!(index.add(5, vec![Span { start: 0, end: 1 }], 4).is_err());
