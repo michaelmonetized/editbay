@@ -1,0 +1,104 @@
+{
+  "budgets": {
+    "cancel_join_reap_ms": 2000,
+    "combined_high_water_kib": 524288,
+    "handoff_p95_ms": 10
+  },
+  "cached_handoff": {
+    "count": 1000,
+    "max_ms": 3.842416,
+    "p50_ms": 0.168834,
+    "p95_ms": 0.729334
+  },
+  "cancellation": [
+    {
+      "cancel_join_reap_ms": 7.912333,
+      "clean": true,
+      "pid": 3355532,
+      "rejected": true,
+      "stopped": false
+    },
+    {
+      "cancel_join_reap_ms": 102.860945,
+      "clean": true,
+      "pid": 3355556,
+      "rejected": true,
+      "stopped": true
+    }
+  ],
+  "channels": [
+    "FC"
+  ],
+  "child_high_water_kib": 43904,
+  "combined_high_water_kib": 88432,
+  "distinct_blocks": 64,
+  "first_pass": {
+    "count": 64,
+    "max_ms": 188.198477,
+    "p50_ms": 0.408375,
+    "p95_ms": 1.401375
+  },
+  "first_sample": 0,
+  "frames_per_block": 4096,
+  "gates": {
+    "active_cancellation": true,
+    "cleanup": true,
+    "combined_memory_512mib": true,
+    "death_reaped": true,
+    "death_rejected": true,
+    "handoff_p95_10ms": true,
+    "independent_pcm_1e_6": true,
+    "old_rejected": true,
+    "pins_survive_clear": true,
+    "retry_equal": true,
+    "retry_rejects_old": true,
+    "same_mapping": true,
+    "source_unchanged": true
+  },
+  "independent_pcm_sha256": "7857156fee51988279dd3fdc0b834b873b06f9d581f3654b9d3d2dadf2c6acc3",
+  "independent_reference": "sequential FFmpeg CLI original-channel f32le",
+  "kind": "isolated_native_pcm",
+  "limits": [
+    "local PCM process transport only; native streaming callback/device playback/drift and complete delivery remain separate"
+  ],
+  "maximum_absolute_pcm_error": 0.0,
+  "parent_high_water_kib": 44528,
+  "qualified": true,
+  "sample_rate": 48000,
+  "schema": 1,
+  "source": "/home/michael/Downloads/iCloud Photos/IMG_0001.MP4",
+  "source_fingerprint": {
+    "bytes": 5235017,
+    "sha256": "498ec6c42b6b440886eb761dc4775c994f7578021890ceae3f370ffc6fb3e021"
+  },
+  "startup_ms": 407.47049000000004,
+  "stream": 0,
+  "transfers": {
+    "cache_bytes": 1048576,
+    "cache_entries": 64,
+    "child": {
+      "cache_bytes": 1048576,
+      "decoded_frames": 263104,
+      "decoder_scratch_bytes": 0,
+      "decoder_scratch_limit_bytes": 33554432,
+      "decoders": 1,
+      "entries": 64,
+      "evictions": 0,
+      "hits": 1001,
+      "live_bytes": 1048576,
+      "misses": 64,
+      "preparation_steps": 64,
+      "seeks": 0,
+      "sources": 1,
+      "store_bytes": 1052416,
+      "stores": 1
+    },
+    "mapped_bytes": 1048576,
+    "mapped_handles": 64,
+    "mapping_hits": 1001,
+    "received_planes": 1065,
+    "spawns": 1
+  },
+  "worker_executable": "/home/michael/Projects/editbay/artifacts/worktrees/r2-sound-worker/artifacts/pcm-canonical/candidate/bin/editbay-studio",
+  "worker_sha256": "73eacf6b52ef82cc21e250959d92a4dc96ce15a1f58fe537bf3a0b051a7924fe"
+}

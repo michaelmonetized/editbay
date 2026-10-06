@@ -18,7 +18,10 @@ pub mod worker;
 pub use delivery::LosslessMovProfile;
 pub use ffi::LosslessMovWriter;
 
-pub use pcm::{NativePcmCache, PcmBlock, PcmBudget, PcmProvider, PcmResult, PcmStats};
+pub use pcm::{
+    NativePcmCache, PcmBlock, PcmBudget, PcmPreparation, PcmPreparationLog, PcmProgress,
+    PcmProvider, PcmResult, PcmStats,
+};
 pub use pictures::{
     DecodedPicture, PictureBudget, PictureCache, PictureCacheStats, PictureProvider, PictureResult,
 };

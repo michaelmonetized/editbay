@@ -1,16 +1,19 @@
-use crate::{AudioBlock, Cancellation, Error, NativeAudioReader, Result, SourceFile};
-use editbay_core::{
-    DocumentVersion, EvaluationSnapshot, FrameRate, SourcePosition, StreamFormat, TimeBase,
-};
+use crate::{Cancellation, Error, NativeAudioReader, Result, SourceFile};
+use editbay_core::{DocumentVersion, EvaluationSnapshot, FrameRate, SourcePosition, StreamFormat};
 use serde::{Deserialize, Serialize};
 use std::{
     collections::HashMap,
+    path::{Path, PathBuf},
     sync::{
         Arc,
         atomic::{AtomicUsize, Ordering},
     },
 };
 use uuid::Uuid;
+mod progress;
+mod store;
+pub use progress::{PcmPreparationLog, PcmProgress};
+use store::Store;
 
 /// Limits for retained original-channel PCM and native decoder cursors.
 #[derive(Debug, Clone, Copy, Serialize, Deserialize)]
@@ -23,6 +26,8 @@ pub struct PcmBudget {
     pub source_handles: usize,
     pub decoder_handles: usize,
     pub decode_frames: u32,
+    pub store_bytes: u64,
+    pub store_handles: usize,
 }
 impl Default for PcmBudget {
     fn default() -> Self {
@@ -34,6 +39,8 @@ impl Default for PcmBudget {
             source_handles: 8,
             decoder_handles: 2,
             decode_frames: 262144,
+            store_bytes: 8 * 1024 * 1024 * 1024,
+            store_handles: 16,
         }
     }
 }
@@ -49,6 +56,9 @@ impl PcmBudget {
             || !(1..=32).contains(&self.source_handles)
             || !(1..=8).contains(&self.decoder_handles)
             || !(65536..=1048576).contains(&self.decode_frames)
+            || self.store_bytes == 0
+            || self.store_bytes > 8 * 1024 * 1024 * 1024
+            || !(1..=32).contains(&self.store_handles)
         {
             return Err(Error::Invalid("PCM budgets exceed supported limits".into()));
         }
@@ -72,6 +82,23 @@ pub struct PcmStats {
     pub evictions: u64,
     pub seeks: u64,
     pub decoded_frames: u64,
+    pub store_bytes: u64,
+    pub stores: usize,
+    pub preparation_steps: u64,
+}
+
+/// Progress through canonical source history for one requested PCM interval.
+#[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq)]
+#[serde(deny_unknown_fields)]
+pub struct PcmPreparation {
+    pub source: Uuid,
+    pub stream: u32,
+    pub first: i64,
+    pub frames: u32,
+    pub sample_rate: u32,
+    pub decoded_frames: u64,
+    pub required_frames: u64,
+    pub ready: bool,
 }
 pub(crate) struct Charge {
     pub(crate) bytes: usize,
@@ -139,8 +166,7 @@ struct Entry {
 }
 struct Decoder {
     reader: NativeAudioReader,
-    pending: Option<AudioBlock>,
-    eof: bool,
+    cursor: i64,
     used: u64,
 }
 
@@ -157,6 +183,8 @@ pub struct NativePcmCache {
     stats: PcmStats,
     serial: u64,
     shared: bool,
+    directory: PathBuf,
+    stores: HashMap<(Uuid, u32), Store>,
 }
 impl NativePcmCache {
     /// Bind native decoding to one immutable document.
@@ -166,6 +194,18 @@ impl NativePcmCache {
         snapshot: Arc<EvaluationSnapshot>,
         budget: PcmBudget,
         cancel: Cancellation,
+    ) -> Result<Self> {
+        Self::new_in(snapshot, budget, cancel, &std::env::temp_dir())
+    }
+
+    /// Bind canonical PCM to a selected temporary-storage directory.
+    /// `snapshot`, `budget` and `cancel` own work; `directory` hosts anonymous
+    /// files. Returns an empty cache without opening a source or allocating disk.
+    pub fn new_in(
+        snapshot: Arc<EvaluationSnapshot>,
+        budget: PcmBudget,
+        cancel: Cancellation,
+        directory: &Path,
     ) -> Result<Self> {
         budget.validate()?;
         if cancel.is_cancelled() {
@@ -183,6 +223,8 @@ impl NativePcmCache {
             stats: PcmStats::default(),
             serial: 0,
             shared: false,
+            directory: directory.to_owned(),
+            stores: HashMap::new(),
         })
     }
 
@@ -197,6 +239,192 @@ impl NativePcmCache {
         let mut cache = Self::new(snapshot, budget, cancel)?;
         cache.shared = true;
         Ok(cache)
+    }
+
+    /// Prepare one bounded step of canonical sequential source history.
+    /// `source`, `stream`, `first` and `frames` select the eventual interval.
+    /// Returns exact progress; repeat until ready before reading a late interval.
+    pub fn prepare_interval(
+        &mut self,
+        source: Uuid,
+        stream: u32,
+        first: i64,
+        frames: u32,
+    ) -> Result<PcmPreparation> {
+        self.check()?;
+        if frames == 0 || frames > self.budget.interval_frames {
+            return Err(Error::Invalid(
+                "PCM interval exceeds its frame budget".into(),
+            ));
+        }
+        let end = first
+            .checked_add(i64::from(frames))
+            .ok_or_else(|| Error::Invalid("PCM interval overflow".into()))?;
+        let (asset, profile, _) = self.snapshot.source_stream(source, stream)?;
+        let asset = asset.clone();
+        let profile = profile.clone();
+        let StreamFormat::Audio {
+            sample_rate,
+            ref channels,
+        } = profile.format
+        else {
+            return Err(Error::Invalid("PCM source is not sound".into()));
+        };
+        if frames as usize * channels.len() * 4 > self.budget.live_bytes {
+            return Err(Error::Invalid(
+                "PCM interval exceeds its byte budget".into(),
+            ));
+        }
+        let (start, limit) = presentation(&profile, sample_rate)?;
+        let wanted_start = first.max(start);
+        let wanted_end = end.min(limit);
+        let required = if wanted_start < wanted_end {
+            u64::try_from(i128::from(wanted_end) - i128::from(start))
+                .map_err(|e| Error::Invalid(e.to_string()))?
+        } else {
+            0
+        };
+        let mut progress = PcmPreparation {
+            source,
+            stream,
+            first,
+            frames,
+            sample_rate,
+            decoded_frames: required,
+            required_frames: required,
+            ready: true,
+        };
+        let owned = self.source(&asset)?;
+        owned.check_current(&self.cancel)?;
+        if required == 0 {
+            return Ok(progress);
+        }
+        let key = (source, stream);
+        if self
+            .stores
+            .get(&key)
+            .is_some_and(|store| store.end() >= wanted_end)
+        {
+            return Ok(progress);
+        }
+        let required_bytes = required
+            .checked_mul(channels.len() as u64 * 4)
+            .ok_or_else(|| Error::Invalid("canonical PCM storage size overflow".into()))?;
+        let existing = self.stores.get(&key).map_or(0, Store::bytes);
+        if self
+            .stats
+            .store_bytes
+            .checked_add(required_bytes.saturating_sub(existing))
+            .is_none_or(|bytes| bytes > self.budget.store_bytes)
+        {
+            return Err(Error::Invalid(
+                "canonical PCM exceeds its disk byte budget".into(),
+            ));
+        }
+        if !self.stores.contains_key(&key) {
+            if self.stores.len() >= self.budget.store_handles {
+                return Err(Error::Invalid(
+                    "canonical PCM exceeds its storage handle budget".into(),
+                ));
+            }
+            self.stores
+                .insert(key, Store::new(&self.directory, start, channels.len())?);
+        }
+        self.serial = self.serial.saturating_add(1);
+        if !self.decoders.contains_key(&key) {
+            if self.decoders.len() >= self.budget.decoder_handles {
+                let oldest = self
+                    .decoders
+                    .iter()
+                    .min_by_key(|(_, decoder)| decoder.used)
+                    .map(|(key, _)| *key)
+                    .unwrap();
+                self.decoders.remove(&oldest);
+            }
+            let probe = owned.probe(self.cancel.clone())?;
+            let native = probe
+                .streams
+                .iter()
+                .find(|s| s.index == stream)
+                .ok_or_else(|| Error::Invalid("native PCM stream absent".into()))?;
+            let original_base = profile.metadata.get("editbay.original_time_base");
+            let native_base = native
+                .time_base
+                .ok_or_else(|| Error::Invalid("native sound time base is absent".into()))?;
+            if native.sample_rate != Some(sample_rate)
+                || native.channels != *channels
+                || original_base.map_or(native_base != profile.time_base, |base| {
+                    *base != format!("{}/{}", native_base.numerator, native_base.denominator)
+                })
+            {
+                return Err(Error::Invalid(
+                    "native PCM interpretation differs from captured stream".into(),
+                ));
+            }
+            let reader = NativeAudioReader::open_stream(&owned, stream, self.cancel.clone())?;
+            if reader.info.sample_rate != sample_rate as i32
+                || reader.info.channels != channels.len() as i32
+            {
+                return Err(Error::Invalid(
+                    "native PCM decoder changed rate or channels".into(),
+                ));
+            }
+            self.decoders.insert(
+                key,
+                Decoder {
+                    reader,
+                    cursor: start,
+                    used: self.serial,
+                },
+            );
+        }
+        let decoder = self.decoders.get_mut(&key).unwrap();
+        decoder.used = self.serial;
+        let store = self.stores.get_mut(&key).unwrap();
+        let mut decoded = 0u64;
+        let mut blocks = 0u32;
+        while store.end() < wanted_end
+            && decoded + 65536 <= u64::from(self.budget.decode_frames)
+            && blocks < 4096
+        {
+            if self.cancel.is_cancelled() {
+                return Err(Error::Cancelled);
+            }
+            let block = decoder.reader.next_block()?.ok_or_else(|| {
+                Error::Invalid("native PCM ended before its captured presentation end".into())
+            })?;
+            let first_sample = block
+                .first_sample
+                .ok_or_else(|| Error::Invalid("native PCM has no absolute sample clock".into()))?;
+            if first_sample != decoder.cursor {
+                return Err(Error::Invalid(
+                    "canonical PCM decode lost sequential sample continuity".into(),
+                ));
+            }
+            let count = (block.samples.len() / channels.len()) as u64;
+            decoder.cursor = first_sample
+                .checked_add(count as i64)
+                .ok_or_else(|| Error::Invalid("canonical PCM clock overflow".into()))?;
+            self.stats.store_bytes += store.append(
+                &block,
+                self.budget.store_bytes - self.stats.store_bytes,
+                &self.cancel,
+            )?;
+            decoded += count;
+            self.stats.decoded_frames += count;
+            blocks += 1;
+        }
+        self.stats.preparation_steps += 1;
+        progress.ready = store.end() >= wanted_end;
+        progress.decoded_frames = if progress.ready {
+            required
+        } else {
+            u64::try_from(i128::from(decoder.cursor) - i128::from(start))
+                .map_err(|e| Error::Invalid(e.to_string()))?
+                .min(required)
+        };
+        owned.check_current(&self.cancel)?;
+        Ok(progress)
     }
 
     /// Read a bounded interval in absolute original-rate sample units.
@@ -261,169 +489,18 @@ impl NativePcmCache {
         } else {
             Output::Owned(vec![0.; frames as usize * channels.len()])
         };
-        let rate = FrameRate::new(sample_rate, 1)?;
-        let start = profile
-            .time_base
-            .boundary(SourcePosition::new(profile.start_tick, 1)?, rate)?;
-        let end_tick = profile
-            .duration_ticks
-            .and_then(|duration| {
-                i64::try_from(i128::from(profile.start_tick) + i128::from(duration)).ok()
-            })
-            .ok_or_else(|| Error::Invalid("PCM requires a finite presentation interval".into()))?;
-        let exact_end = profile
-            .time_base
-            .at_rate(SourcePosition::new(end_tick, 1)?, rate)?;
-        let limit = i64::try_from(
-            -(-i128::from(exact_end.numerator)).div_euclid(i128::from(exact_end.denominator)),
-        )
-        .map_err(|_| Error::Invalid("PCM presentation end overflow".into()))?;
+        let (start, limit) = presentation(&profile, sample_rate)?;
         let wanted_start = first.max(start);
         let wanted_end = end.min(limit);
         if wanted_start < wanted_end {
-            let decoder_key = (source, stream);
-            if !self.decoders.contains_key(&decoder_key) {
-                if self.decoders.len() >= self.budget.decoder_handles {
-                    let oldest = self
-                        .decoders
-                        .iter()
-                        .min_by_key(|(_, d)| d.used)
-                        .map(|(key, _)| *key)
-                        .unwrap();
-                    self.decoders.remove(&oldest);
-                }
-                let probe = owned.probe(self.cancel.clone())?;
-                let native = probe
-                    .streams
-                    .iter()
-                    .find(|s| s.index == stream)
-                    .ok_or_else(|| Error::Invalid("native PCM stream absent".into()))?;
-                let original_base = profile.metadata.get("editbay.original_time_base");
-                let native_base = native
-                    .time_base
-                    .ok_or_else(|| Error::Invalid("native sound time base is absent".into()))?;
-                if native.sample_rate != Some(sample_rate)
-                    || native.channels != *channels
-                    || original_base.map_or(native_base != profile.time_base, |base| {
-                        *base != format!("{}/{}", native_base.numerator, native_base.denominator)
-                    })
-                {
-                    return Err(Error::Invalid(
-                        "native PCM interpretation differs from captured stream".into(),
-                    ));
-                }
-                let reader = NativeAudioReader::open_stream(&owned, stream, self.cancel.clone())?;
-                if reader.info.sample_rate != sample_rate as i32
-                    || reader.info.channels != channels.len() as i32
-                {
-                    return Err(Error::Invalid(
-                        "native PCM decoder changed rate or channels".into(),
-                    ));
-                }
-                self.decoders.insert(
-                    decoder_key,
-                    Decoder {
-                        reader,
-                        pending: None,
-                        eof: false,
-                        used: self.serial,
-                    },
-                );
-            }
-            let decoder = self.decoders.get_mut(&decoder_key).unwrap();
-            decoder.used = self.serial;
-            let cursor = decoder
-                .pending
-                .as_ref()
-                .and_then(|b| b.first_sample)
-                .unwrap_or(start);
-            let pending_end = decoder
-                .pending
-                .as_ref()
-                .map(|b| cursor + (b.samples.len() / channels.len()) as i64)
-                .unwrap_or(cursor);
-            if wanted_start < cursor
-                || wanted_start.saturating_sub(pending_end)
-                    > i64::from(self.budget.decode_frames / 2)
-                || decoder.eof
-            {
-                let lead = i64::from(sample_rate).saturating_mul(2);
-                let seek_sample = wanted_start.saturating_sub(lead).max(start);
-                let tick = TimeBase {
-                    numerator: 1,
-                    denominator: sample_rate,
-                }
-                .boundary(
-                    SourcePosition::new(seek_sample, 1)?,
-                    FrameRate::new(
-                        decoder.reader.time_base.denominator,
-                        decoder.reader.time_base.numerator,
-                    )?,
-                )?;
-                if seek_sample == start {
-                    decoder.reader =
-                        NativeAudioReader::open_stream(&owned, stream, self.cancel.clone())?;
-                } else {
-                    decoder.reader.seek(tick)?;
-                }
-                decoder.pending = None;
-                decoder.eof = false;
-                self.stats.seeks += 1;
-            }
-            let mut filled = wanted_start;
-            let mut decoded = 0u64;
-            let mut packets = 0u32;
-            while filled < wanted_end {
-                if self.cancel.is_cancelled() {
-                    return Err(Error::Cancelled);
-                }
-                if let Some(block) = &decoder.pending {
-                    let block_start = block.first_sample.ok_or_else(|| {
-                        Error::Invalid("native PCM has no absolute sample clock".into())
-                    })?;
-                    let block_end = block_start
-                        .checked_add((block.samples.len() / channels.len()) as i64)
-                        .ok_or_else(|| Error::Invalid("native PCM clock overflow".into()))?;
-                    if block_start > filled {
-                        return Err(Error::Invalid(
-                            "native PCM has an in-range presentation gap".into(),
-                        ));
-                    }
-                    if block_end > filled {
-                        let copy_end = block_end.min(wanted_end);
-                        let from = (filled - block_start) as usize * channels.len();
-                        let to = (filled - first) as usize * channels.len();
-                        let count = (copy_end - filled) as usize * channels.len();
-                        output.samples_mut()[to..to + count]
-                            .copy_from_slice(&block.samples[from..from + count]);
-                        filled = copy_end;
-                        if filled == wanted_end {
-                            break;
-                        }
-                    }
-                }
-                decoder.pending = None;
-                if decoder.eof {
-                    return Err(Error::Invalid(
-                        "native PCM ended before its captured presentation end".into(),
-                    ));
-                }
-                if decoded + 65536 > u64::from(self.budget.decode_frames) || packets >= 4096 {
-                    return Err(Error::Invalid(
-                        "native PCM decode work budget exhausted".into(),
-                    ));
-                }
-                decoder.pending = decoder.reader.next_block()?;
-                packets += 1;
-                match &decoder.pending {
-                    Some(block) => {
-                        let count = (block.samples.len() / channels.len()) as u64;
-                        decoded += count;
-                        self.stats.decoded_frames += count;
-                    }
-                    None => decoder.eof = true,
-                }
-            }
+            while !self.prepare_interval(source, stream, first, frames)?.ready {}
+            let offset = (wanted_start - first) as usize * channels.len();
+            let count = (wanted_end - wanted_start) as usize * channels.len();
+            self.stores.get(&(source, stream)).unwrap().read(
+                wanted_start,
+                &mut output.samples_mut()[offset..offset + count],
+                &self.cancel,
+            )?;
         }
         owned.check_current(&self.cancel)?;
         let pcm = Arc::new(PcmBlock {
@@ -497,13 +574,9 @@ impl NativePcmCache {
             entries: self.entries.len(),
             sources: self.sources.len(),
             decoders: self.decoders.len(),
-            decoder_scratch_bytes: self
-                .decoders
-                .values()
-                .filter_map(|d| d.pending.as_ref())
-                .map(|b| b.samples.capacity() * 4)
-                .sum(),
+            decoder_scratch_bytes: 0,
             decoder_scratch_limit_bytes: self.budget.decoder_handles * 65536 * 64 * 4,
+            stores: self.stores.len(),
             ..self.stats
         }
     }
@@ -514,7 +587,9 @@ impl NativePcmCache {
         self.entries.clear();
         self.sources.clear();
         self.decoders.clear();
+        self.stores.clear();
         self.stats.cache_bytes = 0;
+        self.stats.store_bytes = 0;
         self.owner = Arc::new(());
     }
 
@@ -587,6 +662,32 @@ impl NativePcmCache {
         self.stats.cache_bytes -= entry.pcm.samples().len() * 4;
         self.stats.evictions += 1;
     }
+}
+
+/// Resolve captured sound presentation on its original sample grid.
+/// `profile` and `sample_rate` declare exact time. Returns start and exclusive end.
+pub(crate) fn presentation(
+    profile: &editbay_core::SourceStream,
+    sample_rate: u32,
+) -> Result<(i64, i64)> {
+    let rate = FrameRate::new(sample_rate, 1)?;
+    let start = profile
+        .time_base
+        .boundary(SourcePosition::new(profile.start_tick, 1)?, rate)?;
+    let end_tick = profile
+        .duration_ticks
+        .and_then(|duration| {
+            i64::try_from(i128::from(profile.start_tick) + i128::from(duration)).ok()
+        })
+        .ok_or_else(|| Error::Invalid("PCM requires a finite presentation interval".into()))?;
+    let exact_end = profile
+        .time_base
+        .at_rate(SourcePosition::new(end_tick, 1)?, rate)?;
+    let end = i64::try_from(
+        -(-i128::from(exact_end.numerator)).div_euclid(i128::from(exact_end.denominator)),
+    )
+    .map_err(|_| Error::Invalid("PCM presentation end overflow".into()))?;
+    Ok((start, end))
 }
 
 pub(crate) enum Samples {

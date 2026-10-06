@@ -1,0 +1,116 @@
+    Checking editbay-core v0.1.0 (/home/michael/Projects/editbay/artifacts/worktrees/r2-sound-worker/crates/editbay-core)
+    Checking bytemuck v1.25.2
+    Checking editbay-media v0.1.0 (/home/michael/Projects/editbay/artifacts/worktrees/r2-sound-worker/crates/editbay-media)
+error[E0422]: cannot find struct, variant or union type `TimeBase` in this scope
+   --> crates/editbay-media/src/pcm.rs:578:28
+    |
+578 |                 let tick = TimeBase {
+    |                            ^^^^^^^^ not found in this scope
+
+error[E0560]: struct `pcm::Decoder` has no field named `pending`
+   --> crates/editbay-media/src/pcm.rs:553:25
+    |
+553 |                         pending: None,
+    |                         ^^^^^^^ `pcm::Decoder` does not have this field
+    |
+    = note: available fields are: `cursor`
+
+error[E0560]: struct `pcm::Decoder` has no field named `eof`
+   --> crates/editbay-media/src/pcm.rs:554:25
+    |
+554 |                         eof: false,
+    |                         ^^^ `pcm::Decoder` does not have this field
+    |
+    = note: available fields are: `cursor`
+
+error[E0609]: no field `pending` on type `&mut pcm::Decoder`
+   --> crates/editbay-media/src/pcm.rs:562:18
+    |
+562 |                 .pending
+    |                  ^^^^^^^ unknown field
+    |
+    = note: available fields are: `reader`, `cursor`, `used`
+
+error[E0609]: no field `pending` on type `&mut pcm::Decoder`
+   --> crates/editbay-media/src/pcm.rs:567:18
+    |
+567 |                 .pending
+    |                  ^^^^^^^ unknown field
+    |
+    = note: available fields are: `reader`, `cursor`, `used`
+
+error[E0609]: no field `eof` on type `&mut pcm::Decoder`
+   --> crates/editbay-media/src/pcm.rs:574:28
+    |
+574 |                 || decoder.eof
+    |                            ^^^ unknown field
+    |
+    = note: available fields are: `reader`, `cursor`, `used`
+
+error[E0609]: no field `pending` on type `&mut pcm::Decoder`
+   --> crates/editbay-media/src/pcm.rs:595:25
+    |
+595 |                 decoder.pending = None;
+    |                         ^^^^^^^ unknown field
+    |
+    = note: available fields are: `reader`, `cursor`, `used`
+
+error[E0609]: no field `eof` on type `&mut pcm::Decoder`
+   --> crates/editbay-media/src/pcm.rs:596:25
+    |
+596 |                 decoder.eof = false;
+    |                         ^^^ unknown field
+    |
+    = note: available fields are: `reader`, `cursor`, `used`
+
+error[E0609]: no field `pending` on type `&mut pcm::Decoder`
+   --> crates/editbay-media/src/pcm.rs:606:47
+    |
+606 |                 if let Some(block) = &decoder.pending {
+    |                                               ^^^^^^^ unknown field
+    |
+    = note: available fields are: `reader`, `cursor`, `used`
+
+error[E0609]: no field `pending` on type `&mut pcm::Decoder`
+   --> crates/editbay-media/src/pcm.rs:631:25
+    |
+631 |                 decoder.pending = None;
+    |                         ^^^^^^^ unknown field
+    |
+    = note: available fields are: `reader`, `cursor`, `used`
+
+error[E0609]: no field `eof` on type `&mut pcm::Decoder`
+   --> crates/editbay-media/src/pcm.rs:632:28
+    |
+632 |                 if decoder.eof {
+    |                            ^^^ unknown field
+    |
+    = note: available fields are: `reader`, `cursor`, `used`
+
+error[E0609]: no field `pending` on type `&mut pcm::Decoder`
+   --> crates/editbay-media/src/pcm.rs:642:25
+    |
+642 |                 decoder.pending = decoder.reader.next_block()?;
+    |                         ^^^^^^^ unknown field
+    |
+    = note: available fields are: `reader`, `cursor`, `used`
+
+error[E0609]: no field `pending` on type `&mut pcm::Decoder`
+   --> crates/editbay-media/src/pcm.rs:644:32
+    |
+644 |                 match &decoder.pending {
+    |                                ^^^^^^^ unknown field
+    |
+    = note: available fields are: `reader`, `cursor`, `used`
+
+error[E0609]: no field `eof` on type `&mut pcm::Decoder`
+   --> crates/editbay-media/src/pcm.rs:650:37
+    |
+650 |                     None => decoder.eof = true,
+    |                                     ^^^ unknown field
+    |
+    = note: available fields are: `reader`, `cursor`, `used`
+
+Some errors have detailed explanations: E0422, E0560, E0609.
+For more information about an error, try `rustc --explain E0422`.
+error: could not compile `editbay-media` (lib) due to 14 previous errors

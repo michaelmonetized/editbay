@@ -1,6 +1,6 @@
 use crate::{
-    Cancellation, Error, NativePcmCache, PcmBlock, PcmBudget, PcmProvider, PcmResult, PcmStats,
-    Result,
+    Cancellation, Error, NativePcmCache, PcmBlock, PcmBudget, PcmPreparation, PcmPreparationLog,
+    PcmProgress, PcmProvider, PcmResult, PcmStats, Result,
     codec_process::{Ownership, Process},
     pcm::{Charge, Samples},
     pictures::HandleAllocation,
@@ -88,6 +88,9 @@ struct Response {
 #[serde(tag = "kind", rename_all = "snake_case", deny_unknown_fields)]
 enum Reply {
     Ready,
+    Preparing {
+        progress: PcmPreparation,
+    },
     Pcm {
         interval: Interval,
         rate: u32,
@@ -107,11 +110,46 @@ fn validate_response(response: &Response, owner: Ownership, serial: u64) -> Resu
     }
     Ok(())
 }
+fn valid_stats(stats: PcmStats, previous: PcmStats, budget: PcmBudget) -> bool {
+    stats.cache_bytes <= budget.cache_bytes
+        && stats.live_bytes <= budget.live_bytes
+        && stats.cache_bytes <= stats.live_bytes
+        && stats.entries <= budget.cache_entries
+        && stats.sources <= budget.source_handles
+        && stats.decoders <= budget.decoder_handles
+        && stats.stores <= budget.store_handles
+        && stats.store_bytes <= budget.store_bytes
+        && stats.decoder_scratch_bytes <= stats.decoder_scratch_limit_bytes
+        && stats.decoder_scratch_limit_bytes <= budget.decoder_handles * 65536 * 64 * 4
+        && stats.hits >= previous.hits
+        && stats.misses >= previous.misses
+        && stats.evictions >= previous.evictions
+        && stats.decoded_frames >= previous.decoded_frames
+        && stats.preparation_steps >= previous.preparation_steps
+}
 struct Selection {
     asset: Uuid,
     bytes: usize,
     rate: u32,
     channels: Vec<String>,
+    required_frames: u64,
+}
+
+fn valid_preparation(
+    progress: &PcmPreparation,
+    interval: Interval,
+    selected: &Selection,
+    previous: u64,
+) -> bool {
+    progress.source == interval.source
+        && progress.stream == interval.stream
+        && progress.first == interval.first
+        && progress.frames == interval.frames
+        && progress.sample_rate == selected.rate
+        && progress.required_frames == selected.required_frames
+        && !progress.ready
+        && progress.decoded_frames > previous
+        && progress.decoded_frames < progress.required_frames
 }
 fn select(
     snapshot: &EvaluationSnapshot,
@@ -145,11 +183,21 @@ fn select(
             "PCM interval exceeds its byte budget".into(),
         ));
     }
+    let (start, limit) = crate::pcm::presentation(profile, *sample_rate)?;
+    let wanted_start = interval.first.max(start);
+    let wanted_end = (interval.first + i64::from(interval.frames)).min(limit);
+    let required_frames = if wanted_start < wanted_end {
+        u64::try_from(i128::from(wanted_end) - i128::from(start))
+            .map_err(|e| Error::Invalid(e.to_string()))?
+    } else {
+        0
+    };
     Ok(Selection {
         asset: asset.id,
         bytes,
         rate: *sample_rate,
         channels: channels.clone(),
+        required_frames,
     })
 }
 struct Entry {
@@ -172,6 +220,7 @@ pub struct PcmTransferStats {
 
 /// Supervised original-channel native PCM over immutable bounded shared mappings.
 pub struct PcmWorker {
+    preparation: PcmPreparationLog,
     executable: PathBuf,
     snapshot: Arc<EvaluationSnapshot>,
     budget: PcmWorkerBudget,
@@ -203,6 +252,7 @@ impl PcmWorker {
     ) -> Result<Self> {
         budget.validate()?;
         let mut worker = Self {
+            preparation: PcmPreparationLog::default(),
             executable: executable.to_owned(),
             owner: Ownership {
                 session: Uuid::new_v4(),
@@ -296,6 +346,12 @@ impl PcmWorker {
         self.owner.version = DocumentVersion::of(self.snapshot.project());
         self.start()
     }
+    /// Observe source preparation while an interval request runs elsewhere.
+    /// Takes no arguments; returns a bounded control-plane record shared by clone.
+    pub fn preparation_log(&self) -> PcmPreparationLog {
+        self.preparation.clone()
+    }
+
     fn invalidate(&mut self, cleared: bool) {
         self.process.take();
         self.entries.clear();
@@ -357,6 +413,11 @@ impl PcmWorker {
         };
         validate_response(&packet.0, self.owner, self.serial)
             .or_else(|e| self.protocol_error(&e.to_string()))?;
+        let stats = packet.0.stats;
+        let budget = self.budget.pcm;
+        if !valid_stats(stats, self.child_stats, budget) {
+            return self.protocol_error("invalid or regressing PCM resource accounting");
+        }
         if self.cancel.is_cancelled() {
             self.invalidate(false);
             return Err(Error::Cancelled);
@@ -445,10 +506,46 @@ impl PcmProvider for PcmWorker {
             frames,
         };
         let selected = select(&self.snapshot, interval, self.budget.pcm)?;
-        let (reply, descriptor) = self.rpc(Operation::Interval { interval })?;
+        let mut prepared = 0;
+        let request = self
+            .serial
+            .checked_add(1)
+            .ok_or_else(|| Error::Invalid("PCM serial exhausted".into()))?;
+        let (reply, descriptor) = loop {
+            let (reply, descriptor) = self.rpc(Operation::Interval { interval })?;
+            if let Reply::Preparing { progress } = &reply.result {
+                if descriptor.is_some()
+                    || !valid_preparation(progress, interval, &selected, prepared)
+                {
+                    return self.protocol_error("invalid or regressing canonical PCM preparation");
+                }
+                prepared = progress.decoded_frames;
+                self.preparation.publish(PcmProgress {
+                    version: self.owner.version,
+                    request,
+                    preparation: *progress,
+                });
+                continue;
+            }
+            break (reply, descriptor);
+        };
         validate_pcm_reply(&reply.result, interval, &selected, descriptor.as_ref())
             .or_else(|e| self.protocol_error(&e.to_string()))?;
         let descriptor = descriptor.expect("validated PCM response owns its mapping");
+        self.preparation.publish(PcmProgress {
+            version: self.owner.version,
+            request,
+            preparation: PcmPreparation {
+                source,
+                stream,
+                first,
+                frames,
+                sample_rate: selected.rate,
+                decoded_frames: selected.required_frames,
+                required_frames: selected.required_frames,
+                ready: true,
+            },
+        });
         self.received += 1;
         let pcm = if let Some(entry) = self.entries.get_mut(&interval) {
             self.hits += 1;
@@ -620,6 +717,15 @@ fn serve_socket(mut output: std::os::unix::net::UnixStream) -> Result<()> {
                 match operation {
                     Operation::Interval { interval } => {
                         let selected = select(cache.snapshot(), interval, budget)?;
+                        let progress = cache.prepare_interval(
+                            interval.source,
+                            interval.stream,
+                            interval.first,
+                            interval.frames,
+                        )?;
+                        if !progress.ready {
+                            return Ok(Reply::Preparing { progress });
+                        }
                         let decoded = cache.interval(
                             interval.source,
                             interval.stream,
@@ -714,6 +820,141 @@ mod tests {
             generation: 0,
         }
     }
+
+    #[test]
+    fn child_accounting_rejects_over_budget_and_regressing_resources() {
+        let budget = PcmBudget::default();
+        let stats = PcmStats {
+            hits: 1,
+            misses: 2,
+            evictions: 1,
+            decoded_frames: 65536,
+            preparation_steps: 1,
+            stores: 1,
+            store_bytes: 65536 * 4,
+            ..PcmStats::default()
+        };
+        assert!(valid_stats(stats, stats, budget));
+        for invalid in [
+            PcmStats {
+                cache_bytes: 1,
+                ..stats
+            },
+            PcmStats {
+                live_bytes: budget.live_bytes + 1,
+                ..stats
+            },
+            PcmStats {
+                entries: budget.cache_entries + 1,
+                ..stats
+            },
+            PcmStats {
+                sources: budget.source_handles + 1,
+                ..stats
+            },
+            PcmStats {
+                decoders: budget.decoder_handles + 1,
+                ..stats
+            },
+            PcmStats {
+                stores: budget.store_handles + 1,
+                ..stats
+            },
+            PcmStats {
+                store_bytes: budget.store_bytes + 1,
+                ..stats
+            },
+            PcmStats {
+                decoder_scratch_bytes: 1,
+                ..stats
+            },
+            PcmStats {
+                decoder_scratch_limit_bytes: usize::MAX,
+                ..stats
+            },
+            PcmStats { hits: 0, ..stats },
+            PcmStats { misses: 0, ..stats },
+            PcmStats {
+                evictions: 0,
+                ..stats
+            },
+            PcmStats {
+                decoded_frames: 0,
+                ..stats
+            },
+            PcmStats {
+                preparation_steps: 0,
+                ..stats
+            },
+        ] {
+            assert!(!valid_stats(invalid, stats, budget));
+        }
+    }
+
+    #[test]
+    fn canonical_progress_rejects_foreign_intervals_impossible_totals_and_regression() {
+        let interval = Interval {
+            source: Uuid::new_v4(),
+            stream: 2,
+            first: 480000,
+            frames: 4096,
+        };
+        let selected = Selection {
+            asset: Uuid::new_v4(),
+            bytes: 4096 * 6 * 4,
+            rate: 48000,
+            channels: vec!["FL".into(); 6],
+            required_frames: 484096,
+        };
+        let valid = PcmPreparation {
+            source: interval.source,
+            stream: interval.stream,
+            first: interval.first,
+            frames: interval.frames,
+            sample_rate: selected.rate,
+            decoded_frames: 65536,
+            required_frames: selected.required_frames,
+            ready: false,
+        };
+        assert!(valid_preparation(&valid, interval, &selected, 0));
+        assert!(!valid_preparation(
+            &valid,
+            interval,
+            &selected,
+            valid.decoded_frames
+        ));
+        for invalid in [
+            PcmPreparation {
+                source: Uuid::new_v4(),
+                ..valid
+            },
+            PcmPreparation { stream: 3, ..valid },
+            PcmPreparation { first: 0, ..valid },
+            PcmPreparation { frames: 1, ..valid },
+            PcmPreparation {
+                sample_rate: 44100,
+                ..valid
+            },
+            PcmPreparation {
+                required_frames: 484095,
+                ..valid
+            },
+            PcmPreparation {
+                decoded_frames: 0,
+                ..valid
+            },
+            PcmPreparation {
+                decoded_frames: 484096,
+                ..valid
+            },
+            PcmPreparation {
+                ready: true,
+                ..valid
+            },
+        ] {
+            assert!(!valid_preparation(&invalid, interval, &selected, 0));
+        }
+    }
     #[test]
     fn pcm_replies_reject_foreign_receipts_intervals_layouts_and_unsealed_payloads() {
         let project = Project::new("Protocol ownership").unwrap();
@@ -771,6 +1012,7 @@ mod tests {
             bytes: 32,
             rate: 48000,
             channels: vec!["FL".into(), "FR".into()],
+            required_frames: 4,
         };
         let reply = |interval, rate, channels| Reply::Pcm {
             interval,

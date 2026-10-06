@@ -1,0 +1,93 @@
+   Compiling editbay-media v0.1.0 (/home/michael/Projects/editbay/artifacts/worktrees/r2-sound-worker/crates/editbay-media)
+    Finished `test` profile [unoptimized] target(s) in 8.05s
+     Running unittests src/lib.rs (/home/michael/Projects/editbay/artifacts/worktrees/r2-sound-engine/target/native-build/debug/deps/editbay_media-b6d378eb87fadba7)
+
+running 10 tests
+test picture_worker::tests::response_ownership_rejects_foreign_sessions_jobs_workers_versions_generations_and_serials ... ok
+test planes::tests::metadata_framing_refuses_oversized_and_truncated_input_before_parse ... ok
+test pcm_worker::tests::pcm_replies_reject_foreign_receipts_intervals_layouts_and_unsealed_payloads ... ok
+test planes::tests::sealed_planes_survive_sender_drop_and_refuse_mutation_geometry_and_unsealed_files ... ok
+test planes::tests::rejected_extra_and_truncated_ancillary_handles_are_all_closed ... ok
+test pcm_worker::tests::codec_service_rejects_replayed_serials_and_unsolicited_descriptors ... ok
+test picture_store::pack::tests::preparation_cancels_releases_partial_storage_and_rejects_foreign_providers ... ok
+test picture_store::pack::tests::readonly_anonymous_storage_rejects_foreign_malformed_corrupt_and_truncated_data ... ok
+test picture_store::pack::tests::nested_reverse_plan_deduplicates_and_sorts_without_changing_time ... ok
+test picture_store::pack::tests::exact_disk_pixels_match_independent_decode_and_keep_storage_pinned ... ok
+
+test result: ok. 10 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.12s
+
+     Running tests/aac.rs (/home/michael/Projects/editbay/artifacts/worktrees/r2-sound-engine/target/native-build/debug/deps/aac-41342131ceadb264)
+
+running 1 test
+test aac_priming_and_packet_timestamps_do_not_introduce_a_false_sound_gap ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.04s
+
+     Running tests/codecs.rs (/home/michael/Projects/editbay/artifacts/worktrees/r2-sound-engine/target/native-build/debug/deps/codecs-1dc898c3b71188f1)
+
+running 4 tests
+[mov,mp4,m4a,3gp,3g2,mj2 @ 0xfffee0000f80] Format mov,mp4,m4a,3gp,3g2,mj2 detected only with low score of 1, misdetection possible!
+[mov,mp4,m4a,3gp,3g2,mj2 @ 0xfffee0000f80] moov atom not found
+[mov,mp4,m4a,3gp,3g2,mj2 @ 0xfffee0000f80] Format mov,mp4,m4a,3gp,3g2,mj2 detected only with low score of 1, misdetection possible!
+[mov,mp4,m4a,3gp,3g2,mj2 @ 0xfffee0000f80] moov atom not found
+test invalid_local_media_and_profiles_fail_explicitly ... ok
+test encoder_preserves_existing_assets_and_owns_the_opened_file_after_path_replacement ... ok
+test lossless_export_preserves_unaligned_rgba_and_rational_timestamps ... ok
+test delayed_video_and_resampled_sound_drain_without_losing_the_tail ... ok
+
+test result: ok. 4 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.04s
+
+     Running tests/delivery.rs (/home/michael/Projects/editbay/artifacts/worktrees/r2-sound-engine/target/native-build/debug/deps/delivery-216046959f474ffc)
+
+running 3 tests
+test selected_phase_preserves_fractional_edge_samples_and_refuses_overflow ... ok
+test delivery_refuses_incomplete_stale_unbounded_cancelled_and_invalid_work ... ok
+test native_lossless_mov_preserves_every_pixel_sample_channel_and_exact_clock ... ok
+
+test result: ok. 3 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.14s
+
+     Running tests/ingest.rs (/home/michael/Projects/editbay/artifacts/worktrees/r2-sound-engine/target/native-build/debug/deps/ingest-307cc53a2f66ed0f)
+
+running 5 tests
+test declared_wav_channel_order_and_float_headroom_survive_native_decode ... ok
+test seeking_after_drain_and_path_replacement_never_substitutes_media ... ok
+[concat @ 0xfffeac161750] Format not on whitelist 'mov,mp4,m4a,3gp,3g2,mj2,matroska,webm,avi,mpegts,mpeg,mp3,wav,flac,ogg,aac,aiff,image2pipe,png_pipe,jpeg_pipe,tiff_pipe,webp_pipe,exr_pipe,bmp_pipe,gif'
+test native_cancellation_and_secondary_resource_denial_are_real ... ok
+[swscaler @ 0xfffea4021b50] deprecated pixel format used, make sure you did set range correctly
+test single_still_sources_are_real_decoded_pictures_with_original_alpha ... ok
+test explicit_streams_preserve_vfr_timecode_and_six_original_channels ... ok
+
+test result: ok. 5 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.08s
+
+     Running tests/pcm.rs (/home/michael/Projects/editbay/artifacts/worktrees/r2-sound-engine/target/native-build/debug/deps/pcm-81218a9a7456e2b3)
+
+running 4 tests
+test changed_sources_cached_hits_and_cancelled_work_are_rejected ... ok
+test consumer_pins_survive_eviction_cleanup_and_rebind_while_receipts_reject_foreign_owners ... ok
+test nonzero_container_origin_retains_absolute_samples_after_normalized_ingest ... ok
+test original_channels_headroom_intervals_and_delayed_codec_match_native_sequential_pcm ... ok
+
+test result: ok. 4 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.86s
+
+     Running tests/pictures.rs (/home/michael/Projects/editbay/artifacts/worktrees/r2-sound-engine/target/native-build/debug/deps/pictures-58b27603d0ea2df6)
+
+running 7 tests
+test oversize_cache_outputs_remain_bounded_and_geometry_is_checked_before_decode ... ok
+test hits_refuse_changed_sources_forged_interpretations_and_cancellation ... ok
+test consumer_pins_stay_charged_through_eviction_and_clear_invalidates_receipts ... ok
+test changed_skipped_timestamp_drops_decoder_and_unpublished_allocation ... ok
+[swscaler @ 0xffff480e3090] No accelerated colorspace conversion found from yuv420p to rgba.
+test sequential_reverse_eof_and_decoder_eviction_match_independent_native_pixels ... ok
+test revision_rebind_reuses_matching_content_and_rejects_previous_receipts ... ok
+[swscaler @ 0xffff6c3d81d0] No accelerated colorspace conversion found from yuv420p to rgba.
+test bounded_forward_gaps_match_independent_vfr_b_frames_without_moving_on_hits ... ok
+
+test result: ok. 7 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.12s
+
+   Doc-tests editbay_media
+
+running 1 test
+test crates/editbay-media/src/pcm.rs - pcm::PcmResult (line 138) - compile fail ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.02s
+

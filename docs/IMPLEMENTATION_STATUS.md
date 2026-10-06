@@ -1,5 +1,20 @@
 # Rust restart: implementation status
 
+Issue [#53](https://github.com/michaelmonetized/editbay/issues/53) /
+[PR #54](https://github.com/michaelmonetized/editbay/pull/54) adds
+[canonical source PCM](CANONICAL_PCM.md): bounded sequential preparation in
+anonymous files, original-bit random reads after decoder eviction, supervised
+source-progress replies and native preparation status. Local and actual worker
+tests pass. Frozen `1210983` passes camera/six-channel/45-second AAC original-bit
+comparisons, cold p95 <=524.125 ms and warm p95 <=1.755 ms, plus existing PCM and
+sound-block worker gates. Twelve ranges match their whole masters; independent
+decoded-source PCM proves correction of the old six-channel 44.1 kHz tail error.
+All six native preparation/device/playback/edit/save/recovery/export runs pass.
+Workspace tests, final all-feature Clippy and formatting pass; raw receipts and
+earlier failures are in [the evidence](evidence/r2-canonical-pcm/README.md).
+Preparation ahead of future cuts continues in
+[issue #55](https://github.com/michaelmonetized/editbay/issues/55).
+
 Issue [#51](https://github.com/michaelmonetized/editbay/issues/51) / draft
 [PR #52](https://github.com/michaelmonetized/editbay/pull/52) adds bounded exact
 [sound coefficient reuse](SOUND_KERNELS.md) and preparation timing. Frozen
@@ -21,8 +36,8 @@ Issue [#49](https://github.com/michaelmonetized/editbay/issues/49) /
 worker faults and native cancellation/retry/save/recovery/reopen workflows pass;
 [raw evidence and earlier failures](evidence/r3-range-delivery/README.md) remain.
 Bounded sound pre-roll preserves whole-master PCM through compressed source history.
-Delivery queues, standalone cold PCM seeking, sustained playback and full release
-gates stay open.
+Canonical cold PCM access follows in #54. Delivery queues, preparation ahead of
+future cuts, sustained playback and full release gates stay open.
 
 Issue [#47](https://github.com/michaelmonetized/editbay/issues/47) / draft
 [PR #48](https://github.com/michaelmonetized/editbay/pull/48) pins the updated

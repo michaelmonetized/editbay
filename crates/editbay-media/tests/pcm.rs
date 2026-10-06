@@ -1,11 +1,21 @@
 use editbay_core::{EvaluationSnapshot, Project};
 use editbay_media::{
-    Cancellation, Error, NativeAudioReader, NativePcmCache, PcmBudget, SourceFile,
+    Cancellation, Error, NativeAudioReader, NativePcmCache, PcmBudget, PcmProgress, SourceFile,
 };
 use std::{fs, path::Path, process::Command, sync::Arc};
 
 fn fixture(path: &Path, codec: &str) -> Arc<EvaluationSnapshot> {
-    let output = Command::new("ffmpeg").args(["-v", "error", "-f", "lavfi", "-i", "aevalsrc=1.25*sin(2*PI*137*t)|0.7*cos(2*PI*263*t)|0.25*sin(2*PI*701*t)|0.1*cos(2*PI*67*t)|0.3*sin(2*PI*997*t)|0.4*cos(2*PI*1103*t):s=48000:d=4:c=5.1", "-c:a", codec]).arg(path).output().unwrap();
+    fixture_seconds(path, codec, 4)
+}
+fn fixture_seconds(path: &Path, codec: &str, seconds: u32) -> Arc<EvaluationSnapshot> {
+    let input = format!(
+        "aevalsrc=1.25*sin(2*PI*137*t)|0.7*cos(2*PI*263*t)|0.25*sin(2*PI*701*t)|0.1*cos(2*PI*67*t)|0.3*sin(2*PI*997*t)|0.4*cos(2*PI*1103*t):s=48000:d={seconds}:c=5.1"
+    );
+    let output = Command::new("ffmpeg")
+        .args(["-v", "error", "-f", "lavfi", "-i", &input, "-c:a", codec])
+        .arg(path)
+        .output()
+        .unwrap();
     assert!(
         output.status.success(),
         "{}",
@@ -205,4 +215,171 @@ fn nonzero_container_origin_retains_absolute_samples_after_normalized_ingest() {
             .samples()[..96],
         [0.; 96]
     );
+}
+
+#[test]
+fn late_aac_seeks_and_decoder_eviction_preserve_canonical_bits_with_bounded_steps() {
+    let directory = tempfile::tempdir().unwrap();
+    let path = directory.path().join("long.m4a");
+    let snapshot = fixture_seconds(&path, "aac", 12);
+    let expected = reference(&path);
+    let mut project = (**snapshot.project()).clone();
+    let first = project.sources[0].id;
+    let mut alias = project.sources[0].clone();
+    alias.id = uuid::Uuid::new_v4();
+    let second = alias.id;
+    project.sources.push(alias);
+    let snapshot = Arc::new(EvaluationSnapshot::new(Arc::new(project)).unwrap());
+    let budget = PcmBudget {
+        cache_entries: 0,
+        decoder_handles: 1,
+        decode_frames: 131072,
+        ..PcmBudget::default()
+    };
+    let mut cache = NativePcmCache::new_in(
+        snapshot.clone(),
+        budget,
+        Cancellation::new().unwrap(),
+        directory.path(),
+    )
+    .unwrap();
+    let mut previous = 0;
+    let mut steps = 0;
+    loop {
+        let before = cache.stats().decoded_frames;
+        let progress = cache.prepare_interval(first, 0, 480000, 4096).unwrap();
+        let observed = PcmProgress {
+            version: editbay_core::DocumentVersion::of(snapshot.project()),
+            request: 1,
+            preparation: progress,
+        };
+        assert!(observed.valid_after(None, snapshot.project(), budget));
+        for invalid in [
+            PcmProgress {
+                request: 0,
+                ..observed
+            },
+            PcmProgress {
+                version: editbay_core::DocumentVersion {
+                    project_id: uuid::Uuid::new_v4(),
+                    ..observed.version
+                },
+                ..observed
+            },
+            PcmProgress {
+                preparation: editbay_media::PcmPreparation {
+                    source: uuid::Uuid::new_v4(),
+                    ..progress
+                },
+                ..observed
+            },
+            PcmProgress {
+                preparation: editbay_media::PcmPreparation {
+                    required_frames: progress.required_frames + 1,
+                    ..progress
+                },
+                ..observed
+            },
+            PcmProgress {
+                preparation: editbay_media::PcmPreparation {
+                    ready: !progress.ready,
+                    ..progress
+                },
+                ..observed
+            },
+        ] {
+            assert!(!invalid.valid_after(None, snapshot.project(), budget));
+        }
+        assert!(!observed.valid_after(
+            Some(PcmProgress {
+                request: 2,
+                ..observed
+            }),
+            snapshot.project(),
+            budget
+        ));
+        assert_eq!(progress.required_frames, 484096);
+        assert!(progress.decoded_frames > previous);
+        assert!(cache.stats().decoded_frames - before <= u64::from(budget.decode_frames));
+        assert_eq!(
+            progress.ready,
+            progress.decoded_frames == progress.required_frames
+        );
+        previous = progress.decoded_frames;
+        steps += 1;
+        if progress.ready {
+            break;
+        }
+    }
+    assert!(steps > 1);
+    for start in [480000, 1, 47999, 150000, 0, 480000] {
+        let decoded_before = cache.stats().decoded_frames;
+        let result = cache.interval(first, 0, start, 4096).unwrap();
+        assert_eq!(
+            result.pcm().samples(),
+            &expected[start as usize * 6..(start as usize + 4096) * 6]
+        );
+        assert_eq!(cache.stats().decoded_frames, decoded_before);
+    }
+    let held = cache.interval(first, 0, 480000, 4096).unwrap();
+    cache.interval(second, 0, 100000, 4096).unwrap();
+    assert_eq!(cache.stats().decoders, 1);
+    let extended = cache.interval(first, 0, 560000, 4096).unwrap();
+    assert_eq!(extended.pcm().samples(), &expected[560000 * 6..564096 * 6]);
+    assert_eq!(held.pcm().samples(), &expected[480000 * 6..484096 * 6]);
+    assert!(cache.stats().store_bytes <= budget.store_bytes);
+    assert_eq!(cache.stats().stores, 2);
+    assert_eq!(fs::read_dir(directory.path()).unwrap().count(), 1);
+    cache.clear();
+    assert_eq!(cache.stats().stores, 0);
+    assert_eq!(cache.stats().store_bytes, 0);
+    assert_eq!(held.pcm().samples(), &expected[480000 * 6..484096 * 6]);
+    assert!(cache.validate_result(&held).is_err());
+}
+
+#[test]
+fn canonical_storage_limits_and_cancelled_preparation_preserve_sources_and_release_files() {
+    let directory = tempfile::tempdir().unwrap();
+    let path = directory.path().join("original.m4a");
+    let snapshot = fixture(&path, "aac");
+    let source = snapshot.project().sources[0].id;
+    let bytes = fs::read(&path).unwrap();
+    let budget = PcmBudget {
+        store_bytes: 100000,
+        ..PcmBudget::default()
+    };
+    let mut cache = NativePcmCache::new_in(
+        snapshot.clone(),
+        budget,
+        Cancellation::new().unwrap(),
+        directory.path(),
+    )
+    .unwrap();
+    assert!(cache.prepare_interval(source, 0, 96000, 4096).is_err());
+    assert_eq!(cache.stats().store_bytes, 0);
+    assert_eq!(cache.stats().stores, 0);
+    let cancel = Cancellation::new().unwrap();
+    let mut cache = NativePcmCache::new_in(
+        snapshot,
+        PcmBudget {
+            decode_frames: 65536,
+            ..PcmBudget::default()
+        },
+        cancel.clone(),
+        directory.path(),
+    )
+    .unwrap();
+    let progress = cache.prepare_interval(source, 0, 160000, 4096).unwrap();
+    assert!(!progress.ready);
+    assert!(cache.stats().store_bytes > 0);
+    cancel.cancel();
+    assert!(matches!(
+        cache.prepare_interval(source, 0, 160000, 4096),
+        Err(Error::Cancelled)
+    ));
+    cache.clear();
+    assert_eq!(cache.stats().store_bytes, 0);
+    assert_eq!(cache.stats().stores, 0);
+    assert_eq!(fs::read_dir(directory.path()).unwrap().count(), 1);
+    assert_eq!(fs::read(&path).unwrap(), bytes);
 }

@@ -1,0 +1,21 @@
+   Compiling editbay-media v0.1.0 (/home/michael/Projects/editbay/artifacts/worktrees/r2-sound-worker/crates/editbay-media)
+    Finished `test` profile [unoptimized] target(s) in 2.94s
+     Running unittests src/lib.rs (/home/michael/Projects/editbay/artifacts/worktrees/r2-sound-engine/target/native-build/debug/deps/editbay_media-b6d378eb87fadba7)
+
+running 13 tests
+test pcm_worker::tests::child_accounting_rejects_over_budget_and_regressing_resources ... ok
+test pcm_worker::tests::canonical_progress_rejects_foreign_intervals_impossible_totals_and_regression ... ok
+test pcm::store::tests::anonymous_storage_preserves_bits_and_rejects_incomplete_or_cancelled_io ... ok
+test planes::tests::metadata_framing_refuses_oversized_and_truncated_input_before_parse ... ok
+test picture_worker::tests::response_ownership_rejects_foreign_sessions_jobs_workers_versions_generations_and_serials ... ok
+test pcm_worker::tests::pcm_replies_reject_foreign_receipts_intervals_layouts_and_unsealed_payloads ... ok
+test planes::tests::sealed_planes_survive_sender_drop_and_refuse_mutation_geometry_and_unsealed_files ... ok
+test planes::tests::rejected_extra_and_truncated_ancillary_handles_are_all_closed ... ok
+test pcm_worker::tests::codec_service_rejects_replayed_serials_and_unsolicited_descriptors ... ok
+test picture_store::pack::tests::nested_reverse_plan_deduplicates_and_sorts_without_changing_time ... ok
+test picture_store::pack::tests::preparation_cancels_releases_partial_storage_and_rejects_foreign_providers ... ok
+test picture_store::pack::tests::exact_disk_pixels_match_independent_decode_and_keep_storage_pinned ... ok
+test picture_store::pack::tests::readonly_anonymous_storage_rejects_foreign_malformed_corrupt_and_truncated_data ... ok
+
+test result: ok. 13 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.13s
+

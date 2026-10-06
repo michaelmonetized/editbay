@@ -1,0 +1,32 @@
+{
+  "application_sha256": "85ba38d4efe46559c268840d317a05da80fb8ad0b7b4841f2dffc933904504e7",
+  "channels": 6,
+  "different_sample_values": 66155,
+  "first_difference_frame": 126915,
+  "frames": 145308,
+  "kind": "independent_source_pcm_master",
+  "limits": [
+    "Original PCM comes from full FFmpeg CLI decode stored as verified uncompressed float WAV; graph timing and mixing use the shared Rust implementation.",
+    "This isolates compressed decoder history. It is not an independent resampler, physical audibility or client acceptance claim."
+  ],
+  "master_pcm_sha256": "394add3ff15af4f61f26df5aa93f1e30fd6d0660a18dd3d907385f08ca4aa0eb",
+  "master_sha256": "59748066436232c4a22f2d8f7ffbd2cca1c6f891b02959e227c761dfdae03c3b",
+  "maximum_error": 0.151652991771698,
+  "oracle_pcm_sha256": "41482de9caeac0742a66b239f5c262b0ddd29e4891b443acd1b33d9cce94c961",
+  "project_sha256": "3bc50751d9ae88ccb7d816fe950be156669e442d5f64f1aabd1a1f6fd81e333a",
+  "qualified": false,
+  "sample_rate": 44100,
+  "sources": [
+    {
+      "independent_pcm_sha256": "0ff3ae9d4e9bfe89b8788acc072973b19ca5dc3d02fc14f37b17db2095403084",
+      "original": "/home/michael/Projects/editbay/artifacts/worktrees/r2-sound-worker/artifacts/natural-sound/fixtures/qualified-six-channel.mov",
+      "original_sample_origin": 4976,
+      "original_sha256": "a6ce0012de62432f8d30e3b7e65532f37651ed0a8650ea4c62c54bd8f141e9b2",
+      "original_stream": 1,
+      "reference_sample_origin": 0,
+      "sample_bits_equal": true,
+      "uncompressed": "artifacts/pcm-canonical/oracle-origin/previous/source-0.wav",
+      "uncompressed_sha256": "ce180826aa2c4c009afb319295296581ca1c76a4846af536ff6ac3b46c0fc4cd"
+    }
+  ]
+}

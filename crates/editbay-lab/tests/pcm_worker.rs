@@ -14,7 +14,17 @@ use std::{
 use uuid::Uuid;
 
 fn fixture(path: &Path, codec: &str) -> Arc<EvaluationSnapshot> {
-    let output = Command::new("ffmpeg").args(["-v", "error", "-f", "lavfi", "-i", "aevalsrc=1.25*sin(2*PI*137*t)|0.7*cos(2*PI*263*t)|0.25*sin(2*PI*701*t)|0.1*cos(2*PI*67*t)|0.3*sin(2*PI*997*t)|0.4*cos(2*PI*1103*t):s=48000:d=4:c=5.1", "-c:a", codec]).arg(path).output().unwrap();
+    fixture_seconds(path, codec, 4)
+}
+fn fixture_seconds(path: &Path, codec: &str, seconds: u32) -> Arc<EvaluationSnapshot> {
+    let input = format!(
+        "aevalsrc=1.25*sin(2*PI*137*t)|0.7*cos(2*PI*263*t)|0.25*sin(2*PI*701*t)|0.1*cos(2*PI*67*t)|0.3*sin(2*PI*997*t)|0.4*cos(2*PI*1103*t):s=48000:d={seconds}:c=5.1"
+    );
+    let output = Command::new("ffmpeg")
+        .args(["-v", "error", "-f", "lavfi", "-i", &input, "-c:a", codec])
+        .arg(path)
+        .output()
+        .unwrap();
     assert!(
         output.status.success(),
         "{}",
@@ -29,6 +39,86 @@ fn fixture(path: &Path, codec: &str) -> Arc<EvaluationSnapshot> {
     project.assets.push(source.asset);
     project.sources.push(source.source);
     Arc::new(EvaluationSnapshot::new(Arc::new(project)).unwrap())
+}
+
+#[test]
+fn cold_canonical_worker_progress_matches_sequential_pcm_and_reaps_interrupted_preparation() {
+    let directory = tempfile::tempdir().unwrap();
+    let path = directory.path().join("long.m4a");
+    let snapshot = fixture_seconds(&path, "aac", 12);
+    let source = snapshot.project().sources[0].id;
+    let expected = reference(&path);
+    let original = fs::read(&path).unwrap();
+    let budget = PcmWorkerBudget {
+        pcm: PcmBudget {
+            decode_frames: 65536,
+            ..PcmBudget::default()
+        },
+        ..PcmWorkerBudget::default()
+    };
+    for mode in ["complete", "cancel", "kill"] {
+        let cancel = Cancellation::new().unwrap();
+        let mut worker = spawn(snapshot.clone(), budget, cancel.clone());
+        let log = worker.preparation_log();
+        let pid = worker.process_id().unwrap();
+        let thread = std::thread::spawn(move || {
+            let result = worker.interval(source, 0, 560000, 4096);
+            (worker, result)
+        });
+        let began = Instant::now();
+        let mut previous = None;
+        let mut partial = false;
+        let mut interrupted = None;
+        while !thread.is_finished() {
+            assert!(began.elapsed() < Duration::from_secs(15));
+            if let Some(progress) = log.observation() {
+                assert!(progress.valid_after(previous, snapshot.project(), budget.pcm));
+                previous = Some(progress);
+                partial |= !progress.preparation.ready;
+                if partial && mode != "complete" && interrupted.is_none() {
+                    interrupted = Some(Instant::now());
+                    if mode == "cancel" {
+                        cancel.cancel();
+                    } else {
+                        signal(pid, "-KILL");
+                    }
+                }
+            }
+            std::thread::sleep(Duration::from_millis(1));
+        }
+        let (mut worker, result) = thread.join().unwrap();
+        assert!(partial, "no intermediate preparation record for {mode}");
+        if mode == "complete" {
+            let held = result.unwrap();
+            assert_eq!(held.pcm().samples(), &expected[560000 * 6..564096 * 6]);
+            assert!(log.observation().unwrap().preparation.ready);
+            let decoded = worker.transfer_stats().child.decoded_frames;
+            let earlier = worker.interval(source, 0, 140001, 8192).unwrap();
+            assert_eq!(earlier.pcm().samples(), &expected[140001 * 6..148193 * 6]);
+            assert_eq!(worker.transfer_stats().child.decoded_frames, decoded);
+            assert!(worker.transfer_stats().child.store_bytes <= budget.pcm.store_bytes);
+            worker.clear();
+            assert_eq!(held.pcm().samples(), &expected[560000 * 6..564096 * 6]);
+            assert!(worker.validate_result(&held).is_err());
+            drop((held, earlier));
+        } else {
+            assert!(result.is_err());
+            assert!(interrupted.unwrap().elapsed() < Duration::from_secs(2));
+            assert!(!Path::new(&format!("/proc/{pid}")).exists());
+            worker
+                .rebind(snapshot.clone(), Cancellation::new().unwrap())
+                .unwrap();
+            let retry = worker.interval(source, 0, 560000, 4096).unwrap();
+            assert_eq!(retry.pcm().samples(), &expected[560000 * 6..564096 * 6]);
+            drop(retry);
+            worker.clear();
+        }
+        assert!(!Path::new(&format!("/proc/{pid}")).exists());
+        assert_eq!(worker.transfer_stats().child.store_bytes, 0);
+        assert_eq!(worker.transfer_stats().mapped_bytes, 0);
+        assert_eq!(worker.transfer_stats().mapped_handles, 0);
+    }
+    assert_eq!(fs::read(path).unwrap(), original);
 }
 fn spawn(
     snapshot: Arc<EvaluationSnapshot>,

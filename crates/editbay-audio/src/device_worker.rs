@@ -88,6 +88,7 @@ fn preparing(version: DocumentVersion, route: MonitorRoute) -> StreamingStatus {
         prepared_capacity_frames: CAPACITY,
         clipped_monitor_samples: 0,
         preparation: crate::PreparationStats::default(),
+        source_preparation: None,
         error: None,
     }
 }
@@ -222,6 +223,7 @@ fn supervise(
         .find(|scene| scene.id == composition)
         .ok_or("Playback composition is absent")?;
     let bounds = Bounds {
+        project: project.clone(),
         duration: scene.duration,
         rate: scene.frame_rate,
         start,
@@ -245,8 +247,8 @@ fn supervise(
             route,
         },
     };
-    let began = Instant::now();
-    let mut progress = began;
+    let mut preparation_progress = Instant::now();
+    let mut progress = preparation_progress;
     while !cancel.is_cancelled() {
         let reply = job
             .request_with_timeout(&request, None, cancel, RESPONSE)
@@ -257,8 +259,13 @@ fn supervise(
         if status.callbacks > previous.callbacks || previous.phase == PlaybackPhase::Preparing {
             progress = Instant::now();
         }
-        if status.phase == PlaybackPhase::Preparing && began.elapsed() > Duration::from_secs(30) {
-            return Err("Sound device preparation exceeded 30 seconds".into());
+        if status.source_preparation != previous.source_preparation {
+            preparation_progress = Instant::now();
+        }
+        if status.phase == PlaybackPhase::Preparing
+            && preparation_progress.elapsed() > Duration::from_secs(30)
+        {
+            return Err("Sound device preparation made no source progress for 30 seconds".into());
         }
         if status.phase == PlaybackPhase::Playing && progress.elapsed() > Duration::from_secs(1) {
             return Err("Sound device callbacks stopped for more than one second".into());
@@ -283,6 +290,7 @@ fn supervise(
 }
 
 struct Bounds {
+    project: Arc<Project>,
     duration: u64,
     rate: FrameRate,
     start: PlaybackStart,
@@ -345,6 +353,14 @@ fn validate(
         return Err("Foreign or stale sound device response".into());
     }
     if status.prepared_capacity_frames != CAPACITY
+        || status.source_preparation.is_some_and(|progress| {
+            !progress.valid_after(
+                previous.source_preparation,
+                &bounds.project,
+                editbay_media::PcmBudget::default(),
+            )
+        })
+        || (previous.source_preparation.is_some() && status.source_preparation.is_none())
         || !status.preparation.valid_after(previous.preparation)
         || status.prepared_frames > u64::from(CAPACITY)
         || status.callbacks < previous.callbacks
@@ -572,6 +588,7 @@ mod tests {
         });
         status.prepared_frames = 8192;
         let bounds = Bounds {
+            project: Arc::new(project),
             duration: 24,
             rate: FrameRate::new(24000, 1001).unwrap(),
             start: PlaybackStart::Frame(1),

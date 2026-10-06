@@ -1,0 +1,14 @@
+   Compiling editbay-media v0.1.0 (/home/michael/Projects/editbay/artifacts/worktrees/r2-sound-worker/crates/editbay-media)
+   Compiling editbay-audio v0.1.0 (/home/michael/Projects/editbay/artifacts/worktrees/r2-sound-worker/crates/editbay-audio)
+    Finished `test` profile [unoptimized] target(s) in 13.98s
+     Running tests/sound.rs (/home/michael/Projects/editbay/artifacts/worktrees/r2-sound-engine/target/native-build/debug/deps/sound-bdb2640957f33250)
+
+running 5 tests
+test sound_pins_foreign_owners_and_work_budgets_are_enforced ... ok
+test unchanged_samples_reverse_and_mix_preserve_original_channel_order_and_headroom ... ok
+test bandlimited_resampling_matches_analytic_passband_and_rejects_aliases ... ok
+test late_resampled_aac_matches_full_independent_decode_across_overlapping_reads ... ok
+test cached_and_evicted_kernels_preserve_uncached_pcm_bits_and_release_storage ... ok
+
+test result: ok. 5 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.40s
+

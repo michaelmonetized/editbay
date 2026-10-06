@@ -1448,7 +1448,12 @@ impl PreviewPane {
                     ui.weak(format!("{} · {} Hz · {} channels", device.name, device.sample_rate, device.channels));
                 }
                 if status.phase == PlaybackPhase::Preparing {
-                    ui.weak("Preparing sound…");
+                    if let Some(progress) = status.source_preparation.filter(|progress| !progress.preparation.ready) {
+                        let progress = progress.preparation;
+                        ui.weak(format!("Preparing source sound: {:.1} of {:.1} seconds", progress.decoded_frames as f64 / f64::from(progress.sample_rate), progress.required_frames as f64 / f64::from(progress.sample_rate)));
+                    } else {
+                        ui.weak("Preparing sound…");
+                    }
                 }
                 if status.clipped_monitor_samples > 0 {
                     ui.colored_label(ui.visuals().warn_fg_color, "Monitor clipping");

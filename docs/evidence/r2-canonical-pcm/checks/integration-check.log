@@ -1,0 +1,13 @@
+    Checking editbay-core v0.1.0 (/home/michael/Projects/editbay/artifacts/worktrees/r2-sound-worker/crates/editbay-core)
+    Checking audio_thread_priority v0.35.1
+    Checking editbay-media v0.1.0 (/home/michael/Projects/editbay/artifacts/worktrees/r2-sound-worker/crates/editbay-media)
+    Checking cpal v0.18.2 (/home/michael/Projects/editbay/artifacts/worktrees/r2-sound-worker/vendor/cpal)
+    Checking editbay-audio v0.1.0 (/home/michael/Projects/editbay/artifacts/worktrees/r2-sound-worker/crates/editbay-audio)
+error[E0425]: cannot find value `began` in this scope
+   --> crates/editbay-audio/src/device_worker.rs:251:24
+    |
+251 |     let mut progress = began;
+    |                        ^^^^^ not found in this scope
+
+For more information about this error, try `rustc --explain E0425`.
+error: could not compile `editbay-audio` (lib) due to 1 previous error
