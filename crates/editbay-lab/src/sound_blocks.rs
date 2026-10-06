@@ -362,15 +362,23 @@ fn run_route(path: &Path, executable: Option<&Path>) -> Result<Value> {
     let resampled = compile(p, output_rate, &channels)?;
     let mut converter = renderer(resampled.clone(), Cancellation::new()?, executable)?;
     let mut sinc = vec![];
+    let mut sinc_digest = Sha256::new();
     for n in 0..30 {
         let plan = resampled.prepare(4096 + (n % 5) * 4096, frames)?;
         let began = Instant::now();
         let result = converter.render(&plan)?;
         sinc.push(began.elapsed().as_secs_f64() * 1000.);
         converter.validate_result(&result)?;
+        for sample in result.sound().samples() {
+            sinc_digest.update(sample.to_le_bytes());
+        }
     }
     let sinc_child_high_water_kib = child_memory(&converter)?;
+    let kernel_stats = converter.kernel_stats();
     converter.clear();
+    let kernel_cleanup = converter.kernel_stats().entries == 0
+        && converter.kernel_stats().metadata_bytes == 0
+        && converter.kernel_stats().coefficient_bytes == 0;
     drop(converter);
     source.verify(&cancel)?;
     let source_unchanged = source.fingerprint() == &before;
@@ -423,10 +431,17 @@ fn run_route(path: &Path, executable: Option<&Path>) -> Result<Value> {
         .ok_or("process high-water memory absent")?;
     let gates = json!({"preparation_p95_5ms":preparation["p95_ms"].as_f64().unwrap() <= 5.,"warm_unity_p95_20ms":warm["p95_ms"].as_f64().unwrap() <= 20.,"sinc_p95_40ms":sinc["p95_ms"].as_f64().unwrap() <= 40.,"first_native_250ms":first_native_ms <= 250.,"pcm_error_1e_6":maximum_error <= 0.000001,"cancel_2s":cancelled_result_rejected && cancellation_ms <= 2000.,"memory_256mib":high_water_kib <= 256*1024,"foreign_plan_rejected":foreign_plan_rejected,"foreign_result_rejected":foreign_result_rejected,"stale_result_rejected":stale_result_rejected,"pins_survive_clear":pinned_after_clear,"cleanup":cleanup,"source_unchanged":source_unchanged});
     let mut gates = gates;
+    gates["kernel_cleanup"] = json!(kernel_cleanup);
+    gates["bounded_kernels"] = json!(
+        kernel_stats.entries <= 256
+            && kernel_stats.metadata_bytes + kernel_stats.coefficient_bytes <= 512 * 1024
+    );
     gates["active_cancel_2s"] = json!(active_rejected && active_cancellation_ms <= 2000.);
     gates["active_cancel_cleanup"] = json!(active_cleanup);
     let mut receipt = json!({"schema":1,"kind":"native_sound_blocks","source":path,"source_fingerprint":before,"source_stream":selected,"sample_rate":rate,"channels":channels,"actual_source_samples":samples,"qualified_whole_seconds":seconds,"output_frames_per_block":frames,"contributions":2,"root_fps":24,"nested_fps":60,"independent_reference":"sequential FFmpeg CLI native f32le without resampling or channel conversion","independent_pcm_sha256":reference_hash,"rendered_blocks_sha256":format!("{:x}",output_digest.finalize()),"maximum_absolute_pcm_error":maximum_error,"preparation":preparation,"native_unity_first_pass":cold,"native_unity_warm":warm,"native_sinc_44100":sinc,"first_native_ms":first_native_ms,"cancellation_ms":cancellation_ms,"pcm_stats":stats,"memory":memory,"memory_high_water_kib":high_water_kib,"budgets":{"planning":5,"warm_render":20,"sinc_render":40,"first_native":250,"cancel":2000,"high_water_kib":256*1024},"gates":gates,"qualified":gates.as_object().unwrap().values().all(|v| v == &Value::Bool(true)),"limits":["sound-only worker evidence; no callback, device, UI playback, drift or codec-process isolation proof","source interval uses whole natural seconds; fractional source-sequence sound tails remain open","channel layout retained; no downmix or device routing"]});
     receipt["active_cancellation_ms"] = json!(active_cancellation_ms);
+    receipt["kernel_stats"] = json!(kernel_stats);
+    receipt["sinc_pcm_sha256"] = json!(format!("{:x}", sinc_digest.finalize()));
     if let Some(executable) = executable {
         let combined = high_water_kib + unity_child_high_water_kib.max(sinc_child_high_water_kib);
         receipt["kind"] = json!("isolated_sound_blocks");

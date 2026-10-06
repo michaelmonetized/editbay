@@ -191,6 +191,18 @@ Omarchy palettes. Recovery tests do not substitute for native visual inspection.
 
 ## R2 — the production engine
 
+Issue [#51](https://github.com/michaelmonetized/editbay/issues/51) / draft
+[PR #52](https://github.com/michaelmonetized/editbay/pull/52) adds bounded exact
+[sound coefficient reuse](SOUND_KERNELS.md). The frozen mixer passes real
+camera/six-channel sinc p95 at 10.702 / 15.396 ms, independent whole/range output,
+18 process fault trials and native workflows. Earlier failed candidates and the
+97.648-second preparation underrun remain [explicit evidence](evidence/r2-sound-kernels/README.md).
+The active-stage extension passes a fresh 180-second pilot and 18 device fault
+trials; its two-hour baseline fails after 39.359 seconds on clock continuity,
+with a full preparation queue. [Issue #53](https://github.com/michaelmonetized/editbay/issues/53)
+carries canonical PCM for cold/random source access; sustained playback and full
+R2/R8 gates stay open.
+
 Issue [#47](https://github.com/michaelmonetized/editbay/issues/47) / draft
 [PR #48](https://github.com/michaelmonetized/editbay/pull/48) pins the updated
 [native sound backend](SOUND_BACKEND.md), bounds actual callback geometry and

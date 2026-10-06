@@ -1,0 +1,99 @@
+# Exact sound coefficient reuse
+
+Issue #51 / PR #52 follows #49 / PR #50. Linux ARM64 local evidence, 2026-10-06.
+Source commits, frozen binary hashes, lockfile hashes and host/compiler identities
+are retained with each candidate. Large MOV outputs, executable files and private
+source media remain under the project artifacts directory.
+
+## Frozen mixer: `0c840ce`
+
+The `compiled` candidate keeps the exact coefficient cache and compiles the
+sample loop within the optimized audio crate. Budgets remain 256 kernels /
+512 KiB, original PCM/work limits, preparation p95 <=5 ms, warm unity <=20 ms,
+sinc <=40 ms, PCM error <=0.000001 and cancellation <=2 s. Queue capacity remains
+16384 frames, with 4096-frame producer blocks and a 20 ms clock continuity bound.
+
+| Actual route | Camera | Six-channel AAC |
+| --- | ---: | ---: |
+| Sinc p95, 30 blocks | 10.702 ms | 15.396 ms |
+| Sinc maximum | 83.740 ms | 131.074 ms |
+| All sound-block gates | Pass | Pass |
+| Coefficient / metadata bytes | 261072 / 18432 | 261072 / 18432 |
+| Retained kernels / hits / misses | 147 / 245613 / 147 | 147 / 245613 / 147 |
+| Kernel allocations after clear | 0 | 0 |
+
+`ranges-*.json` independently decodes four whole masters at 48/44.1 kHz against
+the pre-kernel `fe76821` masters and twelve exact range slices. All picture/PCM
+hashes, counts, channel metadata and zero-based output timestamps agree.
+`faults` contains 18 actual camera/six-channel full/cancel/codec-death/underrun/
+device-death/device-stall/stalled-cancel/preparation-cancel/resume trials: all
+qualify, preserve sources and reap children; maximum retirement is 610.598 ms.
+
+`native` and `native-repeat` preserve every attempt. Four initial camera prepared,
+camera edit, camera playback and six-channel prepared drivers time out awaiting
+callback/GPU acknowledgment during memory pressure. They are incomplete results,
+not passes; concurrent all-feature compilation is not established as their cause.
+The four separately named repeats pass after that compilation finishes. Initial
+six-channel edit and full playback trials also pass. Native edit input p95 is
+37.028 / 35.859 ms (five inputs each); saved/recovered graphs and independent
+exports agree. Full playback has 40 inputs / 38 completed cached GPU draws per
+fixture: input p95 22.189 / 20.773 ms, draw p95 33.410 / 19.670 ms and active
+cancellation 119.414 / 124.036 ms. Compact six-channel timeline imagery was inspected.
+
+`checks` passes 239 default / 240 all-feature tests plus 7 doc tests, formatting
+and all-target/all-feature Clippy with warnings denied. The audio tests include
+bitwise cached/uncached/evicted PCM, reverse/gain/freeze, 44.1/24/96 kHz and the
+unchanged independent passband/alias checks.
+
+## Sustained failure and earlier candidates
+
+`compiled/pilot` passes short camera/six-channel runs but its 180-second quiet AAC
+pilot fails after **97.648457 seconds**, with no intentional concurrent device
+faults. Workspace compilation and export verification overlap this run. The queue
+is empty; accepted backend/host drift maxima are **0.734583 / 0.414251 ms**.
+Its last completed preparation took 7.868 ms; the slowest completed block took
+187.135 ms, of which rendering accounts for 184.984 ms. This completed-block
+observation cannot identify the unfinished work. Source identity and child
+cleanup pass. The requested 180 seconds are not completed.
+
+`initial` retains uncached baseline sinc p95 81.513 / 169.051 ms and the first
+cache candidate's 28.007 / 112.906 ms. `slice` retains 19.311 / 48.034 ms;
+`channel` retains 30.884 / 49.393 ms. Every six-channel intermediate candidate
+fails the unchanged 40 ms gate. They are not substituted for the passing mixer.
+
+## Active-stage telemetry: `71f07e4`
+
+`active` retains the unchanged mixer and adds coherent in-flight stage clocks.
+Its actual stalled-codec trial observes 300.696 ms of unfinished block work,
+including 295.747 ms in rendering, while the completed-block fields remain
+coherent. All 18 fault trials qualify, preserve sources and reap children;
+maximum retirement is 613.351 ms. Unknown stages, impossible elapsed fields and
+regression are rejected. The initial unit-test harness incorrectly unwrapped an
+intentionally invalid enum; the corrected test checks its deserialization error.
+Both test logs remain named separately.
+
+The fresh 180-second quiet AAC pilot **passes**, completing in 180.567333 seconds
+with exact final sample position, unchanged sources/project and all owned
+processes reaped. Maximum backend/host drift is **1.155779 / 0.537542 ms**;
+peak combined RSS is **135920 KiB**. The slowest completed preparation block
+takes **38.346 ms** (planning 4.593 ms, rendering 32.831 ms, finishing 0.916 ms).
+The largest interval between block starts is **92.024 ms**. No owned workspace
+compilation overlaps this pilot. Telemetry is diagnostic; this successful repeat
+does not establish the cause of the earlier underrun.
+
+The final frozen revision passes **240 default / 241 all-feature tests + 7 doc
+tests**, formatting and all-target/all-feature Clippy with warnings denied.
+The two-hour baseline started on 2026-10-06 at 12:25:59 UTC and **fails after
+39.359169 seconds** on clock continuity, with all **16384 prepared frames still
+queued**. The first rejected callback has signed drift **-29.621144 ms**; accepted
+backend/host drift maxima are 10.403763 / 10.558255 ms. The slowest completed block
+takes 52.082 ms; maximum interval between starts is 424.483 ms. Peak combined RSS
+is 142352 KiB. Source identity and owned-process cleanup pass. No intentional
+device faults or owned Cargo build overlap this attempt. Its exact command,
+policy, raw observations, exit status and terminal result are retained in
+`active/two-hours.zsh` and `active/sustained`. The command exits zero because it
+successfully records the trial; `qualified:false` / `complete:false` are the
+qualification outcome. No sustained process remains running.
+
+A two-hour success has not been obtained. Physical audibility, DAC/speaker drift, other
+hardware, full R2/R8 and all remaining roadmap/release/adoption gates remain open.

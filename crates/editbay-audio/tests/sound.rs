@@ -252,3 +252,88 @@ fn sound_pins_foreign_owners_and_work_budgets_are_enforced() {
     assert_eq!(r.live_bytes(), 0);
     assert_eq!(r.pcm_stats().decoded_frames, 0);
 }
+
+#[test]
+fn cached_and_evicted_kernels_preserve_uncached_pcm_bits_and_release_storage() {
+    let dir = tempfile::tempdir().unwrap();
+    let original = fixture(&dir.path().join("kernels.wav"), 997);
+    for mode in ["forward", "reverse", "gain", "freeze"] {
+        let mut project = original.clone();
+        match mode {
+            "reverse" => {
+                project.compositions[0].tracks[0].clips[0].time_map.points[0].source_tick = 192000;
+                project.compositions[0].tracks[0].clips[0].time_map.points[1].source_tick = 0;
+            }
+            "gain" => {
+                project.compositions[0].nodes.push(TimedNode {
+                    id: id(51),
+                    range: FrameRange { start: 0, end: 96 },
+                    operation: NodeOperation::Gain {
+                        audio: id(50),
+                        gain: 1.25,
+                    },
+                    animation: vec![],
+                });
+                project.compositions[0].audio = Some(id(51));
+            }
+            "freeze" => {
+                project.compositions[0].tracks[0].clips[0].time_map.points[1].source_tick = 0
+            }
+            _ => {}
+        }
+        for rate in [44100, 24000, 96000] {
+            let (a, mut cached) = renderer(project.clone(), rate, SoundRenderBudget::default());
+            let (b, mut uncached) = renderer(
+                project.clone(),
+                rate,
+                SoundRenderBudget {
+                    kernel_bytes: 0,
+                    ..SoundRenderBudget::default()
+                },
+            );
+            let tiny = SoundRenderBudget {
+                kernel_entries: 1,
+                kernel_bytes: 4096,
+                ..SoundRenderBudget::default()
+            };
+            let (c, mut evicted) = renderer(project.clone(), rate, tiny);
+            for first in [2048, 4096, 2048, 12000] {
+                let expected = uncached.render(&b.prepare(first, 512).unwrap()).unwrap();
+                let actual = cached.render(&a.prepare(first, 512).unwrap()).unwrap();
+                let limited = evicted.render(&c.prepare(first, 512).unwrap()).unwrap();
+                for (i, sample) in expected.sound().samples().iter().enumerate() {
+                    assert_eq!(
+                        sample.to_bits(),
+                        actual.sound().samples()[i].to_bits(),
+                        "{mode} {rate} {first} {i}"
+                    );
+                    assert_eq!(
+                        sample.to_bits(),
+                        limited.sound().samples()[i].to_bits(),
+                        "evicted {mode} {rate} {first} {i}"
+                    );
+                }
+                let stats = cached.kernel_stats();
+                assert!(stats.entries <= 256);
+                assert!(stats.metadata_bytes + stats.coefficient_bytes <= 512 * 1024);
+                let stats = evicted.kernel_stats();
+                assert!(stats.entries <= 1);
+                assert!(stats.metadata_bytes + stats.coefficient_bytes <= tiny.kernel_bytes);
+            }
+            assert_eq!(uncached.kernel_stats().entries, 0);
+            if mode != "freeze" {
+                assert!(cached.kernel_stats().hits > 0);
+            }
+            if mode != "freeze" && rate != 24000 {
+                assert!(evicted.kernel_stats().evictions > 0);
+            }
+            let held = cached.render(&a.prepare(2048, 512).unwrap()).unwrap();
+            cached.clear();
+            assert_eq!(cached.kernel_stats().entries, 0);
+            assert_eq!(cached.kernel_stats().metadata_bytes, 0);
+            assert_eq!(cached.kernel_stats().coefficient_bytes, 0);
+            assert_eq!(held.sound().samples().len(), 1024);
+            assert!(cached.validate_result(&held).is_err());
+        }
+    }
+}

@@ -1,0 +1,106 @@
+{
+  "adopted_pcm_reaped": [],
+  "application_sha256": "223b5f05f466235aba2526d4226382ca8ee9e798c9d65049c12c06bbeaea1da8",
+  "device_worker_reaped": true,
+  "elapsed_seconds": 0.177867579,
+  "final": {
+    "callbacks": 0,
+    "clipped_monitor_samples": 0,
+    "clock_observation": null,
+    "clock_rejection": null,
+    "device": null,
+    "device_worker_pid": 2657420,
+    "end_sample": null,
+    "error": null,
+    "phase": "stopped",
+    "position_samples": null,
+    "preparation": {
+      "active_block_ns": 0,
+      "active_stage": "idle",
+      "active_stage_ns": 0,
+      "blocks": 0,
+      "last_block_ns": 0,
+      "last_finish_ns": 0,
+      "last_plan_ns": 0,
+      "last_render_ns": 0,
+      "max_block_ns": 0,
+      "max_interval_ns": 0,
+      "published_blocks": 0,
+      "slowest_finish_ns": 0,
+      "slowest_plan_ns": 0,
+      "slowest_render_ns": 0
+    },
+    "prepared_capacity_frames": 16384,
+    "prepared_frames": 0,
+    "reported_latency_ns": 0,
+    "route": "Stereo",
+    "start_sample": null,
+    "version": {
+      "project_id": "f7d92bf4-3c61-42d8-9b44-16a8b7bc7e61",
+      "revision": 1
+    },
+    "worker_pid": null
+  },
+  "kind": "native_streaming_sound",
+  "limits": [
+    "Actual default output device callbacks and backend latency estimate; no physical audibility or speaker timing claim",
+    "Lab-authored graph; native window controls and long hardware drift require separate evidence"
+  ],
+  "memory": [
+    "VmHWM:\t   64704 kB",
+    "VmRSS:\t   64704 kB"
+  ],
+  "mode": "prepare-cancel",
+  "qualified": true,
+  "resumed_after_stall": false,
+  "retirement_ms": 15.188623,
+  "samples": [
+    {
+      "callbacks": 0,
+      "elapsed_ms": 0.001792,
+      "latency_ns": 0,
+      "phase": "preparing",
+      "position": null,
+      "prepared_frames": 0
+    },
+    {
+      "callbacks": 0,
+      "elapsed_ms": 5.075069,
+      "latency_ns": 0,
+      "phase": "preparing",
+      "position": null,
+      "prepared_frames": 0
+    },
+    {
+      "callbacks": 0,
+      "elapsed_ms": 10.140388,
+      "latency_ns": 0,
+      "phase": "stopping",
+      "position": null,
+      "prepared_frames": 0
+    },
+    {
+      "callbacks": 0,
+      "elapsed_ms": 15.161581,
+      "latency_ns": 0,
+      "phase": "stopping",
+      "position": null,
+      "prepared_frames": 0
+    },
+    {
+      "callbacks": 0,
+      "elapsed_ms": 20.224857999999998,
+      "latency_ns": 0,
+      "phase": "stopped",
+      "position": null,
+      "prepared_frames": 0
+    }
+  ],
+  "source": "/home/michael/Downloads/iCloud Photos/IMG_0001.MP4",
+  "source_fingerprint": {
+    "bytes": 5235017,
+    "sha256": "498ec6c42b6b440886eb761dc4775c994f7578021890ceae3f370ffc6fb3e021"
+  },
+  "source_unchanged": true,
+  "worker_reaped": true
+}

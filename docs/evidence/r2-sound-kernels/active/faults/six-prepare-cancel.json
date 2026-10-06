@@ -1,0 +1,106 @@
+{
+  "adopted_pcm_reaped": [],
+  "application_sha256": "223b5f05f466235aba2526d4226382ca8ee9e798c9d65049c12c06bbeaea1da8",
+  "device_worker_reaped": true,
+  "elapsed_seconds": 0.163778714,
+  "final": {
+    "callbacks": 0,
+    "clipped_monitor_samples": 0,
+    "clock_observation": null,
+    "clock_rejection": null,
+    "device": null,
+    "device_worker_pid": 2660168,
+    "end_sample": null,
+    "error": null,
+    "phase": "stopped",
+    "position_samples": null,
+    "preparation": {
+      "active_block_ns": 0,
+      "active_stage": "idle",
+      "active_stage_ns": 0,
+      "blocks": 0,
+      "last_block_ns": 0,
+      "last_finish_ns": 0,
+      "last_plan_ns": 0,
+      "last_render_ns": 0,
+      "max_block_ns": 0,
+      "max_interval_ns": 0,
+      "published_blocks": 0,
+      "slowest_finish_ns": 0,
+      "slowest_plan_ns": 0,
+      "slowest_render_ns": 0
+    },
+    "prepared_capacity_frames": 16384,
+    "prepared_frames": 0,
+    "reported_latency_ns": 0,
+    "route": "Stereo",
+    "start_sample": null,
+    "version": {
+      "project_id": "f9df9317-bfa8-43b9-9603-13d46bf47946",
+      "revision": 1
+    },
+    "worker_pid": null
+  },
+  "kind": "native_streaming_sound",
+  "limits": [
+    "Actual default output device callbacks and backend latency estimate; no physical audibility or speaker timing claim",
+    "Lab-authored graph; native window controls and long hardware drift require separate evidence"
+  ],
+  "memory": [
+    "VmHWM:\t   51248 kB",
+    "VmRSS:\t   51248 kB"
+  ],
+  "mode": "prepare-cancel",
+  "qualified": true,
+  "resumed_after_stall": false,
+  "retirement_ms": 15.232915,
+  "samples": [
+    {
+      "callbacks": 0,
+      "elapsed_ms": 0.0013340000000000001,
+      "latency_ns": 0,
+      "phase": "preparing",
+      "position": null,
+      "prepared_frames": 0
+    },
+    {
+      "callbacks": 0,
+      "elapsed_ms": 5.077653,
+      "latency_ns": 0,
+      "phase": "preparing",
+      "position": null,
+      "prepared_frames": 0
+    },
+    {
+      "callbacks": 0,
+      "elapsed_ms": 10.148013,
+      "latency_ns": 0,
+      "phase": "stopping",
+      "position": null,
+      "prepared_frames": 0
+    },
+    {
+      "callbacks": 0,
+      "elapsed_ms": 15.209499,
+      "latency_ns": 0,
+      "phase": "stopping",
+      "position": null,
+      "prepared_frames": 0
+    },
+    {
+      "callbacks": 0,
+      "elapsed_ms": 20.276025999999998,
+      "latency_ns": 0,
+      "phase": "stopped",
+      "position": null,
+      "prepared_frames": 0
+    }
+  ],
+  "source": "/home/michael/Projects/editbay/artifacts/worktrees/r2-sound-worker/artifacts/natural-sound/fixtures/qualified-six-channel.mov",
+  "source_fingerprint": {
+    "bytes": 214558,
+    "sha256": "a6ce0012de62432f8d30e3b7e65532f37651ed0a8650ea4c62c54bd8f141e9b2"
+  },
+  "source_unchanged": true,
+  "worker_reaped": true
+}

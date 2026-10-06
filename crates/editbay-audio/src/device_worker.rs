@@ -87,6 +87,7 @@ fn preparing(version: DocumentVersion, route: MonitorRoute) -> StreamingStatus {
         prepared_frames: 0,
         prepared_capacity_frames: CAPACITY,
         clipped_monitor_samples: 0,
+        preparation: crate::PreparationStats::default(),
         error: None,
     }
 }
@@ -344,6 +345,7 @@ fn validate(
         return Err("Foreign or stale sound device response".into());
     }
     if status.prepared_capacity_frames != CAPACITY
+        || !status.preparation.valid_after(previous.preparation)
         || status.prepared_frames > u64::from(CAPACITY)
         || status.callbacks < previous.callbacks
         || status.clipped_monitor_samples < previous.clipped_monitor_samples
@@ -391,6 +393,9 @@ fn validate(
             return Err("Sound device identity changed or is invalid".into());
         }
         let (first, end) = bounds.interval(device.sample_rate)?;
+        if status.preparation.blocks > (end - first).div_ceil(4096) {
+            return Err("Sound preparation exceeded its captured interval".into());
+        }
         match status.clock_observation {
             Some(observed) => {
                 if observed.callbacks == 0
@@ -452,6 +457,7 @@ fn validate(
         || status.callbacks != 0
         || status.clock_observation.is_some()
         || status.prepared_frames != 0
+        || status.preparation.blocks > u64::from(CAPACITY / 4096)
         || previous.device.is_some()
         || matches!(
             status.phase,
@@ -629,6 +635,12 @@ mod tests {
             ("/status/clock_observation/valid_end_sample", json!(48049)),
             ("/status/prepared_frames", json!(16385)),
             ("/status/prepared_capacity_frames", json!(16385)),
+            ("/status/preparation/blocks", json!(u64::MAX)),
+            ("/status/preparation/published_blocks", json!(1)),
+            ("/status/preparation/last_block_ns", json!(1)),
+            ("/status/preparation/last_render_ns", json!(u64::MAX)),
+            ("/status/preparation/active_block_ns", json!(1)),
+            ("/status/preparation/active_stage_ns", json!(1)),
             ("/status/reported_latency_ns", json!(5_000_000_001u64)),
             ("/status/position_samples", json!(2999)),
             ("/status/start_sample", json!(2001)),
@@ -654,6 +666,11 @@ mod tests {
                 "accepted {pointer}"
             );
         }
+        let mut malformed = original;
+        *malformed
+            .pointer_mut("/status/preparation/active_stage")
+            .unwrap() = json!("decode");
+        assert!(serde_json::from_value::<Response>(malformed).is_err());
     }
 
     #[test]

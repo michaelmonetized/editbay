@@ -2,6 +2,7 @@ use crate::{
     ClockObservation, ClockRejection, DeviceProfile, MonitorRoute, SoundRenderBudget,
     SoundRenderer,
     monitor::MonitorMatrix,
+    preparation::{PreparationLog, PreparationStage, PreparationStats},
     sample_clock::{ClockContinuity, SampleClock},
     transport::{self, Control, Reader, State, Writer},
 };
@@ -68,6 +69,7 @@ pub struct StreamingStatus {
     pub prepared_frames: u64,
     pub prepared_capacity_frames: u32,
     pub clipped_monitor_samples: u64,
+    pub preparation: PreparationStats,
     pub error: Option<String>,
 }
 
@@ -90,6 +92,7 @@ enum Event {
 }
 
 struct Request {
+    preparation: Arc<PreparationLog>,
     project: Arc<Project>,
     composition: Uuid,
     start: PlaybackStart,
@@ -100,6 +103,8 @@ struct Request {
 
 /// One asynchronous playback lifetime with privately owned prepared sound.
 pub(crate) struct LocalPlayback {
+    preparation: PreparationStats,
+    preparation_log: Arc<PreparationLog>,
     version: DocumentVersion,
     route: MonitorRoute,
     cancel: Cancellation,
@@ -127,7 +132,9 @@ impl LocalPlayback {
         let cancel = Cancellation::new().map_err(|e| e.to_string())?;
         let stop = Arc::new(AtomicBool::new(false));
         let (sender, events) = mpsc::sync_channel(4);
+        let preparation_log = Arc::new(PreparationLog::default());
         let request = Request {
+            preparation: preparation_log.clone(),
             project,
             composition,
             start,
@@ -151,6 +158,8 @@ impl LocalPlayback {
             })
             .map_err(|e| e.to_string())?;
         Ok(Self {
+            preparation: PreparationStats::default(),
+            preparation_log,
             version,
             route,
             cancel,
@@ -196,6 +205,9 @@ impl LocalPlayback {
         }
         if self.stop.load(Ordering::Acquire) && !self.is_finished() {
             self.phase = PlaybackPhase::Stopping;
+        }
+        if let Some(observed) = self.preparation_log.observation() {
+            self.preparation = observed;
         }
         let (position, end, device, worker_pid, callbacks, latency, prepared, clipped) =
             if let Some(ready) = &self.ready {
@@ -249,6 +261,7 @@ impl LocalPlayback {
             prepared_frames: prepared,
             prepared_capacity_frames: CAPACITY,
             clipped_monitor_samples: clipped,
+            preparation: self.preparation,
             error: self.error.clone(),
         }
     }
@@ -295,6 +308,9 @@ impl Drop for LocalPlayback {
 }
 
 struct Producer {
+    preparation: Arc<PreparationLog>,
+    measured: PreparationStats,
+    previous_block: Option<Instant>,
     sound: Arc<SoundSnapshot>,
     renderer: SoundRenderer<PcmWorker>,
     matrix: MonitorMatrix,
@@ -314,11 +330,51 @@ impl Producer {
             if self.control.prepared() + u64::from(frames) > u64::from(CAPACITY) {
                 break;
             }
-            let plan = self
-                .sound
-                .prepare(self.cursor, frames)
-                .map_err(|e| e.to_string())?;
-            let result = self.renderer.render(&plan).map_err(|e| e.to_string())?;
+            let began = Instant::now();
+            if let Some(previous) = self.previous_block.replace(began) {
+                self.measured.max_interval_ns = self
+                    .measured
+                    .max_interval_ns
+                    .max(began.duration_since(previous).as_nanos() as u64);
+            }
+            self.measured.last_plan_ns = 0;
+            self.measured.last_render_ns = 0;
+            self.measured.last_finish_ns = 0;
+            let result = self.prepare(frames);
+            self.measured.blocks = self.measured.blocks.saturating_add(1);
+            self.measured.last_block_ns = began.elapsed().as_nanos() as u64;
+            if self.measured.last_block_ns >= self.measured.max_block_ns {
+                self.measured.max_block_ns = self.measured.last_block_ns;
+                self.measured.slowest_plan_ns = self.measured.last_plan_ns;
+                self.measured.slowest_render_ns = self.measured.last_render_ns;
+                self.measured.slowest_finish_ns = self.measured.last_finish_ns;
+            }
+            if result.is_ok() {
+                self.measured.published_blocks = self.measured.published_blocks.saturating_add(1);
+            }
+            self.preparation.publish(self.measured);
+            result?;
+        }
+        Ok(())
+    }
+
+    fn prepare(&mut self, frames: u32) -> Result<()> {
+        self.preparation.begin(PreparationStage::Plan);
+        let began = Instant::now();
+        let plan = self
+            .sound
+            .prepare(self.cursor, frames)
+            .map_err(|e| e.to_string());
+        self.measured.last_plan_ns = began.elapsed().as_nanos() as u64;
+        let plan = plan?;
+        self.preparation.begin(PreparationStage::Render);
+        let began = Instant::now();
+        let result = self.renderer.render(&plan).map_err(|e| e.to_string());
+        self.measured.last_render_ns = began.elapsed().as_nanos() as u64;
+        let result = result?;
+        self.preparation.begin(PreparationStage::Finish);
+        let began = Instant::now();
+        let finished = (|| {
             self.renderer
                 .validate_result(&result)
                 .map_err(|e| e.to_string())?;
@@ -331,8 +387,10 @@ impl Producer {
             }
             self.clipped.fetch_add(clipped, Ordering::Relaxed);
             self.cursor += u64::from(frames);
-        }
-        Ok(())
+            Ok(())
+        })();
+        self.measured.last_finish_ns = began.elapsed().as_nanos() as u64;
+        finished
     }
 }
 
@@ -422,6 +480,9 @@ fn run(request: &Request, sender: &SyncSender<Event>) -> Result<()> {
     let clock = Arc::new(SampleClock::new(profile.sample_rate, first, end)?);
     let clipped = Arc::new(AtomicU64::new(0));
     let mut producer = Producer {
+        preparation: request.preparation.clone(),
+        measured: PreparationStats::default(),
+        previous_block: None,
         sound,
         renderer,
         matrix,
