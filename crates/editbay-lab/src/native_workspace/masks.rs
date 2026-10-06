@@ -72,6 +72,11 @@ pub fn run(binary: &Path, project: &Path, directory: &Path) -> Result<Value> {
     click_control(&mut trace, "timeline-mark-in")?;
     set_frame(&mut trace, 6)?;
     click_control(&mut trace, "timeline-mark-out")?;
+    trace.wait("compact source marks", |r| {
+        r["kind"] == "timeline"
+            && r["details"]["source_range"]["start"] == 1
+            && r["details"]["source_range"]["end"] == 7
+    })?;
     let sent = click_control(&mut trace, "timeline-create")?;
     let created = trace.wait("compact cut commit", |r| {
         has_tab(r, &seed.name, seed.revision + 1)

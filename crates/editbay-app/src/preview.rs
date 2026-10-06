@@ -1571,13 +1571,14 @@ impl PreviewPane {
         let width = ui.available_width().clamp(1., 960.);
         let height = (ui.ctx().content_rect().height() - ui.cursor().min.y - 70.).clamp(96., 400.);
         let scale = (width / composition.width as f32).min(height / composition.height as f32);
-        let (rect, image_response) = ui.allocate_exact_size(
+        let (rect, mut image_response) = ui.allocate_exact_size(
             egui::vec2(
                 composition.width as f32 * scale,
                 composition.height as f32 * scale,
             ),
             egui::Sense::hover(),
         );
+        image_response.rect = rect;
         self.observe_control("viewer-picture", &image_response, ui);
         ui.painter()
             .rect_filled(rect, 0., egui::Color32::from_gray(20));

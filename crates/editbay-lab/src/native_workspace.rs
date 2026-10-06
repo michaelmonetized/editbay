@@ -524,15 +524,20 @@ pub fn delivery(binary: &Path, project: &Path, directory: &Path) -> Result<Value
 }
 
 fn control(trace: &mut Trace, name: &str) -> Result<[i64; 2]> {
-    let record = trace.wait(name, |record| {
-        record["kind"] == "preview"
-            && record["details"]["controls"][name]
-                .as_array()
-                .is_some_and(|rect| rect.len() == 4)
-    })?;
-    let rect = record["details"]["controls"][name]
-        .as_array()
-        .ok_or("Native control has no geometry")?;
+    let deadline = Instant::now() + Duration::from_secs(10);
+    let rect = loop {
+        trace.read()?;
+        if let Some(record) = trace.records.iter().rev().find(|r| r["kind"] == "preview")
+            && let Some(rect) = record["details"]["controls"][name].as_array()
+            && rect.len() == 4
+        {
+            break rect.clone();
+        }
+        if Instant::now() >= deadline {
+            return Err(format!("Native control is not currently visible: {name}").into());
+        }
+        thread::sleep(Duration::from_millis(2));
+    };
     let pid = trace
         .records
         .first()
