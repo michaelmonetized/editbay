@@ -1,0 +1,68 @@
+{
+  "checkpoint_sha256": "162060c9646f94fe0648b165b0de2b74f2286ade5e004d10f92e26ba25aa3542",
+  "error": {
+    "details": {
+      "active": "4b3dc8fc-208d-422c-94d7-87da4b30a28c",
+      "last_recovery_accept_us": null,
+      "last_recovery_worker_commit_us": null,
+      "recovery_jobs": [],
+      "recovery_publications": 0,
+      "tabs": [
+        {
+          "assets": 0,
+          "compositions": 0,
+          "dirty": true,
+          "name": "Storage failure QA",
+          "path": null,
+          "project": "6fd5a2c4-64b4-44da-b3ae-b4d3bb6f41fb",
+          "recovery_error": "filesystem error: No space left on device (os error 28)",
+          "recovery_revision": null,
+          "revision": 0,
+          "session": "4b3dc8fc-208d-422c-94d7-87da4b30a28c",
+          "sources": 0
+        }
+      ]
+    },
+    "dropped_before": 0,
+    "kind": "workspace",
+    "pid": 725511,
+    "unix_us": 1791297624308940
+  },
+  "false_checkpoint_acknowledgement": false,
+  "input_injection_to_ui_acceptance": {
+    "count": 1,
+    "max_ms": 8.821,
+    "p50_ms": 8.821,
+    "p95_ms": 8.821
+  },
+  "kind": "real_enospc_private_tmpfs",
+  "retry": {
+    "details": {
+      "active": "4b3dc8fc-208d-422c-94d7-87da4b30a28c",
+      "last_recovery_accept_us": 2,
+      "last_recovery_worker_commit_us": 89,
+      "recovery_jobs": [],
+      "recovery_publications": 1,
+      "tabs": [
+        {
+          "assets": 0,
+          "compositions": 0,
+          "dirty": true,
+          "name": "Storage failure QA",
+          "path": null,
+          "project": "6fd5a2c4-64b4-44da-b3ae-b4d3bb6f41fb",
+          "recovery_error": null,
+          "recovery_revision": 0,
+          "revision": 0,
+          "session": "4b3dc8fc-208d-422c-94d7-87da4b30a28c",
+          "sources": 0
+        }
+      ]
+    },
+    "dropped_before": 0,
+    "kind": "workspace",
+    "pid": 725511,
+    "unix_us": 1791297626395201
+  },
+  "valid_checkpoints": 1
+}

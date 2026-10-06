@@ -1,0 +1,79 @@
+{
+  "application_sha256": "e7a4de2e6507bb0236a79b2d1f79d18c82d6471823da3a5c9c1273b92a48fb9b",
+  "edit_intervals": {
+    "count": 18,
+    "max_ms": 678.808,
+    "p50_ms": 661.645,
+    "p95_ms": 678.808
+  },
+  "first_continuous_publication_ms": 9874.232,
+  "first_publication": {
+    "details": {
+      "active": "79efc7d9-ad1a-4799-806b-e30ed8a30214",
+      "last_recovery_accept_us": 1,
+      "last_recovery_worker_commit_us": 3559,
+      "recovery_publications": 1,
+      "tabs": [
+        {
+          "assets": 0,
+          "compositions": 0,
+          "dirty": true,
+          "name": "Timing 015 active",
+          "path": null,
+          "project": "50ee70af-f6e9-4997-8579-39c61bf6ed1f",
+          "recovery_error": null,
+          "recovery_revision": 15,
+          "revision": 15,
+          "session": "79efc7d9-ad1a-4799-806b-e30ed8a30214",
+          "sources": 0
+        }
+      ]
+    },
+    "dropped_before": 0,
+    "kind": "workspace",
+    "pid": 397399,
+    "unix_us": 1791296714017236
+  },
+  "input_injection_to_ui_acceptance": {
+    "count": 19,
+    "max_ms": 13.06,
+    "p50_ms": 9.235,
+    "p95_ms": 13.06
+  },
+  "kind": "native_recovery_timing",
+  "last_publication": {
+    "details": {
+      "active": "79efc7d9-ad1a-4799-806b-e30ed8a30214",
+      "last_recovery_accept_us": 0,
+      "last_recovery_worker_commit_us": 108580,
+      "recovery_publications": 2,
+      "tabs": [
+        {
+          "assets": 0,
+          "compositions": 0,
+          "dirty": true,
+          "name": "Timing 018 active",
+          "path": null,
+          "project": "50ee70af-f6e9-4997-8579-39c61bf6ed1f",
+          "recovery_error": null,
+          "recovery_revision": 18,
+          "revision": 18,
+          "session": "79efc7d9-ad1a-4799-806b-e30ed8a30214",
+          "sources": 0
+        }
+      ]
+    },
+    "dropped_before": 0,
+    "kind": "workspace",
+    "pid": 397399,
+    "unix_us": 1791296717002772
+  },
+  "latest_idle_publication_ms": 1149.274,
+  "limits": [
+    "Observed UI acknowledgements include event scheduling and durable filesystem publication",
+    "The idle gate measures the 1 s debounce plus up to 250 ms for worker/UI publication; continuous edits require publication within 10 s"
+  ],
+  "pass": true,
+  "revisions": 18,
+  "schema": 1
+}

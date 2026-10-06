@@ -1,12 +1,16 @@
 # Rust restart: implementation status
 
-Issue [#57](https://github.com/michaelmonetized/editbay/issues/57) / draft
+Issue [#57](https://github.com/michaelmonetized/editbay/issues/57) /
 [PR #58](https://github.com/michaelmonetized/editbay/pull/58) moves complete
 [recovery publication](RECOVERY_PUBLICATION.md) off the native UI thread, following
 the 236.380 ms synchronous commit exposed by #56. Ownership approval remains on
 the UI; an atomic worker claim arbitrates publication and cancellation. Durable
-acknowledgement, retry, older history and four-job bounds remain. Qualification
-is in progress; no broader roadmap gate is closed.
+acknowledgement, retry, older history and four-job bounds remain. Fresh native
+qualification passes 100/100 kill/recover/reopen trials with 4,000 catalog documents,
+input p95 18.904 ms and maximum UI checkpoint acceptance 0.008 ms. Scheduling,
+real filesystem errors and camera/six-channel range jobs pass. Full workspace
+checks pass; [raw evidence](evidence/r2-recovery-publication/README.md) retains
+all earlier failures. No broader roadmap gate is closed.
 
 Issue [#55](https://github.com/michaelmonetized/editbay/issues/55) /
 [PR #56](https://github.com/michaelmonetized/editbay/pull/56) adds
@@ -76,8 +80,8 @@ driver requalification is still pending. Full R2/R8 stay open.
 Validated locally on 2026-10-06, Linux ARM64, Rust/Cargo 1.98.0.
 This is the native local workspace, project/recovery foundation and native
 engine/inference feasibility tools. Earlier local R1 workspace qualification is
-retained; the recovery-publication change is being requalified in #58, including
-its recorded timeout and corrected test-driver failure. Complete editorial and
+retained; #58 adds fresh 100/100 native recovery qualification. Earlier timeout
+and corrected test-driver failures remain recorded. Complete editorial and
 complete-job release gates remain open.
 
 ## Implemented

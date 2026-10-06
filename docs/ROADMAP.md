@@ -191,13 +191,17 @@ Omarchy palettes. Recovery tests do not substitute for native visual inspection.
 
 ## R2 — the production engine
 
-Issue [#57](https://github.com/michaelmonetized/editbay/issues/57) / draft
+Issue [#57](https://github.com/michaelmonetized/editbay/issues/57) /
 [PR #58](https://github.com/michaelmonetized/editbay/pull/58) moves complete
 [recovery publication](RECOVERY_PUBLICATION.md) off the native UI thread, following
 the 236.380 ms synchronous commit exposed by #56. Ownership approval remains on
 the UI; an atomic worker claim arbitrates publication and cancellation. Durable
-acknowledgement, retry, older history and four-job bounds remain. Qualification
-is in progress; no broader roadmap gate is closed.
+acknowledgement, retry, older history and four-job bounds remain. Fresh native
+qualification passes 100/100 kill/recover/reopen trials with 4,000 catalog documents,
+input p95 18.904 ms and maximum UI checkpoint acceptance 0.008 ms. Scheduling,
+real filesystem errors and camera/six-channel range jobs pass. Full workspace
+checks pass; [raw evidence](evidence/r2-recovery-publication/README.md) retains
+all earlier failures. No broader roadmap gate is closed.
 
 Issue [#55](https://github.com/michaelmonetized/editbay/issues/55) /
 [PR #56](https://github.com/michaelmonetized/editbay/pull/56) implements

@@ -1,0 +1,73 @@
+   Compiling editbay-app v0.1.0 (/home/michael/Projects/editbay/artifacts/worktrees/r2-sound-worker/crates/editbay-app)
+    Finished `test` profile [unoptimized] target(s) in 1m 59s
+     Running unittests src/lib.rs (/home/michael/Projects/editbay/artifacts/worktrees/r2-sound-engine/target/native-build/debug/deps/editbay_app-7b2682e182ecbfeb)
+
+running 24 tests
+test preview::prepared::tests::dimensions_bound_full_queue_and_an_in_flight_picture ... ok
+test preview::completion::tests::repeated_reordered_and_late_draws_keep_initial_and_trailing_gaps ... ok
+test preview::completion::tests::bounded_history_counts_long_runs_but_refuses_unverifiable_late_records ... ok
+test preview::completion::tests::overflow_foreign_ranges_cancellation_and_retired_publishers_never_pass ... ok
+test preview::completion::tests::concurrent_callbacks_retain_every_frame_without_waiting_for_ui ... ok
+test preview::prepared::tests::exact_clock_selection_releases_expired_pins_and_never_shows_future ... ok
+test preview::prepared::tests::one_frame_and_partial_tails_require_every_available_initial_picture ... ok
+test preview::tests::cancelling_preparation_or_changing_owner_retires_queue_without_starting_sound ... ok
+test preview::tests::finished_worker_keeps_its_specific_failure_during_concurrent_polling ... ok
+test preview::tests::authoring_after_edit_tab_switch_or_welcome_cannot_publish ... ok
+test timeline_ui::tests::background_cut_commits_one_group_and_initializes_exact_trim_selection ... ok
+test preferences::tests::invalid_preferences_preserve_the_source_and_colliding_chords_are_rejected ... ok
+test studio::tests::project_undo_works_after_button_focus_and_text_fields_keep_their_history ... ok
+test preview::tests::native_background_authoring_commits_one_group_and_undo_preserves_sources ... ok
+test brand_ui::tests::refresh_keeps_local_fields_and_imports_other_writers_unmodified_fields ... ok
+test workspace::recovery::tests::cancellation_or_drop_before_publication_keeps_prepared_files_private ... ok
+test preferences::tests::atomic_preferences_coalesce_changes_and_detect_stale_writers ... ok
+test workspace::tests::awaiting_approval_keeps_worker_slots_bounded_and_close_releases_them ... ok
+test timeline_ui::tests::changed_revision_closed_tab_or_hidden_workspace_cannot_receive_prepared_cut ... ok
+test workspace::tests::failed_publication_is_not_acknowledged_and_retry_preserves_older_history ... ok
+test brand_ui::tests::asset_and_save_acknowledgements_preserve_unsaved_and_newer_bank_details ... ok
+test studio::tests::batched_native_shortcut_text_and_enter_create_and_rename_without_losing_input ... ok
+test workspace::recovery::tests::publication_waits_for_approval_and_cancellation_never_waits_for_commit_io ... ok
+test brand_ui::tests::typing_keeps_focus_when_unsaved_status_changes_the_window_layout ... ok
+
+test result: ok. 24 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.05s
+
+     Running tests/workspace.rs (/home/michael/Projects/editbay/artifacts/worktrees/r2-sound-engine/target/native-build/debug/deps/workspace-57b50361bef9e571)
+
+running 4 tests
+test document_mutations_cancel_exports_before_return_without_needing_a_ui_poll ... ok
+test late_preparations_after_close_or_manual_save_never_publish_and_newer_edits_stay_dirty ... ok
+test checked_save_copy_and_source_loss_recovery_preserve_originals_and_visible_errors ... ok
+test one_hundred_inactive_and_untitled_documents_keep_latest_acknowledged_recovery ... ok
+
+test result: ok. 4 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.12s
+
+    Checking editbay-core v0.1.0 (/home/michael/Projects/editbay/artifacts/worktrees/r2-sound-worker/crates/editbay-core)
+    Checking editbay-media v0.1.0 (/home/michael/Projects/editbay/artifacts/worktrees/r2-sound-worker/crates/editbay-media)
+    Checking editbay-audio v0.1.0 (/home/michael/Projects/editbay/artifacts/worktrees/r2-sound-worker/crates/editbay-audio)
+    Checking editbay-render v0.1.0 (/home/michael/Projects/editbay/artifacts/worktrees/r2-sound-worker/crates/editbay-render)
+    Checking editbay-delivery v0.1.0 (/home/michael/Projects/editbay/artifacts/worktrees/r2-sound-worker/crates/editbay-delivery)
+    Checking editbay-app v0.1.0 (/home/michael/Projects/editbay/artifacts/worktrees/r2-sound-worker/crates/editbay-app)
+error: this `if` statement can be collapsed
+   --> crates/editbay-app/src/workspace.rs:535:13
+    |
+535 | /             if matches!(result, Ok(Outcome::Prepared)) {
+536 | |                 if let Pending::Recovery {
+537 | |                     tab,
+538 | |                     generation,
+...   |
+554 | |             }
+    | |_____________^
+    |
+    = help: for further information visit https://rust-lang.github.io/rust-clippy/rust-1.98.0/index.html#collapsible_if
+    = note: `-D clippy::collapsible-if` implied by `-D warnings`
+    = help: to override `-D warnings` add `#[allow(clippy::collapsible_if)]`
+help: collapse nested if block
+    |
+535 ~             if matches!(result, Ok(Outcome::Prepared))
+536 ~                 && let Pending::Recovery {
+537 |                     tab,
+...
+552 |                     continue;
+553 ~                 }
+    |
+
+error: could not compile `editbay-app` (lib) due to 1 previous error

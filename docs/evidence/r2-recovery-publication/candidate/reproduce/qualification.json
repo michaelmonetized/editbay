@@ -1,0 +1,79 @@
+{
+  "application_sha256": "e7a4de2e6507bb0236a79b2d1f79d18c82d6471823da3a5c9c1273b92a48fb9b",
+  "architecture": "aarch64",
+  "catalog_documents": 4000,
+  "checkpoint_main_thread_accept": {
+    "count": 4,
+    "max_ms": 0.004,
+    "p50_ms": 0.002,
+    "p95_ms": 0.004
+  },
+  "checkpoint_worker_commit": {
+    "count": 4,
+    "max_ms": 0.419,
+    "p50_ms": 0.387,
+    "p95_ms": 0.419
+  },
+  "cpu_frame_work": {
+    "count": 313,
+    "max_ms": 70.551,
+    "p50_ms": 1.349,
+    "p95_ms": 5.014
+  },
+  "desktop": "Hyprland Wayland / installed native portal",
+  "input_gate_pass": true,
+  "input_injection_to_ui_acceptance": {
+    "count": 5,
+    "max_ms": 20.986,
+    "p50_ms": 12.408,
+    "p95_ms": 20.986
+  },
+  "kind": "native_workspace_qualification",
+  "latest_revision": 3,
+  "limits": [
+    "Software-injected Wayland text/portal keys and persistent Linux keyboard/pointer events; no physical-device input measurement",
+    "Native UI recovery uses the installed native file chooser",
+    "These fixtures qualify local workspace behavior, not completed client edits or media playback"
+  ],
+  "passed": 2,
+  "reports": [
+    {
+      "checkpoint_acknowledged_unix_us": 1791297085356641,
+      "checkpoint_sha256": "3212c785fbdb06459403bee8fe8a5e2c3e7d11931e8d3dff856c1b9c56326a7a",
+      "inactive_checkpoint_sha256": "637afbb6127269189b1b9d619d8757e757132fb1000c5f4902602aa10813f593",
+      "index": 0,
+      "memory": [
+        "VmHWM:\t  129472 kB",
+        "VmRSS:\t  129472 kB"
+      ],
+      "native_reopen": true,
+      "native_ui_recovery": true,
+      "original_project": "64209f51-aad7-44a1-b588-abdc8684b83d",
+      "original_sha256": null,
+      "recovered_project": "3ae1fbea-c760-471b-b0f7-cfbf0a261d8e",
+      "recovered_sha256": "8c27ae5bfb3dbefa5e5942bfa4b3d9575b66990ce999287d9ed05c171fdb3d4a",
+      "revision": 3,
+      "saved_original": false
+    },
+    {
+      "checkpoint_acknowledged_unix_us": 1791297093745227,
+      "checkpoint_sha256": "ec5b69e887780fa06d9a7ecffb7e07bab84025d9a8a9d6c93c5721af45cb3811",
+      "inactive_checkpoint_sha256": "512b7d89e2b6474e1b871bf4bbf110fbe32ba478c2a0c486e5bcc6e6ce1a500e",
+      "index": 1,
+      "memory": [
+        "VmHWM:\t  127312 kB",
+        "VmRSS:\t  127312 kB"
+      ],
+      "native_reopen": true,
+      "native_ui_recovery": true,
+      "original_project": "d76c36ac-8227-4042-823c-ce280c799907",
+      "original_sha256": "a983c0ada1844a811f7fec109323aa8e0e8c1af0378ceff8d2c776de5c670d94",
+      "recovered_project": "94685ead-1df4-4470-be26-9019312f33b5",
+      "recovered_sha256": "098b704e80c213ee24820e998e7505889acbc2ef01fbbf1d7933a4cc6d7ed5fe",
+      "revision": 3,
+      "saved_original": true
+    }
+  ],
+  "schema": 1,
+  "trials": 2
+}

@@ -53,9 +53,10 @@ Source preparation in [PR #56](https://github.com/michaelmonetized/editbay/pull/
 has exact 256-cut PCM, whole/range output, worker faults, native workflows and a
 180-second sound pilot. Its camera range-job input failure exposed synchronous
 recovery publication. [PR #58](https://github.com/michaelmonetized/editbay/pull/58)
-moves that work off the UI and is undergoing renewed native recovery qualification.
-Both the earlier checkpoint timeout and the test driver's stale-acknowledgement
-failure remain explicit. Native PipeWire/device-write qualification follows in
+moves that work off the UI and passes fresh 100/100 native recovery trials,
+input p95 18.904 ms, continuous-edit publication within 9826.256 ms and actual
+storage-error retry. [Evidence](evidence/r2-recovery-publication/README.md) retains
+the earlier checkpoint timeout and driver failures. Native PipeWire/device-write qualification follows in
 [#59](https://github.com/michaelmonetized/editbay/issues/59). No two-hour,
 physical-hardware or later release/adoption gate is closed by these dependencies.
 
