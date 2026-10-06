@@ -48,7 +48,9 @@ that failure. See [raw evidence](evidence/r2-sound-kernels/README.md).
 Frozen `71f07e4` passes the 18 device fault trials and a fresh 180-second pilot:
 backend drift <=1.156 ms, slowest preparation 38.346 ms and peak combined RSS
 135920 KiB. Its final locked workspace/all-feature checks, fmt and Clippy pass.
-The two-hour baseline is pending; no sustained success is inferred from the pilot.
+The two-hour baseline fails after 39.359 seconds on clock continuity with a full
+16384-frame prepared queue and first rejected drift -29.621 ms. Its raw result is
+retained; no sustained success is inferred from the pilot.
 The earlier 246-second preparation underrun is not attributed to coefficient
 construction without actual measurements. Two-hour, physical output and full
 R2/R8 qualification remain open.

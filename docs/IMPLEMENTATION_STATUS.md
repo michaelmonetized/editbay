@@ -10,7 +10,8 @@ and native driver failures remain in [the evidence](evidence/r2-sound-kernels/RE
 Its 180-second pilot fails after 97.648 seconds with an empty queue and bounded
 clock drift. Frozen `71f07e4` adds active-stage telemetry and passes a fresh
 180-second pilot with backend drift <=1.156 ms, plus 18 device fault trials and
-final workspace checks. Its two-hour baseline is pending. Sustained qualification
+final workspace checks. Its two-hour baseline fails after 39.359 seconds on clock
+continuity with a full preparation queue and rejected drift -29.621 ms. Sustained qualification
 and [canonical PCM preparation](https://github.com/michaelmonetized/editbay/issues/53)
 remain open along with the full roadmap.
 

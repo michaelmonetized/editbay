@@ -83,9 +83,17 @@ does not establish the cause of the earlier underrun.
 
 The final frozen revision passes **240 default / 241 all-feature tests + 7 doc
 tests**, formatting and all-target/all-feature Clippy with warnings denied.
-The two-hour baseline started on 2026-10-06 at 12:25:59 UTC with this frozen
-binary; its command and concurrent-work policy are in `active/two-hours.zsh`.
-Its running artifacts remain under `artifacts/sound-kernels/active/two-hours` and
-`two-hour-receipts` until a terminal receipt is available. A two-hour success has
-not been obtained. Physical audibility, DAC/speaker drift, other
+The two-hour baseline started on 2026-10-06 at 12:25:59 UTC and **fails after
+39.359169 seconds** on clock continuity, with all **16384 prepared frames still
+queued**. The first rejected callback has signed drift **-29.621144 ms**; accepted
+backend/host drift maxima are 10.403763 / 10.558255 ms. The slowest completed block
+takes 52.082 ms; maximum interval between starts is 424.483 ms. Peak combined RSS
+is 142352 KiB. Source identity and owned-process cleanup pass. No intentional
+device faults or owned Cargo build overlap this attempt. Its exact command,
+policy, raw observations, exit status and terminal result are retained in
+`active/two-hours.zsh` and `active/sustained`. The command exits zero because it
+successfully records the trial; `qualified:false` / `complete:false` are the
+qualification outcome. No sustained process remains running.
+
+A two-hour success has not been obtained. Physical audibility, DAC/speaker drift, other
 hardware, full R2/R8 and all remaining roadmap/release/adoption gates remain open.
