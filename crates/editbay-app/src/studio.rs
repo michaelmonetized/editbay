@@ -1295,6 +1295,8 @@ impl Studio {
                                 let header = egui::CollapsingHeader::new(&source.name)
                                     .id_salt(source.id)
                                     .show(ui, |ui| {
+                                        let selected_audio =
+                                            self.preview.source_sound(ui, id, source);
                                         for stream in &source.streams {
                                             let description = match &stream.format {
                                                 editbay_core::StreamFormat::Video {
@@ -1353,6 +1355,7 @@ impl Studio {
                                                             id,
                                                             source.id,
                                                             stream.index,
+                                                            selected_audio,
                                                         )
                                                 {
                                                     self.message = Some(error);

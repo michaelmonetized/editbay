@@ -151,3 +151,11 @@ pass 2 s. Earlier sinc/preparation misses are retained separately. See
 [isolated sound evidence](evidence/r2-sound-worker/README.md). This closes the
 bounded PCM process route, while native streaming, natural source timing,
 devices, long drift, shared delivery and full R2 remain separate open gates.
+
+Natural source timing now has separate [native and PCM evidence](evidence/r2-natural-sound/README.md):
+20 decoded timing fixtures and both saved/recovered camera and delayed six-channel
+graphs retain every sample with zero error. Preparation p95 <=3.680168 ms and
+unity rendering <=1.348308 ms preserve 5/20 ms bounds. Actual native input p95
+<=19.274 ms, cached draw <=21.152 ms and cancellation <=126.352 ms pass their
+50/250/2000 ms limits. This closes the source-sequence timing dependency; device
+streaming, physical audibility, drift, shared delivery and full R2 stay open.

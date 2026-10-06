@@ -106,7 +106,8 @@ mod tests {
         let source = workspace.tabs[0].editor.project().sources[0].id;
         let originals = workspace.tabs[0].editor.project().sources.clone();
         let mut pane = PreviewPane::default();
-        pane.create_sequence(&workspace, tab, source, 0).unwrap();
+        pane.create_sequence(&workspace, tab, source, 0, None)
+            .unwrap();
         finish(&mut pane, &mut workspace, true);
         assert!(pane.error.is_none());
         assert_eq!(workspace.tabs[0].editor.project().revision, 1);
@@ -125,12 +126,42 @@ mod tests {
     }
 
     #[test]
+    fn finished_worker_keeps_its_specific_failure_during_concurrent_polling() {
+        for _ in 0..256 {
+            let result = Arc::new(Mutex::new(None));
+            let output = result.clone();
+            let thread = std::thread::spawn(move || {
+                *output.lock().unwrap() = Some(Event::Failed("Source color is undeclared".into()));
+            });
+            loop {
+                if let Some(event) = worker_event(&result, Some(&thread)) {
+                    assert!(
+                        matches!(event, Event::Failed(error) if error == "Source color is undeclared")
+                    );
+                    break;
+                }
+                std::thread::yield_now();
+            }
+            thread.join().unwrap();
+        }
+        let thread = std::thread::spawn(|| {});
+        while !thread.is_finished() {
+            std::thread::yield_now();
+        }
+        assert!(
+            matches!(worker_event(&Mutex::new(None), Some(&thread)), Some(Event::Failed(error)) if error.contains("worker stopped"))
+        );
+        thread.join().unwrap();
+    }
+
+    #[test]
     fn authoring_after_edit_tab_switch_or_welcome_cannot_publish() {
         for change in 0..3 {
             let (_directory, mut workspace, tab) = workspace();
             let source = workspace.tabs[0].editor.project().sources[0].id;
             let mut pane = PreviewPane::default();
-            pane.create_sequence(&workspace, tab, source, 0).unwrap();
+            pane.create_sequence(&workspace, tab, source, 0, None)
+                .unwrap();
             match change {
                 0 => {
                     let owner = DocumentVersion::of(workspace.tabs[0].editor.project());
@@ -201,6 +232,22 @@ struct Task {
     result: Arc<Mutex<Option<Event>>>,
     thread: Option<JoinHandle<()>>,
 }
+
+/// Read a worker's final event without racing its exit.
+/// `result` owns the single event slot and `thread` reports completion. Returns
+/// the published event first, or an explicit failure after an empty worker exit.
+fn worker_event(result: &Mutex<Option<Event>>, thread: Option<&JoinHandle<()>>) -> Option<Event> {
+    let mut result = match result.lock() {
+        Ok(result) => result,
+        Err(error) => return Some(Event::Failed(error.to_string())),
+    };
+    result.take().or_else(|| {
+        thread
+            .filter(|thread| thread.is_finished())
+            .map(|_| Event::Failed("Viewer worker stopped; retry the viewer".into()))
+    })
+}
+
 impl Task {
     fn stop(&self) {
         self.cancel.cancel();
@@ -333,9 +380,7 @@ impl Task {
                         graph.poll().map_err(|e| e.to_string())?;
                     }
                 };
-                if let Err(error) = run()
-                    && !token.is_cancelled()
-                {
+                if let Err(error) = run() {
                     publish(Event::Failed(error));
                 }
             })
@@ -416,6 +461,7 @@ pub struct PreviewPane {
     view_owner: Option<DocumentOwner>,
     gpu: Option<Gpu>,
     selections: HashMap<Uuid, Selection>,
+    source_audio: HashMap<(Uuid, Uuid), Option<u32>>,
     task: Option<Task>,
     retiring: Vec<Task>,
     picture: Option<Arc<Picture>>,
@@ -461,6 +507,63 @@ impl PreviewPane {
         });
     }
 
+    /// Choose the imported sound stream for a new source sequence.
+    /// `ui`, `tab` and `source` identify this native media row; returns the
+    /// selected stream or an explicit picture-only choice without changing assets.
+    pub fn source_sound(
+        &mut self,
+        ui: &mut egui::Ui,
+        tab: Uuid,
+        source: &editbay_core::MediaSource,
+    ) -> Option<u32> {
+        let streams: Vec<_> = source
+            .streams
+            .iter()
+            .filter(|s| matches!(s.format, editbay_core::StreamFormat::Audio { .. }))
+            .collect();
+        if streams.is_empty() {
+            return None;
+        }
+        ui.label("Sequence sound");
+        let selected = self
+            .source_audio
+            .entry((tab, source.id))
+            .or_insert_with(|| (streams.len() == 1).then_some(streams[0].index));
+        if selected.is_some_and(|index| !streams.iter().any(|stream| stream.index == index)) {
+            *selected = None;
+        }
+        let label = |stream: &editbay_core::SourceStream| {
+            let editbay_core::StreamFormat::Audio {
+                sample_rate,
+                channels,
+            } = &stream.format
+            else {
+                unreachable!()
+            };
+            format!(
+                "Stream {} · {} Hz · {}",
+                stream.index,
+                sample_rate,
+                channels.join(" / ")
+            )
+        };
+        let text = selected
+            .and_then(|index| streams.iter().find(|s| s.index == index))
+            .map_or_else(|| "Picture only".into(), |s| label(s));
+        let response = egui::ComboBox::from_id_salt(("sequence-sound", tab, source.id))
+            .selected_text(text)
+            .show_ui(ui, |ui| {
+                ui.selectable_value(selected, None, "Picture only");
+                for stream in streams {
+                    ui.selectable_value(selected, Some(stream.index), label(stream));
+                }
+            })
+            .response;
+        let choice = *selected;
+        self.observe_control(&format!("sequence-sound:{}", source.id), &response, ui);
+        choice
+    }
+
     /// Prepare one source sequence through the shared command and undo path.
     /// `workspace`, `tab`, `source` and `stream` capture existing imported media.
     /// Returns after starting background validation; stale results cannot mutate a tab.
@@ -470,6 +573,7 @@ impl PreviewPane {
         tab: Uuid,
         source: Uuid,
         stream: u32,
+        audio: Option<u32>,
     ) -> Result<(), String> {
         if self.creation.is_some() {
             return Err("A sequence is already being prepared".into());
@@ -486,9 +590,22 @@ impl PreviewPane {
                         .first()
                         .ok_or("Project needs a sequence profile")?
                         .frame_rate;
-                    let commands =
-                        editbay_core::sequence_from_video(editor.project(), source, stream, rate)
-                            .map_err(|e| e.to_string())?;
+                    let commands = match audio {
+                        Some(audio) => editbay_core::sequence_from_video_with_audio(
+                            editor.project(),
+                            source,
+                            stream,
+                            audio,
+                            rate,
+                        ),
+                        None => editbay_core::sequence_from_video(
+                            editor.project(),
+                            source,
+                            stream,
+                            rate,
+                        ),
+                    }
+                    .map_err(|e| e.to_string())?;
                     let sequence = commands
                         .iter()
                         .find_map(|command| match command {
@@ -497,11 +614,7 @@ impl PreviewPane {
                         })
                         .ok_or("Sequence command is absent")?;
                     editor
-                        .apply(
-                            owner.version,
-                            "Create sequence from video".into(),
-                            &commands,
-                        )
+                        .apply(owner.version, "Create source sequence".into(), &commands)
                         .map_err(|e| e.to_string())?;
                     Ok((editor, sequence))
                 };
@@ -601,6 +714,8 @@ impl PreviewPane {
         }
         self.selections
             .retain(|id, _| workspace.tabs.iter().any(|tab| tab.id == *id));
+        self.source_audio
+            .retain(|(id, _), _| workspace.tabs.iter().any(|tab| tab.id == *id));
         if self.task.as_ref().is_some_and(|task| {
             !visible || workspace.active != Some(task.owner.tab) || !workspace.owns(task.owner)
         }) {
@@ -611,7 +726,7 @@ impl PreviewPane {
         let event = self
             .task
             .as_ref()
-            .and_then(|task| task.result.lock().ok().and_then(|mut result| result.take()));
+            .and_then(|task| worker_event(&task.result, task.thread.as_ref()));
         match event {
             Some(Event::Started(pid)) => self.worker_pid = Some(pid),
             Some(Event::Picture(picture))
@@ -626,17 +741,7 @@ impl PreviewPane {
                 self.stopped = true;
                 self.error = Some(error);
             }
-            None => {
-                if self
-                    .task
-                    .as_ref()
-                    .is_some_and(|task| task.thread.as_ref().is_some_and(JoinHandle::is_finished))
-                {
-                    self.stop();
-                    self.stopped = true;
-                    self.error = Some("Viewer worker stopped; retry the viewer".into());
-                }
-            }
+            None => {}
         }
         if self
             .picture

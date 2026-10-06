@@ -309,6 +309,16 @@ fn picture(trace: &mut Trace, frame: u64, after: u64) -> Result<Value> {
     Ok(record)
 }
 
+fn set_frame(trace: &mut Trace, frame: u64) -> Result<Value> {
+    click_control(trace, "frame-number")?;
+    click_control(trace, "frame-number")?;
+    key(30, true, false)?;
+    command("wtype", &["-s", "40", &frame.to_string(), "-s", "80"])?;
+    let after = now();
+    key(28, false, false)?;
+    picture(trace, frame, after)
+}
+
 /// Exercise saved source-sequence authoring and actual native GPU presentation.
 /// `binary`, `source`, `directory` and `half` select the app, read-only media,
 /// new evidence folder and precision. Returns native draw, ownership, cancellation,
@@ -325,9 +335,16 @@ pub fn preview(binary: &Path, source: &Path, directory: &Path, half: bool) -> Re
         .find(|stream| stream.kind == StreamType::Video && stream.decoder_available)
         .ok_or("Qualification needs a real video stream")?
         .index;
+    let audio = probe
+        .streams
+        .iter()
+        .find(|stream| stream.kind == StreamType::Audio && stream.decoder_available)
+        .map(|s| s.index);
+    let streams: Vec<_> = std::iter::once(stream).chain(audio).collect();
+    let compositions = if audio.is_some() { 2 } else { 1 };
     let imported = owned.ingest(
         "Native source sequence".into(),
-        &[stream],
+        &streams,
         token.clone(),
         |_, _| {},
     )?;
@@ -358,9 +375,19 @@ pub fn preview(binary: &Path, source: &Path, directory: &Path, half: bool) -> Re
         has_tab(record, &initial.name, 0)
     })?;
     click_control(&mut trace, &format!("source:{source_id}"))?;
+    thread::sleep(Duration::from_millis(200));
+    command(
+        "grim",
+        &[
+            "-g",
+            "80,80 1440x900",
+            directory.join("source-selection.png").to_str().unwrap(),
+        ],
+    )?;
     let create_at = click_control(&mut trace, &format!("create-sequence:{source_id}:{stream}"))?;
     let created = trace.wait("source sequence command accepted", |record| {
-        has_tab(record, &initial.name, 1) && record["details"]["tabs"][0]["compositions"] == 1
+        has_tab(record, &initial.name, 1)
+            && record["details"]["tabs"][0]["compositions"] == compositions
     })?;
     let first = picture(&mut trace, 0, create_at)?;
     click_control(&mut trace, "source-media")?;
@@ -502,7 +529,8 @@ pub fn preview(binary: &Path, source: &Path, directory: &Path, half: bool) -> Re
     trace.focus()?;
     key(44, true, true)?;
     let redone = trace.wait("native sequence redo", |record| {
-        has_tab(record, &initial.name, 3) && record["details"]["tabs"][0]["compositions"] == 1
+        has_tab(record, &initial.name, 3)
+            && record["details"]["tabs"][0]["compositions"] == compositions
     })?;
     trace.focus()?;
     key(31, true, false)?;
@@ -513,7 +541,7 @@ pub fn preview(binary: &Path, source: &Path, directory: &Path, half: bool) -> Re
     let saved_hash = hash(&original)?;
     if saved.sources != initial.sources
         || saved.assets != initial.assets
-        || saved.compositions.len() != 1
+        || saved.compositions.len() != compositions
     {
         return Err("Native authoring changed source assets or lost its composition".into());
     }
@@ -599,6 +627,20 @@ pub fn preview(binary: &Path, source: &Path, directory: &Path, half: bool) -> Re
             directory.join("recovered-native.png").to_str().unwrap(),
         ],
     )?;
+    let root = recovered
+        .compositions
+        .iter()
+        .find(|c| Some(c.id) == recovered.sequences[0].composition)
+        .ok_or("Missing recovered sequence root")?;
+    let recovered_tail = set_frame(&mut recovered_trace, root.duration - 1)?;
+    command(
+        "grim",
+        &[
+            "-g",
+            "80,80 1440x900",
+            directory.join("recovered-tail.png").to_str().unwrap(),
+        ],
+    )?;
     restarted.kill()?;
     let (mut reopened, mut reopened_trace) = start(
         &binary,
@@ -609,6 +651,17 @@ pub fn preview(binary: &Path, source: &Path, directory: &Path, half: bool) -> Re
     )?;
     let reopened_draw = picture(&mut reopened_trace, 0, 0)?;
     reopened.kill()?;
+    let saved_sound = audio
+        .map(|audio| crate::natural_sound::verify(&saved, source, stream, audio, &binary))
+        .transpose()?;
+    let recovered_sound = audio
+        .map(|audio| crate::natural_sound::verify(&recovered, source, stream, audio, &binary))
+        .transpose()?;
+    if saved_sound.as_ref().map(|v| &v["rendered_sha256"])
+        != recovered_sound.as_ref().map(|v| &v["rendered_sha256"])
+    {
+        return Err("Recovered sound differs from saved sound".into());
+    }
     owned.verify(&token)?;
     let input = metrics(&mut input_ms);
     let display = metrics(&mut displayed_ms);
@@ -617,6 +670,7 @@ pub fn preview(binary: &Path, source: &Path, directory: &Path, half: bool) -> Re
         && cancel_ms <= 2000.;
     let receipt = json!({"kind":"native_preview_qualification","application_sha256":hash(&binary)?,"source":source.canonicalize()?,
         "source_fingerprint":owned.fingerprint(),"precision":initial.color.precision,"created":created,"first_native_draw":first,
+        "saved_sound":saved_sound,"recovered_sound":recovered_sound,"recovered_tail":recovered_tail,
         "input_injection_to_request_acceptance":input,"cached_request_to_gpu_draw_completion":display,
         "button_event_delay_ms":8,"samples":samples,
         "superseded_scrub":scrubbed,"idle_worker_failure":failed,"retry":retried,"active_cancel":cancelled,"active_cancel_ms":cancel_ms,
@@ -624,7 +678,7 @@ pub fn preview(binary: &Path, source: &Path, directory: &Path, half: bool) -> Re
         "saved_sha256":saved_hash,"recovered_sha256":hash(&recovered_path)?,"recovered_native_draw":recovered_draw,"reopened_native_draw":reopened_draw,
         "source_unchanged":true,"memory":memory,"pass":pass,"limits":["Indexing is a real native Rust seed; existing UI ingest has separate receipts",
             "GPU command completion and inspected native screenshots; no physical input or display photon timing",
-            "Paused frame stepping and scrubbing; sound, sustained playback, delivery and other hardware remain open"]});
+            "Paused frame stepping and scrubbing with saved/recovered sound PCM; device playback, sustained scheduling, delivery and other hardware remain open"]});
     File::create_new(directory.join("qualification.json"))?
         .write_all(&serde_json::to_vec_pretty(&receipt)?)?;
     if !pass {

@@ -3,7 +3,7 @@
 //! One typed media/composition document is shared by UI, CLI, automation and recovery.
 
 mod authoring;
-pub use authoring::sequence_from_video;
+pub use authoring::{sequence_from_video, sequence_from_video_with_audio};
 mod command;
 mod composition;
 mod document;

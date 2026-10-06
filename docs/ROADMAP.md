@@ -101,6 +101,14 @@ are separate from full playback, uncached seek and sound drift. See
 [native preview](NATIVE_PREVIEW.md) and its separate receipts. EB-023/024/025/026
 remain partial until sound scheduling, shared delivery and full R2 workloads pass.
 
+Source-sequence authoring now retains explicitly selected original sound through
+an exact nested clock, reciprocal picture/sound links and one atomic undo group.
+Delayed sound, source origins and partial-frame tails retain natural timing;
+saved and recovered graphs share the isolated PCM renderer. This is the timing
+dependency of EB-023, not a device-playback or drift qualification. See
+[native source authoring](NATIVE_PREVIEW.md) and its
+[native/PCM evidence](evidence/r2-natural-sound/README.md).
+
 ## Milestone map
 
 | Milestone | User outcome | Dependencies |
