@@ -623,7 +623,7 @@ fn real_source_pixels_cached_hits_interpretation_orientation_and_replacement_are
 }
 
 #[test]
-fn unsupported_mask_and_budgeted_nesting_fail_without_fake_output() {
+fn masked_transparency_and_unsupported_solid_bounds_do_not_fake_output() {
     let mut project = solid_project();
     project.compositions[0].nodes[0].operation = NodeOperation::Solid { rgba: [0.; 4] };
     project.compositions[0].nodes.extend([
@@ -652,12 +652,11 @@ fn unsupported_mask_and_budgeted_nesting_fail_without_fake_output() {
     ]);
     project.compositions[0].picture = Some(id(5));
     let mut worker = renderer(project);
-    assert!(
-        worker
-            .render(id(100), SourcePosition::new(0, 1).unwrap(), false)
-            .is_err()
-    );
-    assert_eq!(worker.stats().dispatches, 0);
+    let frame = worker
+        .render(id(100), SourcePosition::new(0, 1).unwrap(), false)
+        .unwrap();
+    close(&worker.readback(&frame).unwrap(), &repeated([0.; 4]), 0.);
+    drop(frame);
     let mut project = solid_project();
     project.compositions[0].nodes[0].operation = NodeOperation::Solid {
         rgba: [5000., 0., 0., 0.],

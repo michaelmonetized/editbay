@@ -7,6 +7,13 @@ editorial and complete-job release gates remain open.
 
 ## Implemented
 
+- Procedural polygons, animated feather/inversion and masked Over now use the
+  shared FP16/FP32 GPU graph in native preview and master delivery. Geometry and
+  masks stay typed, with bounded vertices and cumulative nested pixel-edge work.
+  Reference tests cover edge rules, reverse/animated time, reuse and pin cleanup.
+  See [procedural masks](PROCEDURAL_MASKS.md). Asset-mask formats and native
+  drawing/artist workflows remain open; this does not close R4/R5 or full R2.
+
 - Coherent callback receipts retain device frames, host/backend time, explicit
   startup epochs and reported latency through the supervised sound protocol.
   A bounded Rust tool authors and measures saved repeated source sequences.

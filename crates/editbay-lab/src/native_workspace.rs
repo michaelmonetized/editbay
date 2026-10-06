@@ -1,5 +1,6 @@
 mod cached;
 mod completions;
+pub mod masks;
 pub mod prepared;
 
 use crate::{Result, hash, metrics};
@@ -523,15 +524,20 @@ pub fn delivery(binary: &Path, project: &Path, directory: &Path) -> Result<Value
 }
 
 fn control(trace: &mut Trace, name: &str) -> Result<[i64; 2]> {
-    let record = trace.wait(name, |record| {
-        record["kind"] == "preview"
-            && record["details"]["controls"][name]
-                .as_array()
-                .is_some_and(|rect| rect.len() == 4)
-    })?;
-    let rect = record["details"]["controls"][name]
-        .as_array()
-        .ok_or("Native control has no geometry")?;
+    let deadline = Instant::now() + Duration::from_secs(10);
+    let rect = loop {
+        trace.read()?;
+        if let Some(record) = trace.records.iter().rev().find(|r| r["kind"] == "preview")
+            && let Some(rect) = record["details"]["controls"][name].as_array()
+            && rect.len() == 4
+        {
+            break rect.clone();
+        }
+        if Instant::now() >= deadline {
+            return Err(format!("Native control is not currently visible: {name}").into());
+        }
+        thread::sleep(Duration::from_millis(2));
+    };
     let pid = trace
         .records
         .first()
@@ -595,6 +601,11 @@ fn set_frame(trace: &mut Trace, frame: u64) -> Result<Value> {
     }
     let after = click_control(trace, "frame-number")?;
     click_control(trace, "frame-number")?;
+    trace.wait("frame field keyboard focus", |r| {
+        r["kind"] == "frame"
+            && r["unix_us"].as_u64().is_some_and(|us| us >= after)
+            && r["details"]["text_input_focused"] == true
+    })?;
     key(30, true, false)?;
     command("wtype", &["-s", "40", &frame.to_string(), "-s", "80"])?;
     key(28, false, false)?;
@@ -2627,7 +2638,6 @@ fn timeline_run(
         "hl.dsp.window.move({{x=80,y=80,relative=false,window=\"address:{address}\"}})"
     ))?;
     thread::sleep(Duration::from_millis(350));
-    click_control(&mut reopened_trace, "edit-controls")?;
     let compact_picture = set_frame(&mut reopened_trace, 11)?;
     if compact_picture["details"]["sequence"] != record_sequence.to_string() {
         return Err("Compact viewer changed sequences".into());
@@ -3019,7 +3029,6 @@ pub fn long_timeline(
         "hl.dsp.window.move({{x=80,y=80,relative=false,window=\"address:{address}\"}})"
     ))?;
     thread::sleep(Duration::from_millis(350));
-    click_control(&mut reopened_trace, "edit-controls")?;
     let compact_picture = set_frame(&mut reopened_trace, duration / 2)?;
     if restored_picture["details"]["sequence"] != sequence.to_string()
         || compact_picture["details"]["sequence"] != sequence.to_string()

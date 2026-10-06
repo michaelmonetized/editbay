@@ -346,6 +346,12 @@ impl TimelinePane {
                 {
                     self.error = Some(error);
                 }
+            });
+            let source = scenes
+                .iter()
+                .find(|s| Some(s.id) == selected.source)
+                .unwrap();
+            ui.horizontal_wrapped(|ui| {
                 let position = preview
                     .position(tab, &project)
                     .filter(|(id, _)| *id == source.id)
@@ -603,7 +609,7 @@ impl TimelinePane {
 }
 
 fn button(ui: &mut Ui, preview: &mut PreviewPane, name: &str, label: &str) -> bool {
-    let response = ui.button(label);
+    let response = ui.add(egui::Button::new(label).wrap_mode(egui::TextWrapMode::Extend));
     preview.observe_control(name, &response, ui);
     response.clicked()
 }
@@ -615,7 +621,7 @@ fn frame_input(
     value: &mut u64,
     end: u64,
 ) {
-    ui.label(label);
+    ui.add(egui::Label::new(label).wrap_mode(egui::TextWrapMode::Extend));
     let response = ui.add(egui::DragValue::new(value).range(0..=end));
     preview.observe_control(name, &response, ui);
 }

@@ -25,6 +25,7 @@ mod pcm_worker;
 mod picture_cache;
 mod picture_store;
 mod picture_worker;
+mod procedural_masks;
 mod shared_delivery;
 mod sound_blocks;
 mod streaming_sound;
@@ -911,7 +912,13 @@ fn run(args: Vec<OsString>) -> Result<()> {
                 args[0] == "native-playback",
             )?
         }
+        ("mask-graph", 3) => procedural_masks::run(Path::new(&args[1]), Path::new(&args[2]))?,
         ("native-delivery", 4) => native_workspace::delivery(
+            Path::new(&args[1]),
+            Path::new(&args[2]),
+            Path::new(&args[3]),
+        )?,
+        ("native-masks", 4) => native_workspace::masks::run(
             Path::new(&args[1]),
             Path::new(&args[2]),
             Path::new(&args[3]),
@@ -1056,6 +1063,8 @@ fn run(args: Vec<OsString>) -> Result<()> {
             println!("  native-cached APP_BINARY SAVED_LONG_PROJECT NEW_EVIDENCE_DIRECTORY");
             println!("  picture-store PROJECT COMPOSITION NEW_EVIDENCE_DIRECTORY WORKER_BINARY");
             println!("  native-delivery APP_BINARY PROJECT NEW_EVIDENCE_DIRECTORY");
+            println!("  mask-graph SAVED_SOURCE_PROJECT NEW_EVIDENCE_DIRECTORY");
+            println!("  native-masks APP_BINARY MASK_PROJECT NEW_EVIDENCE_DIRECTORY");
             println!("  timeline-compare PROJECT COMPOSITION UNCUT_MASTER CUT_MASTER");
             println!("  timeline-reorder CLI PROJECT COMPOSITION UNCUT_MASTER NEW_DIRECTORY");
             println!("  native-timeline APP_BINARY PROJECT NEW_EVIDENCE_DIRECTORY");

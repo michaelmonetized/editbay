@@ -1323,10 +1323,12 @@ impl Studio {
             }
             ui.weak(if dirty { "Unsaved changes" } else { "Saved" });
         });
-        ui.weak(path.map_or_else(
+        let location = path.map_or_else(
             || "Untitled local work".into(),
             |path| path.display().to_string(),
-        ));
+        );
+        ui.add(egui::Label::new(egui::RichText::new(&location).weak()).truncate())
+            .on_hover_text(location);
         ui.add_space(12.);
         self.media.show(ui);
         if !project.compositions.is_empty() || !project.sources.is_empty() {
@@ -1438,31 +1440,43 @@ impl Studio {
                     && self.settings.is_none()
                     && !self.manual
                     && !self.bank.opened;
-                if ui.available_width() >= 1000. {
+                if ui.available_width() >= 640. {
                     ui.columns(2, |columns| {
-                        self.timeline.show(
-                            &mut columns[1],
-                            &self.workspace,
-                            &mut self.preview,
-                            id,
-                            project.clone(),
-                            interactive,
-                        );
+                        let height = columns[1].available_height();
+                        egui::ScrollArea::vertical()
+                            .id_salt("timeline-controls")
+                            .max_height(height)
+                            .show(&mut columns[1], |ui| {
+                                self.timeline.show(
+                                    ui,
+                                    &self.workspace,
+                                    &mut self.preview,
+                                    id,
+                                    project.clone(),
+                                    interactive,
+                                );
+                            });
                         self.preview
                             .show(&mut columns[0], &self.workspace, id, project.clone());
                     });
                 } else {
+                    let edit_height = (ui.available_height() * 0.2).clamp(48., 120.);
                     let controls = egui::CollapsingHeader::new("Edit controls")
                         .default_open(true)
                         .show(ui, |ui| {
-                            self.timeline.show(
-                                ui,
-                                &self.workspace,
-                                &mut self.preview,
-                                id,
-                                project.clone(),
-                                interactive,
-                            );
+                            egui::ScrollArea::vertical()
+                                .id_salt("compact-edit-controls")
+                                .max_height(edit_height)
+                                .show(ui, |ui| {
+                                    self.timeline.show(
+                                        ui,
+                                        &self.workspace,
+                                        &mut self.preview,
+                                        id,
+                                        project.clone(),
+                                        interactive,
+                                    );
+                                });
                         });
                     self.preview
                         .observe_control("edit-controls", &controls.header_response, ui);
@@ -2025,7 +2039,7 @@ impl eframe::App for Studio {
                 &self.delivery,
                 &self.timeline,
             );
-            diagnostics.record("frame", serde_json::json!({"cpu_us":self.frame_started.elapsed().as_micros() as u64,"catalog_running":self.scan.is_some(),"workspace_busy":self.workspace.busy(),"bank_busy":self.bank.busy(),"welcome":self.welcome,"recovered":self.recovered,"recovery_preview":self.recovery_preview.is_some(),"recoveries_valid":self.workspace.recoveries.valid.len(),"dialog_pending":self.dialog.is_some(),"new_project_name":self.create_name,"rename_name":self.rename.as_ref().map(|(_,_,name)|name),"desktop_font_ready":self.theme.font_path.is_some()}));
+            diagnostics.record("frame", serde_json::json!({"cpu_us":self.frame_started.elapsed().as_micros() as u64,"catalog_running":self.scan.is_some(),"workspace_busy":self.workspace.busy(),"bank_busy":self.bank.busy(),"welcome":self.welcome,"recovered":self.recovered,"recovery_preview":self.recovery_preview.is_some(),"recoveries_valid":self.workspace.recoveries.valid.len(),"dialog_pending":self.dialog.is_some(),"new_project_name":self.create_name,"rename_name":self.rename.as_ref().map(|(_,_,name)|name),"desktop_font_ready":self.theme.font_path.is_some(),"text_input_focused":ctx.text_edit_focused()}));
         }
     }
 }

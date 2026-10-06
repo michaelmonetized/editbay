@@ -21,7 +21,7 @@ use std::{
 use uuid::Uuid;
 use wgpu::util::DeviceExt;
 
-const KERNEL: &str = "editbay-resident-sdr-picture-v1";
+const KERNEL: &str = "editbay-resident-sdr-picture-v2";
 
 /// Separate working-image residency and bounded evaluation limits.
 #[derive(Debug, Clone, Copy, Serialize)]
@@ -33,6 +33,8 @@ pub struct GraphBudget {
     pub nodes_per_request: usize,
     pub nesting_depth: usize,
     pub pending_submissions: usize,
+    pub polygon_points: usize,
+    pub mask_edge_tests: u64,
 }
 impl Default for GraphBudget {
     fn default() -> Self {
@@ -44,6 +46,8 @@ impl Default for GraphBudget {
             nodes_per_request: 4096,
             nesting_depth: 32,
             pending_submissions: 16,
+            polygon_points: 1024,
+            mask_edge_tests: 64 * 1024 * 1024,
         }
     }
 }
@@ -60,6 +64,8 @@ impl GraphBudget {
             || !(1..=32768).contains(&self.nodes_per_request)
             || !(1..=64).contains(&self.nesting_depth)
             || !(1..=64).contains(&self.pending_submissions)
+            || !(3..=4096).contains(&self.polygon_points)
+            || !(1..=256 * 1024 * 1024).contains(&self.mask_edge_tests)
         {
             return Err("GPU graph budgets exceed supported limits".into());
         }
@@ -153,13 +159,15 @@ struct Entry {
 #[derive(Clone)]
 enum Value {
     Image(Arc<ResidentImage>),
+    Mask(Arc<ResidentImage>),
+    Geometry(Arc<[[f32; 2]]>, String),
     Scalar(f32, String),
 }
 impl Value {
     fn key(&self) -> &str {
         match self {
-            Self::Image(v) => &v.key,
-            Self::Scalar(_, k) => k,
+            Self::Image(v) | Self::Mask(v) => &v.key,
+            Self::Scalar(_, k) | Self::Geometry(_, k) => k,
         }
     }
     fn image(&self) -> Result<Arc<ResidentImage>> {
@@ -168,6 +176,17 @@ impl Value {
             _ => Err("graph input is not an image".into()),
         }
     }
+    fn mask(&self) -> Result<Arc<ResidentImage>> {
+        match self {
+            Self::Mask(v) => Ok(v.clone()),
+            _ => Err("graph input is not a mask".into()),
+        }
+    }
+}
+
+struct Remaining {
+    nodes: usize,
+    mask_edge_tests: u64,
 }
 
 /// Single owning worker for typed SDR picture graphs and resident float caches.
@@ -278,6 +297,17 @@ impl<P: PictureProvider> GraphRenderer<P> {
             let entries = [
                 texture_binding(0),
                 texture_binding(1),
+                texture_binding(4),
+                wgpu::BindGroupLayoutEntry {
+                    binding: 5,
+                    visibility: wgpu::ShaderStages::COMPUTE,
+                    ty: wgpu::BindingType::Buffer {
+                        ty: wgpu::BufferBindingType::Storage { read_only: true },
+                        has_dynamic_offset: false,
+                        min_binding_size: std::num::NonZeroU64::new(8),
+                    },
+                    count: None,
+                },
                 wgpu::BindGroupLayoutEntry {
                     binding: 2,
                     visibility: wgpu::ShaderStages::COMPUTE,
@@ -376,7 +406,10 @@ impl<P: PictureProvider> GraphRenderer<P> {
     ) -> Result<RenderedFrame> {
         self.check()?;
         self.device.poll(wgpu::PollType::Poll)?;
-        let mut remaining = self.budget.nodes_per_request;
+        let mut remaining = Remaining {
+            nodes: self.budget.nodes_per_request,
+            mask_edge_tests: self.budget.mask_edge_tests,
+        };
         let image = self.scene(composition, position, before, 0, &mut remaining)?;
         self.check()?;
         Ok(self.receipt(image))
@@ -388,7 +421,7 @@ impl<P: PictureProvider> GraphRenderer<P> {
         position: SourcePosition,
         before: bool,
         depth: usize,
-        remaining: &mut usize,
+        remaining: &mut Remaining,
     ) -> Result<Arc<ResidentImage>> {
         if depth >= self.budget.nesting_depth {
             return Err("composition nesting exceeds the GPU worker budget".into());
@@ -406,10 +439,10 @@ impl<P: PictureProvider> GraphRenderer<P> {
                 todo.extend(inputs(&by_id[&id].operation)?);
             }
         }
-        if reachable.len() > *remaining {
+        if reachable.len() > remaining.nodes {
             return Err("picture graph exceeds the worker's node budget".into());
         }
-        *remaining -= reachable.len();
+        remaining.nodes -= reachable.len();
         let mut uses: HashMap<Uuid, usize> = HashMap::new();
         for node in frame.nodes.iter().filter(|n| reachable.contains(&n.id)) {
             for input in inputs(&node.operation)? {
@@ -426,7 +459,28 @@ impl<P: PictureProvider> GraphRenderer<P> {
                 .collect::<std::result::Result<_, _>>()?;
             let keys: Vec<_> = dependencies.iter().map(|v| v.key()).collect();
             let mut key = fingerprint(&(KERNEL, &node.sha256, keys))?;
-            let value = if node.socket == SocketType::Data {
+            let value = if node.socket == SocketType::Geometry {
+                let NodeOperation::Polygon { points } = &*node.operation else {
+                    return Err("unsupported picture geometry operation".into());
+                };
+                if points.len() > self.budget.polygon_points {
+                    return Err("polygon exceeds the GPU vertex budget".into());
+                }
+                let geometry = if node.active {
+                    points
+                        .iter()
+                        .map(|point| {
+                            if point.iter().any(|value| value.abs() > 1_000_000.) {
+                                return Err("polygon exceeds finite GPU coordinate bounds".into());
+                            }
+                            Ok([scalar(point[0])?, scalar(point[1])?])
+                        })
+                        .collect::<Result<Vec<_>>>()?
+                } else {
+                    Vec::new()
+                };
+                Value::Geometry(geometry.into(), key)
+            } else if node.socket == SocketType::Data {
                 let value = match &*node.operation {
                     NodeOperation::Scalar { value } if node.active => scalar(*value)?,
                     NodeOperation::Scalar { .. } => 0.,
@@ -434,7 +488,11 @@ impl<P: PictureProvider> GraphRenderer<P> {
                 };
                 Value::Scalar(value, key)
             } else if !node.active {
-                Value::Image(self.blank(&frame)?)
+                if node.socket == SocketType::Mask {
+                    Value::Mask(self.blank(&frame)?)
+                } else {
+                    Value::Image(self.blank(&frame)?)
+                }
             } else {
                 let mut p = Parameters::default();
                 let mut images = Vec::new();
@@ -605,11 +663,32 @@ impl<P: PictureProvider> GraphRenderer<P> {
                     NodeOperation::Over {
                         foreground,
                         background,
-                        mask: None,
+                        mask,
                     } => {
                         p.operation = Kernel::Over;
                         images.push(values[foreground].image()?);
                         images.push(values[background].image()?);
+                        if let Some(mask) = mask {
+                            p.operation = Kernel::MaskedOver;
+                            images.push(values[mask].mask()?);
+                        }
+                    }
+                    NodeOperation::Mask {
+                        geometry,
+                        feather,
+                        inverted,
+                    } => {
+                        let Value::Geometry(points, _) = &values[geometry] else {
+                            return Err("mask input is not geometry".into());
+                        };
+                        p.operation = Kernel::Mask;
+                        p.points = points.clone();
+                        p.solid = [
+                            scalar(*feather)?.max(1.),
+                            if *inverted { 1. } else { 0. },
+                            points.len() as f32,
+                            0.,
+                        ];
                     }
                     NodeOperation::Opacity { image, value } => {
                         p.operation = Kernel::Opacity;
@@ -624,6 +703,9 @@ impl<P: PictureProvider> GraphRenderer<P> {
                 let reused = match p.operation {
                     Kernel::Over if images[0].transparent => Some(images[1].clone()),
                     Kernel::Over if images[1].transparent => Some(images[0].clone()),
+                    Kernel::MaskedOver if images[0].transparent || images[2].transparent => {
+                        Some(images[1].clone())
+                    }
                     Kernel::Opacity if p.opacity == 1. => Some(images[0].clone()),
                     _ => None,
                 }
@@ -645,6 +727,15 @@ impl<P: PictureProvider> GraphRenderer<P> {
                 } else if let Some(hit) = self.cached(&key) {
                     hit
                 } else {
+                    if matches!(p.operation, Kernel::Mask) {
+                        let work = u64::from(frame.width)
+                            * u64::from(frame.height)
+                            * p.points.len() as u64;
+                        remaining.mask_edge_tests = remaining
+                            .mask_edge_tests
+                            .checked_sub(work)
+                            .ok_or("mask rasterization exceeds the request's pixel-edge budget")?;
+                    }
                     self.evaluate(
                         key,
                         frame.width,
@@ -656,7 +747,11 @@ impl<P: PictureProvider> GraphRenderer<P> {
                         images,
                     )?
                 };
-                Value::Image(image)
+                if node.socket == SocketType::Mask {
+                    Value::Mask(image)
+                } else {
+                    Value::Image(image)
+                }
             };
             values.insert(node.id, value);
             for id in dependency_ids {
@@ -1089,6 +1184,22 @@ impl<P: PictureProvider> GraphRenderer<P> {
                 contents: &bytes,
                 usage: wgpu::BufferUsages::UNIFORM,
             });
+        let vertices: Vec<u8> = if p.points.is_empty() {
+            vec![0; 8]
+        } else {
+            p.points
+                .iter()
+                .flatten()
+                .flat_map(|v| v.to_le_bytes())
+                .collect()
+        };
+        let geometry = self
+            .device
+            .create_buffer_init(&wgpu::util::BufferInitDescriptor {
+                label: Some("bounded polygon vertices"),
+                contents: &vertices,
+                usage: wgpu::BufferUsages::STORAGE,
+            });
         let pipeline = &self.pipelines[if precision == FloatPrecision::Half {
             0
         } else {
@@ -1101,6 +1212,11 @@ impl<P: PictureProvider> GraphRenderer<P> {
             .texture
             .create_view(&Default::default());
         let destination = output.texture.create_view(&Default::default());
+        let mask = images
+            .get(2)
+            .unwrap_or(&images[0])
+            .texture
+            .create_view(&Default::default());
         let bindings = self.device.create_bind_group(&wgpu::BindGroupDescriptor {
             label: Some(KERNEL),
             layout: &pipeline.get_bind_group_layout(0),
@@ -1120,6 +1236,14 @@ impl<P: PictureProvider> GraphRenderer<P> {
                 wgpu::BindGroupEntry {
                     binding: 3,
                     resource: uniform.as_entire_binding(),
+                },
+                wgpu::BindGroupEntry {
+                    binding: 4,
+                    resource: wgpu::BindingResource::TextureView(&mask),
+                },
+                wgpu::BindGroupEntry {
+                    binding: 5,
+                    resource: geometry.as_entire_binding(),
                 },
             ],
         });
@@ -1216,17 +1340,22 @@ fn inputs(op: &NodeOperation) -> Result<Vec<Uuid>> {
     Ok(match op {
         NodeOperation::Source { .. }
         | NodeOperation::Solid { .. }
+        | NodeOperation::Polygon { .. }
         | NodeOperation::Scalar { .. } => vec![],
         NodeOperation::Transform { image, .. } => vec![*image],
+        NodeOperation::Mask { geometry, .. } => vec![*geometry],
         NodeOperation::Over {
             foreground,
             background,
-            mask: None,
-        } => vec![*foreground, *background],
+            mask,
+        } => [Some(*foreground), Some(*background), *mask]
+            .into_iter()
+            .flatten()
+            .collect(),
         NodeOperation::Opacity { image, value } => vec![*image, *value],
         _ => {
             return Err(
-                "mask/geometry/audio operation is not supported by the SDR picture worker".into(),
+                "asset-mask/audio operation is not supported by the SDR picture worker".into(),
             );
         }
     })
@@ -1241,6 +1370,8 @@ enum Kernel {
     Opacity = 4,
     Nested = 5,
     Boundary = 6,
+    Mask = 7,
+    MaskedOver = 8,
 }
 struct Parameters {
     operation: Kernel,
@@ -1251,6 +1382,7 @@ struct Parameters {
     inverse_y: [f32; 4],
     solid: [f32; 4],
     gamut: [[f32; 4]; 3],
+    points: Arc<[[f32; 2]]>,
 }
 impl Default for Parameters {
     fn default() -> Self {
@@ -1263,6 +1395,7 @@ impl Default for Parameters {
             inverse_y: [0., 1., 0., 0.],
             solid: [0.; 4],
             gamut: [[1., 0., 0., 0.], [0., 1., 0., 0.], [0., 0., 1., 0.]],
+            points: Arc::from([]),
         }
     }
 }
@@ -1275,6 +1408,12 @@ impl Parameters {
             Kernel::Solid => self.solid[3] == 0.,
             Kernel::Source => false,
             Kernel::Over => images.len() == 2 && images.iter().all(|image| image.transparent),
+            Kernel::Mask => self.points.is_empty() && self.solid[1] == 0.,
+            Kernel::MaskedOver => {
+                images.len() == 3
+                    && images[1].transparent
+                    && (images[0].transparent || images[2].transparent)
+            }
             Kernel::Transform | Kernel::Opacity | Kernel::Nested | Kernel::Boundary => {
                 images.first().is_some_and(|image| image.transparent)
             }

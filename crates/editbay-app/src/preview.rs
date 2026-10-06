@@ -1459,6 +1459,22 @@ impl PreviewPane {
             }
         });
         ui.horizontal_wrapped(|ui| {
+            if !self.stopped {
+                let cancel = ui.button("Cancel viewer");
+                self.observe_control("cancel-viewer", &cancel, ui);
+                if cancel.clicked() {
+                    self.stop();
+                    self.stopped = true;
+                }
+            } else {
+                let retry = ui.button("Retry viewer");
+                self.observe_control("retry-viewer", &retry, ui);
+                if retry.clicked() {
+                    self.stopped = false;
+                    self.error = None;
+                    ui.ctx().request_repaint();
+                }
+            }
             if self.cached.preparing() {
                 let cancel = ui.button("Cancel preparation");
                 self.observe_control("cancel-picture-cache", &cancel, ui);
@@ -1552,34 +1568,18 @@ impl PreviewPane {
                 }
             }
         }
-        ui.horizontal(|ui| {
-            if !self.stopped {
-                let cancel = ui.button("Cancel viewer");
-                self.observe_control("cancel-viewer", &cancel, ui);
-                if cancel.clicked() {
-                    self.stop();
-                    self.stopped = true;
-                }
-            } else {
-                let retry = ui.button("Retry viewer");
-                self.observe_control("retry-viewer", &retry, ui);
-                if retry.clicked() {
-                    self.stopped = false;
-                    self.error = None;
-                    ui.ctx().request_repaint();
-                }
-            }
-        });
         let width = ui.available_width().clamp(1., 960.);
         let height = (ui.ctx().content_rect().height() - ui.cursor().min.y - 70.).clamp(96., 400.);
         let scale = (width / composition.width as f32).min(height / composition.height as f32);
-        let (rect, _) = ui.allocate_exact_size(
+        let (rect, mut image_response) = ui.allocate_exact_size(
             egui::vec2(
                 composition.width as f32 * scale,
                 composition.height as f32 * scale,
             ),
             egui::Sense::hover(),
         );
+        image_response.rect = rect;
+        self.observe_control("viewer-picture", &image_response, ui);
         ui.painter()
             .rect_filled(rect, 0., egui::Color32::from_gray(20));
         if let Some(picture) = &self.picture {

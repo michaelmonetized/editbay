@@ -60,8 +60,10 @@ ownership. Split crates when real dependency/ownership boundaries justify it.
 Schema 2 implements typed assets/streams, tracks/clips, nested compositions, timed
 image/mask/geometry/audio/data nodes, channels, exact source mapping and separate
 color settings. Typed frame plans expose evaluated parameters and source requests;
-the shared SDR renderer consumes their picture subset. Full audio/mask/HDR/native
-playback remains open. See [document model](DOCUMENT_MODEL.md).
+the shared SDR renderer consumes their picture and procedural-mask subset. Sound
+uses the separate bounded renderer and supervised streaming transport. Asset-mask
+formats, HDR and complete playback qualification remain open. See
+[document model](DOCUMENT_MODEL.md) and [procedural masks](PROCEDURAL_MASKS.md).
 `EvaluationSnapshot` now compiles immutable node order, shared static operations
 and source interpretation hashes once. Exact fractional/reverse preparation and
 integer inspection share that evaluator. Working image/mask keys include their
