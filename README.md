@@ -89,8 +89,14 @@ Rust 1.95 or newer matches the pinned Omadesign native stack requirements.
 
 `editbay-lab sound-blocks SOURCE` qualifies bounded original-channel sound
 against independent native PCM and declared worker timing/memory budgets.
-See [sound block contracts](docs/SOUND_BLOCKS.md). Native streaming playback
-and shared delivery are subsequent R2 dependencies.
+See [sound block contracts](docs/SOUND_BLOCKS.md).
+
+The native viewer has Play/Pause and frame seeking with a bounded device-rate
+sound queue. `editbay-lab stream-sound SOURCE [full|cancel|kill|underrun]` exercises
+the actual device worker. `editbay-lab native-playback APP SOURCE NEW_DIRECTORY
+[full|half]` exercises the window, exact pause/resume and failure recovery.
+See [streaming sound contracts](docs/STREAMING_SOUND.md). Full sustained playback,
+hardware drift and shared delivery remain separate R2 gates.
 
 Source sequences can retain an explicitly selected sound stream at its natural
 timing, including delayed starts and partial-frame tails. `editbay-lab natural-sound

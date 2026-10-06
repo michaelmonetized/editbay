@@ -103,6 +103,13 @@ authoring and complete-job release gates remain open.
   partial tails survive one-group undo, save and independent recovery without
   changing source metadata. See [source authoring](NATIVE_PREVIEW.md) and
   [actual native/PCM evidence](evidence/r2-natural-sound/README.md).
+- Native Play/Pause, sample-exact resume, frame seek and end/replay now use a
+  16,384-frame prepared queue and the device sample clock. Shared sound rendering,
+  resampling and packaged PCM decoding remain off the callback/UI. Explicit
+  stereo/original listening routes preserve source channels; underrun and codec
+  failure stop visibly. Real camera/six-channel windows and a 45-second actual
+  device run pass the scoped [native playback gates](evidence/r2-native-playback/README.md).
+  Two-hour hardware drift, sustained playback and shared delivery remain open.
 - Source-owned native decoded-picture cache: exact indexed requests, retained
   sequential decoders, bounded cache/live RGBA payload and handle limits, LRU
   eviction, charged consumer pins, fresh-token version/generation rebinding and
@@ -184,8 +191,8 @@ EB-021 and the full R2 release gate remain open.
 
 ## Still to implement
 
-Checkpoint pruning, native timeline gestures, image-sequence ingest, native production playback,
-audio graph, full GPU mask/HDR/managed display color, delivery, interchange, cloud, and
+Checkpoint pruning, native timeline gestures, image-sequence ingest, complete playback
+workload qualification, advanced audio processing, full GPU mask/HDR/managed display color, delivery, interchange, cloud, and
 production inference integration remain roadmap work. The measured picture exporter and
 short callback-clock probe are functional feasibility tools, with recorded limits.
 SAM 2.1 and RVM native prototypes are measured; production quality, GPU routes,
@@ -201,16 +208,17 @@ foundation commands. R0's persistence and documented ARM64 feasibility gates pas
 Other hardware, physical paths, production jobs and model distribution remain
 their later milestone gates. R1's native workspace is implemented and locally
 qualified. R2's document, native ingest, retained temporal/raw-cache and SDR GPU
-picture layers are implemented; complete native picture/sound playback, scheduling,
-delivery and media engine qualification
+picture layers and bounded native sound-clock playback are implemented; sustained
+playback, drift, delivery and media engine qualification
 and R3–R11 remain roadmap work. No enterprise or GTM completion
 is declared.
 
 The shared SDR GPU picture subset and its real source/cache/output qualification
 are documented in [GPU pictures](GPU_PICTURES.md) and
 [GPU evidence](evidence/r2-gpu/README.md). Shared UI-device
-presentation now uses the actual window device. Audio intervals/clock, masks/HDR
-and full playback/export still need implementation and acceptance proof.
+presentation now uses the actual window device. Shared sound intervals and native
+callback scheduling are implemented; masks/HDR and full playback/export still
+need implementation and acceptance proof. See [streaming sound](STREAMING_SOUND.md).
 EB-024/026 and R2 remain partial.
 
 The retained codec process/plane handoff and identical GPU evaluation are now

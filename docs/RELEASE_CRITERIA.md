@@ -159,3 +159,12 @@ unity rendering <=1.348308 ms preserve 5/20 ms bounds. Actual native input p95
 <=19.274 ms, cached draw <=21.152 ms and cancellation <=126.352 ms pass their
 50/250/2000 ms limits. This closes the source-sequence timing dependency; device
 streaming, physical audibility, drift, shared delivery and full R2 stay open.
+
+Native streaming has scoped [window/device evidence](evidence/r2-native-playback/README.md):
+45 seconds and 8,437 actual callbacks with an exact sample endpoint and <=16,384
+prepared frames. Camera/six-channel native Play/Pause/seek/end/replay, codec
+death/underrun/retry and edit cancellation pass. Input/draw p95 <=19.882/18.319 ms,
+worker retirement <=432.493 ms and zero saved/recovered original PCM error retain
+their unchanged limits. This completes the bounded transport dependency;
+physical audibility, two-hour hardware drift, sustained 1080p/4K and shared
+delivery remain open R2/R8 gates.

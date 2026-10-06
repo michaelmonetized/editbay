@@ -136,6 +136,38 @@ impl SoundSnapshot {
         profile: SoundProfile,
         budget: SoundBudget,
     ) -> Result<Self> {
+        Self::compile(snapshot, composition, profile, budget, false)
+    }
+
+    /// Retain the selected graph's original channels at a device output rate.
+    /// `snapshot`, `composition`, `sample_rate` and `budget` select captured
+    /// content and output bounds. Returns a compiled graph, rejecting mixed
+    /// channel identities; a graph without sound produces stereo silence.
+    pub fn at_output_rate(
+        snapshot: Arc<EvaluationSnapshot>,
+        composition: Uuid,
+        sample_rate: u32,
+        budget: SoundBudget,
+    ) -> Result<Self> {
+        Self::compile(
+            snapshot,
+            composition,
+            SoundProfile {
+                sample_rate,
+                channels: vec!["FL".into(), "FR".into()],
+            },
+            budget,
+            true,
+        )
+    }
+
+    fn compile(
+        snapshot: Arc<EvaluationSnapshot>,
+        composition: Uuid,
+        profile: SoundProfile,
+        budget: SoundBudget,
+        infer_channels: bool,
+    ) -> Result<Self> {
         if !(8000..=384_000).contains(&profile.sample_rate)
             || profile.channels.is_empty()
             || profile.channels.len() > 64
@@ -185,9 +217,22 @@ impl SoundSnapshot {
         if let Some(audio) = compiled.snapshot.project().compositions[root].audio {
             compiled.walk(root, audio, Vec::new())?;
         }
+        if infer_channels && let Some(leaf) = compiled.leaves.first() {
+            let (_, stream, _) = compiled.snapshot.source_stream(leaf.source, leaf.stream)?;
+            let StreamFormat::Audio { channels, .. } = &stream.format else {
+                return Err(invalid("sound source is not audio"));
+            };
+            compiled.profile.channels = channels.clone();
+        }
         let mut semantic = Vec::new();
         for leaf in &compiled.leaves {
             let (asset, stream, _) = compiled.snapshot.source_stream(leaf.source, leaf.stream)?;
+            if !matches!(&stream.format, StreamFormat::Audio { channels, .. } if *channels == compiled.profile.channels)
+            {
+                return Err(invalid(
+                    "source channel identities require explicit routing",
+                ));
+            }
             let steps = leaf.steps.iter().map(|step| match *step {
                 Step::Node(scene, node) => {
                     let node = &compiled.snapshot.project().compositions[scene].nodes[node];
@@ -238,14 +283,9 @@ impl SoundSnapshot {
                 match source {
                     ClipSource::Media { source, stream } => {
                         let (_, profile, _) = self.snapshot.source_stream(source, stream)?;
-                        let StreamFormat::Audio { channels, .. } = &profile.format else {
+                        let StreamFormat::Audio { .. } = &profile.format else {
                             return Err(invalid("sound source is not audio"));
                         };
-                        if *channels != self.profile.channels {
-                            return Err(invalid(
-                                "source channel identities require explicit routing",
-                            ));
-                        }
                         if self.leaves.len() >= self.budget.leaves {
                             return Err(invalid("compiled sound graph exceeds its source budget"));
                         }
@@ -286,6 +326,12 @@ impl SoundSnapshot {
     /// Takes no arguments and returns the ceiling number of output samples.
     pub fn duration_samples(&self) -> u64 {
         self.duration_samples
+    }
+
+    /// Inspect the compiled output rate and channel identities.
+    /// Takes no arguments and returns the immutable preparation profile.
+    pub fn profile(&self) -> &SoundProfile {
+        &self.profile
     }
 
     /// Retain the exact validated document used by this sound compiler.

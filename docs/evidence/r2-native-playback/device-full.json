@@ -1,0 +1,52 @@
+{
+  "application_sha256": "90fbb86456b1349e23cf1936e011e533d77e27750d48037904ad988f400ac74e",
+  "elapsed_seconds": 45.164822618,
+  "final": {
+    "callbacks": 8437,
+    "clipped_monitor_samples": 0,
+    "device": {
+      "channels": 2,
+      "name": "default",
+      "sample_format": "F32",
+      "sample_rate": 44100
+    },
+    "end_sample": 1984500,
+    "error": null,
+    "phase": "finished",
+    "position_samples": 1984500,
+    "prepared_capacity_frames": 16384,
+    "prepared_frames": 0,
+    "reported_latency_ns": 0,
+    "route": "Stereo",
+    "start_sample": 0,
+    "version": {
+      "project_id": "9dc67c3c-b537-4ede-86a4-d6706f1f666b",
+      "revision": 1
+    },
+    "worker_pid": 2137413
+  },
+  "kind": "native_streaming_sound",
+  "limits": [
+    "Actual default output device callbacks and backend latency estimate; no physical audibility or speaker timing claim",
+    "Lab-authored graph; native window controls and long hardware drift require separate evidence"
+  ],
+  "memory": [
+    "VmHWM:\t   57584 kB",
+    "VmRSS:\t   57584 kB"
+  ],
+  "mode": "full",
+  "qualified": true,
+  "retirement_ms": null,
+  "source": "/home/michael/Projects/editbay/artifacts/worktrees/r2-sound-worker/artifacts/streaming/fixtures/quiet-45s.mov",
+  "source_fingerprint": {
+    "bytes": 1152891,
+    "sha256": "9be5d3f2de23d3e1e02af73be1fc2d184b71fef8aad179cbdbb980b61239fced"
+  },
+  "source_unchanged": true,
+  "worker_reaped": true,
+  "observations": {
+    "count": 8914,
+    "maximum_prepared_frames": 16384,
+    "full_receipt": "device-full.json.gz"
+  }
+}

@@ -21,6 +21,7 @@ mod pcm_worker;
 mod picture_cache;
 mod picture_worker;
 mod sound_blocks;
+mod streaming_sound;
 mod temporal;
 
 type Result<T> = std::result::Result<T, Box<dyn std::error::Error>>;
@@ -801,6 +802,13 @@ fn run(args: Vec<OsString>) -> Result<()> {
         ("media-ingest", 2) => media_ingest::run(Path::new(&args[1]))?,
         ("picture-cache", 2) => picture_cache::run(Path::new(&args[1]))?,
         ("sound-blocks", 2) => sound_blocks::run(Path::new(&args[1]))?,
+        ("stream-sound", 2 | 3) => streaming_sound::run(
+            Path::new(&args[1]),
+            args.get(2)
+                .map(|s| s.to_str().ok_or("Mode must be UTF-8"))
+                .transpose()?
+                .unwrap_or("full"),
+        )?,
         ("natural-sound", 2 | 3) => natural_sound::run(
             Path::new(&args[1]),
             args.get(2)
@@ -847,7 +855,7 @@ fn run(args: Vec<OsString>) -> Result<()> {
         ("native-workspace", 4) => {
             native_workspace::run(Path::new(&args[1]), Path::new(&args[2]), number(&args[3])?)?
         }
-        ("native-preview", 4 | 5) => {
+        ("native-preview" | "native-playback", 4 | 5) => {
             let half = match args.get(4) {
                 None => false,
                 Some(value) if value == "full" => false,
@@ -859,6 +867,7 @@ fn run(args: Vec<OsString>) -> Result<()> {
                 Path::new(&args[2]),
                 Path::new(&args[3]),
                 half,
+                args[0] == "native-playback",
             )?
         }
         ("native-media", 4) => native_workspace::media(
@@ -930,7 +939,9 @@ fn run(args: Vec<OsString>) -> Result<()> {
                 "EditBay native feasibility lab\n  probe SOURCE FRAME_LIMIT\n  media-ingest SOURCE\n  picture-cache SOURCE\n  sound-blocks SOURCE\n  sound-blocks-worker SOURCE [WORKER_BINARY]\n  render-graph SOURCE\n  picture-worker SOURCE [WORKER_BINARY]\n  pcm-worker SOURCE [WORKER_BINARY]\n  render-graph-worker SOURCE [WORKER_BINARY]\n  evaluation SOURCE ITERATIONS [SYNTHETIC_INDEX_PICTURES]\n  playback SOURCE SECONDS\n  export SOURCE NEW_MKV FRAME_LIMIT\n  cancel-export SOURCE NEW_MKV FRAME_LIMIT CANCEL_MS\n  runtime-info ORT_LIBRARY\n  inventory MEDIA_DIRECTORY NEW_JSON_REPORT\n  native-workspace APP_BINARY NEW_EVIDENCE_DIRECTORY TRIALS\n  native-media APP_BINARY CAMERA_SOURCE NEW_EVIDENCE_DIRECTORY\n  native-workspace-timing APP_BINARY NEW_EVIDENCE_DIRECTORY\n  native-workspace-errors APP_BINARY NEW_EVIDENCE_DIRECTORY\n  rvm SOURCE VERIFIED_MODEL ORT_LIBRARY FRAME_LIMIT\n  sam2 SOURCE VERIFIED_PACK ORT_LIBRARY FRAME_LIMIT X Y\n  sam2-fixture NEW_MKV"
             );
             println!("  native-preview APP_BINARY SOURCE NEW_EVIDENCE_DIRECTORY [full|half]");
+            println!("  native-playback APP_BINARY SOURCE NEW_EVIDENCE_DIRECTORY [full|half]");
             println!("  natural-sound SOURCE [WORKER_BINARY]");
+            println!("  stream-sound SOURCE [full|cancel|kill|underrun]");
             #[cfg(feature = "torch-reference")]
             println!(
                 "  rvm-parity SOURCE VERIFIED_MODEL VERIFIED_TORCHSCRIPT ORT_LIBRARY FRAME_LIMIT"

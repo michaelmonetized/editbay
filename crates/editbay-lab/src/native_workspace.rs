@@ -310,20 +310,171 @@ fn picture(trace: &mut Trace, frame: u64, after: u64) -> Result<Value> {
 }
 
 fn set_frame(trace: &mut Trace, frame: u64) -> Result<Value> {
-    click_control(trace, "frame-number")?;
+    let after = click_control(trace, "frame-number")?;
     click_control(trace, "frame-number")?;
     key(30, true, false)?;
     command("wtype", &["-s", "40", &frame.to_string(), "-s", "80"])?;
-    let after = now();
     key(28, false, false)?;
     picture(trace, frame, after)
 }
 
+fn sound_record(
+    trace: &mut Trace,
+    description: &str,
+    after: u64,
+    predicate: impl Fn(&Value) -> bool,
+) -> Result<Value> {
+    trace.wait(description, |record| {
+        record["kind"] == "preview"
+            && record["unix_us"].as_u64().is_some_and(|time| time >= after)
+            && predicate(&record["details"])
+    })
+}
+
+fn play_sound(trace: &mut Trace) -> Result<Value> {
+    let after = click_control(trace, "play-sequence")?;
+    sound_record(trace, "device playback callbacks", after, |details| {
+        details["sound_active"] == true
+            && details["sound"]["phase"] == "playing"
+            && details["sound"]["callbacks"]
+                .as_u64()
+                .is_some_and(|count| count >= 8)
+    })
+}
+
+fn pause_sound(trace: &mut Trace) -> Result<Value> {
+    let after = click_control(trace, "pause-sequence")?;
+    let result = sound_record(trace, "pause and codec retirement", after, |details| {
+        details["sound_active"] == false && details["sound_retiring"] == 0
+    })?;
+    let elapsed = result["unix_us"].as_u64().ok_or("Missing pause time")? - after;
+    if elapsed > 2_000_000 {
+        return Err("Native sound pause exceeded two seconds".into());
+    }
+    Ok(result)
+}
+
+fn native_playback(trace: &mut Trace, directory: &Path, last: u64) -> Result<Value> {
+    set_frame(trace, 0)?;
+    let first = play_sound(trace)?;
+    let first_at = first["unix_us"].as_u64().ok_or("Missing play time")?;
+    let moving = sound_record(trace, "audio-clock picture advance", first_at, |details| {
+        let sound = &details["sound"];
+        details["displayed_frame"]
+            .as_u64()
+            .is_some_and(|frame| frame > 0)
+            && sound["position_samples"]
+                .as_u64()
+                .zip(sound["device"]["sample_rate"].as_u64())
+                .is_some_and(|(sample, rate)| sample >= rate / 2)
+    })?;
+    command(
+        "grim",
+        &[
+            "-g",
+            "80,80 1440x900",
+            directory.join("playing.png").to_str().unwrap(),
+        ],
+    )?;
+    let paused = pause_sound(trace)?;
+    let bookmark = paused["details"]["resume_sound"]["Sample"]["position"]
+        .as_u64()
+        .ok_or("Pause lost exact sample position")?;
+    let resumed = play_sound(trace)?;
+    if resumed["details"]["sound"]["start_sample"] != bookmark {
+        return Err("Native resume rounded away the paused sample".into());
+    }
+    let seek = set_frame(trace, 1)?;
+    let seeked = sound_record(
+        trace,
+        "playing seek retirement",
+        seek["unix_us"].as_u64().unwrap(),
+        |details| {
+            details["sound_active"] == false
+                && details["sound_retiring"] == 0
+                && details["resume_sound"].is_null()
+        },
+    )?;
+    let sought = play_sound(trace)?;
+    if sought["details"]["sound"]["start_sample"]
+        .as_u64()
+        .is_none_or(|sample| sample == 0 || sample >= bookmark)
+    {
+        return Err("Seek did not replace the exact paused sample boundary".into());
+    }
+    pause_sound(trace)?;
+    let mut failures = Vec::new();
+    for (signal, label) in [("-KILL", "codec-death"), ("-STOP", "underrun")] {
+        set_frame(trace, 0)?;
+        let active = play_sound(trace)?;
+        let pid = active["details"]["sound"]["worker_pid"]
+            .as_u64()
+            .ok_or("Missing active PCM worker")?;
+        let after = now();
+        command("kill", &[signal, &pid.to_string()])?;
+        let failed = sound_record(trace, label, after, |details| {
+            details["sound_active"] == false
+                && details["sound_retiring"] == 0
+                && details["error"].is_string()
+        })?;
+        let elapsed_ms =
+            (failed["unix_us"].as_u64().ok_or("Missing failure time")? - after) as f64 / 1000.;
+        if elapsed_ms > 2000. || Path::new(&format!("/proc/{pid}")).exists() {
+            return Err(format!("{label} exceeded two seconds or retained its process").into());
+        }
+        if signal == "-STOP"
+            && !failed["details"]["error"]
+                .as_str()
+                .unwrap_or_default()
+                .contains("fell behind")
+        {
+            return Err("Stalled codec did not expose the underrun".into());
+        }
+        command(
+            "grim",
+            &[
+                "-g",
+                "80,80 1440x900",
+                directory
+                    .join(format!("sound-{label}.png"))
+                    .to_str()
+                    .unwrap(),
+            ],
+        )?;
+        failures.push(
+            json!({"signal":signal,"active":active,"failed":failed,"retirement_ms":elapsed_ms}),
+        );
+    }
+    set_frame(trace, last)?;
+    let ending_at = click_control(trace, "play-sequence")?;
+    let ended = sound_record(trace, "exact sequence end", ending_at, |details| {
+        details["sound_active"] == false
+            && details["sound_retiring"] == 0
+            && details["sound"]["phase"] == "finished"
+            && details["sound"]["position_samples"] == details["sound"]["end_sample"]
+    })?;
+    let active_before_edit = play_sound(trace)?;
+    if active_before_edit["details"]["sound"]["start_sample"] != 0 {
+        return Err("Play after the sequence end did not restart at zero".into());
+    }
+    Ok(
+        json!({"first":first,"moving":moving,"paused":paused,"resumed":resumed,
+        "seek":seeked,"sought":sought,"failures":failures,"ended":ended,"active_before_edit":active_before_edit,
+        "exact_sample_resume":true,"replaced_seek_boundary":true,"worker_reaped":true}),
+    )
+}
+
 /// Exercise saved source-sequence authoring and actual native GPU presentation.
-/// `binary`, `source`, `directory` and `half` select the app, read-only media,
-/// new evidence folder and precision. Returns native draw, ownership, cancellation,
+/// `binary`, `source`, `directory`, `half` and `playback` select the app, media,
+/// evidence folder, precision and device trials. Returns draw, ownership, cancellation,
 /// recovery and layout receipts; source indexing is a real Rust seed, not UI ingest.
-pub fn preview(binary: &Path, source: &Path, directory: &Path, half: bool) -> Result<Value> {
+pub fn preview(
+    binary: &Path,
+    source: &Path,
+    directory: &Path,
+    half: bool,
+    playback: bool,
+) -> Result<Value> {
     use editbay_media::{Cancellation, SourceFile, StreamType};
     let binary = binary.canonicalize()?;
     let token = Cancellation::new()?;
@@ -545,6 +696,14 @@ pub fn preview(binary: &Path, source: &Path, directory: &Path, half: bool) -> Re
     {
         return Err("Native authoring changed source assets or lost its composition".into());
     }
+    let root = saved
+        .compositions
+        .iter()
+        .find(|c| Some(c.id) == saved.sequences[0].composition)
+        .ok_or("Missing saved source sequence")?;
+    let playback_receipt = playback
+        .then(|| native_playback(&mut trace, &directory, root.duration - 1))
+        .transpose()?;
     let address = window(|window| {
         window["pid"] == application.0.id() && window["class"] == "editbay"
     })?["address"]
@@ -584,6 +743,26 @@ pub fn preview(binary: &Path, source: &Path, directory: &Path, half: bool) -> Re
         has_tab(record, "Recovered source sequence", 4)
             && record["details"]["tabs"][0]["recovery_revision"] == 4
     })?;
+    let edit_cancel = if let Some(receipt) = &playback_receipt {
+        let cancelled = trace.wait("edited sound ownership retirement", |record| {
+            record["kind"] == "preview"
+                && record["unix_us"].as_u64().is_some_and(|time| {
+                    time >= receipt["active_before_edit"]["unix_us"].as_u64().unwrap()
+                })
+                && record["details"]["sound_active"] == false
+                && record["details"]["sound_retiring"] == 0
+                && record["details"]["sound"].is_null()
+        })?;
+        let pid = receipt["active_before_edit"]["details"]["sound"]["worker_pid"]
+            .as_u64()
+            .ok_or("Missing edited PCM worker")?;
+        if Path::new(&format!("/proc/{pid}")).exists() {
+            return Err("Edited playback retained its PCM worker".into());
+        }
+        Some(cancelled)
+    } else {
+        None
+    };
     let memory = fs::read_to_string(format!("/proc/{}/status", application.0.id()))?
         .lines()
         .filter(|line| line.starts_with("VmRSS:") || line.starts_with("VmHWM:"))
@@ -668,9 +847,10 @@ pub fn preview(binary: &Path, source: &Path, directory: &Path, half: bool) -> Re
     let pass = input["p95_ms"].as_f64().is_some_and(|v| v <= 50.)
         && display["p95_ms"].as_f64().is_some_and(|v| v <= 250.)
         && cancel_ms <= 2000.;
-    let receipt = json!({"kind":"native_preview_qualification","application_sha256":hash(&binary)?,"source":source.canonicalize()?,
+    let receipt = json!({"kind":if playback {"native_playback_qualification"} else {"native_preview_qualification"},"application_sha256":hash(&binary)?,"source":source.canonicalize()?,
         "source_fingerprint":owned.fingerprint(),"precision":initial.color.precision,"created":created,"first_native_draw":first,
         "saved_sound":saved_sound,"recovered_sound":recovered_sound,"recovered_tail":recovered_tail,
+        "playback":playback_receipt,"edit_cancellation":edit_cancel,
         "input_injection_to_request_acceptance":input,"cached_request_to_gpu_draw_completion":display,
         "button_event_delay_ms":8,"samples":samples,
         "superseded_scrub":scrubbed,"idle_worker_failure":failed,"retry":retried,"active_cancel":cancelled,"active_cancel_ms":cancel_ms,
@@ -678,7 +858,7 @@ pub fn preview(binary: &Path, source: &Path, directory: &Path, half: bool) -> Re
         "saved_sha256":saved_hash,"recovered_sha256":hash(&recovered_path)?,"recovered_native_draw":recovered_draw,"reopened_native_draw":reopened_draw,
         "source_unchanged":true,"memory":memory,"pass":pass,"limits":["Indexing is a real native Rust seed; existing UI ingest has separate receipts",
             "GPU command completion and inspected native screenshots; no physical input or display photon timing",
-            "Paused frame stepping and scrubbing with saved/recovered sound PCM; device playback, sustained scheduling, delivery and other hardware remain open"]});
+            "Device submission is not physical audibility or two-hour drift; sustained 1080p/4K performance, delivery and other hardware remain open"]});
     File::create_new(directory.join("qualification.json"))?
         .write_all(&serde_json::to_vec_pretty(&receipt)?)?;
     if !pass {

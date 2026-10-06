@@ -3,8 +3,8 @@
 The native workspace creates editable picture and sound sequences from imported video and
 draws the shared SDR GPU graph on its actual window device. It uses the packaged
 Rust picture worker, the core command/undo path and the existing save/recovery
-foundation. This is paused picture authoring and viewing. Sound scheduling,
-sustained playback and shared delivery remain R2 work.
+foundation. Play/Pause schedules pictures from a bounded native sound clock;
+sustained hardware qualification and shared delivery remain R2 work.
 
 ## Use it
 
@@ -12,12 +12,13 @@ Open a project, import a video, select its actual video stream, then expand the
 source, choose an imported sound stream or **Picture only**, then choose
 **Create sequence from video**. A sole imported sound stream is selected initially;
 multiple sound streams require a choice. Select the resulting sequence
-and use Previous frame, Next frame, the frame number or the scrubber. Save,
+and use Play/Pause, Previous frame, Next frame, the frame number or the scrubber. Save,
 Undo, Redo and recovery use the same document as the CLI and automation.
 
 Cancel viewer stops the underlying codec and GPU job. Retry viewer creates a
-fresh job after cancellation or failure. Errors appear in the workspace; there
-is no enabled playback or export control without its implementation.
+fresh job after cancellation or failure. Errors appear in the workspace. Play
+retries failed sound with a fresh worker. See [streaming sound](STREAMING_SOUND.md)
+for exact pause/seek behavior and explicit listening routes.
 
 ## Source authoring
 
@@ -50,7 +51,8 @@ Clock/range overflow fails before document mutation. Imported assets, source
 metadata, original channel identities and sample rate remain unchanged.
 
 The viewer shows empty picture regions over its transparency checkerboard.
-Sound authoring and offline PCM verification do not enable device playback.
+Sound authoring retains original channels; the separate listening route selects
+how the prepared shared graph reaches the native output device.
 
 ## Worker and GPU ownership
 
