@@ -301,6 +301,15 @@ completion records and preparation ahead of the sound clock continue in
 
 ## R3 — finish a paying edit
 
+Issue [#49](https://github.com/michaelmonetized/editbay/issues/49) /
+[PR #50](https://github.com/michaelmonetized/editbay/pull/50) adds exact native/CLI
+[range delivery](RANGE_DELIVERY.md). Twelve independent camera/six-channel slices,
+worker faults and native cancellation/retry/save/recovery/reopen workflows pass;
+[raw evidence and earlier failures](evidence/r3-range-delivery/README.md) remain.
+Bounded sound pre-roll preserves whole-master PCM through compressed source history.
+Delivery queues, standalone cold PCM seeking, sustained playback and full release
+gates stay open.
+
 Issue [#29](https://github.com/michaelmonetized/editbay/issues/29) implements the
 first linked assembly dependency: exact source marks, insert/append, split,
 trim, move, ripple removal, native controls and version-owned CLI commands.

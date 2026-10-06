@@ -28,6 +28,40 @@ struct Job {
     cancellation: Option<String>,
 }
 
+struct ExportChoice {
+    owner: DocumentOwner,
+    composition: Uuid,
+    name: String,
+    duration: u64,
+    full: bool,
+    start: String,
+    end: String,
+}
+
+impl ExportChoice {
+    fn request(&self) -> Result<DeliveryRequest, String> {
+        let request = DeliveryRequest {
+            composition: self.composition,
+            sample_rate: 48000,
+            range: if self.full {
+                None
+            } else {
+                Some(editbay_core::FrameRange {
+                    start: self
+                        .start
+                        .parse()
+                        .map_err(|_| "Enter a whole start frame")?,
+                    end: self.end.parse().map_err(|_| "Enter a whole end frame")?,
+                })
+            },
+        };
+        request
+            .frame_range(self.duration)
+            .map_err(|error| error.to_string())?;
+        Ok(request)
+    }
+}
+
 impl Drop for Job {
     fn drop(&mut self) {
         self.control.cancel();
@@ -38,9 +72,109 @@ impl Drop for Job {
 #[derive(Default)]
 pub struct DeliveryPane {
     jobs: Vec<Job>,
+    choice: Option<ExportChoice>,
+    history_open: bool,
 }
 
 impl DeliveryPane {
+    /// Show the retained export activity without reducing the viewer's height.
+    /// `ui` provides the toolbar; returns after opening the bounded job window.
+    pub fn activity_button(&mut self, ui: &mut egui::Ui) {
+        if !self.jobs.is_empty() && ui.button("Exports").clicked() {
+            self.history_open = true;
+        }
+    }
+    /// Open export options for one captured native sequence.
+    /// `owner`, `composition`, `name` and `duration` identify the saved selection.
+    /// Returns immediately; destination choice follows a validated frame range.
+    pub fn choose(&mut self, owner: DocumentOwner, composition: Uuid, name: String, duration: u64) {
+        self.choice = Some(ExportChoice {
+            owner,
+            composition,
+            name,
+            duration,
+            full: true,
+            start: "0".into(),
+            end: duration.to_string(),
+        });
+    }
+
+    /// Draw full-sequence or explicit range options before choosing a new file.
+    /// `ctx`, `workspace` and `preview` provide the window, owner checks and native
+    /// diagnostic geometry. Returns only a valid, still-owned destination request.
+    pub fn show_choice(
+        &mut self,
+        ctx: &egui::Context,
+        workspace: &Workspace,
+        preview: &mut PreviewPane,
+    ) -> Option<(DocumentOwner, DeliveryRequest, String)> {
+        let choice = self.choice.as_mut()?;
+        let mut accepted = None;
+        let mut cancelled = false;
+        let modal = egui::Modal::new(egui::Id::new("export-options")).show(ctx, |ui| {
+            ui.set_min_width(360.);
+            ui.heading("Export sequence");
+            ui.label("Lossless MOV · 48 kHz sound · original channels");
+            ui.add_space(8.);
+            let whole = ui.radio_value(&mut choice.full, true, "Full sequence");
+            preview.observe_control("export-full", &whole, ui);
+            let range = ui.radio_value(&mut choice.full, false, "Frame range");
+            preview.observe_control("export-range", &range, ui);
+            ui.add_enabled_ui(!choice.full, |ui| {
+                ui.horizontal(|ui| {
+                    ui.label("Start");
+                    let start =
+                        ui.add(egui::TextEdit::singleline(&mut choice.start).desired_width(85.));
+                    preview.observe_control("export-start", &start, ui);
+                    ui.label("End");
+                    let end =
+                        ui.add(egui::TextEdit::singleline(&mut choice.end).desired_width(85.));
+                    preview.observe_control("export-end", &end, ui);
+                });
+                ui.weak(format!(
+                    "Frames start at 0. End is excluded. Sequence ends at {}.",
+                    choice.duration
+                ));
+            });
+            let request = choice.request();
+            let owned = workspace.owns(choice.owner);
+            if !owned {
+                ui.colored_label(
+                    ui.visuals().error_fg_color,
+                    "The project changed. Close these options and choose the sequence again.",
+                );
+            } else if let Err(error) = &request {
+                ui.colored_label(ui.visuals().error_fg_color, error);
+            } else if let Ok(request) = &request
+                && let Ok(range) = request.frame_range(choice.duration)
+            {
+                ui.label(format!("{} pictures", range.end - range.start));
+            }
+            ui.add_space(8.);
+            ui.horizontal(|ui| {
+                let next = ui.add_enabled(
+                    owned && request.is_ok(),
+                    egui::Button::new("Choose destination…"),
+                );
+                preview.observe_control("export-continue", &next, ui);
+                if next.clicked() {
+                    accepted = request.ok();
+                }
+                let cancel = ui.button("Cancel");
+                preview.observe_control("export-options-cancel", &cancel, ui);
+                cancelled = cancel.clicked();
+            });
+        });
+        if let Some(request) = accepted {
+            let choice = self.choice.take()?;
+            return Some((choice.owner, request, choice.name));
+        }
+        if cancelled || modal.should_close() {
+            self.choice = None;
+        }
+        None
+    }
+
     /// Inspect whether rendering, verification or worker retirement is active.
     /// Takes no arguments; returns true until its owning thread has been reaped.
     pub fn busy(&self) -> bool {
@@ -131,6 +265,7 @@ impl DeliveryPane {
             error: None,
             cancellation: None,
         });
+        self.history_open = true;
         Ok(())
     }
 
@@ -174,18 +309,19 @@ impl DeliveryPane {
         workspace: &mut Workspace,
         preview: &mut PreviewPane,
     ) -> Result<(), String> {
-        if self.jobs.is_empty() {
+        if self.jobs.is_empty() || !self.history_open {
             return Ok(());
         }
         let busy = self.busy();
         let mut retry = None;
-        egui::CollapsingHeader::new("Exports").default_open(true).show(ui, |ui| {
+        let mut open = self.history_open;
+        egui::Window::new("Exports").open(&mut open).default_pos(egui::pos2(600.,140.)).default_width(440.).resizable(true).show(ui.ctx(), |ui| {
             egui::ScrollArea::vertical().id_salt("export-history").max_height(200.).show(ui, |ui| {
             for (index, job) in self.jobs.iter_mut().enumerate().rev() {
                 ui.group(|ui| {
                     ui.label(job.destination.file_name().unwrap_or_default().to_string_lossy());
                     if let Some(receipt) = &job.receipt {
-                        ui.label(format!("Revision {} exported and verified · {} pictures · {} Hz · {} channels", receipt.version.revision, receipt.profile.frames, receipt.profile.sample_rate, receipt.profile.channels.len()));
+                        ui.label(format!("Revision {} exported and verified · frames {}–{} · {} Hz · {} channels", receipt.version.revision, receipt.profile.first_frame, receipt.profile.first_frame + receipt.profile.frames, receipt.profile.sample_rate, receipt.profile.channels.len()));
                         ui.weak(job.destination.to_string_lossy());
                         if receipt.clipped_picture_values > 0 { ui.colored_label(ui.visuals().warn_fg_color, "Picture values outside the 8-bit output range were clipped"); }
                     } else if job.thread.is_some() {
@@ -201,6 +337,9 @@ impl DeliveryPane {
                         };
                         ui.label(label);
                         if let Some(progress) = &job.progress {
+                            if progress.phase == Phase::Preparing && progress.total_preparation_samples > 0 {
+                                ui.label(format!("Preparing source sound: {} / {} samples", progress.prepared_samples, progress.total_preparation_samples));
+                            }
                             let fraction = match progress.phase {
                                 Phase::Rendering => 0.8 * progress.pictures as f32 / progress.total_pictures.max(1) as f32,
                                 Phase::VerifyingPictures => 0.8 + 0.1 * progress.pictures as f32 / progress.total_pictures.max(1) as f32,
@@ -223,6 +362,7 @@ impl DeliveryPane {
             }
             });
         });
+        self.history_open = open;
         if let Some(index) = retry {
             let job = &self.jobs[index];
             let (owner, _) = workspace.edit_snapshot(job.owner.tab)?;
@@ -240,7 +380,8 @@ impl DeliveryPane {
     /// Inspect opt-in job ownership, progress and outcomes without reading files.
     /// Takes no arguments; returns bounded diagnostic history, never media payloads.
     pub fn diagnostic_state(&self) -> serde_json::Value {
-        serde_json::json!({"busy":self.busy(),"jobs":self.jobs.iter().map(|job|serde_json::json!({
+        serde_json::json!({"busy":self.busy(),"choice":self.choice.as_ref().map(|choice|serde_json::json!({
+            "owner":choice.owner.version,"composition":choice.composition,"full":choice.full,"start":choice.start,"end":choice.end,"duration":choice.duration})),"jobs":self.jobs.iter().map(|job|serde_json::json!({
             "id":job.id,"owner":job.owner.version,"tab":job.owner.tab,"request":job.request,"destination":job.destination,
             "running":job.thread.is_some(),"progress":job.progress,"worker_pid":job.pid,
             "receipt":job.receipt,"error":job.error,"cancellation":job.cancellation})).collect::<Vec<_>>()})

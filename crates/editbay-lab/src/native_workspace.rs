@@ -2,6 +2,7 @@ mod cached;
 mod completions;
 pub mod masks;
 pub mod prepared;
+pub mod ranges;
 
 use crate::{Result, hash, metrics};
 use editbay_core::{Project, load, recovery_catalog, save_new};
@@ -261,6 +262,11 @@ fn now() -> u64 {
 
 fn choose_master(trace: &mut Trace, destination: &Path) -> Result<()> {
     click_control(trace, "export-sequence")?;
+    click_control(trace, "export-continue")?;
+    choose_destination(destination)
+}
+
+fn choose_destination(destination: &Path) -> Result<()> {
     let chooser = window(|window| {
         matches!(
             window["class"].as_str(),
@@ -346,6 +352,27 @@ fn export_job(trace: &mut Trace, after: u64, predicate: impl Fn(&Value) -> bool)
 /// `binary` is the real app, `project` is a saved sequence and `directory` is new
 /// evidence storage. Returns actual window/process/file receipts and measured gates.
 pub fn delivery(binary: &Path, project: &Path, directory: &Path) -> Result<Value> {
+    delivery_trial(binary, project, None, directory)
+}
+
+/// Qualify native range cancellation, death, edit invalidation and retry.
+/// `binary`, `project`, `reference` and new `directory` select the application,
+/// saved sequence, whole master and receipts. Returns actual job and exact slice evidence.
+pub fn range_jobs(
+    binary: &Path,
+    project: &Path,
+    reference: &Path,
+    directory: &Path,
+) -> Result<Value> {
+    delivery_trial(binary, project, Some(reference), directory)
+}
+
+fn delivery_trial(
+    binary: &Path,
+    project: &Path,
+    reference: Option<&Path>,
+    directory: &Path,
+) -> Result<Value> {
     let binary = binary.canonicalize()?;
     let original = project.canonicalize()?;
     let original_hash = hash(&original)?;
@@ -372,6 +399,8 @@ pub fn delivery(binary: &Path, project: &Path, directory: &Path) -> Result<Value
         let after = now();
         if let Some(id) = previous.as_ref() {
             click_control(&mut trace, &format!("retry-export:{id}"))?;
+        } else if reference.is_some() {
+            ranges::choose(&mut trace, &destination)?;
         } else {
             choose_master(&mut trace, &destination)?;
         }
@@ -500,10 +529,11 @@ pub fn delivery(binary: &Path, project: &Path, directory: &Path) -> Result<Value
         return Err("Native export changed original media/project content".into());
     }
     app.kill()?;
-    let independent = crate::shared_delivery::inspect(
-        &destination,
-        &serde_json::from_value(completed["receipt"].clone())?,
-    )?;
+    let receipt = serde_json::from_value(completed["receipt"].clone())?;
+    let independent = match reference {
+        Some(reference) => crate::range_delivery::compare(reference, &destination, &receipt)?,
+        None => crate::shared_delivery::inspect(&destination, &receipt)?,
+    };
     let latency = metrics(&mut edits);
     let viewing = metrics(&mut view_inputs);
     let qualified = latency["p95_ms"].as_f64().is_some_and(|ms| ms <= 50.)
@@ -558,9 +588,19 @@ fn control(trace: &mut Trace, name: &str) -> Result<[i64; 2]> {
 
 fn click_control(trace: &mut Trace, name: &str) -> Result<u64> {
     trace.focus()?;
-    let [x, y] = control(trace, name)?;
-    dispatch(&format!("hl.dsp.cursor.move({{x={x},y={y}}})"))?;
-    thread::sleep(Duration::from_millis(125));
+    let deadline = Instant::now() + Duration::from_secs(10);
+    loop {
+        let position = control(trace, name)?;
+        let [x, y] = position;
+        dispatch(&format!("hl.dsp.cursor.move({{x={x},y={y}}})"))?;
+        thread::sleep(Duration::from_millis(125));
+        if control(trace, name)? == position {
+            break;
+        }
+        if Instant::now() >= deadline {
+            return Err(format!("Native control did not settle: {name}").into());
+        }
+    }
     let sent = now();
     command("ydotool", &["click", "-D", "8", "0xC0"])?;
     Ok(sent)

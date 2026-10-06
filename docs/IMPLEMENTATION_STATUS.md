@@ -1,5 +1,14 @@
 # Rust restart: implementation status
 
+Issue [#49](https://github.com/michaelmonetized/editbay/issues/49) /
+[PR #50](https://github.com/michaelmonetized/editbay/pull/50) adds exact native/CLI
+[range delivery](RANGE_DELIVERY.md). Twelve independent camera/six-channel slices,
+worker faults and native cancellation/retry/save/recovery/reopen workflows pass;
+[raw evidence and earlier failures](evidence/r3-range-delivery/README.md) remain.
+Bounded sound pre-roll preserves whole-master PCM through compressed source history.
+Delivery queues, standalone cold PCM seeking, sustained playback and full release
+gates stay open.
+
 Issue [#47](https://github.com/michaelmonetized/editbay/issues/47) / draft
 [PR #48](https://github.com/michaelmonetized/editbay/pull/48) pins the updated
 [native sound backend](SOUND_BACKEND.md), bounds actual callback geometry and

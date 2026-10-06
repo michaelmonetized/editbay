@@ -1,0 +1,67 @@
+{
+  "binary_sha256": "2bc63c057763dc002f148a71a3ded5173f84bd34cb579e0452fc3f931b9b9f81",
+  "collision_preserved": true,
+  "destination": "/home/michael/Projects/editbay/artifacts/worktrees/r2-sound-worker/artifacts/range-delivery/faults/camera-stall.mov",
+  "elapsed_ms": 857.221504,
+  "error": "media operation cancelled",
+  "independent": null,
+  "kind": "shared_delivery_qualification",
+  "memory": [
+    "VmHWM:\t   36368 kB",
+    "VmRSS:\t   36368 kB"
+  ],
+  "mode": "stall",
+  "observations": [
+    {
+      "elapsed_ms": 3.44473,
+      "progress": {
+        "phase": "preparing",
+        "pictures": 0,
+        "samples": 0,
+        "total_pictures": 0,
+        "total_samples": 0
+      }
+    },
+    {
+      "elapsed_ms": 82.919524,
+      "progress": {
+        "phase": "rendering",
+        "pictures": 0,
+        "samples": 0,
+        "total_pictures": 5,
+        "total_samples": 10000
+      }
+    },
+    {
+      "elapsed_ms": 341.494409,
+      "progress": {
+        "phase": "rendering",
+        "pictures": 1,
+        "samples": 2000,
+        "total_pictures": 5,
+        "total_samples": 10000
+      }
+    },
+    {
+      "elapsed_ms": 506.66457899999995,
+      "progress": {
+        "phase": "rendering",
+        "pictures": 2,
+        "samples": 4000,
+        "total_pictures": 5,
+        "total_samples": 10000
+      }
+    }
+  ],
+  "published": false,
+  "qualified": true,
+  "range": {
+    "end": 7,
+    "start": 2
+  },
+  "receipt": null,
+  "retirement_ms": 177.669998,
+  "schema": 1,
+  "worker_high_water_kib": 161456,
+  "worker_reaped": true
+}

@@ -86,7 +86,7 @@ physical-device measurements. Every output reopens; sources retain their hashes.
 The [qualified camera/multichannel results](evidence/r2-shared-delivery/README.md)
 include native export, recovery equality, process death and unchanged inputs.
 
-This first profile does not close all R2/R3/R7/R11 gates. Arbitrary ranges, multiple
+This first profile does not close all R2/R3/R7/R11 gates. [Exact frame ranges](RANGE_DELIVERY.md) are implemented separately. Multiple
 queued jobs, delivery presets, HDR/high precision, broadcast/OTT formats, hardware
 encoding, long 1080p/4K workloads, other GPUs, independent-user proof and client
 acceptance remain open. Very large files can exceed the per-request verification

@@ -26,6 +26,7 @@ mod picture_cache;
 mod picture_store;
 mod picture_worker;
 mod procedural_masks;
+mod range_delivery;
 mod shared_delivery;
 mod sound_blocks;
 mod streaming_sound;
@@ -817,6 +818,27 @@ fn run(args: Vec<OsString>) -> Result<()> {
             args[3].to_str().ok_or("Composition must be UTF-8")?,
             Path::new(&args[4]),
         )?,
+        ("range-delivery", 5) => range_delivery::run(
+            Path::new(&args[1]),
+            Path::new(&args[2]),
+            args[3]
+                .to_str()
+                .ok_or("Composition must be UTF-8")?
+                .parse()?,
+            Path::new(&args[4]),
+        )?,
+        ("native-range", 5) => native_workspace::ranges::run(
+            Path::new(&args[1]),
+            Path::new(&args[2]),
+            Path::new(&args[3]),
+            Path::new(&args[4]),
+        )?,
+        ("native-range-jobs", 5) => native_workspace::range_jobs(
+            Path::new(&args[1]),
+            Path::new(&args[2]),
+            Path::new(&args[3]),
+            Path::new(&args[4]),
+        )?,
         ("shared-delivery", 4 | 5) => shared_delivery::run(
             Path::new(&args[1]),
             args[2].to_str().ok_or("Composition must be UTF-8")?,
@@ -825,6 +847,13 @@ fn run(args: Vec<OsString>) -> Result<()> {
                 .map(|mode| mode.to_str().ok_or("Mode must be UTF-8"))
                 .transpose()?
                 .unwrap_or("full"),
+        )?,
+        ("range-fault", 5) => shared_delivery::run_range(
+            Path::new(&args[1]),
+            args[2].to_str().ok_or("Composition must be UTF-8")?,
+            Path::new(&args[3]),
+            args[4].to_str().ok_or("Mode must be UTF-8")?,
+            Some(editbay_core::FrameRange { start: 2, end: 7 }),
         )?,
         ("probe", 3) => probe(Path::new(&args[1]), number(&args[2])?)?,
         ("media-ingest", 2) => media_ingest::run(Path::new(&args[1]))?,
@@ -1063,6 +1092,10 @@ fn run(args: Vec<OsString>) -> Result<()> {
             println!("  native-cached APP_BINARY SAVED_LONG_PROJECT NEW_EVIDENCE_DIRECTORY");
             println!("  picture-store PROJECT COMPOSITION NEW_EVIDENCE_DIRECTORY WORKER_BINARY");
             println!("  native-delivery APP_BINARY PROJECT NEW_EVIDENCE_DIRECTORY");
+            println!("  range-delivery CLI_BINARY PROJECT COMPOSITION NEW_DIRECTORY");
+            println!("  range-fault PROJECT COMPOSITION NEW_MOV MODE");
+            println!("  native-range APP_BINARY PROJECT FULL_MASTER NEW_DIRECTORY");
+            println!("  native-range-jobs APP_BINARY PROJECT FULL_MASTER NEW_DIRECTORY");
             println!("  mask-graph SAVED_SOURCE_PROJECT NEW_EVIDENCE_DIRECTORY");
             println!("  native-masks APP_BINARY MASK_PROJECT NEW_EVIDENCE_DIRECTORY");
             println!("  timeline-compare PROJECT COMPOSITION UNCUT_MASTER CUT_MASTER");

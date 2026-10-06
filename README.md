@@ -101,6 +101,8 @@ hardware drift remain separate R2 gates.
 **Export…** writes the selected sequence as a verified lossless PNG/float-PCM MOV
 master on a supervised Rust worker. The native chooser, progress, cancel, visible
 errors and retry share `editbay export PROJECT COMPOSITION_ID NEW_MOV [SAMPLE_RATE]`.
+[Exact range export](docs/RANGE_DELIVERY.md) selects original-grid pictures and
+sound through native export options or `editbay export-range`.
 Existing destinations and source media are preserved. See
 [shared delivery](docs/SHARED_DELIVERY.md) for the exact eight-bit SDR profile,
 original sound channels, anonymous publication and current limits.
