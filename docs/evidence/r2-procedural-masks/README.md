@@ -2,6 +2,7 @@
 
 Issue [#45](https://github.com/michaelmonetized/editbay/issues/45), after
 [PR #44](https://github.com/michaelmonetized/editbay/pull/44).
+Implementation is [PR #46](https://github.com/michaelmonetized/editbay/pull/46).
 Frozen runtime `0ee08f7` is identified by source, lockfile and binary SHA-256 in
 [final/](final/). The [mask contract](../../PROCEDURAL_MASKS.md) defines geometry,
 coverage, types, cache identities and resource bounds.
