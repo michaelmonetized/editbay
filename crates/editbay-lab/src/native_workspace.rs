@@ -1,3 +1,4 @@
+mod cached;
 mod completions;
 pub mod prepared;
 
@@ -2763,7 +2764,12 @@ fn reset_sound_start(trace: &mut Trace) -> Result<()> {
 /// Exercise an existing longer cut in the actual native editor.
 /// `binary`, saved `project` and new `directory` select the app and private outputs.
 /// Returns exact edit/history, seek, device, save/recovery and master receipts.
-pub fn long_timeline(binary: &Path, project: &Path, directory: &Path) -> Result<Value> {
+pub fn long_timeline(
+    binary: &Path,
+    project: &Path,
+    directory: &Path,
+    prepare: bool,
+) -> Result<Value> {
     let binary = binary.canonicalize()?;
     let original = project.canonicalize()?;
     let original_hash = hash(&original)?;
@@ -2797,6 +2803,9 @@ pub fn long_timeline(binary: &Path, project: &Path, directory: &Path) -> Result<
         &directory.join("native.jsonl"),
         Some(&copy),
     )?;
+    let memory = prepare
+        .then(|| cached::Memory::start(app.0.id()))
+        .transpose()?;
     picture(&mut trace, 0, 0)?;
     click_control(&mut trace, "source-media")?;
     thread::sleep(Duration::from_millis(350));
@@ -2810,6 +2819,16 @@ pub fn long_timeline(binary: &Path, project: &Path, directory: &Path) -> Result<
     trace.wait("selected long cut", |r| {
         r["kind"] == "preview" && r["details"]["sequence"] == sequence.to_string()
     })?;
+    let cache_faults = if prepare {
+        Some(cached::faults(&mut trace)?)
+    } else {
+        None
+    };
+    let prepared_before_seeks = if prepare {
+        Some(cached::prepare(&mut trace)?)
+    } else {
+        None
+    };
     let mut seeks = Vec::new();
     for frame in [duration - 1, 1, duration / 2, 2] {
         let draw = set_frame(&mut trace, frame)?;
@@ -2822,6 +2841,12 @@ pub fn long_timeline(binary: &Path, project: &Path, directory: &Path) -> Result<
     let mut revision = seed.revision;
     let mut inputs = Vec::new();
     let mut edits = Vec::new();
+    let obsolete_preparation = if prepare {
+        Some(cached::stalled(&mut trace)?)
+    } else {
+        None
+    };
+    let mut stale_retirement = None;
     for action in ["remove", "undo", "redo", "undo"] {
         let sent = if action == "remove" {
             click_control(&mut trace, "timeline-remove")?
@@ -2835,6 +2860,11 @@ pub fn long_timeline(binary: &Path, project: &Path, directory: &Path) -> Result<
         let latency =
             (committed["unix_us"].as_u64().ok_or("Commit time absent")? - sent) as f64 / 1000.;
         inputs.push(latency);
+        if action == "remove"
+            && let Some((pid, _)) = &obsolete_preparation
+        {
+            stale_retirement = Some(cached::retired(&mut trace, sent, *pid, false)?);
+        }
         let state = timeline_record(&mut trace, revision)?;
         let expected = clips.len() - usize::from(action != "undo");
         if state["clips"].as_array().map(Vec::len) != Some(expected) {
@@ -2846,6 +2876,11 @@ pub fn long_timeline(binary: &Path, project: &Path, directory: &Path) -> Result<
         edits.push(json!({"action":action,"input_ms":latency,"timeline":state}));
     }
     reset_sound_start(&mut trace)?;
+    let prepared_before_play = if prepare {
+        Some(cached::prepare(&mut trace)?)
+    } else {
+        None
+    };
     let playing = play_sound(&mut trace)?;
     let finished = sound_record(
         &mut trace,
@@ -2858,6 +2893,12 @@ pub fn long_timeline(binary: &Path, project: &Path, directory: &Path) -> Result<
         },
     )?;
     let playback_completed = finished["details"]["sound"]["phase"] == "finished";
+    trace.read()?;
+    let display = if prepare && playback_completed {
+        Some(completions::audit(&trace.records, duration)?)
+    } else {
+        None
+    };
     let playback_sequence = finished["details"]["sequence"].as_str().or_else(|| {
         (finished["details"]["display"]["session"] == playing["details"]["display"]["session"])
             .then(|| finished["details"]["display"]["scope"]["sequence"].as_str())
@@ -2937,6 +2978,17 @@ pub fn long_timeline(binary: &Path, project: &Path, directory: &Path) -> Result<
         ],
     )?;
     app.kill()?;
+    let memory = memory.map(cached::Memory::finish).transpose()?;
+    if prepare {
+        if fs::read_dir(directory.join("state/picture-cache"))?.count() != 0 {
+            return Err("Preparation left named cache files after app retirement".into());
+        }
+        for asset in &seed.assets {
+            if hash(&asset.path)? != asset.sha256 {
+                return Err("Native preparation changed source bytes".into());
+            }
+        }
+    }
     let (mut reopened, mut reopened_trace) = start(
         &binary,
         &directory.join("reopened-state"),
@@ -2989,7 +3041,25 @@ pub fn long_timeline(binary: &Path, project: &Path, directory: &Path) -> Result<
     )?;
     let latency = metrics(&mut inputs);
     let input_gate_passed = latency["p95_ms"].as_f64().is_some_and(|ms| ms <= 50.);
-    let receipt = json!({"kind":"native_long_cut","qualified":input_gate_passed && playback_completed,"input_gate_passed":input_gate_passed,"playback_completed":playback_completed,"application_sha256":hash(&binary)?,"original_project_sha256":original_hash,"composition":composition,"clips":clips.len(),"revision":revision,"input_latency":latency,"edits":edits,"seeks":seeks,"playing":playing,"finished":finished,"saved_recovered_equal":true,"source_project_unchanged":true,"reopened_timeline":restored,"reopened_picture":restored_picture,"compact_picture":compact_picture,"completed":completed,"independent":independent,"limits":["Native long-cut functionality and software-injected inputs; sustained frame-drop and hardware drift gates remain separate","No physical audibility or independent-user acceptance claim"]});
+    let mut seek_times: Vec<_> = seeks
+        .iter()
+        .filter_map(|s| s["details"]["gpu_draw_completed_us"].as_u64())
+        .map(|us| us as f64 / 1000.)
+        .collect();
+    let seek_latency = (!seek_times.is_empty()).then(|| metrics(&mut seek_times));
+    let cache_gate_passed = !prepare
+        || (display
+            .as_ref()
+            .is_some_and(|d| d["every_frame_completed_by_observed_end"] == true)
+            && seek_latency
+                .as_ref()
+                .is_some_and(|d| d["p95_ms"].as_f64().is_some_and(|ms| ms <= 250.))
+            && memory.as_ref().is_some_and(|m| {
+                m["peak_combined_rss_kib"]
+                    .as_u64()
+                    .is_some_and(|kib| kib <= 4 * 1024 * 1024)
+            }));
+    let receipt = json!({"kind":"native_long_cut","qualified":input_gate_passed && playback_completed && cache_gate_passed,"input_gate_passed":input_gate_passed,"playback_completed":playback_completed,"application_sha256":hash(&binary)?,"original_project_sha256":original_hash,"composition":composition,"clips":clips.len(),"revision":revision,"input_latency":latency,"edits":edits,"seeks":seeks,"seek_latency":seek_latency,"cache_gate_passed":cache_gate_passed,"cache_faults":cache_faults,"prepared_before_seeks":prepared_before_seeks,"prepared_before_play":prepared_before_play,"stale_retirement":stale_retirement,"display":display,"memory":memory,"playing":playing,"finished":finished,"saved_recovered_equal":true,"source_project_unchanged":true,"reopened_timeline":restored,"reopened_picture":restored_picture,"compact_picture":compact_picture,"completed":completed,"independent":independent,"limits":["Native long-cut functionality and software-injected inputs; sustained frame-drop and hardware drift gates remain separate","No physical audibility or independent-user acceptance claim"]});
     File::create_new(directory.join("qualification.json"))?
         .write_all(&serde_json::to_vec_pretty(&receipt)?)?;
     Ok(receipt)

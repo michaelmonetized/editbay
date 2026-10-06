@@ -7,6 +7,7 @@ mod ffi;
 pub mod native_job;
 mod pcm;
 pub mod pcm_worker;
+pub mod picture_store;
 pub mod picture_worker;
 mod pictures;
 #[allow(unsafe_code)]

@@ -1,3 +1,4 @@
+mod cached;
 mod completion;
 mod prepared;
 
@@ -398,6 +399,7 @@ impl Task {
         sequence: Uuid,
         gpu: Gpu,
         ctx: egui::Context,
+        store: Option<editbay_media::picture_store::PreparedStore>,
     ) -> Result<Self, String> {
         if owner.version != DocumentVersion::of(&project) {
             return Err("Viewer document ownership changed before startup".into());
@@ -433,13 +435,16 @@ impl Task {
                         .and_then(|item| item.composition)
                         .ok_or("Sequence has no picture composition")?;
                     let executable = std::env::current_exe().map_err(|e| e.to_string())?;
-                    let provider = PictureWorker::new(
+                    let mut provider = PictureWorker::new(
                         &executable,
                         snapshot.clone(),
                         WorkerBudget::default(),
                         token.clone(),
                     )
                     .map_err(|e| e.to_string())?;
+                    if let Some(store) = store {
+                        provider.attach_store(store).map_err(|e| e.to_string())?;
+                    }
                     if let Some(pid) = provider.process_id() {
                         publish(Event::Started(pid));
                     }
@@ -644,6 +649,7 @@ struct Creation {
 
 #[derive(Default)]
 pub struct PreviewPane {
+    cached: cached::Cache,
     view_owner: Option<DocumentOwner>,
     gpu: Option<Gpu>,
     selections: HashMap<Uuid, Selection>,
@@ -672,6 +678,14 @@ pub struct PreviewPane {
 }
 
 impl PreviewPane {
+    /// Configure bounded background picture storage in the application's state directory.
+    /// `directory` is the explicit cache location. Returns a viewer without starting IO.
+    pub fn new(directory: std::path::PathBuf) -> Self {
+        Self {
+            cached: cached::Cache::new(directory),
+            ..Default::default()
+        }
+    }
     /// Select an authored composition and exact frame in the shared viewer.
     /// `tab`, `project`, `composition` and `frame` identify document content.
     /// Returns an error if absent; changing selection stops current playback.
@@ -1044,6 +1058,7 @@ impl PreviewPane {
     fn observe_owner(&mut self, owner: Option<DocumentOwner>) {
         if owner != self.view_owner {
             self.stop();
+            self.cached.invalidate();
             self.stopped = false;
             self.error = None;
             self.resume_sound = None;
@@ -1064,6 +1079,14 @@ impl PreviewPane {
             None
         };
         self.observe_owner(owner);
+        if self.cached.poll() {
+            self.stop();
+            self.stopped = false;
+            self.error = None;
+        }
+        if self.cached.busy() {
+            ctx.request_repaint_after(Duration::from_millis(16));
+        }
         if let Some(completions) = &mut self.completions {
             completions.poll();
             let state = completions.summary();
@@ -1305,6 +1328,9 @@ impl PreviewPane {
             return;
         };
         let last = composition.duration - 1;
+        if let Some(owner) = self.view_owner {
+            self.cached.observe(owner, selected.sequence);
+        }
         selected.frame = selected.frame.min(last);
         ui.horizontal_wrapped(|ui| {
             let previous = ui.add_enabled(selected.frame > 0, egui::Button::new("Previous frame"));
@@ -1347,7 +1373,7 @@ impl PreviewPane {
                 }
             } else {
                 let play = ui.add_enabled(
-                    !self.stopped && self.task.is_some() && self.sound_retiring.is_empty(),
+                    !self.stopped && self.task.is_some() && self.sound_retiring.is_empty() && !self.cached.busy(),
                     egui::Button::new("Play"),
                 );
                 self.observe_control("play-sequence", &play, ui);
@@ -1432,6 +1458,33 @@ impl PreviewPane {
                 ui.weak("Stopping sound…");
             }
         });
+        ui.horizontal_wrapped(|ui| {
+            if self.cached.preparing() {
+                let cancel = ui.button("Cancel preparation");
+                self.observe_control("cancel-picture-cache", &cancel, ui);
+                if cancel.clicked() { self.cached.invalidate(); }
+            } else {
+                let prepare = ui.add_enabled(self.cached.available() && !self.cached.busy() && self.sound.is_none() && self.starting.is_none(), egui::Button::new("Prepare playback"))
+                    .on_hover_text("Cache exact source pictures for this sequence. Editing or switching sequences discards preparation.");
+                self.observe_control("prepare-picture-cache", &prepare, ui);
+                if prepare.clicked() {
+                    self.stop();
+                    self.cached.invalidate();
+                    let result = workspace.edit_snapshot(tab).and_then(|(owner, editor)| self.cached.start(owner, editor.snapshot(), selected.sequence, ui.ctx().clone()));
+                    if let Err(error) = result { self.cached.error = Some(error); }
+                }
+            }
+        });
+        let cache_label = self.cached.label();
+        if !cache_label.is_empty() {
+            ui.weak(cache_label);
+        }
+        if let Some(error) = &self.cached.error {
+            ui.add(
+                egui::Label::new(egui::RichText::new(error).color(ui.visuals().error_fg_color))
+                    .wrap(),
+            );
+        }
         if self.sound.is_some() || self.starting.is_some() || !self.sound_retiring.is_empty() {
             ui.ctx().request_repaint_after(Duration::from_millis(16));
         }
@@ -1443,7 +1496,7 @@ impl PreviewPane {
             self.error = None;
         }
         self.selections.insert(tab, selected);
-        if !self.stopped && self.task.is_none() && self.retiring.is_empty() {
+        if !self.stopped && self.task.is_none() && self.retiring.is_empty() && !self.cached.busy() {
             let started = workspace.edit_snapshot(tab).and_then(|(owner, _)| {
                 let gpu = self
                     .gpu
@@ -1455,6 +1508,7 @@ impl PreviewPane {
                     selected.sequence,
                     gpu,
                     ui.ctx().clone(),
+                    self.cached.ready(owner, selected.sequence),
                 )
             });
             match started {
@@ -1588,6 +1642,7 @@ impl PreviewPane {
             "adapter":self.gpu.as_ref().map(|gpu|format!("{:?}",gpu.adapter.get_info())),
             "rejected_results":self.rejected,"retiring":self.retiring.len(),"creating":self.creation.is_some(),"stopped":self.stopped,"error":self.error,"controls":self.controls,
             "coalesced_results":self.task.as_ref().map(|task|task.coalesced.load(Ordering::Acquire)),
+            "picture_cache":self.cached.diagnostic(),
             "sound":self.sound_status,"sound_active":self.sound.is_some(),"sound_retiring":self.sound_retiring.len(),"skipped_frames":self.skipped_frames,
             "preparing_playback":self.starting.is_some(),"prepared_pictures":self.prepared.as_ref().and_then(|pictures|pictures.lock().ok().map(|pictures|pictures.state())),
             "accepted_picture_gaps":self.skipped_frames,"display":self.completions.as_ref().map(CompletionLog::summary),

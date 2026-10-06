@@ -849,7 +849,9 @@ pub(crate) fn dimensions(width: u32, height: u32) -> Result<()> {
 }
 
 impl NodeOperation {
-    pub(crate) fn inputs(&self) -> Vec<(Uuid, SocketType)> {
+    /// Inspect the typed dependencies of this operation.
+    /// Takes this operation. Returns input node identities and their required sockets.
+    pub fn inputs(&self) -> Vec<(Uuid, SocketType)> {
         match self {
             Self::Transform { image, .. } => vec![(*image, SocketType::Image)],
             Self::Over {

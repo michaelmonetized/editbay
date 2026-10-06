@@ -111,7 +111,19 @@ pub fn run(binary: &Path, project: &Path, directory: &Path) -> Result<Value> {
             json!({"signal":signal,"playing":playing,"failed":failed,"retirement_ms":elapsed_ms}),
         );
         if was_stopped {
-            click_control(&mut trace, "retry-viewer")?;
+            let retry = click_control(&mut trace, "retry-viewer")?;
+            trace.wait("retried viewer completion", |r| {
+                let details = &r["details"];
+                r["kind"] == "preview"
+                    && r["unix_us"].as_u64().is_some_and(|us| us >= retry)
+                    && details["stopped"] == false
+                    && details["displayed_frame"].is_number()
+                    && details["displayed_frame"] == details["requested_frame"]
+                    && details["displayed_serial"] == details["serial"]
+                    && details["gpu_draw_completed_us"]
+                        .as_u64()
+                        .is_some_and(|us| us > 0)
+            })?;
         }
         set_frame(&mut trace, 0)?;
     }
