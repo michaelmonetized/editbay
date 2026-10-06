@@ -25,6 +25,7 @@ its entire application. Extract small reusable crates with independent tests.
 | `editbay-media` | Ingest, metadata, stream mapping, decode, proxies | Native codec adapters with bounded memory |
 | `editbay-render` | Typed temporal image graph, color, masks, float GPU processing | Shared preview/export evaluation |
 | `editbay-audio` | Audio clock, sample-accurate graph, routing, devices, automation | Real-time callback excludes allocation/blocking work |
+| `editbay-delivery` | Captured shared picture/sound master, supervised render and decode verification | Anonymous output; atomic cancel/publication; no overwrite |
 | `editbay-jobs` | Scheduling, cancellation, resource budgets, worker supervision | Revision- and source-owned results |
 | `editbay-ai` | Model registry, native runtimes, matte/track/rig jobs | Editable persistent results; no mandatory cloud |
 | `editbay-interchange` | FCPXML/XML/OTIO/AAF/graphics codecs and conversion reports | Read-only sources; new destination files |
@@ -107,8 +108,13 @@ graph on a Rust worker into a 16,384-frame atomic queue. The callback only consu
 prepared samples and publishes its device sample clock. Pause keeps the exact
 sample boundary; seek/edit cancels the captured owner. Late pictures coalesce
 without slowing sound; underrun stops visibly and cancels the codec. See
-[streaming sound](STREAMING_SOUND.md). Sustained hardware/drift qualification
-and complete shared delivery remain open; see [sound blocks](SOUND_BLOCKS.md).
+[streaming sound](STREAMING_SOUND.md). Shared delivery evaluates these same picture
+and sound snapshots in a supervised packaged Rust child. It passes an anonymous
+output descriptor, verifies every decoded picture/sample, and publishes a new
+filename only after the parent verifies the file and wins the atomic cancellation
+decision. Document guards cancel before revision assignment. See
+[shared delivery](SHARED_DELIVERY.md). Sustained hardware/drift and broader
+profiles remain open.
 Schema 1 migrates after integrity verification without writing its source; unknown
 schemas fail. Format-copy migration uses a separate destination.
 

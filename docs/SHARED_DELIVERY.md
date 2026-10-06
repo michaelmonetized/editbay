@@ -83,6 +83,8 @@ The lab provides `shared-delivery`, `native-delivery`, `delivery-protocol` and
 `delivery-interrupts`; `--help` lists arguments. Evidence distinguishes synthetic
 multichannel media from real camera media and software-injected native input from
 physical-device measurements. Every output reopens; sources retain their hashes.
+The [qualified camera/multichannel results](evidence/r2-shared-delivery/README.md)
+include native export, recovery equality, process death and unchanged inputs.
 
 This first profile does not close all R2/R3/R7/R11 gates. Arbitrary ranges, multiple
 queued jobs, delivery presets, HDR/high precision, broadcast/OTT formats, hardware

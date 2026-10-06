@@ -234,8 +234,12 @@ Natural source-sequence sound timing (#22) is implemented and separately qualifi
 Issue #24 adds bounded native streaming with exact sample pause/resume,
 audio-clock picture scheduling, explicit monitor routing and visible underrun.
 See [streaming sound](STREAMING_SOUND.md) and its
-[native/device evidence](evidence/r2-native-playback/README.md). Shared delivery, complete playback
-workloads, long hardware drift and full R2 acceptance remain following dependencies.
+[native/device evidence](evidence/r2-native-playback/README.md).
+Issue #26 supplies the first [shared master](SHARED_DELIVERY.md): full-sequence
+PNG RGBA8 and original-channel float PCM, native/CLI export, supervised rendering,
+independent decode verification, captured ownership, cancellation and retry.
+Complete playback workloads, broader delivery profiles, long hardware drift and
+full R2 acceptance remain open. Timeline authoring continues next.
 
 ## R3 — finish a paying edit
 

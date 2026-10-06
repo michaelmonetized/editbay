@@ -7,6 +7,17 @@ authoring and complete-job release gates remain open.
 
 ## Implemented
 
+- Shared full-sequence delivery through `editbay-delivery`: the same picture and
+  sound graph produces a declared PNG RGBA8/float-PCM MOV with exact clocks,
+  alpha/color and original channels. Native Export, progress, cancellation and
+  retry share the CLI path. Supervised workers decode-check every output byte,
+  retain source ownership and publish anonymous storage without overwrite.
+  Document mutations cancel directly before revision assignment. This first SDR
+  profile is not a complete R2/R3/R7/R11 release; see [shared delivery](SHARED_DELIVERY.md).
+  [Final qualification](evidence/r2-shared-delivery/README.md) covers actual camera
+  and six-channel native exports, independently identical saved/recovered media,
+  source/destination preservation, changed-source rejection and controller death.
+
 - Cargo workspace with `editbay-core` and the `editbay` CLI, a generated
   dependency lockfile, structured errors, and no production Python dependency.
 - Fresh validated document schema: stable UUIDs, revisions, sequence dimensions,

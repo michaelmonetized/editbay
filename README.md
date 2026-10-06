@@ -96,7 +96,14 @@ sound queue. `editbay-lab stream-sound SOURCE [full|cancel|kill|underrun]` exerc
 the actual device worker. `editbay-lab native-playback APP SOURCE NEW_DIRECTORY
 [full|half]` exercises the window, exact pause/resume and failure recovery.
 See [streaming sound contracts](docs/STREAMING_SOUND.md). Full sustained playback,
-hardware drift and shared delivery remain separate R2 gates.
+hardware drift remain separate R2 gates.
+
+**Export…** writes the selected sequence as a verified lossless PNG/float-PCM MOV
+master on a supervised Rust worker. The native chooser, progress, cancel, visible
+errors and retry share `editbay export PROJECT COMPOSITION_ID NEW_MOV [SAMPLE_RATE]`.
+Existing destinations and source media are preserved. See
+[shared delivery](docs/SHARED_DELIVERY.md) for the exact eight-bit SDR profile,
+original sound channels, anonymous publication and current limits.
 
 Source sequences can retain an explicitly selected sound stream at its natural
 timing, including delayed starts and partial-frame tails. `editbay-lab natural-sound
@@ -115,10 +122,10 @@ command, undo, save and recovery path. Existing schema 1 projects/checkpoints
 migrate in memory; their source bytes remain intact until explicit save. Native
 media import selects actual streams, indexes picture timestamps and preserves
 original sound channels through undo/save/recovery; see
-[native ingest](docs/MEDIA_INGEST.md). Native timeline gestures, evaluated
-picture/sound output, full media delivery, cloud and artist inference workflows
-remain roadmap work. The lab's picture-only exporter and 30-second
-sound probe have measured limits; see the evidence before choosing a workload.
+[native ingest](docs/MEDIA_INGEST.md). Native timeline gestures, broader delivery
+profiles, cloud and artist inference workflows remain roadmap work. The older
+lab picture-only exporter and 30-second sound probe remain separate feasibility
+tools; production preview/playback and the first shared master use the paths above.
 
 `EvaluationSnapshot` retains immutable compiled dependencies for repeated exact
 fractional/reverse frame planning. The published integer inspection format is

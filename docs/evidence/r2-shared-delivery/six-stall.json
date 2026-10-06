@@ -1,0 +1,63 @@
+{
+  "binary_sha256": "1672057ebc6cdee40fe1a13680cda4b376be8250fe8d38b9b9d3c3dc7996feda",
+  "collision_preserved": true,
+  "destination": "artifacts/delivery/qualified-six-stall.mov",
+  "elapsed_ms": 326.837741,
+  "error": "media operation cancelled",
+  "independent": null,
+  "kind": "shared_delivery_qualification",
+  "memory": [
+    "VmHWM:\t   30048 kB",
+    "VmRSS:\t   30048 kB"
+  ],
+  "mode": "stall",
+  "observations": [
+    {
+      "elapsed_ms": 0.9976320000000001,
+      "progress": {
+        "phase": "preparing",
+        "pictures": 0,
+        "samples": 0,
+        "total_pictures": 0,
+        "total_samples": 0
+      }
+    },
+    {
+      "elapsed_ms": 51.01153600000001,
+      "progress": {
+        "phase": "rendering",
+        "pictures": 0,
+        "samples": 0,
+        "total_pictures": 79,
+        "total_samples": 158158
+      }
+    },
+    {
+      "elapsed_ms": 57.998462,
+      "progress": {
+        "phase": "rendering",
+        "pictures": 1,
+        "samples": 2002,
+        "total_pictures": 79,
+        "total_samples": 158158
+      }
+    },
+    {
+      "elapsed_ms": 61.144651,
+      "progress": {
+        "phase": "rendering",
+        "pictures": 2,
+        "samples": 4004,
+        "total_pictures": 79,
+        "total_samples": 158158
+      }
+    }
+  ],
+  "published": false,
+  "qualified": true,
+  "receipt": null,
+  "retirement_ms": 172.905543,
+  "schema": 1,
+  "worker_high_water_kib": 97728,
+  "worker_reaped": true
+}

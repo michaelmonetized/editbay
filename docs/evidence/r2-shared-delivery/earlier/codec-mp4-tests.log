@@ -1,0 +1,25 @@
+   Compiling editbay-media v0.1.0 (/home/michael/Projects/editbay/artifacts/worktrees/r2-sound-worker/crates/editbay-media)
+    Finished `test` profile [unoptimized] target(s) in 1.80s
+     Running tests/delivery.rs (/home/michael/Projects/editbay/artifacts/worktrees/r2-sound-engine/target/native-build/debug/deps/delivery-0708e251020c6fef)
+
+running 2 tests
+test delivery_refuses_incomplete_stale_unbounded_cancelled_and_invalid_work ... ok
+test native_lossless_mov_preserves_every_pixel_sample_channel_and_exact_clock ... FAILED
+
+failures:
+
+---- native_lossless_mov_preserves_every_pixel_sample_channel_and_exact_clock stdout ----
+
+thread 'native_lossless_mov_preserves_every_pixel_sample_channel_and_exact_clock' (2325119) panicked at crates/editbay-media/tests/delivery.rs:89:9:
+assertion `left == right` failed
+  left: ["U0"]
+ right: ["FC"]
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+
+
+failures:
+    native_lossless_mov_preserves_every_pixel_sample_channel_and_exact_clock
+
+test result: FAILED. 1 passed; 1 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.01s
+
+error: test failed, to rerun pass `-p editbay-media --test delivery`

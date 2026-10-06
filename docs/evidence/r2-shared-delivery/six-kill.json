@@ -1,0 +1,63 @@
+{
+  "binary_sha256": "1672057ebc6cdee40fe1a13680cda4b376be8250fe8d38b9b9d3c3dc7996feda",
+  "collision_preserved": true,
+  "destination": "artifacts/delivery/qualified-six-kill.mov",
+  "elapsed_ms": 108.08382499999999,
+  "error": "invalid media request: codec worker failed: filesystem: Connection reset by peer (os error 104); ",
+  "independent": null,
+  "kind": "shared_delivery_qualification",
+  "memory": [
+    "VmHWM:\t   30016 kB",
+    "VmRSS:\t   30016 kB"
+  ],
+  "mode": "kill",
+  "observations": [
+    {
+      "elapsed_ms": 0.991549,
+      "progress": {
+        "phase": "preparing",
+        "pictures": 0,
+        "samples": 0,
+        "total_pictures": 0,
+        "total_samples": 0
+      }
+    },
+    {
+      "elapsed_ms": 58.064629,
+      "progress": {
+        "phase": "rendering",
+        "pictures": 0,
+        "samples": 0,
+        "total_pictures": 79,
+        "total_samples": 158158
+      }
+    },
+    {
+      "elapsed_ms": 64.61255200000001,
+      "progress": {
+        "phase": "rendering",
+        "pictures": 1,
+        "samples": 2002,
+        "total_pictures": 79,
+        "total_samples": 158158
+      }
+    },
+    {
+      "elapsed_ms": 67.450739,
+      "progress": {
+        "phase": "rendering",
+        "pictures": 2,
+        "samples": 4004,
+        "total_pictures": 79,
+        "total_samples": 158158
+      }
+    }
+  ],
+  "published": false,
+  "qualified": true,
+  "receipt": null,
+  "retirement_ms": 1.59972,
+  "schema": 1,
+  "worker_high_water_kib": 97760,
+  "worker_reaped": true
+}
