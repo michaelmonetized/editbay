@@ -330,7 +330,11 @@ fn run(request: &Request, sender: &SyncSender<Event>) -> Result<()> {
     let device = cpal::default_host()
         .default_output_device()
         .ok_or("No sound output device is available")?;
-    let supported = device.default_output_config().map_err(|e| e.to_string())?;
+    let default = device.default_output_config().map_err(|e| e.to_string())?;
+    let supported = match device.supported_output_configs() {
+        Ok(configurations) => video_output_config(default, configurations),
+        Err(_) => default,
+    };
     let profile = DeviceProfile {
         name: device.name().map_err(|e| e.to_string())?,
         sample_rate: supported.sample_rate().0,
@@ -579,8 +583,76 @@ fn build<T: SizedSample + FromSample<f32>>(
         .map_err(|e| e.to_string())
 }
 
+fn video_output_config(
+    default: cpal::SupportedStreamConfig,
+    configurations: impl Iterator<Item = cpal::SupportedStreamConfigRange>,
+) -> cpal::SupportedStreamConfig {
+    configurations
+        .take(256)
+        .find(|config| {
+            config.channels() == default.channels()
+                && config.sample_format() == default.sample_format()
+                && config.min_sample_rate().0 <= 48000
+                && config.max_sample_rate().0 >= 48000
+        })
+        .map_or(default, |config| {
+            config.with_sample_rate(cpal::SampleRate(48000))
+        })
+}
+
 fn elapsed_ns(origin: Instant) -> u64 {
     origin.elapsed().as_nanos().min(u128::from(u64::MAX)) as u64
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn video_output_preserves_device_channels_and_format_with_honest_rate_fallback() {
+        use cpal::{
+            SampleFormat, SampleRate, SupportedBufferSize, SupportedStreamConfig,
+            SupportedStreamConfigRange,
+        };
+        let default = SupportedStreamConfig::new(
+            2,
+            SampleRate(44100),
+            SupportedBufferSize::Unknown,
+            SampleFormat::F32,
+        );
+        let range = |channels, maximum, format| {
+            SupportedStreamConfigRange::new(
+                channels,
+                SampleRate(44100),
+                SampleRate(maximum),
+                SupportedBufferSize::Unknown,
+                format,
+            )
+        };
+        let chosen = video_output_config(
+            default.clone(),
+            [
+                range(6, 48000, SampleFormat::F32),
+                range(2, 48000, SampleFormat::I16),
+                range(2, 48000, SampleFormat::F32),
+            ]
+            .into_iter(),
+        );
+        assert_eq!(chosen.sample_rate().0, 48000);
+        assert_eq!(chosen.channels(), 2);
+        assert_eq!(chosen.sample_format(), SampleFormat::F32);
+        let fallback = video_output_config(
+            default.clone(),
+            [range(2, 44100, SampleFormat::F32)].into_iter(),
+        );
+        assert_eq!(fallback.sample_rate().0, 44100);
+        assert_eq!(
+            video_output_config(default, std::iter::empty())
+                .sample_rate()
+                .0,
+            44100
+        );
+    }
 }
 fn fault(state: State) -> Option<&'static str> {
     match state {
