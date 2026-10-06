@@ -73,9 +73,17 @@ impl Drop for Job {
 pub struct DeliveryPane {
     jobs: Vec<Job>,
     choice: Option<ExportChoice>,
+    history_open: bool,
 }
 
 impl DeliveryPane {
+    /// Show the retained export activity without reducing the viewer's height.
+    /// `ui` provides the toolbar; returns after opening the bounded job window.
+    pub fn activity_button(&mut self, ui: &mut egui::Ui) {
+        if !self.jobs.is_empty() && ui.button("Exports").clicked() {
+            self.history_open = true;
+        }
+    }
     /// Open export options for one captured native sequence.
     /// `owner`, `composition`, `name` and `duration` identify the saved selection.
     /// Returns immediately; destination choice follows a validated frame range.
@@ -257,6 +265,7 @@ impl DeliveryPane {
             error: None,
             cancellation: None,
         });
+        self.history_open = true;
         Ok(())
     }
 
@@ -300,12 +309,13 @@ impl DeliveryPane {
         workspace: &mut Workspace,
         preview: &mut PreviewPane,
     ) -> Result<(), String> {
-        if self.jobs.is_empty() {
+        if self.jobs.is_empty() || !self.history_open {
             return Ok(());
         }
         let busy = self.busy();
         let mut retry = None;
-        egui::CollapsingHeader::new("Exports").default_open(true).show(ui, |ui| {
+        let mut open = self.history_open;
+        egui::Window::new("Exports").open(&mut open).default_pos(egui::pos2(600.,140.)).default_width(440.).resizable(true).show(ui.ctx(), |ui| {
             egui::ScrollArea::vertical().id_salt("export-history").max_height(200.).show(ui, |ui| {
             for (index, job) in self.jobs.iter_mut().enumerate().rev() {
                 ui.group(|ui| {
@@ -352,6 +362,7 @@ impl DeliveryPane {
             }
             });
         });
+        self.history_open = open;
         if let Some(index) = retry {
             let job = &self.jobs[index];
             let (owner, _) = workspace.edit_snapshot(job.owner.tab)?;

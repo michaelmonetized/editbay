@@ -879,6 +879,7 @@ impl Studio {
                 {
                     self.delivery.choose(owner, composition, name, duration);
                 }
+                self.delivery.activity_button(ui);
             }
             if !compact {
                 self.workspace_tools(ui, &ctx);
