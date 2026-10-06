@@ -98,7 +98,7 @@ pub fn compare(
     )
 }
 
-fn decode(
+pub(crate) fn decode(
     path: &Path,
     picture: bool,
     filter: Option<&str>,

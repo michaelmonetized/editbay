@@ -2,6 +2,7 @@ mod cached;
 mod completions;
 pub mod masks;
 pub mod prepared;
+pub mod ranges;
 
 use crate::{Result, hash, metrics};
 use editbay_core::{Project, load, recovery_catalog, save_new};
@@ -261,6 +262,11 @@ fn now() -> u64 {
 
 fn choose_master(trace: &mut Trace, destination: &Path) -> Result<()> {
     click_control(trace, "export-sequence")?;
+    click_control(trace, "export-continue")?;
+    choose_destination(destination)
+}
+
+fn choose_destination(destination: &Path) -> Result<()> {
     let chooser = window(|window| {
         matches!(
             window["class"].as_str(),

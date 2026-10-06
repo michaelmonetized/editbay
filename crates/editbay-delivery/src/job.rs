@@ -108,11 +108,13 @@ pub fn deliver(
         .iter()
         .find(|c| c.id == request.composition)
         .ok_or("Delivery composition is absent")?;
+    let range = request.frame_range(composition.duration)?;
     let expected = LosslessMovProfile {
         width: composition.width,
         height: composition.height,
         frame_rate: composition.frame_rate,
-        frames: composition.duration,
+        first_frame: range.start,
+        frames: range.end - range.start,
         sample_rate: request.sample_rate,
         channels: sound.profile().channels.clone(),
     };
@@ -357,6 +359,7 @@ mod tests {
             width: 32,
             height: 18,
             frame_rate: editbay_core::FrameRate::new(30, 1).unwrap(),
+            first_frame: 0,
             frames: 3,
             sample_rate: 48000,
             channels: vec!["FL".into(), "FR".into()],
@@ -491,6 +494,18 @@ mod tests {
             .is_err()
         );
         let mut malformed = receipt.clone();
+        malformed.profile.first_frame = 1;
+        assert!(
+            validate_reply(
+                &make(complete.clone(), Some(malformed)),
+                owner,
+                0,
+                &profile,
+                Some(&prior)
+            )
+            .is_err()
+        );
+        let mut malformed = receipt.clone();
         malformed.profile.channels = vec!["FC".into()];
         assert!(
             validate_reply(
@@ -572,6 +587,7 @@ mod tests {
         let request = DeliveryRequest {
             composition: Uuid::new_v4(),
             sample_rate: 48000,
+            range: None,
         };
         let control = DeliveryControl::new().unwrap();
         assert!(control.cancel());

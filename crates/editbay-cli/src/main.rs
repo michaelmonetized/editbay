@@ -28,6 +28,7 @@ Usage:
   editbay ingest FILE SOURCE STREAM_INDICES
   editbay decode-frame SOURCE STREAM_INDEX SOURCE_TICK
   editbay export FILE COMPOSITION_ID NEW_MOV [SAMPLE_RATE]
+  editbay export-range FILE COMPOSITION_ID NEW_MOV START_FRAME END_FRAME [SAMPLE_RATE]
   editbay checkpoint FILE RECOVERY_DIRECTORY
   editbay recoveries RECOVERY_DIRECTORY
   editbay recover CHECKPOINT NEW_FILE
@@ -60,11 +61,20 @@ fn read_bounded(path: &Path, limit: u64) -> Result<Vec<u8>, Box<dyn std::error::
 }
 
 fn export(args: &[OsString]) -> Result<(), Box<dyn std::error::Error>> {
+    let range = args[0] == "export-range";
     let request = editbay_delivery::DeliveryRequest {
         composition: name(&args[2])?.parse()?,
-        sample_rate: match args.get(4) {
+        sample_rate: match args.get(if range { 6 } else { 4 }) {
             Some(rate) => name(rate)?.parse()?,
             None => 48000,
+        },
+        range: if range {
+            Some(editbay_core::FrameRange {
+                start: name(&args[4])?.parse()?,
+                end: name(&args[5])?.parse()?,
+            })
+        } else {
+            None
         },
     };
     let project = std::sync::Arc::new(load(Path::new(&args[1]))?);
@@ -162,6 +172,7 @@ fn run(args: &[OsString]) -> Result<(), Box<dyn std::error::Error>> {
             )?;
         }
         ("export", 4 | 5) => export(args)?,
+        ("export-range", 6 | 7) => export(args)?,
         ("rename", 3) => {
             let path = Path::new(&args[1]);
             let expected = load(path)?;

@@ -23,6 +23,10 @@ pub fn run(project: &Path, composition: &str) -> Result<Value> {
         "foreign-version",
         "extra-file",
         "duplicate-begin",
+        "empty-range",
+        "reversed-range",
+        "foreign-range",
+        "overflow-range",
     ] {
         let file = if mode == "named-file" {
             File::create_new(directory.path().join("owned-original.mov"))?
@@ -39,8 +43,18 @@ pub fn run(project: &Path, composition: &str) -> Result<Value> {
         let pid = child.process_id();
         let owner =
             json!({"job":Uuid::new_v4(),"version":editbay_core::DocumentVersion::of(&project)});
-        let begin = json!({"owner":owner,"serial":0,"operation":{"kind":"begin","project":project,"request":{"composition":composition,"sample_rate":48000}}});
+        let begin = json!({"owner":owner,"serial":0,"operation":{"kind":"begin","project":project,"request":{"composition":composition,"sample_rate":48000,"range":{"start":2,"end":7}}}});
         let (request, descriptor) = match mode {
+            "empty-range" | "reversed-range" | "foreign-range" | "overflow-range" => {
+                let mut request = begin.clone();
+                request["operation"]["request"]["range"] = match mode {
+                    "empty-range" => json!({"start":2,"end":2}),
+                    "reversed-range" => json!({"start":7,"end":2}),
+                    "foreign-range" => json!({"start":0,"end":u64::MAX}),
+                    _ => json!({"start":u64::MAX-1,"end":u64::MAX}),
+                };
+                (request, Some(&file))
+            }
             "malformed" => (json!("invalid request"), None),
             "unknown-field" => {
                 let mut request = begin.clone();

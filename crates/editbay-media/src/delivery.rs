@@ -9,6 +9,8 @@ pub struct LosslessMovProfile {
     pub width: u32,
     pub height: u32,
     pub frame_rate: FrameRate,
+    #[serde(default)]
+    pub first_frame: u64,
     pub frames: u64,
     pub sample_rate: u32,
     pub channels: Vec<String>,
@@ -33,6 +35,10 @@ impl LosslessMovProfile {
             || !(1..=8192).contains(&self.height)
             || self.frames == 0
             || self.frames > i64::MAX as u64
+            || self
+                .first_frame
+                .checked_add(self.frames)
+                .is_none_or(|end| end > i64::MAX as u64)
             || rate.denominator == 0
             || rate.numerator < rate.denominator
             || u64::from(rate.numerator) > 240 * u64::from(rate.denominator)
@@ -50,7 +56,12 @@ impl LosslessMovProfile {
             (a, b) = (b, a % b);
         }
         let timescale = u64::from(rate.numerator / a) * u64::from(self.sample_rate);
-        if timescale > i32::MAX as u64 || self.samples_through(self.frames)? > i64::MAX as u64 {
+        if timescale > i32::MAX as u64
+            || self
+                .sample_origin()?
+                .checked_add(self.samples_through(self.frames)?)
+                .is_none_or(|end| end > i64::MAX as u64)
+        {
             return Err(Error::Invalid(
                 "lossless MOV time range exceeds native limits".into(),
             ));
@@ -59,10 +70,28 @@ impl LosslessMovProfile {
     }
 
     /// Resolve the exact exclusive sound boundary at a picture boundary.
-    /// `frame` is relative to this delivery; returns its ceiling in output samples.
+    /// `frame` is relative to this delivery; returns the selected composition-grid
+    /// sample count. Output timestamps begin at zero without re-rounding its phase.
     pub fn samples_through(&self, frame: u64) -> Result<u64> {
-        if frame > self.frames || self.frame_rate.numerator == 0 {
+        if frame > self.frames {
             return Err(Error::Invalid("delivery frame is outside its range".into()));
+        }
+        let end = self
+            .first_frame
+            .checked_add(frame)
+            .ok_or_else(|| Error::Invalid("delivery frame range overflow".into()))?;
+        Ok(self.sample_boundary(end)? - self.sample_origin()?)
+    }
+
+    /// Resolve the first selected sample on the unchanged composition grid.
+    /// Takes this profile; returns an absolute sample ordinal, not an output PTS.
+    pub fn sample_origin(&self) -> Result<u64> {
+        self.sample_boundary(self.first_frame)
+    }
+
+    fn sample_boundary(&self, frame: u64) -> Result<u64> {
+        if self.frame_rate.numerator == 0 {
+            return Err(Error::Invalid("delivery has no frame rate".into()));
         }
         u64::try_from(
             (u128::from(frame)

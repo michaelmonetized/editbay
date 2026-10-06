@@ -8,6 +8,19 @@ use std::{fs, path::Path, process::Command, sync::Arc, time::Instant};
 /// `mode` selects full, cancel, kill, stall, collision or cancel-verify evidence.
 /// Returns measured receipts and fails if any declared acceptance gate fails.
 pub fn run(project: &Path, composition: &str, destination: &Path, mode: &str) -> Result<Value> {
+    run_range(project, composition, destination, mode, None)
+}
+
+/// Exercise the same delivery faults with an explicit original-grid selection.
+/// `range` is a half-open composition interval; the other arguments identify
+/// the saved inputs, new output and trial. Returns actual cleanup/file evidence.
+pub fn run_range(
+    project: &Path,
+    composition: &str,
+    destination: &Path,
+    mode: &str,
+    range: Option<editbay_core::FrameRange>,
+) -> Result<Value> {
     if ![
         "full",
         "cancel",
@@ -47,6 +60,7 @@ pub fn run(project: &Path, composition: &str, destination: &Path, mode: &str) ->
     let request = DeliveryRequest {
         composition: composition.parse()?,
         sample_rate: 48000,
+        range,
     };
     let began = Instant::now();
     let mut action = None;
@@ -177,7 +191,7 @@ pub fn run(project: &Path, composition: &str, destination: &Path, mode: &str) ->
         .as_ref()
         .map(|receipt| inspect(destination, receipt))
         .transpose()?;
-    let report = json!({"schema":1,"kind":"shared_delivery_qualification","mode":mode,"qualified":qualified,
+    let report = json!({"schema":1,"kind":"shared_delivery_qualification","mode":mode,"range":range,"qualified":qualified,
         "binary_sha256":hash(&std::env::current_exe()?)?,"receipt":receipt,"independent":independent,"error":error,"elapsed_ms":began.elapsed().as_secs_f64()*1000.,
         "retirement_ms":retirement_ms,"worker_reaped":reaped,"worker_high_water_kib":high_water_kib,"memory":memory()?,
         "destination":destination,"published":published,"collision_preserved":collision_preserved,"observations":observations});

@@ -842,17 +842,42 @@ impl Studio {
                 if self.media.busy() && ui.button("Cancel import").clicked() {
                     self.media.cancel();
                 }
-                let selected = self.workspace.edit_snapshot(id).ok().and_then(|(owner, editor)| {
-                    self.preview.selected_composition(id, editor.project()).map(|composition|
-                        (owner, composition, editor.project().name.clone()))
-                });
-                let export = ui.add_enabled(self.dialog.is_none() && !self.delivery.busy() && selected.is_some(),
-                    egui::Button::new("Export…")).on_hover_text("Full sequence · lossless 8-bit PNG picture · 48 kHz float PCM · original channels · new MOV file");
+                let selected = self
+                    .workspace
+                    .edit_snapshot(id)
+                    .ok()
+                    .and_then(|(owner, editor)| {
+                        self.preview
+                            .selected_composition(id, editor.project())
+                            .and_then(|composition| {
+                                editor
+                                    .project()
+                                    .compositions
+                                    .iter()
+                                    .find(|scene| scene.id == composition)
+                                    .map(|scene| {
+                                        (
+                                            owner,
+                                            composition,
+                                            editor.project().name.clone(),
+                                            scene.duration,
+                                        )
+                                    })
+                            })
+                    });
+                let export = ui
+                    .add_enabled(
+                        self.dialog.is_none() && !self.delivery.busy() && selected.is_some(),
+                        egui::Button::new("Export…"),
+                    )
+                    .on_hover_text(
+                        "Full sequence or frame range · lossless MOV · original sound channels",
+                    );
                 self.preview.observe_control("export-sequence", &export, ui);
-                if export.clicked() && let Some((owner, composition, name)) = selected {
-                    self.choose(DialogAction::Delivery { owner, request: editbay_delivery::DeliveryRequest {
-                        composition, sample_rate:48000,
-                    } }, &name, &ctx);
+                if export.clicked()
+                    && let Some((owner, composition, name, duration)) = selected
+                {
+                    self.delivery.choose(owner, composition, name, duration);
                 }
             }
             if !compact {
@@ -1539,6 +1564,12 @@ impl Studio {
     }
 
     fn modals(&mut self, ctx: &egui::Context) {
+        if let Some((owner, request, name)) =
+            self.delivery
+                .show_choice(ctx, &self.workspace, &mut self.preview)
+        {
+            self.choose(DialogAction::Delivery { owner, request }, &name, ctx);
+        }
         if let Some(action) = self.bank.show(ctx) {
             match action {
                 BankAction::Choose => {

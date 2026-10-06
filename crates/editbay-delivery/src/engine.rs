@@ -25,6 +25,8 @@ pub(crate) struct Session {
     phase: Phase,
     pictures: u64,
     samples: u64,
+    first_sample: u64,
+    total_samples: u64,
     expected_pixels: Sha256,
     expected_pcm: Sha256,
     decoded: Sha256,
@@ -61,15 +63,19 @@ impl Session {
             request.sample_rate,
             SoundBudget::default(),
         )?);
+        let range = request.frame_range(root.duration)?;
         let profile = LosslessMovProfile {
             width: root.width,
             height: root.height,
             frame_rate: root.frame_rate,
-            frames: root.duration,
+            first_frame: range.start,
+            frames: range.end - range.start,
             sample_rate: request.sample_rate,
             channels: plan.profile().channels.clone(),
         };
         profile.validate()?;
+        let first_sample = profile.sample_origin()?;
+        let total_samples = profile.samples_through(profile.frames)?;
         let cancel = Cancellation::new()?;
         let picture = GraphRenderer::new(
             evaluation,
@@ -101,6 +107,8 @@ impl Session {
             phase: Phase::Rendering,
             pictures: 0,
             samples: 0,
+            first_sample,
+            total_samples,
             expected_pixels: Sha256::new(),
             expected_pcm: Sha256::new(),
             decoded: Sha256::new(),
@@ -118,7 +126,7 @@ impl Session {
             pictures: self.pictures,
             samples: self.samples,
             total_pictures: self.profile.frames,
-            total_samples: self.plan.duration_samples(),
+            total_samples: self.total_samples,
         }
     }
 
@@ -143,7 +151,7 @@ impl Session {
         let working = self.picture.render(
             self.request.composition,
             SourcePosition {
-                numerator: i64::try_from(self.pictures)?,
+                numerator: i64::try_from(self.profile.first_frame + self.pictures)?,
                 denominator: 1,
             },
             false,
@@ -157,7 +165,7 @@ impl Session {
         let end = self.profile.samples_through(self.pictures + 1)?;
         while self.samples < end {
             let count = (end - self.samples).min(4096) as u32;
-            let plan = self.plan.prepare(self.samples, count)?;
+            let plan = self.plan.prepare(self.first_sample + self.samples, count)?;
             let sound = self.sound.render(&plan)?;
             self.sound.validate_result(&sound)?;
             writer.sound(self.samples, sound.sound().samples())?;
@@ -261,14 +269,14 @@ impl Session {
                 return Err("Delivered sound is discontinuous".into());
             }
             self.samples += (block.samples.len() / self.profile.channels.len()) as u64;
-            if self.samples > self.plan.duration_samples() {
+            if self.samples > self.total_samples {
                 return Err("Delivery contains excess sound".into());
             }
             for sample in block.samples {
                 self.decoded.update(sample.to_le_bytes());
             }
         } else {
-            if self.samples != self.plan.duration_samples()
+            if self.samples != self.total_samples
                 || self.decoded.clone().finalize() != self.expected_pcm.clone().finalize()
             {
                 return Err("Decoded delivery sound differs from shared graph output".into());
