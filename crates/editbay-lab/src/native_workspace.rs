@@ -2854,7 +2854,12 @@ pub fn long_timeline(binary: &Path, project: &Path, directory: &Path) -> Result<
         },
     )?;
     let playback_completed = finished["details"]["sound"]["phase"] == "finished";
-    if finished["details"]["sequence"] != sequence.to_string()
+    let playback_sequence = finished["details"]["sequence"].as_str().or_else(|| {
+        (finished["details"]["display"]["session"] == playing["details"]["display"]["session"])
+            .then(|| finished["details"]["display"]["scope"]["sequence"].as_str())
+            .flatten()
+    });
+    if playback_sequence != Some(sequence.to_string().as_str())
         || (playback_completed
             && finished["details"]["sound"]["position_samples"]
                 != finished["details"]["sound"]["end_sample"])
