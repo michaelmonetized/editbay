@@ -12,7 +12,8 @@ editorial and complete-job release gates remain open.
   A bounded Rust tool authors and measures saved repeated source sequences.
   The 2048-frame device request passes short camera/six-channel and 60-second
   AAC runs plus native fault/retry regressions. Two sustained stress attempts fail
-  visibly and remain recorded; a separate two-hour baseline is pending. See
+  visibly and remain recorded; a separate baseline also fails before three
+  minutes. Supported 48 kHz output is the next candidate. See
   [sustained playback](SUSTAINED_PLAYBACK.md) and
   [candidate evidence](evidence/r2-sustained-clock/README.md). No physical drift
   or full R2 gate is closed.

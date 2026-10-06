@@ -63,10 +63,15 @@ Clippy with warnings denied. Complete compressed logs and explicit exits are in
   correlation alone is not proof of the precise scheduling cause. Workers reap.
 
 Those original receipts and periodic traces remain in [earlier/](earlier/).
-A separate baseline two-hour run starts on 2026-10-06 at 08:56:00 UTC, after the
-local builds and fault trials finish. It uses the unchanged frozen `ef5bc8d`
-binaries and writes under `artifacts/sustained-clock/two-hours-baseline/`.
-**Its result is pending and does not replace either stress failure.**
+A separate baseline starts on 2026-10-06 at 08:56:00 UTC, after the local builds
+and fault trials finish. It uses the unchanged frozen `ef5bc8d` binaries and
+also fails: after 174.323 seconds, maximum backend/host errors reach
+116.927/117.822 ms, followed by source underflow. Host-memory stalls increase
+sharply, sampled process-tree RSS peaks at 148032 KiB, and all children reap.
+The exact receipt and periodic observations are in [earlier/baseline/](earlier/baseline/).
+**There is no two-hour pass.** A new candidate prefers supported 48 kHz output
+to investigate the accumulated timing error of the default 44.1 kHz route;
+its qualification is not inferred from the earlier short results.
 
 Periodic 100 ms samples omit unobserved peaks/callbacks. RSS includes the lab and
 its process tree, can double-count shared pages, and excludes external sound

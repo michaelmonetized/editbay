@@ -89,6 +89,7 @@ callback or transient allocation peak. A short pass cannot close the two-hour ga
 the startup-epoch failure, a later 512-frame clock failure and a 2048-frame source
 underflow during concurrent builds/native fault trials. The 2048-frame candidate
 passes six-second camera/six-channel trials, a repeated 60-second AAC run, native
-fault/retry regressions and local locked checks. Its two-hour baseline run remains
-pending. Neither its short passes nor a future baseline result erases the stress
-failures or proves physical output timing.
+fault/retry regressions and local locked checks. Its separate baseline fails
+after 174 seconds with accumulated clock error and source underflow. A supported
+48 kHz output candidate is being tested; there is no two-hour pass. Short passes
+do not erase sustained failures or prove physical output timing.
