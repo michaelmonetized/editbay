@@ -1,5 +1,12 @@
 # Rust restart: implementation status
 
+Issue [#53](https://github.com/michaelmonetized/editbay/issues/53) adds
+[canonical source PCM](CANONICAL_PCM.md): bounded sequential preparation in
+anonymous files, original-bit random reads after decoder eviction, supervised
+source-progress replies and native preparation status. Local and actual worker
+tests pass; fresh real-media, native workflow and full workspace qualification
+are pending. Preparation ahead of future playback cuts remains open.
+
 Issue [#51](https://github.com/michaelmonetized/editbay/issues/51) / draft
 [PR #52](https://github.com/michaelmonetized/editbay/pull/52) adds bounded exact
 [sound coefficient reuse](SOUND_KERNELS.md) and preparation timing. Frozen

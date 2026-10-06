@@ -191,6 +191,12 @@ Omarchy palettes. Recovery tests do not substitute for native visual inspection.
 
 ## R2 — the production engine
 
+Issue [#53](https://github.com/michaelmonetized/editbay/issues/53) implements
+[canonical source PCM](CANONICAL_PCM.md), bounded sequential preparation and
+supervised progress. Cold late reads and decoder eviction preserve source sample
+bits in local and actual worker tests. Fresh media/native qualification and
+preparation ahead of future cuts remain open; no R2 release gate is closed.
+
 Issue [#51](https://github.com/michaelmonetized/editbay/issues/51) / draft
 [PR #52](https://github.com/michaelmonetized/editbay/pull/52) adds bounded exact
 [sound coefficient reuse](SOUND_KERNELS.md). The frozen mixer passes real

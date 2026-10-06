@@ -12,7 +12,7 @@ use cpal::{
 };
 use editbay_core::{DocumentVersion, EvaluationSnapshot, Project, SoundBudget, SoundSnapshot};
 use editbay_media::{
-    Cancellation,
+    Cancellation, PcmPreparationLog, PcmProgress,
     pcm_worker::{PcmWorker, PcmWorkerBudget},
 };
 use serde::{Deserialize, Serialize};
@@ -70,6 +70,7 @@ pub struct StreamingStatus {
     pub prepared_capacity_frames: u32,
     pub clipped_monitor_samples: u64,
     pub preparation: PreparationStats,
+    pub source_preparation: Option<PcmProgress>,
     pub error: Option<String>,
 }
 
@@ -85,6 +86,7 @@ struct Ready {
 }
 
 enum Event {
+    SourcePreparation(PcmPreparationLog),
     Ready(Ready),
     Finished,
     Stopped,
@@ -103,6 +105,8 @@ struct Request {
 
 /// One asynchronous playback lifetime with privately owned prepared sound.
 pub(crate) struct LocalPlayback {
+    source_preparation: Option<PcmProgress>,
+    source_preparation_log: Option<PcmPreparationLog>,
     preparation: PreparationStats,
     preparation_log: Arc<PreparationLog>,
     version: DocumentVersion,
@@ -158,6 +162,8 @@ impl LocalPlayback {
             })
             .map_err(|e| e.to_string())?;
         Ok(Self {
+            source_preparation: None,
+            source_preparation_log: None,
             preparation: PreparationStats::default(),
             preparation_log,
             version,
@@ -179,6 +185,7 @@ impl LocalPlayback {
     pub fn status(&mut self) -> StreamingStatus {
         for _ in 0..4 {
             match self.events.try_recv() {
+                Ok(Event::SourcePreparation(log)) => self.source_preparation_log = Some(log),
                 Ok(Event::Ready(ready)) => {
                     self.ready = Some(ready);
                     self.phase = PlaybackPhase::Playing;
@@ -208,6 +215,13 @@ impl LocalPlayback {
         }
         if let Some(observed) = self.preparation_log.observation() {
             self.preparation = observed;
+        }
+        if let Some(observed) = self
+            .source_preparation_log
+            .as_ref()
+            .and_then(PcmPreparationLog::observation)
+        {
+            self.source_preparation = Some(observed);
         }
         let (position, end, device, worker_pid, callbacks, latency, prepared, clipped) =
             if let Some(ready) = &self.ready {
@@ -262,6 +276,7 @@ impl LocalPlayback {
             prepared_capacity_frames: CAPACITY,
             clipped_monitor_samples: clipped,
             preparation: self.preparation,
+            source_preparation: self.source_preparation,
             error: self.error.clone(),
         }
     }
@@ -472,6 +487,9 @@ fn run(request: &Request, sender: &SyncSender<Event>) -> Result<()> {
     )
     .map_err(|e| e.to_string())?;
     let worker_pid = provider.process_id();
+    sender
+        .try_send(Event::SourcePreparation(provider.preparation_log()))
+        .map_err(|e| e.to_string())?;
     let renderer =
         SoundRenderer::with_provider(sound.clone(), provider, SoundRenderBudget::default())
             .map_err(|e| e.to_string())?;
