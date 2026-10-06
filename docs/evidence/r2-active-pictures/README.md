@@ -1,6 +1,7 @@
 # Reuse proven transparent picture inputs
 
-Issue [#34](https://github.com/michaelmonetized/editbay/issues/34) follows
+Issue [#34](https://github.com/michaelmonetized/editbay/issues/34) is published in
+[PR #37](https://github.com/michaelmonetized/editbay/pull/37), following
 [PR #35](https://github.com/michaelmonetized/editbay/pull/35). The shared Rust
 preview/export change is `9e8fcf5`; final production timing diagnostics are
 `0d7e8c4`. The native driver adds a verified focus check before saving in

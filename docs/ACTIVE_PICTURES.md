@@ -57,7 +57,8 @@ compositing, output gamut/transfer, stale results and invalid transform/HDR erro
 Existing source interpretation, cache eviction, pin, cancellation and actual
 surface-presentation checks remain required.
 
-Issue [#34](https://github.com/michaelmonetized/editbay/issues/34) follows
+Issue [#34](https://github.com/michaelmonetized/editbay/issues/34) is published in
+[PR #37](https://github.com/michaelmonetized/editbay/pull/37), following
 [PR #35](https://github.com/michaelmonetized/editbay/pull/35). The parent's native
 128-cut camera workload recorded 98 skipped frames, 3,194 dispatches and 3,158
 cache evictions, with the sound clock at record frame 127 while the viewer showed
