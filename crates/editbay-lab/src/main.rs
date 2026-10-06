@@ -16,6 +16,7 @@ mod gpu_graph;
 mod inventory;
 mod media_ingest;
 mod native_workspace;
+mod natural_sound;
 mod pcm_worker;
 mod picture_cache;
 mod picture_worker;
@@ -800,6 +801,12 @@ fn run(args: Vec<OsString>) -> Result<()> {
         ("media-ingest", 2) => media_ingest::run(Path::new(&args[1]))?,
         ("picture-cache", 2) => picture_cache::run(Path::new(&args[1]))?,
         ("sound-blocks", 2) => sound_blocks::run(Path::new(&args[1]))?,
+        ("natural-sound", 2 | 3) => natural_sound::run(
+            Path::new(&args[1]),
+            args.get(2)
+                .map(Path::new)
+                .unwrap_or(&std::env::current_exe()?),
+        )?,
         ("sound-blocks-worker", 2 | 3) => sound_blocks::run_process(
             Path::new(&args[1]),
             args.get(2)
@@ -923,6 +930,7 @@ fn run(args: Vec<OsString>) -> Result<()> {
                 "EditBay native feasibility lab\n  probe SOURCE FRAME_LIMIT\n  media-ingest SOURCE\n  picture-cache SOURCE\n  sound-blocks SOURCE\n  sound-blocks-worker SOURCE [WORKER_BINARY]\n  render-graph SOURCE\n  picture-worker SOURCE [WORKER_BINARY]\n  pcm-worker SOURCE [WORKER_BINARY]\n  render-graph-worker SOURCE [WORKER_BINARY]\n  evaluation SOURCE ITERATIONS [SYNTHETIC_INDEX_PICTURES]\n  playback SOURCE SECONDS\n  export SOURCE NEW_MKV FRAME_LIMIT\n  cancel-export SOURCE NEW_MKV FRAME_LIMIT CANCEL_MS\n  runtime-info ORT_LIBRARY\n  inventory MEDIA_DIRECTORY NEW_JSON_REPORT\n  native-workspace APP_BINARY NEW_EVIDENCE_DIRECTORY TRIALS\n  native-media APP_BINARY CAMERA_SOURCE NEW_EVIDENCE_DIRECTORY\n  native-workspace-timing APP_BINARY NEW_EVIDENCE_DIRECTORY\n  native-workspace-errors APP_BINARY NEW_EVIDENCE_DIRECTORY\n  rvm SOURCE VERIFIED_MODEL ORT_LIBRARY FRAME_LIMIT\n  sam2 SOURCE VERIFIED_PACK ORT_LIBRARY FRAME_LIMIT X Y\n  sam2-fixture NEW_MKV"
             );
             println!("  native-preview APP_BINARY SOURCE NEW_EVIDENCE_DIRECTORY [full|half]");
+            println!("  natural-sound SOURCE [WORKER_BINARY]");
             #[cfg(feature = "torch-reference")]
             println!(
                 "  rvm-parity SOURCE VERIFIED_MODEL VERIFIED_TORCHSCRIPT ORT_LIBRARY FRAME_LIMIT"

@@ -98,6 +98,10 @@ authoring and complete-job release gates remain open.
   provider with one cancellation owner. Parent/child byte and handle accounting,
   stale/foreign/malformed rejection, source checks, process death/retry and active
   cancellation are verified; see [isolated sound](WORKER_SOUND.md).
+- Native source sequences select original sound explicitly and retain natural
+  timing through linked clips and an exact nested clock. Delays, preroll and
+  partial tails survive one-group undo, save and independent recovery without
+  changing source metadata. See [source authoring](NATIVE_PREVIEW.md).
 - Source-owned native decoded-picture cache: exact indexed requests, retained
   sequential decoders, bounded cache/live RGBA payload and handle limits, LRU
   eviction, charged consumer pins, fresh-token version/generation rebinding and

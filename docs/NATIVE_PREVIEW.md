@@ -1,6 +1,6 @@
 # Native picture workspace
 
-The native workspace creates editable picture sequences from imported video and
+The native workspace creates editable picture and sound sequences from imported video and
 draws the shared SDR GPU graph on its actual window device. It uses the packaged
 Rust picture worker, the core command/undo path and the existing save/recovery
 foundation. This is paused picture authoring and viewing. Sound scheduling,
@@ -9,7 +9,9 @@ sustained playback and shared delivery remain R2 work.
 ## Use it
 
 Open a project, import a video, select its actual video stream, then expand the
-source and choose **Create sequence from video**. Select the resulting sequence
+source, choose an imported sound stream or **Picture only**, then choose
+**Create sequence from video**. A sole imported sound stream is selected initially;
+multiple sound streams require a choice. Select the resulting sequence
 and use Previous frame, Next frame, the frame number or the scrubber. Save,
 Undo, Redo and recovery use the same document as the CLI and automation.
 
@@ -30,9 +32,25 @@ original presentation timestamp and uses the project's sequence rate. The rate
 must produce whole source ticks per sequence frame; incompatible timing fails
 explicitly. Duration rounds up to a whole frame. Integer frame starts retain
 their natural source times; a final partial interval ends at the actual source
-end. This picture-only policy does not establish a sound-retiming contract.
+end. Sound uses the separate exact clock described below.
 Sample aspect is converted to square-pixel composition width. Unsupported source
 rotation or color interpretation remains a visible graph error.
+
+`sequence_from_video_with_audio` adds reciprocal picture/sound clip links and a
+nested source-sound composition in the same undo group. Sequence zero is the
+video's original presentation origin. The nested clock is the least common
+multiple of the picture rate numerator, both source time-base denominators and
+the original sample rate. Every source sample center remains exact, including
+44.1 kHz with fractional frame rates. Sound is never fitted to a rounded picture
+duration. Delayed starts and partial final-frame tails are silence; later sound
+extends the sequence beyond the last picture. Earlier sound remains intact in
+the nested source composition but lies before this sequence's playback origin.
+A selected stream ending entirely before the picture starts fails explicitly.
+Clock/range overflow fails before document mutation. Imported assets, source
+metadata, original channel identities and sample rate remain unchanged.
+
+The viewer shows empty picture regions over its transparency checkerboard.
+Sound authoring and offline PCM verification do not enable device playback.
 
 ## Worker and GPU ownership
 
@@ -74,7 +92,11 @@ actual window controls for sequence creation, cached stepping, coalesced scrubbi
 worker death/retry, active cancellation, Undo/Redo, Save, kill/restart, native
 recovery copy and explicit original reopen. It verifies original source, saved
 project and checkpoint hashes, independent recovery identity and actual native
-GPU completion. The seed does not replace the separate native UI-ingest evidence.
+GPU completion. When sound is present, the seed imports one explicit sound
+stream, the UI authors the linked graph, and the driver compares every saved
+and recovered output sample against independent FFmpeg PCM through the packaged
+worker. It also presents the recovered final frame. The seed does not replace
+the separate native UI-ingest evidence.
 The driver supports the current Flea native file chooser and the older Synchro
 chooser. It reads picker state and control geometry, then injects actual input;
 those observations grant no document mutation authority.
