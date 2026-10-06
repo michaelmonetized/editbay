@@ -79,7 +79,12 @@ A 16,384-entry tree with a long overlapping interval tests pruning near its end.
 undo/redo, save/recovery, compares every original-channel PCM sample against
 independently decoded master slices, records compilation/planning/render work and
 plays the entire saved cut on the actual supervised device. Native window and
-shared master checks follow separately. The fixture's 256-edit cap respects the
+shared master checks use `editbay-lab native-long APP SAVED_LONG_CUT NEW_DIRECTORY`:
+seek across the cut, remove/undo/redo/undo with unchanged linked identities,
+play to the exact final sample, save/recover/reopen, export the whole master and
+view the recovered cut at 800x600. `timeline-compare` independently compares
+every delivered picture and original-channel sample to source-master slices.
+The fixture's 256-edit cap respects the
 current canonical cut's single mix-node input limit; it is not the index's path
 capacity.
 

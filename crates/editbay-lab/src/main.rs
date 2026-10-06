@@ -934,6 +934,11 @@ fn run(args: Vec<OsString>) -> Result<()> {
             args[2].to_str().ok_or("Composition must be UTF-8")?,
             Path::new(&args[3]),
         )?,
+        ("native-long", 4) => native_workspace::long_timeline(
+            Path::new(&args[1]),
+            Path::new(&args[2]),
+            Path::new(&args[3]),
+        )?,
         ("long-sound", 5) => long_sound::run(
             Path::new(&args[1]),
             Path::new(&args[2]),
