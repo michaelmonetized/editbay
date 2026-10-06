@@ -235,12 +235,21 @@ struct Mailbox {
     request: Option<Request>,
     stopped: bool,
 }
+#[derive(Clone, Copy, serde::Serialize)]
+struct PictureWork {
+    queued_us: u64,
+    render_us: u64,
+    convert_us: u64,
+    present_us: u64,
+    finish_us: u64,
+}
 struct Picture {
     draw: Arc<DisplayFrame>,
     serial: u64,
     frame: u64,
     requested: Instant,
     preparation_us: u64,
+    work: PictureWork,
     completion_us: AtomicU64,
     incompatible: AtomicBool,
     stats: GraphStats,
@@ -370,6 +379,8 @@ impl Task {
                             mailbox.request.take()
                         };
                         if let Some(request) = request {
+                            let began = Instant::now();
+                            let queued_us = request.requested.elapsed().as_micros() as u64;
                             let working = graph
                                 .render(
                                     composition,
@@ -381,15 +392,22 @@ impl Task {
                                     false,
                                 )
                                 .map_err(|e| e.to_string())?;
+                            let render_us = began.elapsed().as_micros() as u64;
+                            let began = Instant::now();
                             let converted = graph
                                 .convert(&working, ImageBoundary::Display)
                                 .map_err(|e| e.to_string())?;
+                            let convert_us = began.elapsed().as_micros() as u64;
+                            let began = Instant::now();
                             let draw = Arc::new(
                                 graph
                                     .present(&converted, &display)
                                     .map_err(|e| e.to_string())?,
                             );
+                            let present_us = began.elapsed().as_micros() as u64;
+                            let began = Instant::now();
                             graph.finish().map_err(|e| e.to_string())?;
+                            let finish_us = began.elapsed().as_micros() as u64;
                             if !token.is_cancelled() {
                                 publish(Event::Picture(Arc::new(Picture {
                                     draw,
@@ -397,6 +415,13 @@ impl Task {
                                     frame: request.frame,
                                     requested: request.requested,
                                     preparation_us: request.requested.elapsed().as_micros() as u64,
+                                    work: PictureWork {
+                                        queued_us,
+                                        render_us,
+                                        convert_us,
+                                        present_us,
+                                        finish_us,
+                                    },
                                     completion_us: AtomicU64::new(0),
                                     incompatible: AtomicBool::new(false),
                                     stats: graph.stats(),
@@ -1265,8 +1290,10 @@ impl PreviewPane {
             "displayed_frame":self.picture.as_ref().map(|picture|picture.frame),
             "displayed_serial":self.picture.as_ref().map(|picture|picture.serial),
             "preparation_us":self.picture.as_ref().map(|picture|picture.preparation_us),
+            "work":self.picture.as_ref().map(|picture|picture.work),
             "gpu_draw_completed_us":self.picture.as_ref().map(|picture|picture.completion_us.load(Ordering::Acquire)),
             "stats":self.picture.as_ref().map(|picture|picture.stats), "surface":self.gpu.as_ref().map(|gpu|format!("{:?}",gpu.format)),
+            "adapter":self.gpu.as_ref().map(|gpu|format!("{:?}",gpu.adapter.get_info())),
             "rejected_results":self.rejected,"retiring":self.retiring.len(),"creating":self.creation.is_some(),"stopped":self.stopped,"error":self.error,"controls":self.controls,
             "sound":self.sound_status,"sound_active":self.sound.is_some(),"sound_retiring":self.sound_retiring.len(),"skipped_frames":self.skipped_frames,
             "resume_sound":self.resume_sound.map(|resume|resume.start)})
