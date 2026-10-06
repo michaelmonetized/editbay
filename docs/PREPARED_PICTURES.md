@@ -1,5 +1,10 @@
 # Pictures prepared ahead of sound
 
+Published in [PR #40](https://github.com/michaelmonetized/editbay/pull/40), following
+[PR #39](https://github.com/michaelmonetized/editbay/pull/39). Issue #38's bounded
+preparation dependency has separate [evidence](evidence/r2-picture-clock/README.md).
+Dense-cut cache and remaining R2 gates continue beyond this layer.
+
 Play prepares a bounded sequence of resident pictures on the existing Rust viewer
 worker. It waits for the first actual GPU draw and the initial future buffer before
 starting the existing isolated sound transport. The device callback remains the
