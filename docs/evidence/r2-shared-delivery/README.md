@@ -1,6 +1,7 @@
 # Shared master qualification
 
-Issue [#26](https://github.com/michaelmonetized/editbay/issues/26) follows native
+Issue [#26](https://github.com/michaelmonetized/editbay/issues/26) is implemented in
+[PR #28](https://github.com/michaelmonetized/editbay/pull/28), stacked on native
 playback [PR #27](https://github.com/michaelmonetized/editbay/pull/27). Runtime source
 is `401c7d7`; `source-commit.txt`, `compiled-inputs.sha256`, `artifact-hashes.txt`,
 `machine.txt` and `build.log` identify the actual local build. App, CLI and lab
