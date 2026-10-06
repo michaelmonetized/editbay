@@ -14,6 +14,7 @@ use tempfile::NamedTempFile;
 
 mod delivery_interrupts;
 mod delivery_protocol;
+mod device_protocol;
 mod gpu_graph;
 mod inventory;
 mod media_ingest;
@@ -917,6 +918,25 @@ fn run(args: Vec<OsString>) -> Result<()> {
             Path::new(&args[4]),
             Path::new(&args[5]),
         )?,
+        ("native-device", 4) => native_workspace::device_timeline(
+            Path::new(&args[1]),
+            Path::new(&args[2]),
+            Path::new(&args[3]),
+        )?,
+        ("device-parent-worker", 4) => device_protocol::parent_worker(
+            Path::new(&args[1]),
+            args[2].to_str().ok_or("Composition must be UTF-8")?,
+            Path::new(&args[3]),
+        )?,
+        ("device-parent", 4) => device_protocol::parent(
+            Path::new(&args[1]),
+            args[2].to_str().ok_or("Composition must be UTF-8")?,
+            Path::new(&args[3]),
+        )?,
+        ("device-protocol", 3) => device_protocol::run(
+            Path::new(&args[1]),
+            args[2].to_str().ok_or("Composition must be UTF-8")?,
+        )?,
         ("native-timeline", 4) => native_workspace::timeline(
             Path::new(&args[1]),
             Path::new(&args[2]),
@@ -1021,6 +1041,16 @@ fn run(args: Vec<OsString>) -> Result<()> {
 }
 
 fn main() -> ExitCode {
+    if std::env::args_os().nth(1).as_deref() == Some(std::ffi::OsStr::new("--sound-device-worker"))
+    {
+        return match editbay_audio::serve_device_worker() {
+            Ok(()) => ExitCode::SUCCESS,
+            Err(error) => {
+                eprintln!("editbay sound device worker: {error}");
+                ExitCode::FAILURE
+            }
+        };
+    }
     if std::env::args_os().nth(1).as_deref() == Some(std::ffi::OsStr::new("--delivery-worker")) {
         return match editbay_delivery::serve() {
             Ok(()) => ExitCode::SUCCESS,

@@ -3,6 +3,14 @@ use eframe::egui;
 use std::path::PathBuf;
 
 fn main() -> eframe::Result {
+    if std::env::args_os().nth(1).as_deref() == Some(std::ffi::OsStr::new("--sound-device-worker"))
+    {
+        if let Err(error) = editbay_audio::serve_device_worker() {
+            eprintln!("editbay sound device worker: {error}");
+            std::process::exit(1);
+        }
+        return Ok(());
+    }
     if std::env::args_os().nth(1).as_deref() == Some(std::ffi::OsStr::new("--delivery-worker")) {
         if let Err(error) = editbay_delivery::serve() {
             eprintln!("editbay delivery worker: {error}");

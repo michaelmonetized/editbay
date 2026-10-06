@@ -13,7 +13,7 @@ use editbay_media::{
     Cancellation,
     pcm_worker::{PcmWorker, PcmWorkerBudget},
 };
-use serde::Serialize;
+use serde::{Deserialize, Serialize};
 use std::{
     sync::{
         Arc,
@@ -26,17 +26,18 @@ use std::{
 use uuid::Uuid;
 
 const BLOCK: u32 = 4096;
-const CAPACITY: u32 = 16384;
+pub(crate) const CAPACITY: u32 = 16384;
 type Result<T> = std::result::Result<T, String>;
 
 /// An exact seek in composition frames or a previously observed device sample.
-#[derive(Clone, Copy, Debug, Serialize)]
+#[derive(Clone, Copy, Debug, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
 pub enum PlaybackStart {
     Frame(u64),
     Sample { position: u64, sample_rate: u32 },
 }
 
-#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
 pub enum PlaybackPhase {
     Preparing,
@@ -47,7 +48,8 @@ pub enum PlaybackPhase {
     Stopped,
 }
 
-#[derive(Clone, Debug, Serialize)]
+#[derive(Clone, Debug, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
 pub struct StreamingStatus {
     pub version: DocumentVersion,
     pub phase: PlaybackPhase,
@@ -57,6 +59,7 @@ pub struct StreamingStatus {
     pub device: Option<DeviceProfile>,
     pub route: MonitorRoute,
     pub worker_pid: Option<u32>,
+    pub device_worker_pid: Option<u32>,
     pub callbacks: u64,
     pub reported_latency_ns: u64,
     pub prepared_frames: u64,
@@ -93,7 +96,7 @@ struct Request {
 }
 
 /// One asynchronous playback lifetime with privately owned prepared sound.
-pub struct StreamingPlayback {
+pub(crate) struct LocalPlayback {
     version: DocumentVersion,
     route: MonitorRoute,
     cancel: Cancellation,
@@ -105,7 +108,7 @@ pub struct StreamingPlayback {
     error: Option<String>,
 }
 
-impl StreamingPlayback {
+impl LocalPlayback {
     /// Prepare and play a captured composition without blocking the caller.
     /// `project`, `composition`, `start` and `route` select saved content,
     /// the seek boundary and an explicit listening route. Returns an owned job;
@@ -221,6 +224,7 @@ impl StreamingPlayback {
             device,
             route: self.route,
             worker_pid,
+            device_worker_pid: None,
             callbacks,
             reported_latency_ns: latency,
             prepared_frames: prepared,
@@ -265,7 +269,7 @@ impl StreamingPlayback {
     }
 }
 
-impl Drop for StreamingPlayback {
+impl Drop for LocalPlayback {
     fn drop(&mut self) {
         self.stop();
     }

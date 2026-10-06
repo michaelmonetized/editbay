@@ -251,3 +251,10 @@ portrait FP32 candidate missed 33.3 ms; its receipt is retained separately. Exac
 native output now avoids extra conversion/copying and passes the scoped picture
 budget. Full source seek, native presentation/sound/export, other hardware,
 complete workflows and GTM/enterprise gates remain open.
+
+Production sound-device work now uses a separately supervised packaged Rust
+process. Backend process death/stall cannot kill the editor; typed clock/status
+observations retain captured ownership and fixed deadlines. The existing bounded
+sound renderer and callback run inside that child. See
+[device isolation](SOUND_DEVICE_WORKER.md). Physical audibility, hardware unplug,
+two-hour drift and broader playback/release gates remain open.

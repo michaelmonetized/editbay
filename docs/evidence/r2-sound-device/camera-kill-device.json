@@ -1,0 +1,53 @@
+{
+  "adopted_pcm_reaped": [
+    4096236
+  ],
+  "application_sha256": "fae14300694c31764be48e8646db780eb155338e19fdd60fc1b1548d2d92d505",
+  "device_worker_reaped": true,
+  "elapsed_seconds": 0.302536436,
+  "final": {
+    "callbacks": 10,
+    "clipped_monitor_samples": 0,
+    "device": {
+      "channels": 2,
+      "name": "default",
+      "sample_format": "F32",
+      "sample_rate": 44100
+    },
+    "device_worker_pid": 4096206,
+    "end_sample": 576975,
+    "error": "invalid media request: codec worker failed: filesystem: Broken pipe (os error 32); ",
+    "phase": "failed",
+    "position_samples": 2571,
+    "prepared_capacity_frames": 16384,
+    "prepared_frames": 13755,
+    "reported_latency_ns": 0,
+    "route": "Stereo",
+    "start_sample": 0,
+    "version": {
+      "project_id": "7be9d493-b19e-4f17-a4df-47887fc71ba5",
+      "revision": 1
+    },
+    "worker_pid": 4096236
+  },
+  "kind": "native_streaming_sound",
+  "limits": [
+    "Actual default output device callbacks and backend latency estimate; no physical audibility or speaker timing claim",
+    "Lab-authored graph; native window controls and long hardware drift require separate evidence"
+  ],
+  "memory": [
+    "VmHWM:\t   59856 kB",
+    "VmRSS:\t   59856 kB"
+  ],
+  "mode": "kill-device",
+  "qualified": true,
+  "retirement_ms": 6.351373,
+  "source": "/home/michael/Downloads/iCloud Photos/IMG_0001.MP4",
+  "source_fingerprint": {
+    "bytes": 5235017,
+    "sha256": "498ec6c42b6b440886eb761dc4775c994f7578021890ceae3f370ffc6fb3e021"
+  },
+  "source_unchanged": true,
+  "worker_reaped": true,
+  "sample_observations_file": "camera-kill-device-observations.json.gz"
+}

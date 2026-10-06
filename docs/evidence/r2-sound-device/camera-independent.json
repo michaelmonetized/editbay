@@ -1,0 +1,82 @@
+{
+  "channels": [
+    "FC"
+  ],
+  "composition": "927d4fb1-4e24-4e38-998e-ced32e83b54c",
+  "frames": 35,
+  "kind": "independent_timeline_slices",
+  "output_sha256": "72162163cdf6efcc5065af22ba0b7a911a37e3837f83b53d57a7b9ffec9eb6a3",
+  "qualified": true,
+  "reference_sha256": "84f6dd1a78874ee66b980520a68dddce78d1edbcad0b7eb53ab9d2ca35e7a431",
+  "sample_rate": 48000,
+  "samples_per_frame": 2000,
+  "source": "d1410cfa-579c-40e1-8c6a-4301d22b48e5",
+  "streams": [
+    {
+      "boundaries": [
+        {
+          "bytes": 44236800,
+          "record": {
+            "end": 12,
+            "start": 0
+          },
+          "sha256": "65da4a6cd66f3edfd40cbb0001cea32a8e61b2a2ee7a382246fceb5fc54308dd",
+          "source": {
+            "end": 28,
+            "start": 16
+          }
+        },
+        {
+          "bytes": 84787200,
+          "record": {
+            "end": 35,
+            "start": 12
+          },
+          "sha256": "305aff18b3aee37292b6a77175056fbb44d0ba4939fb13c28d793a0a876cc943",
+          "source": {
+            "end": 65,
+            "start": 42
+          }
+        }
+      ],
+      "bytes": 129024000,
+      "exact": true,
+      "expected_sha256": "4eceb858be7b0939b0e12fdf89cc4f104f074fff8828a4e6dd579d69a05297ae",
+      "kind": "picture",
+      "sha256": "4eceb858be7b0939b0e12fdf89cc4f104f074fff8828a4e6dd579d69a05297ae"
+    },
+    {
+      "boundaries": [
+        {
+          "bytes": 96000,
+          "record": {
+            "end": 12,
+            "start": 0
+          },
+          "sha256": "8e99c2495f66c87652bc8a02c95f9df2dc77220d0455ce03f4d3359137b4a0d8",
+          "source": {
+            "end": 28,
+            "start": 16
+          }
+        },
+        {
+          "bytes": 184000,
+          "record": {
+            "end": 35,
+            "start": 12
+          },
+          "sha256": "e87f087adf142a475a8a86cf41d09fc312207cd336c03c9c94971844e08e5e39",
+          "source": {
+            "end": 65,
+            "start": 42
+          }
+        }
+      ],
+      "bytes": 280000,
+      "exact": true,
+      "expected_sha256": "34011675a3d10fb796588918f365f83a3bdab68261e5888c849bfb5c78dc7079",
+      "kind": "sound",
+      "sha256": "34011675a3d10fb796588918f365f83a3bdab68261e5888c849bfb5c78dc7079"
+    }
+  ]
+}

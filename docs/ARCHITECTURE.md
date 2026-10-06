@@ -266,3 +266,15 @@ bounds, reciprocal timing, cycles and bounded sound preparation before publicati
 Native inspection/planning run off-thread; workspace ownership and export guards
 apply at commit. The CLI also requires expected revision and conditional save.
 See [timeline contracts](TIMELINE_AUTHORING.md) for profile and track limits.
+
+### Native sound-device containment
+
+The production `StreamingPlayback` API owns a supervisor; device discovery,
+CPAL/backend initialization, stream callbacks and teardown live in the packaged
+`--sound-device-worker` child. That child owns the unchanged bounded PCM producer,
+callback queue and separately supervised codec child. Owner/version/serial-bound
+status is polled off the UI thread and independently validated before publication.
+The UI reads one retained snapshot; the callback performs no IPC or locking.
+Reply, preparation, callback-progress and cancellation deadlines turn backend
+failure into visible, retryable playback failure. See
+[SOUND_DEVICE_WORKER.md](SOUND_DEVICE_WORKER.md) for exact bounds and clock limits.

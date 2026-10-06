@@ -14,6 +14,7 @@ editbay-core = { path = "../editbay-core" }
 editbay-media = { path = "../editbay-media" }
 
 [dev-dependencies]
+serde_json.workspace = true
 tempfile.workspace = true
 
 [lints]

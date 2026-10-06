@@ -1,0 +1,51 @@
+{
+  "adopted_pcm_reaped": [],
+  "application_sha256": "fae14300694c31764be48e8646db780eb155338e19fdd60fc1b1548d2d92d505",
+  "device_worker_reaped": true,
+  "elapsed_seconds": 0.225809575,
+  "final": {
+    "callbacks": 11,
+    "clipped_monitor_samples": 1355,
+    "device": {
+      "channels": 2,
+      "name": "default",
+      "sample_format": "F32",
+      "sample_rate": 44100
+    },
+    "device_worker_pid": 4106945,
+    "end_sample": 145308,
+    "error": null,
+    "phase": "stopped",
+    "position_samples": 2632,
+    "prepared_capacity_frames": 16384,
+    "prepared_frames": 13520,
+    "reported_latency_ns": 0,
+    "route": "Stereo",
+    "start_sample": 0,
+    "version": {
+      "project_id": "d2b493aa-22f4-4b07-9fe2-369918dedf85",
+      "revision": 1
+    },
+    "worker_pid": 4106951
+  },
+  "kind": "native_streaming_sound",
+  "limits": [
+    "Actual default output device callbacks and backend latency estimate; no physical audibility or speaker timing claim",
+    "Lab-authored graph; native window controls and long hardware drift require separate evidence"
+  ],
+  "memory": [
+    "VmHWM:\t   44720 kB",
+    "VmRSS:\t   44720 kB"
+  ],
+  "mode": "cancel",
+  "qualified": true,
+  "retirement_ms": 10.143063000000001,
+  "source": "/home/michael/Projects/editbay/artifacts/worktrees/r2-sound-worker/artifacts/natural-sound/fixtures/qualified-six-channel.mov",
+  "source_fingerprint": {
+    "bytes": 214558,
+    "sha256": "a6ce0012de62432f8d30e3b7e65532f37651ed0a8650ea4c62c54bd8f141e9b2"
+  },
+  "source_unchanged": true,
+  "worker_reaped": true,
+  "sample_observations_file": "six-cancel-observations.json.gz"
+}

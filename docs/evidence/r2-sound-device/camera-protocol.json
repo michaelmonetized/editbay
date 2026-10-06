@@ -1,0 +1,92 @@
+{
+  "application_sha256": "fae14300694c31764be48e8646db780eb155338e19fdd60fc1b1548d2d92d505",
+  "kind": "sound_device_protocol",
+  "project_sha256": "b37d4d5f05b3c6e577cec597ad650942aeb6111dd4d0f92e887d82520aee22d0",
+  "qualified": true,
+  "reports": [
+    {
+      "detail": "invalid media request: codec worker failed: invalid media request: codec worker closed its socket; ",
+      "elapsed_ms": 17.318900000000003,
+      "mode": "malformed",
+      "reaped": true,
+      "rejected": true
+    },
+    {
+      "detail": "invalid media request: codec worker failed: invalid media request: codec worker closed its socket; ",
+      "elapsed_ms": 17.274316000000002,
+      "mode": "unknown-field",
+      "reaped": true,
+      "rejected": true
+    },
+    {
+      "detail": "invalid media request: codec worker failed: invalid media request: codec worker closed its socket; editbay sound device worker: invalid media request: unknown field `extra`, there are no fields at line 1 column 41\n",
+      "elapsed_ms": 21.458801,
+      "mode": "poll-extra-field",
+      "reaped": true,
+      "rejected": true
+    },
+    {
+      "detail": "invalid media request: codec worker failed: invalid media request: codec worker closed its socket; editbay sound device worker: Invalid sound device operation order\n",
+      "elapsed_ms": 18.244114,
+      "mode": "poll-before-begin",
+      "reaped": true,
+      "rejected": true
+    },
+    {
+      "detail": "invalid media request: codec worker failed: invalid media request: codec worker closed its socket; ",
+      "elapsed_ms": 16.35327,
+      "mode": "foreign-begin-version",
+      "reaped": true,
+      "rejected": true
+    },
+    {
+      "detail": "invalid media request: codec worker failed: invalid media request: codec worker closed its socket; ",
+      "elapsed_ms": 47.687132,
+      "mode": "nil-session",
+      "reaped": true,
+      "rejected": true
+    },
+    {
+      "detail": "invalid media request: codec worker failed: invalid media request: codec worker closed its socket; editbay sound device worker: Foreign, stale or descriptor-bearing sound device request\n",
+      "elapsed_ms": 18.39124,
+      "mode": "begin-file",
+      "reaped": true,
+      "rejected": true
+    },
+    {
+      "detail": "invalid media request: codec worker failed: invalid media request: codec worker closed its socket; editbay sound device worker: Foreign, stale or descriptor-bearing sound device request\n",
+      "elapsed_ms": 2.125097,
+      "mode": "stale",
+      "reaped": true,
+      "rejected": true
+    },
+    {
+      "detail": "invalid media request: codec worker failed: invalid media request: codec worker closed its socket; ",
+      "elapsed_ms": 2.167763,
+      "mode": "foreign",
+      "reaped": true,
+      "rejected": true
+    },
+    {
+      "detail": "invalid media request: codec worker failed: invalid media request: codec worker closed its socket; ",
+      "elapsed_ms": 2.138014,
+      "mode": "foreign-version",
+      "reaped": true,
+      "rejected": true
+    },
+    {
+      "detail": "invalid media request: codec worker failed: invalid media request: codec worker closed its socket; editbay sound device worker: Foreign, stale or descriptor-bearing sound device request\n",
+      "elapsed_ms": 2.1214720000000002,
+      "mode": "extra-file",
+      "reaped": true,
+      "rejected": true
+    },
+    {
+      "detail": "invalid media request: codec worker failed: invalid media request: codec worker closed its socket; ",
+      "elapsed_ms": 2.173847,
+      "mode": "duplicate-begin",
+      "reaped": true,
+      "rejected": true
+    }
+  ]
+}

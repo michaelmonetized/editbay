@@ -1,0 +1,100 @@
+{
+  "application_sha256": "fae14300694c31764be48e8646db780eb155338e19fdd60fc1b1548d2d92d505",
+  "kind": "sound_device_controller_death",
+  "qualified": true,
+  "reports": [
+    {
+      "active": {
+        "callbacks": 11,
+        "clipped_monitor_samples": 1355,
+        "device": {
+          "channels": 2,
+          "name": "default",
+          "sample_format": "F32",
+          "sample_rate": 44100
+        },
+        "device_worker_pid": 4107699,
+        "end_sample": 145308,
+        "error": null,
+        "phase": "playing",
+        "position_samples": 2634,
+        "prepared_capacity_frames": 16384,
+        "prepared_frames": 13520,
+        "reported_latency_ns": 0,
+        "route": "Stereo",
+        "start_sample": 0,
+        "version": {
+          "project_id": "4f509bef-6fd0-4773-ae1d-2191d9bcb1d4",
+          "revision": 3
+        },
+        "worker_pid": 4107705
+      },
+      "device_and_pcm_reaped": true,
+      "exit": "signal: 2 (SIGINT)",
+      "retirement_ms": 5.446909,
+      "signal": "INT"
+    },
+    {
+      "active": {
+        "callbacks": 10,
+        "clipped_monitor_samples": 1355,
+        "device": {
+          "channels": 2,
+          "name": "default",
+          "sample_format": "F32",
+          "sample_rate": 44100
+        },
+        "device_worker_pid": 4107728,
+        "end_sample": 145308,
+        "error": null,
+        "phase": "playing",
+        "position_samples": 2422,
+        "prepared_capacity_frames": 16384,
+        "prepared_frames": 13755,
+        "reported_latency_ns": 0,
+        "route": "Stereo",
+        "start_sample": 0,
+        "version": {
+          "project_id": "4f509bef-6fd0-4773-ae1d-2191d9bcb1d4",
+          "revision": 3
+        },
+        "worker_pid": 4107734
+      },
+      "device_and_pcm_reaped": true,
+      "exit": "signal: 15 (SIGTERM)",
+      "retirement_ms": 3.123853,
+      "signal": "TERM"
+    },
+    {
+      "active": {
+        "callbacks": 11,
+        "clipped_monitor_samples": 1355,
+        "device": {
+          "channels": 2,
+          "name": "default",
+          "sample_format": "F32",
+          "sample_rate": 44100
+        },
+        "device_worker_pid": 4107793,
+        "end_sample": 145308,
+        "error": null,
+        "phase": "playing",
+        "position_samples": 2708,
+        "prepared_capacity_frames": 16384,
+        "prepared_frames": 13520,
+        "reported_latency_ns": 0,
+        "route": "Stereo",
+        "start_sample": 0,
+        "version": {
+          "project_id": "4f509bef-6fd0-4773-ae1d-2191d9bcb1d4",
+          "revision": 3
+        },
+        "worker_pid": 4107864
+      },
+      "device_and_pcm_reaped": true,
+      "exit": "signal: 9 (SIGKILL)",
+      "retirement_ms": 4.278943,
+      "signal": "KILL"
+    }
+  ]
+}

@@ -1,0 +1,51 @@
+{
+  "adopted_pcm_reaped": [],
+  "application_sha256": "fae14300694c31764be48e8646db780eb155338e19fdd60fc1b1548d2d92d505",
+  "device_worker_reaped": true,
+  "elapsed_seconds": 0.327265843,
+  "final": {
+    "callbacks": 10,
+    "clipped_monitor_samples": 0,
+    "device": {
+      "channels": 2,
+      "name": "default",
+      "sample_format": "F32",
+      "sample_rate": 44100
+    },
+    "device_worker_pid": 4095319,
+    "end_sample": 576975,
+    "error": null,
+    "phase": "stopped",
+    "position_samples": 2497,
+    "prepared_capacity_frames": 16384,
+    "prepared_frames": 13755,
+    "reported_latency_ns": 0,
+    "route": "Stereo",
+    "start_sample": 0,
+    "version": {
+      "project_id": "c5892d4a-c2eb-4a86-871b-d0175263064d",
+      "revision": 1
+    },
+    "worker_pid": 4095326
+  },
+  "kind": "native_streaming_sound",
+  "limits": [
+    "Actual default output device callbacks and backend latency estimate; no physical audibility or speaker timing claim",
+    "Lab-authored graph; native window controls and long hardware drift require separate evidence"
+  ],
+  "memory": [
+    "VmHWM:\t   59840 kB",
+    "VmRSS:\t   59840 kB"
+  ],
+  "mode": "cancel",
+  "qualified": true,
+  "retirement_ms": 15.144803,
+  "source": "/home/michael/Downloads/iCloud Photos/IMG_0001.MP4",
+  "source_fingerprint": {
+    "bytes": 5235017,
+    "sha256": "498ec6c42b6b440886eb761dc4775c994f7578021890ceae3f370ffc6fb3e021"
+  },
+  "source_unchanged": true,
+  "worker_reaped": true,
+  "sample_observations_file": "camera-cancel-observations.json.gz"
+}

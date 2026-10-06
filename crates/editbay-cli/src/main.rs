@@ -270,6 +270,16 @@ fn run(args: &[OsString]) -> Result<(), Box<dyn std::error::Error>> {
 }
 
 fn main() -> ExitCode {
+    if std::env::args_os().nth(1).as_deref() == Some(std::ffi::OsStr::new("--sound-device-worker"))
+    {
+        return match editbay_audio::serve_device_worker() {
+            Ok(()) => ExitCode::SUCCESS,
+            Err(error) => {
+                eprintln!("editbay sound device worker: {error}");
+                ExitCode::FAILURE
+            }
+        };
+    }
     if std::env::args_os().nth(1).as_deref() == Some(std::ffi::OsStr::new("--delivery-worker")) {
         return match editbay_delivery::serve() {
             Ok(()) => ExitCode::SUCCESS,
