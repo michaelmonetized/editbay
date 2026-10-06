@@ -91,8 +91,12 @@ Its first 7200-second attempt overlaps native device fault injection and fails
 after 47.417638 seconds, with 14336 prepared frames. The rejected clock records
 -20.883398 ms, beyond the unchanged 20 ms limit. Accepted backend/host maxima
 are 3.737521/3.422970 ms. Peak combined RSS is 145296 KiB and all children retire.
-The overlap is recorded, not asserted as causation. A fresh baseline without
-intentional device faults is currently running; it is not a passing receipt yet.
+The overlap is recorded, not asserted as causation. A second 7200-second baseline
+without intentional device faults fails after 246.202172 seconds because sound
+preparation runs empty. Its accepted backend/host drift stays within
+0.894853/0.986766 ms and no rejected clock is recorded. Peak combined RSS is
+149904 KiB. Owned children retire and original hashes remain unchanged.
+This is a preparation underrun, not a completed sustained playback gate.
 
 Both camera and six-channel native edit/history/save/recovery/reopen/export
 workflows pass with exact independent picture/PCM comparison and five edit inputs

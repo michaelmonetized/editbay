@@ -6,8 +6,9 @@ Issue [#47](https://github.com/michaelmonetized/editbay/issues/47) / draft
 retains rejected clock evidence. The first upstream candidate fails its sustained
 pilot; [raw evidence](evidence/r2-sound-backend/README.md) remains explicit.
 The ALSA snapshot correction passes a three-minute pilot and 18 real fault trials;
-its concurrent two-hour attempt fails after 47 seconds. A fresh baseline is
-running, with native driver requalification still pending. Full R2/R8 stay open.
+its concurrent two-hour attempt fails after 47 seconds. The baseline stops after
+246 seconds with an empty preparation queue and bounded clock drift. Native
+driver requalification is still pending. Full R2/R8 stay open.
 
 Validated locally on 2026-10-06, Linux ARM64, Rust/Cargo 1.98.0.
 This is the native local workspace, project/recovery foundation and native
