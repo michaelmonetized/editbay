@@ -1,4 +1,5 @@
 mod cached;
+mod checkpoints;
 mod completions;
 pub mod masks;
 pub mod prepared;
@@ -2315,15 +2316,24 @@ pub fn run(binary: &Path, directory: &Path, count: usize) -> Result<Value> {
         trace.wait("native undo", |record| has_tab(record, &active, 2))?;
         trace.focus()?;
         key(44, true, true)?;
-        trace.wait("native redo", |record| has_tab(record, &revised, 3))?;
-        let acknowledged = trace.wait("active and inactive checkpoints", |record| {
-            record["kind"] == "workspace"
-                && record["details"]["tabs"].as_array().is_some_and(|tabs| {
-                    tabs.len() == 2
-                        && tabs
-                            .iter()
-                            .all(|tab| tab["recovery_revision"] == tab["revision"])
+        let redone = trace.wait("native redo", |record| has_tab(record, &revised, 3))?;
+        let expected: Vec<editbay_core::DocumentVersion> = redone["details"]["tabs"]
+            .as_array()
+            .ok_or("Redo tabs missing")?
+            .iter()
+            .map(|tab| {
+                Ok(editbay_core::DocumentVersion {
+                    project_id: tab["project"]
+                        .as_str()
+                        .ok_or("Redo project missing")?
+                        .parse()?,
+                    revision: tab["revision"].as_u64().ok_or("Redo revision missing")?,
                 })
+            })
+            .collect::<Result<_>>()?;
+        let after = redone["unix_us"].as_u64().ok_or("Redo timestamp missing")?;
+        let acknowledged = trace.wait("active and inactive checkpoints", |record| {
+            checkpoints::acknowledged(record, after, &expected)
         })?;
         let pid = application.0.id();
         let memory = fs::read_to_string(format!("/proc/{pid}/status"))?
@@ -2390,6 +2400,7 @@ pub fn run(binary: &Path, directory: &Path, count: usize) -> Result<Value> {
             has_tab(record, &revised, 3)
         })?;
         reopened.kill()?;
+        let mut publications = std::collections::HashSet::new();
         for record in &trace.records {
             if record["kind"] == "frame"
                 && let Some(cpu) = record["details"]["cpu_us"].as_u64()
@@ -2397,14 +2408,16 @@ pub fn run(binary: &Path, directory: &Path, count: usize) -> Result<Value> {
                 frames.push(cpu as f64 / 1000.);
             }
             if record["kind"] == "workspace"
-                && let Some(time) = record["details"]["last_recovery_worker_commit_us"].as_u64()
+                && let Some(count) = record["details"]["recovery_publications"].as_u64()
+                && count > 0
+                && publications.insert(count)
             {
-                commits.push(time as f64 / 1000.);
-            }
-            if record["kind"] == "workspace"
-                && let Some(time) = record["details"]["last_recovery_accept_us"].as_u64()
-            {
-                accepts.push(time as f64 / 1000.);
+                if let Some(time) = record["details"]["last_recovery_worker_commit_us"].as_u64() {
+                    commits.push(time as f64 / 1000.);
+                }
+                if let Some(time) = record["details"]["last_recovery_accept_us"].as_u64() {
+                    accepts.push(time as f64 / 1000.);
+                }
             }
         }
         let report = json!({"index":index,"saved_original":saved,"original_sha256":original_hash,"checkpoint_sha256":checkpoint_hash,"inactive_checkpoint_sha256":inactive_hash,"recovered_sha256":hash(&recovered_path)?,"original_project":active_id,"recovered_project":recovered.id,"revision":recovered.revision,"checkpoint_acknowledged_unix_us":acknowledged["unix_us"],"memory":memory,"native_ui_recovery":true,"native_reopen":true});

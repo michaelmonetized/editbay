@@ -6,11 +6,13 @@ use std::sync::{
 
 pub(super) struct Publication {
     state: Arc<AtomicU8>,
+    prepared: Arc<AtomicU8>,
     approval: SyncSender<()>,
 }
 
 pub(super) struct Permit {
     state: Arc<AtomicU8>,
+    prepared: Arc<AtomicU8>,
     approval: Receiver<()>,
 }
 
@@ -19,14 +21,17 @@ impl Publication {
     /// Takes no arguments; returns UI control and the worker's publication permit.
     pub(super) fn new() -> (Self, Permit) {
         let state = Arc::new(AtomicU8::new(0));
+        let prepared = Arc::new(AtomicU8::new(0));
         let (sender, receiver) = mpsc::sync_channel(1);
         (
             Self {
                 state: state.clone(),
+                prepared: prepared.clone(),
                 approval: sender,
             },
             Permit {
                 state,
+                prepared,
                 approval: receiver,
             },
         )
@@ -35,7 +40,22 @@ impl Publication {
     /// Release prepared work after the UI checks its captured tab and path.
     /// Takes no arguments; returns an error if the worker no longer accepts work.
     pub(super) fn approve(&self) -> Result<(), String> {
+        self.prepared.store(2, Ordering::Release);
         self.approval.try_send(()).map_err(|e| e.to_string())
+    }
+
+    /// Inspect the pending worker without waiting for its filesystem operation.
+    /// Takes no arguments; returns a diagnostic phase, never a durable acknowledgement.
+    pub(super) fn phase(&self) -> &'static str {
+        match self.state.load(Ordering::Acquire) {
+            1 => "cancelled",
+            2 => "publishing",
+            _ => match self.prepared.load(Ordering::Acquire) {
+                0 => "preparing",
+                1 => "awaiting_approval",
+                _ => "approved",
+            },
+        }
     }
 
     /// Revoke unclaimed publication without waiting for the worker or filesystem.
@@ -55,6 +75,11 @@ impl Drop for Publication {
 }
 
 impl Permit {
+    /// Report that private synchronized bytes are waiting for ownership approval.
+    /// Takes no arguments and publishes no file; returns no value.
+    pub(super) fn prepared(&self) {
+        self.prepared.store(1, Ordering::Release);
+    }
     /// Wait on the worker for approval, then claim publication against cancellation.
     /// `commit` owns all filesystem work and cleanup. Returns its result only when
     /// publication wins; dropping rejected work also happens on this worker.
@@ -108,6 +133,9 @@ mod tests {
         let prepared =
             prepare_checkpoint(&Project::new("Durable").unwrap(), None, root.path()).unwrap();
         let (control, permit) = Publication::new();
+        assert_eq!(control.phase(), "preparing");
+        permit.prepared();
+        assert_eq!(control.phase(), "awaiting_approval");
         let (started, entered) = mpsc::sync_channel(1);
         let (release, blocked) = mpsc::sync_channel(1);
         let worker = std::thread::spawn(move || {
@@ -121,6 +149,7 @@ mod tests {
         assert!(recovery_catalog(root.path()).unwrap().valid.is_empty());
         control.approve().unwrap();
         entered.recv_timeout(Duration::from_secs(2)).unwrap();
+        assert_eq!(control.phase(), "publishing");
         control.cancel();
         drop(control);
         assert!(recovery_catalog(root.path()).unwrap().valid.is_empty());

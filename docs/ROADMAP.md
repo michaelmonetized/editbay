@@ -191,7 +191,8 @@ Omarchy palettes. Recovery tests do not substitute for native visual inspection.
 
 ## R2 — the production engine
 
-Issue [#57](https://github.com/michaelmonetized/editbay/issues/57) moves complete
+Issue [#57](https://github.com/michaelmonetized/editbay/issues/57) / draft
+[PR #58](https://github.com/michaelmonetized/editbay/pull/58) moves complete
 [recovery publication](RECOVERY_PUBLICATION.md) off the native UI thread, following
 the 236.380 ms synchronous commit exposed by #56. Ownership approval remains on
 the UI; an atomic worker claim arbitrates publication and cancellation. Durable

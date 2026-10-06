@@ -38,6 +38,14 @@ pub struct DocumentOwner {
     generation: u64,
 }
 
+#[derive(Clone, Debug, PartialEq, Eq, serde::Serialize)]
+pub struct RecoveryWork {
+    pub job: Uuid,
+    pub tab: Uuid,
+    pub version: DocumentVersion,
+    pub phase: &'static str,
+}
+
 impl Tab {
     fn cancel_exports(&mut self) {
         for export in self.exports.drain(..) {
@@ -468,6 +476,7 @@ impl Workspace {
                 let result = (|| {
                     let prepared = prepare_checkpoint(&project, original.as_deref(), root)
                         .map_err(|e| e.to_string())?;
+                    permit.prepared();
                     sender
                         .send((job, Ok(Outcome::Prepared)))
                         .map_err(|e| e.to_string())?;
@@ -610,6 +619,31 @@ impl Workspace {
     /// Takes no arguments and returns true while queued or running work exists.
     pub fn busy(&self) -> bool {
         !self.pending.is_empty() || !self.open_queue.is_empty()
+    }
+
+    /// Inspect the bounded recovery lifetimes without worker or filesystem waits.
+    /// Takes no arguments; returns at most four captured owners and current phases.
+    pub fn recovery_jobs(&self) -> Vec<RecoveryWork> {
+        let mut jobs: Vec<_> = self
+            .pending
+            .iter()
+            .filter_map(|(job, pending)| match pending {
+                Pending::Recovery {
+                    tab,
+                    version,
+                    publication,
+                    ..
+                } => Some(RecoveryWork {
+                    job: *job,
+                    tab: *tab,
+                    version: *version,
+                    phase: publication.phase(),
+                }),
+                _ => None,
+            })
+            .collect();
+        jobs.sort_by_key(|job| job.job);
+        jobs
     }
 
     /// Consume a request to refresh filesystem discovery after publication.
