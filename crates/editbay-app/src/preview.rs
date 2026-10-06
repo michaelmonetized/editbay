@@ -1,4 +1,8 @@
+mod completion;
+mod prepared;
+
 use crate::workspace::{DocumentOwner, Workspace};
+use completion::CompletionLog;
 use editbay_audio::{
     MonitorRoute, PlaybackPhase, PlaybackStart, StreamingPlayback, StreamingStatus,
 };
@@ -14,6 +18,7 @@ use editbay_render::{
 };
 use eframe::egui;
 use egui_wgpu::wgpu;
+use prepared::Prepared;
 use std::{
     collections::HashMap,
     sync::{
@@ -195,6 +200,55 @@ mod tests {
             assert!(workspace.tabs[0].editor.project().compositions.is_empty());
         }
     }
+
+    #[test]
+    fn cancelling_preparation_or_changing_owner_retires_queue_without_starting_sound() {
+        for changed_owner in [false, true] {
+            let (_directory, workspace, tab) = workspace();
+            let (owner, editor) = workspace.edit_snapshot(tab).unwrap();
+            let sequence = Uuid::new_v4();
+            let pictures = Arc::new(Mutex::new(Prepared::new(0, 10, 1280, 720).unwrap()));
+            pictures.lock().unwrap().reserve().unwrap();
+            let mut pane = PreviewPane {
+                view_owner: Some(owner),
+                prepared: Some(pictures.clone()),
+                completions: Some(
+                    CompletionLog::new(
+                        completion::Scope {
+                            tab,
+                            version: owner.version,
+                            sequence,
+                        },
+                        0,
+                        10,
+                    )
+                    .unwrap(),
+                ),
+                starting: Some(PendingSound {
+                    owner,
+                    project: editor.snapshot(),
+                    sequence,
+                    composition: Uuid::new_v4(),
+                    rate: FrameRate::new(24, 1).unwrap(),
+                    duration: 10,
+                    start: PlaybackStart::Frame(0),
+                    route: MonitorRoute::Stereo,
+                    began: Instant::now(),
+                }),
+                ..Default::default()
+            };
+            if changed_owner {
+                pane.observe_owner(None);
+            } else {
+                pane.stop_sound();
+            }
+            assert!(pane.sound.is_none());
+            assert!(pane.starting.is_none());
+            assert!(pane.prepared.is_none());
+            assert!(!pictures.lock().unwrap().state().open);
+            assert!(pane.completions.as_ref().unwrap().summary().cancelled);
+        }
+    }
 }
 #[derive(Clone, Copy, PartialEq, Eq)]
 struct Selection {
@@ -225,6 +279,23 @@ struct ResumeSound {
     sequence: Uuid,
     start: PlaybackStart,
 }
+struct PendingSound {
+    owner: DocumentOwner,
+    project: Arc<Project>,
+    sequence: Uuid,
+    composition: Uuid,
+    rate: editbay_core::FrameRate,
+    duration: u64,
+    start: PlaybackStart,
+    route: MonitorRoute,
+    began: Instant,
+}
+type PreparedPictures = Arc<Mutex<Prepared<Arc<Picture>>>>;
+#[derive(Clone)]
+struct Preparation {
+    serial: u64,
+    pictures: PreparedPictures,
+}
 struct Request {
     serial: u64,
     frame: u64,
@@ -233,6 +304,7 @@ struct Request {
 #[derive(Default)]
 struct Mailbox {
     request: Option<Request>,
+    preparation: Option<Preparation>,
     stopped: bool,
 }
 #[derive(Clone, Copy, serde::Serialize)]
@@ -251,6 +323,7 @@ struct Picture {
     preparation_us: u64,
     work: PictureWork,
     completion_us: AtomicU64,
+    selected_us: AtomicU64,
     incompatible: AtomicBool,
     stats: GraphStats,
     worker_pid: Option<u32>,
@@ -266,6 +339,7 @@ struct Task {
     cancel: Cancellation,
     mailbox: Arc<(Mutex<Mailbox>, Condvar)>,
     result: Arc<Mutex<Option<Event>>>,
+    coalesced: Arc<AtomicU64>,
     thread: Option<JoinHandle<()>>,
 }
 
@@ -290,6 +364,11 @@ impl Task {
         if let Ok(mut mailbox) = self.mailbox.0.lock() {
             mailbox.stopped = true;
             mailbox.request = None;
+            if let Some(preparation) = mailbox.preparation.take()
+                && let Ok(mut pictures) = preparation.pictures.lock()
+            {
+                pictures.cancel();
+            }
         }
         self.mailbox.1.notify_one();
     }
@@ -299,6 +378,17 @@ impl Task {
             return Err("Viewer is stopping".into());
         }
         mailbox.request = Some(request);
+        mailbox.preparation = None;
+        self.mailbox.1.notify_one();
+        Ok(())
+    }
+    fn prepare(&self, preparation: Preparation) -> Result<(), String> {
+        let mut mailbox = self.mailbox.0.lock().map_err(|e| e.to_string())?;
+        if mailbox.stopped {
+            return Err("Viewer is stopping".into());
+        }
+        mailbox.request = None;
+        mailbox.preparation = Some(preparation);
         self.mailbox.1.notify_one();
         Ok(())
     }
@@ -315,6 +405,8 @@ impl Task {
         let cancel = Cancellation::new().map_err(|e| e.to_string())?;
         let mailbox = Arc::new((Mutex::new(Mailbox::default()), Condvar::new()));
         let result = Arc::new(Mutex::new(None));
+        let coalesced = Arc::new(AtomicU64::new(0));
+        let replaced = coalesced.clone();
         let input = mailbox.clone();
         let output = result.clone();
         let token = cancel.clone();
@@ -323,6 +415,9 @@ impl Task {
             .spawn(move || {
                 let publish = |event| {
                     if let Ok(mut result) = output.lock() {
+                        if matches!(result.as_ref(), Some(Event::Picture(_))) {
+                            replaced.fetch_add(1, Ordering::AcqRel);
+                        }
                         *result = Some(event);
                     }
                     ctx.request_repaint();
@@ -366,7 +461,29 @@ impl Task {
                         }
                         let request = {
                             let mut mailbox = input.0.lock().map_err(|e| e.to_string())?;
-                            if mailbox.request.is_none() && !mailbox.stopped {
+                            if mailbox.stopped {
+                                return Ok(());
+                            }
+                            let request = if let Some(preparation) = &mailbox.preparation {
+                                let reserved = preparation
+                                    .pictures
+                                    .lock()
+                                    .map_err(|e| e.to_string())?
+                                    .reserve();
+                                reserved.map(|reservation| {
+                                    (
+                                        Request {
+                                            serial: preparation.serial,
+                                            frame: reservation.frame,
+                                            requested: Instant::now(),
+                                        },
+                                        Some((preparation.pictures.clone(), reservation)),
+                                    )
+                                })
+                            } else {
+                                mailbox.request.take().map(|request| (request, None))
+                            };
+                            if request.is_none() {
                                 mailbox = input
                                     .1
                                     .wait_timeout(mailbox, Duration::from_millis(100))
@@ -376,9 +493,9 @@ impl Task {
                             if mailbox.stopped {
                                 return Ok(());
                             }
-                            mailbox.request.take()
+                            request
                         };
-                        if let Some(request) = request {
+                        if let Some((request, preparation)) = request {
                             let began = Instant::now();
                             let queued_us = request.requested.elapsed().as_micros() as u64;
                             let working = graph
@@ -409,7 +526,7 @@ impl Task {
                             graph.finish().map_err(|e| e.to_string())?;
                             let finish_us = began.elapsed().as_micros() as u64;
                             if !token.is_cancelled() {
-                                publish(Event::Picture(Arc::new(Picture {
+                                let picture = Arc::new(Picture {
                                     draw,
                                     serial: request.serial,
                                     frame: request.frame,
@@ -423,10 +540,20 @@ impl Task {
                                         finish_us,
                                     },
                                     completion_us: AtomicU64::new(0),
+                                    selected_us: AtomicU64::new(0),
                                     incompatible: AtomicBool::new(false),
                                     stats: graph.stats(),
                                     worker_pid: graph.picture_provider().process_id(),
-                                })));
+                                });
+                                if let Some((pictures, reservation)) = preparation {
+                                    pictures
+                                        .lock()
+                                        .map_err(|e| e.to_string())?
+                                        .publish(reservation, picture);
+                                    ctx.request_repaint();
+                                } else {
+                                    publish(Event::Picture(picture));
+                                }
                             }
                         }
                         graph.poll().map_err(|e| e.to_string())?;
@@ -443,6 +570,7 @@ impl Task {
             cancel,
             mailbox,
             result,
+            coalesced,
             thread: Some(thread),
         })
     }
@@ -455,6 +583,7 @@ impl Drop for Task {
 
 struct Callback {
     picture: Arc<Picture>,
+    completion: Option<completion::Publisher>,
     wake: egui::Context,
     compatible: AtomicBool,
 }
@@ -485,18 +614,23 @@ impl egui_wgpu::CallbackTrait for Callback {
             return;
         }
         let picture = self.picture.clone();
+        let completion = self.completion.clone();
         let wake = self.wake.clone();
         self.picture.draw.paint(pass, move || {
+            let elapsed_us = picture.requested.elapsed().as_micros() as u64;
             if picture
                 .completion_us
-                .compare_exchange(
-                    0,
-                    picture.requested.elapsed().as_micros() as u64,
-                    Ordering::AcqRel,
-                    Ordering::Acquire,
-                )
+                .compare_exchange(0, elapsed_us, Ordering::AcqRel, Ordering::Acquire)
                 .is_ok()
             {
+                if let Some(completion) = completion {
+                    completion.completed(
+                        picture.frame,
+                        picture.serial,
+                        elapsed_us,
+                        elapsed_us.saturating_sub(picture.selected_us.load(Ordering::Acquire)),
+                    );
+                }
                 wake.request_repaint();
             }
         });
@@ -515,11 +649,14 @@ pub struct PreviewPane {
     selections: HashMap<Uuid, Selection>,
     source_audio: HashMap<(Uuid, Uuid), Option<u32>>,
     sound: Option<SoundTask>,
+    starting: Option<PendingSound>,
+    prepared: Option<PreparedPictures>,
     sound_retiring: Vec<SoundTask>,
     sound_status: Option<StreamingStatus>,
     resume_sound: Option<ResumeSound>,
     monitor_route: MonitorRoute,
     skipped_frames: u64,
+    completions: Option<CompletionLog>,
     task: Option<Task>,
     retiring: Vec<Task>,
     picture: Option<Arc<Picture>>,
@@ -762,6 +899,27 @@ impl PreviewPane {
     }
 
     fn stop_sound(&mut self) -> Option<u64> {
+        self.starting = None;
+        if let Some(prepared) = self.prepared.take() {
+            let in_flight = if let Ok(mut pictures) = prepared.lock() {
+                let active = pictures.state().in_flight;
+                pictures.cancel();
+                active
+            } else {
+                true
+            };
+            self.requested_frame = None;
+            if in_flight && let Some(task) = self.task.take() {
+                task.stop();
+                self.retiring.push(task);
+                self.worker_pid = None;
+            } else if let Some(task) = &self.task {
+                task.mailbox.1.notify_one();
+            }
+        }
+        if let Some(completions) = &mut self.completions {
+            completions.cancel();
+        }
         let mut task = self.sound.take()?;
         let status = task.playback.status();
         let frame = task.frame(&status);
@@ -794,6 +952,95 @@ impl PreviewPane {
         frame
     }
 
+    fn advance_picture(&mut self, frame: u64) -> Result<(), String> {
+        let Some(prepared) = &self.prepared else {
+            return Ok(());
+        };
+        if !self
+            .completions
+            .as_ref()
+            .is_some_and(|log| log.contains_frame(frame))
+        {
+            return Err("Sound clock is outside its prepared playback range".into());
+        }
+        self.requested_frame = Some(frame);
+        if self
+            .picture
+            .as_ref()
+            .is_some_and(|picture| picture.frame == frame)
+        {
+            return Ok(());
+        }
+        let next = prepared.lock().map_err(|e| e.to_string())?.take(frame);
+        if let Some(task) = &self.task {
+            task.mailbox.1.notify_one();
+        }
+        if let Some(picture) = next {
+            if picture.serial != self.serial || picture.frame != frame {
+                return Err("Prepared picture belongs to an obsolete playback".into());
+            }
+            if let Some(previous) = &self.picture {
+                self.skipped_frames = self
+                    .skipped_frames
+                    .saturating_add(frame.saturating_sub(previous.frame).saturating_sub(1));
+            }
+            self.worker_pid = picture.worker_pid;
+            picture.selected_us.store(
+                picture.requested.elapsed().as_micros() as u64,
+                Ordering::Release,
+            );
+            self.picture = Some(picture);
+            Ok(())
+        } else if self.starting.is_some() {
+            Ok(())
+        } else {
+            Err("Pictures could not keep up with sound; playback stopped. Retry playback".into())
+        }
+    }
+
+    fn start_prepared_sound(&mut self) -> Result<(), String> {
+        let Some(pending) = &self.starting else {
+            return Ok(());
+        };
+        let prepared = self
+            .prepared
+            .as_ref()
+            .ok_or("Prepared pictures are absent")?;
+        let first = prepared.lock().map_err(|e| e.to_string())?.state().first;
+        let expired = pending.began.elapsed() > Duration::from_secs(10);
+        self.advance_picture(first)?;
+        let ready = self
+            .prepared
+            .as_ref()
+            .unwrap()
+            .lock()
+            .map_err(|e| e.to_string())?
+            .ready()
+            && self
+                .picture
+                .as_ref()
+                .is_some_and(|picture| picture.completion_us.load(Ordering::Acquire) > 0);
+        if ready {
+            let pending = self.starting.take().unwrap();
+            let playback = StreamingPlayback::start(
+                pending.project,
+                pending.composition,
+                pending.start,
+                pending.route,
+            )?;
+            self.sound = Some(SoundTask {
+                owner: pending.owner,
+                sequence: pending.sequence,
+                rate: pending.rate,
+                duration: pending.duration,
+                playback,
+            });
+        } else if expired {
+            return Err("Pictures did not become ready within ten seconds; retry playback".into());
+        }
+        Ok(())
+    }
+
     fn observe_owner(&mut self, owner: Option<DocumentOwner>) {
         if owner != self.view_owner {
             self.stop();
@@ -817,6 +1064,18 @@ impl PreviewPane {
             None
         };
         self.observe_owner(owner);
+        if let Some(completions) = &mut self.completions {
+            completions.poll();
+            let state = completions.summary();
+            if !state.cancelled
+                && (state.overflow > 0 || state.rejected > 0 || state.outside_history > 0)
+            {
+                self.stop_sound();
+                self.error = Some(
+                    "Viewer fell behind or completed an invalid picture; retry playback".into(),
+                );
+            }
+        }
         let mut retired_status = None;
         self.sound_retiring.retain_mut(|task| {
             let status = task.playback.status();
@@ -832,11 +1091,13 @@ impl PreviewPane {
         }
         let mut sound_finished = false;
         let mut sound_error = None;
+        let mut sound_frame = None;
         if let Some(task) = &mut self.sound {
             let status = task.playback.status();
             if status.version != task.owner.version {
                 sound_error = Some("Sound belongs to an obsolete document".into());
             } else if let Some(frame) = task.frame(&status) {
+                sound_frame = Some(frame);
                 self.selections.insert(
                     task.owner.tab,
                     Selection {
@@ -852,10 +1113,21 @@ impl PreviewPane {
             }
             self.sound_status = Some(status);
         }
+        if let Some(frame) = sound_frame
+            && let Err(error) = self.advance_picture(frame)
+        {
+            sound_error = Some(error);
+        }
+        if let Err(error) = self.start_prepared_sound() {
+            sound_error = Some(error);
+        }
         if let Some(error) = sound_error {
             self.stop_sound();
             self.error = Some(error);
         } else if sound_finished {
+            if let Some(completions) = &mut self.completions {
+                completions.observe_end();
+            }
             if let Some(task) = self.sound.take() {
                 self.sound_retiring.push(task);
             }
@@ -874,6 +1146,7 @@ impl PreviewPane {
         if !self.retiring.is_empty()
             || self.creation.is_some()
             || self.sound.is_some()
+            || self.starting.is_some()
             || !self.sound_retiring.is_empty()
         {
             ctx.request_repaint_after(Duration::from_millis(16));
@@ -937,28 +1210,15 @@ impl PreviewPane {
         match event {
             Some(Event::Started(pid)) => self.worker_pid = Some(pid),
             Some(Event::Picture(picture))
-                if (picture.serial == self.serial
-                    && Some(picture.frame) == self.requested_frame)
-                    || (self.sound.is_some()
-                        && self
-                            .requested_frame
-                            .is_some_and(|frame| picture.frame <= frame)
-                        && self
-                            .picture
-                            .as_ref()
-                            .is_none_or(|previous| picture.frame >= previous.frame)) =>
+                if self.prepared.is_none()
+                    && picture.serial == self.serial
+                    && Some(picture.frame) == self.requested_frame =>
             {
-                if self.sound.is_some()
-                    && let Some(previous) = &self.picture
-                {
-                    self.skipped_frames = self.skipped_frames.saturating_add(
-                        picture
-                            .frame
-                            .saturating_sub(previous.frame)
-                            .saturating_sub(1),
-                    );
-                }
                 self.worker_pid = picture.worker_pid;
+                picture.selected_us.store(
+                    picture.requested.elapsed().as_micros() as u64,
+                    Ordering::Release,
+                );
                 self.picture = Some(picture);
             }
             Some(Event::Picture(_)) => self.rejected += 1,
@@ -1079,7 +1339,7 @@ impl PreviewPane {
             self.sound_status = None;
         }
         ui.horizontal_wrapped(|ui| {
-            if self.sound.is_some() {
+            if self.sound.is_some() || self.starting.is_some() {
                 let pause = ui.button("Pause");
                 self.observe_control("pause-sequence", &pause, ui);
                 if pause.clicked() && let Some(frame) = self.stop_sound() {
@@ -1101,18 +1361,37 @@ impl PreviewPane {
                         let start = self.resume_sound
                             .filter(|resume| resume.owner == owner && resume.sequence == selected.sequence)
                             .map_or(PlaybackStart::Frame(selected.frame), |resume| resume.start);
-                        StreamingPlayback::start(project.snapshot(), composition.id, start, self.monitor_route)
-                            .map(|playback| SoundTask {
+                        let completions = CompletionLog::new(completion::Scope {
+                            tab: owner.tab, version: owner.version, sequence: selected.sequence,
+                        }, selected.frame, composition.duration)?;
+                        let prepared = Arc::new(Mutex::new(Prepared::new(selected.frame, composition.duration,
+                            composition.width, composition.height)?));
+                        let serial = self.serial.checked_add(1).ok_or("Viewer request counter exhausted")?;
+                        let task = self.task.as_ref().ok_or("Viewer is unavailable")?;
+                        if task.owner != owner || task.sequence != selected.sequence {
+                            return Err("Viewer sequence changed; retry playback".into());
+                        }
+                        task.prepare(Preparation { serial, pictures:prepared.clone() })?;
+                        Ok((PendingSound {
                                 owner,
+                                project:project.snapshot(),
                                 sequence: selected.sequence,
+                                composition:composition.id,
                                 rate: composition.frame_rate,
                                 duration: composition.duration,
-                                playback,
-                            })
+                                start, route:self.monitor_route, began:Instant::now(),
+                            }, completions, prepared, serial))
                     });
                     match started {
-                        Ok(task) => {
-                            self.sound = Some(task);
+                        Ok((pending, completions, prepared, serial)) => {
+                            if let Some(previous) = self.prepared.replace(prepared)
+                                && let Ok(mut pictures) = previous.lock()
+                            {
+                                pictures.cancel();
+                            }
+                            self.starting = Some(pending);
+                            self.serial = serial;
+                            self.completions = Some(completions);
                             self.sound_status = None;
                             self.error = None;
                             self.skipped_frames = 0;
@@ -1123,7 +1402,7 @@ impl PreviewPane {
                     }
                 }
             }
-            ui.add_enabled_ui(self.sound.is_none() && self.sound_retiring.is_empty(), |ui| {
+            ui.add_enabled_ui(self.sound.is_none() && self.starting.is_none() && self.sound_retiring.is_empty(), |ui| {
                 let response = egui::ComboBox::from_id_salt("monitor-route")
                     .selected_text(match self.monitor_route {
                         MonitorRoute::Stereo => "Stereo monitor",
@@ -1135,6 +1414,9 @@ impl PreviewPane {
                     }).response.on_hover_text("Stereo monitor sends mono to both speakers, reduces center/surround channels by 3 dB and omits LFE. Original source and delivery channels stay unchanged.");
                 self.observe_control("monitor-route", &response, ui);
             });
+            if self.starting.is_some() {
+                ui.weak("Preparing pictures…");
+            }
             if let Some(status) = &self.sound_status {
                 if let Some(device) = &status.device {
                     ui.weak(format!("{} · {} Hz · {} channels", device.name, device.sample_rate, device.channels));
@@ -1150,7 +1432,7 @@ impl PreviewPane {
                 ui.weak("Stopping sound…");
             }
         });
-        if self.sound.is_some() || !self.sound_retiring.is_empty() {
+        if self.sound.is_some() || self.starting.is_some() || !self.sound_retiring.is_empty() {
             ui.ctx().request_repaint_after(Duration::from_millis(16));
         }
         if let Some(task) = &self.task
@@ -1183,7 +1465,10 @@ impl PreviewPane {
                 }
             }
         }
-        if self.task.is_some() && self.requested_frame != Some(selected.frame) {
+        if self.task.is_some()
+            && self.prepared.is_none()
+            && self.requested_frame != Some(selected.frame)
+        {
             match self.serial.checked_add(1) {
                 Some(serial) => {
                     self.serial = serial;
@@ -1248,15 +1533,13 @@ impl PreviewPane {
                 rect,
                 Callback {
                     picture: picture.clone(),
+                    completion: self.completions.as_ref().map(CompletionLog::publisher),
                     wake: ui.ctx().clone(),
                     compatible: AtomicBool::new(false),
                 },
             ));
             if self.sound.is_some() {
-                ui.weak(format!(
-                    "Playing · frame {} · {} skipped",
-                    picture.frame, self.skipped_frames
-                ));
+                ui.weak(format!("Playing · frame {}", picture.frame));
             } else if picture.serial == self.serial {
                 ui.weak(format!("Showing frame {}", picture.frame));
             } else {
@@ -1280,6 +1563,15 @@ impl PreviewPane {
         }
     }
 
+    /// Inspect bounded actual display events for the native diagnostics writer.
+    /// Takes this pane. Returns a private play session and its latest numbered
+    /// receipts; consumers use their indices to avoid repeating observations.
+    pub(crate) fn completed_pictures(
+        &self,
+    ) -> Option<(Uuid, &std::collections::VecDeque<completion::Completed>)> {
+        self.completions.as_ref().map(CompletionLog::events)
+    }
+
     /// Inspect actual preview requests, completion and resource counters.
     /// Takes no arguments. Returns opt-in diagnostic metadata, without pixel IO.
     pub fn diagnostic_state(&self) -> serde_json::Value {
@@ -1295,7 +1587,10 @@ impl PreviewPane {
             "stats":self.picture.as_ref().map(|picture|picture.stats), "surface":self.gpu.as_ref().map(|gpu|format!("{:?}",gpu.format)),
             "adapter":self.gpu.as_ref().map(|gpu|format!("{:?}",gpu.adapter.get_info())),
             "rejected_results":self.rejected,"retiring":self.retiring.len(),"creating":self.creation.is_some(),"stopped":self.stopped,"error":self.error,"controls":self.controls,
+            "coalesced_results":self.task.as_ref().map(|task|task.coalesced.load(Ordering::Acquire)),
             "sound":self.sound_status,"sound_active":self.sound.is_some(),"sound_retiring":self.sound_retiring.len(),"skipped_frames":self.skipped_frames,
+            "preparing_playback":self.starting.is_some(),"prepared_pictures":self.prepared.as_ref().and_then(|pictures|pictures.lock().ok().map(|pictures|pictures.state())),
+            "accepted_picture_gaps":self.skipped_frames,"display":self.completions.as_ref().map(CompletionLog::summary),
             "resume_sound":self.resume_sound.map(|resume|resume.start)})
     }
 }

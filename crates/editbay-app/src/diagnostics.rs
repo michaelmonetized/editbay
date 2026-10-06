@@ -34,6 +34,8 @@ pub struct Diagnostics {
     previous_preview: Value,
     previous_delivery: Value,
     previous_timeline: Value,
+    previous_display_session: Option<uuid::Uuid>,
+    previous_display_index: u64,
 }
 
 impl Diagnostics {
@@ -82,6 +84,8 @@ impl Diagnostics {
             previous_preview: Value::Null,
             previous_delivery: Value::Null,
             previous_timeline: Value::Null,
+            previous_display_session: None,
+            previous_display_index: 0,
         })
     }
 
@@ -133,6 +137,18 @@ impl Diagnostics {
         if current_media != self.previous_media {
             self.record("media", current_media.clone());
             self.previous_media = current_media;
+        }
+        if let Some((session, events)) = preview.completed_pictures() {
+            if self.previous_display_session != Some(session) {
+                self.previous_display_session = Some(session);
+                self.previous_display_index = 0;
+            }
+            for event in events {
+                if event.index > self.previous_display_index {
+                    self.record("display", json!(event));
+                    self.previous_display_index = event.index;
+                }
+            }
         }
         let current_preview = preview.diagnostic_state();
         if current_preview != self.previous_preview {

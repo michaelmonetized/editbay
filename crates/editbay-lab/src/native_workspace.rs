@@ -1,3 +1,6 @@
+mod completions;
+pub mod prepared;
+
 use crate::{Result, hash, metrics};
 use editbay_core::{Project, load, recovery_catalog, save_new};
 use serde_json::{Value, json};
@@ -574,6 +577,21 @@ fn picture(trace: &mut Trace, frame: u64, after: u64) -> Result<Value> {
 }
 
 fn set_frame(trace: &mut Trace, frame: u64) -> Result<Value> {
+    trace.read()?;
+    if let Some(current) = trace.records.iter().rev().find(|r| r["kind"] == "preview")
+        && current["details"]["requested_frame"] == frame
+        && current["details"]["sound_active"] != true
+        && current["details"]["preparing_playback"] != true
+        && current["details"]["stopped"] == false
+    {
+        return picture(
+            trace,
+            frame,
+            current["unix_us"]
+                .as_u64()
+                .ok_or("Current frame time absent")?,
+        );
+    }
     let after = click_control(trace, "frame-number")?;
     click_control(trace, "frame-number")?;
     key(30, true, false)?;
@@ -884,8 +902,12 @@ pub fn preview(
         .as_u64()
         .unwrap_or(0)
         == 0
+        && scrubbed["details"]["coalesced_results"]
+            .as_u64()
+            .unwrap_or(0)
+            == 0
     {
-        return Err("Superseded scrub result was not rejected".into());
+        return Err("Superseded scrub result was neither rejected nor coalesced".into());
     }
     let killed_at = now();
     command("kill", &["-KILL", &pid.to_string()])?;
@@ -1242,6 +1264,12 @@ pub fn continuous(binary: &Path, project: &Path, directory: &Path) -> Result<Val
         return Err("Continuous native sound missed the exact end".into());
     }
     let last = picture(&mut trace, composition.duration - 1, 0)?;
+    let drain_by = Instant::now() + Duration::from_millis(200);
+    while Instant::now() < drain_by {
+        thread::sleep(Duration::from_millis(10));
+        trace.read()?;
+    }
+    let completed = completions::audit(&trace.records, composition.duration)?;
     trace.focus()?;
     command(
         "grim",
@@ -1301,6 +1329,7 @@ pub fn continuous(binary: &Path, project: &Path, directory: &Path) -> Result<Val
     let receipt = json!({"kind":"native_continuous_sequence","application_sha256":hash(&binary)?,"original_project_sha256":original_hash,
         "duration_frames":composition.duration,"duration_seconds":seconds,"frame_rate":composition.frame_rate,
         "first":first,"playing":playing,"at_sound_end":finished,"last":last,"displayed_observations":observations,
+        "actual_draw_completions":completed,
         "request_to_gpu_completion":metrics(&mut times),"process_memory":memory.values().collect::<Vec<_>>(),
         "observed_peak_combined_rss_kib":observed_peak_combined_rss_kib,"memory_sample_interval_ms":50,
         "exact_sound_end":true,"source_project_preserved":true,"owned_processes_reaped":true,"full_R2_qualified":false,
@@ -2820,21 +2849,38 @@ pub fn long_timeline(binary: &Path, project: &Path, directory: &Path) -> Result<
     let playing = play_sound(&mut trace)?;
     let finished = sound_record(
         &mut trace,
-        "long-cut final sample",
+        "long-cut playback outcome",
         playing["unix_us"].as_u64().ok_or("Play time absent")?,
         |d| {
             d["sound_active"] == false
                 && d["sound_retiring"] == 0
-                && d["sound"]["phase"] == "finished"
+                && (d["sound"]["phase"] == "finished" || d["error"].is_string())
         },
     )?;
-    if finished["details"]["sequence"] != sequence.to_string()
-        || finished["details"]["sound"]["position_samples"]
-            != finished["details"]["sound"]["end_sample"]
+    let playback_completed = finished["details"]["sound"]["phase"] == "finished";
+    let playback_sequence = finished["details"]["sequence"].as_str().or_else(|| {
+        (finished["details"]["display"]["session"] == playing["details"]["display"]["session"])
+            .then(|| finished["details"]["display"]["scope"]["sequence"].as_str())
+            .flatten()
+    });
+    if playback_sequence != Some(sequence.to_string().as_str())
+        || (playback_completed
+            && finished["details"]["sound"]["position_samples"]
+                != finished["details"]["sound"]["end_sample"])
     {
         return Err("Native long cut did not reach its exact end".into());
     }
     trace.focus()?;
+    if !playback_completed {
+        command(
+            "grim",
+            &[
+                "-g",
+                "80,80 1440x900",
+                directory.join("playback-failure.png").to_str().unwrap(),
+            ],
+        )?;
+    }
     key(31, true, false)?;
     trace.wait("saved long cut", |r| {
         has_tab(r, &seed.name, revision) && r["details"]["tabs"][0]["dirty"] == false
@@ -2942,7 +2988,8 @@ pub fn long_timeline(binary: &Path, project: &Path, directory: &Path) -> Result<
         &serde_json::from_value(completed["receipt"].clone())?,
     )?;
     let latency = metrics(&mut inputs);
-    let receipt = json!({"kind":"native_long_cut","qualified":latency["p95_ms"].as_f64().is_some_and(|ms|ms<=50.),"application_sha256":hash(&binary)?,"original_project_sha256":original_hash,"composition":composition,"clips":clips.len(),"revision":revision,"input_latency":latency,"edits":edits,"seeks":seeks,"playing":playing,"finished":finished,"saved_recovered_equal":true,"source_project_unchanged":true,"reopened_timeline":restored,"reopened_picture":restored_picture,"compact_picture":compact_picture,"completed":completed,"independent":independent,"limits":["Native long-cut functionality and software-injected inputs; sustained frame-drop and hardware drift gates remain separate","No physical audibility or independent-user acceptance claim"]});
+    let input_gate_passed = latency["p95_ms"].as_f64().is_some_and(|ms| ms <= 50.);
+    let receipt = json!({"kind":"native_long_cut","qualified":input_gate_passed && playback_completed,"input_gate_passed":input_gate_passed,"playback_completed":playback_completed,"application_sha256":hash(&binary)?,"original_project_sha256":original_hash,"composition":composition,"clips":clips.len(),"revision":revision,"input_latency":latency,"edits":edits,"seeks":seeks,"playing":playing,"finished":finished,"saved_recovered_equal":true,"source_project_unchanged":true,"reopened_timeline":restored,"reopened_picture":restored_picture,"compact_picture":compact_picture,"completed":completed,"independent":independent,"limits":["Native long-cut functionality and software-injected inputs; sustained frame-drop and hardware drift gates remain separate","No physical audibility or independent-user acceptance claim"]});
     File::create_new(directory.join("qualification.json"))?
         .write_all(&serde_json::to_vec_pretty(&receipt)?)?;
     Ok(receipt)

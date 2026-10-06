@@ -212,3 +212,12 @@ workflows. Native retirement stays below 624 ms and edit p95 below 28 ms; indepe
 pixel/PCM slices are exact. Camera planning includes a retained 10.698 ms p95 miss
 against 5 ms (same-binary repeat 2.521 ms); six-channel p95 is 3.918 ms. This is scoped
 device-containment acceptance, not a blanket sound-performance or R2 pass.
+
+[Prepared-picture evidence](evidence/r2-picture-clock/README.md) records 314/314
+camera and 79/79 multichannel source-sequence GPU draws by observed sound end,
+bounded queues, actual stopped/killed codec retirement below 483 ms and exact
+sample resume. Both dense masters remain identical through independent decode.
+The dense camera sequence still underflows and its four-target seek p95 is
+300.185 ms against 250 ms. Dense six-channel Redo input is 57.501 ms against 50 ms.
+An earlier source run's actual missing frame and all failed verifier trials remain
+retained. This closes no sustained playback, physical drift or hardware gate.

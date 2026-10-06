@@ -7,6 +7,14 @@ editorial and complete-job release gates remain open.
 
 ## Implemented
 
+- Bounded GPU picture preparation precedes sound startup, then selects pictures
+  from the exact device clock. Actual per-play GPU completion receipts distinguish
+  missing draws, late callbacks and incomplete evidence; underflow stops visibly.
+  [Prepared-picture evidence](evidence/r2-picture-clock/README.md) records all
+  314/79 source frames, real cancellation/death/underflow/retry, exact resume,
+  persistence and identical masters. Dense camera playback/seek and six-channel
+  edit-input misses remain explicit open gates.
+
 - Short forward picture jumps preserve the native decoder across at most eight
   skipped indexed frames, without intermediate RGBA conversion/allocation.
   Exact timestamps, source ownership and pin/cancellation budgets remain enforced.
@@ -237,9 +245,11 @@ EB-021 and the full R2 release gate remain open.
 ## Still to implement
 
 Checkpoint pruning, native timeline gestures, image-sequence ingest, complete playback
-workload qualification, advanced audio processing, full GPU mask/HDR/managed display color, delivery, interchange, cloud, and
-production inference integration remain roadmap work. The measured picture exporter and
-short callback-clock probe are functional feasibility tools, with recorded limits.
+workload qualification, advanced audio processing, full GPU mask/HDR/managed display
+color, broader delivery profiles/queues, interchange, cloud, and production inference
+integration remain roadmap work. Bounded native streaming and the first shared SDR
+master are implemented; their declared workflows have separate receipts in
+[streaming sound](STREAMING_SOUND.md) and [shared delivery](SHARED_DELIVERY.md).
 SAM 2.1 and RVM native prototypes are measured; production quality, GPU routes,
 model-pack distribution and editable cached-result workflows remain unqualified.
 
@@ -279,3 +289,11 @@ observations retain captured ownership and fixed deadlines. The existing bounded
 sound renderer and callback run inside that child. See
 [device isolation](SOUND_DEVICE_WORKER.md). Physical audibility, hardware unplug,
 two-hour drift and broader playback/release gates remain open.
+
+The scheduling dependency prepares bounded GPU pictures ahead of the exact
+sound clock and records per-play actual draw completions. See
+[prepared pictures](PREPARED_PICTURES.md). Short source pilots complete every frame;
+a build-concurrent camera trial retains one actual missing draw, and the 128-cut
+random-access camera workload still underflows. Neither scoped implementation nor
+the earlier accepted-picture counter closes sustained R2 playback. Dense-cut cache
+preparation and broader workload qualification remain active work.
