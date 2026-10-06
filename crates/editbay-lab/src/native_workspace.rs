@@ -577,6 +577,21 @@ fn picture(trace: &mut Trace, frame: u64, after: u64) -> Result<Value> {
 }
 
 fn set_frame(trace: &mut Trace, frame: u64) -> Result<Value> {
+    trace.read()?;
+    if let Some(current) = trace.records.iter().rev().find(|r| r["kind"] == "preview")
+        && current["details"]["requested_frame"] == frame
+        && current["details"]["sound_active"] != true
+        && current["details"]["preparing_playback"] != true
+        && current["details"]["stopped"] == false
+    {
+        return picture(
+            trace,
+            frame,
+            current["unix_us"]
+                .as_u64()
+                .ok_or("Current frame time absent")?,
+        );
+    }
     let after = click_control(trace, "frame-number")?;
     click_control(trace, "frame-number")?;
     key(30, true, false)?;

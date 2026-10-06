@@ -93,6 +93,8 @@ pub(super) fn audit(records: &[Value], duration: u64) -> Result<Value> {
             .ok_or("Prepared picture size absent")?;
         if !(1..=8).contains(&capacity)
             || queued + pending > capacity
+            || q["first"] != 0
+            || q["end"] != duration
             || q["maximum_pinned_bytes"] != bytes * (capacity + 1)
             || bytes * (capacity + 1) > 256 * 1024 * 1024
             || q["session"] != prepared[0]["details"]["prepared_pictures"]["session"]
@@ -170,5 +172,27 @@ mod tests {
             }
             assert!(audit(&records, 5).is_err());
         }
+    }
+
+    #[test]
+    fn prepared_bounds_and_first_draw_must_precede_sound() {
+        let mut records = records();
+        let d = &mut records[4]["details"];
+        d["prepared_pictures"] = json!({"session":"queue","first":0,"end":5,"capacity":4,
+            "queued":3,"in_flight":true,"maximum_picture_bytes":16,"maximum_pinned_bytes":80,"prepared":4});
+        d["sound_active"] = json!(true);
+        d["displayed_frame"] = json!(0);
+        d["gpu_draw_completed_us"] = json!(10);
+        assert_eq!(
+            audit(&records, 5).unwrap()["prepared_queue"]["bounded"],
+            true
+        );
+        for field in ["queued", "maximum_pinned_bytes", "end"] {
+            let mut altered = records.clone();
+            altered[4]["details"]["prepared_pictures"][field] = json!(100);
+            assert!(audit(&altered, 5).is_err());
+        }
+        records[4]["details"]["gpu_draw_completed_us"] = json!(0);
+        assert!(audit(&records, 5).is_err());
     }
 }
