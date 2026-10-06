@@ -76,6 +76,7 @@ pub struct PictureCacheStats {
     pub sequential_decodes: u64,
     pub forward_decodes: u64,
     pub skipped_pictures: u64,
+    pub stored_reads: u64,
 }
 
 pub(crate) struct Allocation {
@@ -101,6 +102,31 @@ pub struct DecodedPicture {
     pub rotation_degrees: f64,
     pub(crate) _allocation: Allocation,
     pub(crate) _handle: Option<HandleAllocation>,
+}
+
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub(crate) struct PictureHeader {
+    pub(crate) width: u32,
+    pub(crate) height: u32,
+    pub(crate) tick: i64,
+    pub(crate) color: editbay_core::SourceColor,
+    pub(crate) alpha: editbay_core::AlphaMode,
+    pub(crate) alpha_interpretation_required: bool,
+    pub(crate) rotation_degrees: f64,
+}
+impl PictureHeader {
+    pub(crate) fn of(picture: &DecodedPicture) -> Self {
+        Self {
+            width: picture.width,
+            height: picture.height,
+            tick: picture.source_tick,
+            color: picture.color,
+            alpha: picture.alpha,
+            alpha_interpretation_required: picture.alpha_interpretation_required,
+            rotation_degrees: picture.rotation_degrees,
+        }
+    }
 }
 
 pub(crate) struct HandleAllocation(pub(crate) Arc<AtomicUsize>);
@@ -153,7 +179,8 @@ pub struct PictureResult {
     pub(crate) owner: Uuid,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
 pub(crate) struct Key {
     bytes: u64,
     asset: String,
@@ -301,6 +328,8 @@ pub struct PictureCache {
     generation: u64,
     worker: Uuid,
     shared: bool,
+    store: Option<crate::picture_store::StoreReader>,
+    stored_reads: u64,
 }
 
 impl PictureCache {
@@ -334,6 +363,8 @@ impl PictureCache {
             generation: 0,
             worker: Uuid::new_v4(),
             shared: false,
+            store: None,
+            stored_reads: 0,
         })
     }
 
@@ -345,6 +376,21 @@ impl PictureCache {
         let mut cache = Self::new(snapshot, budget, cancel)?;
         cache.shared = true;
         Ok(cache)
+    }
+
+    pub(crate) fn attach_store(
+        &mut self,
+        file: std::fs::File,
+        manifest: crate::picture_store::Manifest,
+    ) -> Result<()> {
+        self.store = Some(crate::picture_store::StoreReader::new(
+            file,
+            manifest,
+            &self.snapshot,
+            self.budget,
+            &self.cancel,
+        )?);
+        Ok(())
     }
 
     /// Serve an exact typed picture request on the owning worker.
@@ -395,90 +441,112 @@ impl PictureCache {
         } else {
             Output::Owned(vec![0; size])
         };
-        let decoder_key = (reference.id, *stream);
-        if !self.decoders.contains_key(&decoder_key) {
-            if self.decoders.len() >= self.budget.decoder_handles {
-                let oldest = self
-                    .decoders
-                    .iter()
-                    .min_by_key(|(_, decoder)| decoder.used)
-                    .map(|(key, _)| *key)
-                    .ok_or_else(|| Error::Invalid("decoder budget cannot evict a handle".into()))?;
-                self.decoders.remove(&oldest);
+        let stored = self
+            .store
+            .as_ref()
+            .map(|store| store.read(&key, output.bytes_mut(), &self.cancel))
+            .transpose()?
+            .flatten();
+        let header = if let Some(header) = stored {
+            self.stored_reads = self.stored_reads.saturating_add(1);
+            header
+        } else {
+            let decoder_key = (reference.id, *stream);
+            if !self.decoders.contains_key(&decoder_key) {
+                if self.decoders.len() >= self.budget.decoder_handles {
+                    let oldest = self
+                        .decoders
+                        .iter()
+                        .min_by_key(|(_, decoder)| decoder.used)
+                        .map(|(key, _)| *key)
+                        .ok_or_else(|| {
+                            Error::Invalid("decoder budget cannot evict a handle".into())
+                        })?;
+                    self.decoders.remove(&oldest);
+                }
+                let reader = VideoReader::open_stream(&owned, *stream, self.cancel.clone())?;
+                if reader.info.width != *width as i32 || reader.info.height != *height as i32 {
+                    return Err(Error::Invalid(
+                        "native picture geometry differs from the captured profile".into(),
+                    ));
+                }
+                self.decoders.insert(
+                    decoder_key,
+                    Decoder {
+                        reader,
+                        next: Some(0),
+                        used: self.serial,
+                    },
+                );
             }
-            let reader = VideoReader::open_stream(&owned, *stream, self.cancel.clone())?;
-            if reader.info.width != *width as i32 || reader.info.height != *height as i32 {
+            let decoder = self
+                .decoders
+                .get_mut(&decoder_key)
+                .ok_or_else(|| Error::Invalid("owned decoder is absent".into()))?;
+            decoder.used = self.serial;
+            if decoder.reader.info.width != *width as i32
+                || decoder.reader.info.height != *height as i32
+            {
                 return Err(Error::Invalid(
                     "native picture geometry differs from the captured profile".into(),
                 ));
             }
-            self.decoders.insert(
-                decoder_key,
-                Decoder {
-                    reader,
-                    next: Some(0),
-                    used: self.serial,
-                },
-            );
-        }
-        let decoder = self
-            .decoders
-            .get_mut(&decoder_key)
-            .ok_or_else(|| Error::Invalid("owned decoder is absent".into()))?;
-        decoder.used = self.serial;
-        if decoder.reader.info.width != *width as i32
-            || decoder.reader.info.height != *height as i32
-        {
-            return Err(Error::Invalid(
-                "native picture geometry differs from the captured profile".into(),
-            ));
-        }
-        let decoded = if decoder.next == Some(ordinal) {
-            self.sequential_decodes = self.sequential_decodes.saturating_add(1);
-            decoder.reader.read_picture(output.bytes_mut(), None)
-        } else if let Some(next) = decoder
-            .next
-            .filter(|next| *next < ordinal && ordinal - *next <= MAXIMUM_FORWARD_SKIP)
-        {
-            self.forward_decodes = self.forward_decodes.saturating_add(1);
-            (|| {
-                for tick in &presentation_ticks[next as usize..ordinal as usize] {
-                    decoder.reader.skip_picture(*tick)?;
-                    self.skipped_pictures = self.skipped_pictures.saturating_add(1);
-                }
+            let decoded = if decoder.next == Some(ordinal) {
+                self.sequential_decodes = self.sequential_decodes.saturating_add(1);
                 decoder.reader.read_picture(output.bytes_mut(), None)
-            })()
-        } else {
-            self.seeks = self.seeks.saturating_add(1);
-            decoder.reader.read_picture(output.bytes_mut(), Some(tick))
-        }
-        .and_then(|frame| {
-            frame.ok_or_else(|| Error::Invalid("indexed picture is unavailable at EOF".into()))
-        });
-        let decoded = match decoded {
-            Ok(decoded) => decoded,
-            Err(error) => {
+            } else if let Some(next) = decoder
+                .next
+                .filter(|next| *next < ordinal && ordinal - *next <= MAXIMUM_FORWARD_SKIP)
+            {
+                self.forward_decodes = self.forward_decodes.saturating_add(1);
+                (|| {
+                    for tick in &presentation_ticks[next as usize..ordinal as usize] {
+                        decoder.reader.skip_picture(*tick)?;
+                        self.skipped_pictures = self.skipped_pictures.saturating_add(1);
+                    }
+                    decoder.reader.read_picture(output.bytes_mut(), None)
+                })()
+            } else {
+                self.seeks = self.seeks.saturating_add(1);
+                decoder.reader.read_picture(output.bytes_mut(), Some(tick))
+            }
+            .and_then(|frame| {
+                frame.ok_or_else(|| Error::Invalid("indexed picture is unavailable at EOF".into()))
+            });
+            let decoded = match decoded {
+                Ok(decoded) => decoded,
+                Err(error) => {
+                    self.decoders.remove(&decoder_key);
+                    return Err(error);
+                }
+            };
+            if decoded.source_tick != Some(tick) {
                 self.decoders.remove(&decoder_key);
-                return Err(error);
+                return Err(Error::Invalid(
+                    "native picture differs from the exact captured index".into(),
+                ));
+            }
+            decoder.next = ordinal.checked_add(1);
+            PictureHeader {
+                width: *width,
+                height: *height,
+                tick,
+                color: decoded.color,
+                alpha: decoded.alpha,
+                alpha_interpretation_required: decoded.alpha_interpretation_required,
+                rotation_degrees: decoded.rotation_degrees,
             }
         };
-        if decoded.source_tick != Some(tick) {
-            self.decoders.remove(&decoder_key);
-            return Err(Error::Invalid(
-                "native picture differs from the exact captured index".into(),
-            ));
-        }
-        decoder.next = ordinal.checked_add(1);
         owned.check_current(&self.cancel)?;
         let picture = Arc::new(DecodedPicture {
             rgba: output.freeze()?,
             width: *width,
             height: *height,
             source_tick: tick,
-            color: decoded.color,
-            alpha: decoded.alpha,
-            alpha_interpretation_required: decoded.alpha_interpretation_required,
-            rotation_degrees: decoded.rotation_degrees,
+            color: header.color,
+            alpha: header.alpha,
+            alpha_interpretation_required: header.alpha_interpretation_required,
+            rotation_degrees: header.rotation_degrees,
             _allocation: allocation,
             _handle: None,
         });
@@ -521,6 +589,7 @@ impl PictureCache {
             sequential_decodes: self.sequential_decodes,
             forward_decodes: self.forward_decodes,
             skipped_pictures: self.skipped_pictures,
+            stored_reads: self.stored_reads,
         }
     }
 
@@ -578,6 +647,7 @@ impl PictureCache {
             ));
         }
         self.decoders.clear();
+        self.store = None;
         let assets: HashMap<_, _> = snapshot
             .project()
             .assets
@@ -612,6 +682,7 @@ impl PictureCache {
         self.bytes = 0;
         self.decoders.clear();
         self.sources.clear();
+        self.store = None;
         self.used_sources.clear();
         self.generation = generation;
         self.worker = Uuid::new_v4();

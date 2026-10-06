@@ -176,7 +176,7 @@ impl Studio {
             settings: None,
             bank: BankPane::default(),
             media: MediaPane::default(),
-            preview: PreviewPane::default(),
+            preview: PreviewPane::new(state.join("picture-cache")),
             delivery: DeliveryPane::default(),
             timeline: TimelinePane::default(),
             preferences_applied: false,

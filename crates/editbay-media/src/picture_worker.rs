@@ -2,12 +2,11 @@ use crate::{
     Cancellation, DecodedPicture, Error, PictureBudget, PictureCache, PictureCacheStats,
     PictureProvider, PictureResult, Result,
     codec_process::{Ownership, Process},
-    pictures::{Allocation, HandleAllocation, Key, Pixels, selection},
+    picture_store::{Manifest, PreparedStore},
+    pictures::{Allocation, HandleAllocation, Key, PictureHeader as Header, Pixels, selection},
     planes,
 };
-use editbay_core::{
-    AlphaMode, DocumentVersion, EvaluationSnapshot, Project, SourceColor, SourceRequest,
-};
+use editbay_core::{DocumentVersion, EvaluationSnapshot, Project, SourceRequest};
 use serde::{Deserialize, Serialize};
 use std::{
     collections::HashMap,
@@ -70,31 +69,10 @@ enum Operation {
     Picture {
         request: SourceRequest,
     },
+    Store {
+        manifest: Manifest,
+    },
     Verify,
-}
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
-#[serde(deny_unknown_fields)]
-struct Header {
-    width: u32,
-    height: u32,
-    tick: i64,
-    color: SourceColor,
-    alpha: AlphaMode,
-    alpha_interpretation_required: bool,
-    rotation_degrees: f64,
-}
-impl Header {
-    fn of(picture: &DecodedPicture) -> Self {
-        Self {
-            width: picture.width,
-            height: picture.height,
-            tick: picture.source_tick,
-            color: picture.color,
-            alpha: picture.alpha,
-            alpha_interpretation_required: picture.alpha_interpretation_required,
-            rotation_degrees: picture.rotation_degrees,
-        }
-    }
 }
 #[derive(Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
@@ -158,6 +136,7 @@ pub struct PictureWorker {
     owner: Ownership,
     serial: u64,
     process: Option<Process<Response>>,
+    store: Option<PreparedStore>,
     entries: HashMap<Key, Entry>,
     bytes: usize,
     live: Arc<AtomicUsize>,
@@ -211,6 +190,7 @@ impl PictureWorker {
             cancel,
             serial: 0,
             process: None,
+            store: None,
             entries: HashMap::new(),
             bytes: 0,
             live: Arc::new(AtomicUsize::new(0)),
@@ -224,6 +204,36 @@ impl PictureWorker {
         };
         worker.start()?;
         Ok(worker)
+    }
+    /// Attach completed source pixels without increasing decoder or mapped budgets.
+    /// `store` must own the current document version. Returns after the supervised
+    /// child validates its read-only descriptor and exact index; pins survive use.
+    pub fn attach_store(&mut self, store: PreparedStore) -> Result<()> {
+        if store.summary().version != self.owner.version {
+            return Err(Error::Invalid(
+                "prepared pictures belong to another document version".into(),
+            ));
+        }
+        let descriptor = OwnedFd::from(store.file()?);
+        let result = self.rpc_file(
+            Operation::Store {
+                manifest: store.manifest(),
+            },
+            Some(&descriptor),
+        );
+        match result {
+            Ok((reply, descriptor))
+                if descriptor.is_none() && matches!(reply.result, Reply::Ready) =>
+            {
+                self.store = Some(store);
+                Ok(())
+            }
+            Ok(_) => self.protocol_error("invalid picture storage acknowledgement"),
+            Err(error) => {
+                self.process.take();
+                Err(error)
+            }
+        }
     }
     /// Inspect the owned child for process supervision and qualification.
     /// Takes no arguments. Returns no PID after worker termination.
@@ -260,10 +270,15 @@ impl PictureWorker {
         self.bind()
     }
     fn bind(&mut self) -> Result<()> {
-        let (reply, descriptor) = self.rpc(Operation::Bind {
+        let response = self.rpc(Operation::Bind {
             project: Box::new((**self.snapshot.project()).clone()),
             budget: self.budget,
-        })?;
+        });
+        if response.is_err() {
+            self.process.take();
+        }
+        self.store = None;
+        let (reply, descriptor) = response?;
         if descriptor.is_some() || !matches!(reply.result, Reply::Ready) {
             return self.protocol_error("invalid picture bind acknowledgement");
         }
@@ -275,6 +290,9 @@ impl PictureWorker {
         Err(Error::Invalid(message.into()))
     }
     fn rpc(&mut self, operation: Operation) -> Result<Packet> {
+        self.rpc_file(operation, None)
+    }
+    fn rpc_file(&mut self, operation: Operation, descriptor: Option<&OwnedFd>) -> Result<Packet> {
         self.check()?;
         if self.process.is_none() && self.cleared {
             self.start()?;
@@ -291,7 +309,7 @@ impl PictureWorker {
         let process = self.process.as_mut().ok_or_else(|| {
             Error::Invalid("picture worker stopped; rebind with a fresh job to retry".into())
         })?;
-        let packet = match process.exchange(&request, &self.cancel) {
+        let packet = match process.exchange_file(&request, &self.cancel, descriptor) {
             Ok(packet) => packet,
             Err(error) => {
                 self.process.take();
@@ -491,6 +509,7 @@ impl PictureProvider for PictureWorker {
             sequential_decodes: self.child_stats.sequential_decodes,
             forward_decodes: self.child_stats.forward_decodes,
             skipped_pictures: self.child_stats.skipped_pictures,
+            stored_reads: self.child_stats.stored_reads,
         }
     }
     fn clear(&mut self) -> Result<()> {
@@ -501,6 +520,7 @@ impl PictureProvider for PictureWorker {
             .ok_or_else(|| Error::Invalid("picture generation exhausted".into()))?;
         self.owner.job = Uuid::new_v4();
         self.process.take();
+        self.store = None;
         self.entries.clear();
         self.bytes = 0;
         self.child_stats = PictureCacheStats::default();
@@ -553,13 +573,15 @@ pub fn serve() -> Result<()> {
                     let Some((bytes, descriptor)) = packet else {
                         return Err(Error::Cancelled);
                     };
-                    if descriptor.is_some() {
+                    let request = serde_json::from_slice::<Request>(&bytes)
+                        .map_err(|e| Error::Invalid(e.to_string()))?;
+                    if descriptor.is_some() != matches!(request.operation, Operation::Store { .. })
+                    {
                         return Err(Error::Invalid(
-                            "picture requests cannot supply descriptors".into(),
+                            "picture storage descriptor does not match its operation".into(),
                         ));
                     }
-                    serde_json::from_slice::<Request>(&bytes)
-                        .map_err(|e| Error::Invalid(e.to_string()))
+                    Ok((request, descriptor))
                 });
                 let Ok(request) = request else {
                     break;
@@ -575,7 +597,7 @@ pub fn serve() -> Result<()> {
     let mut current: Option<Ownership> = None;
     let mut serial = None;
     let mut cache: Option<PictureCache> = None;
-    for request in receiver {
+    for (request, descriptor) in receiver {
         if serial.is_some_and(|serial: u64| serial.checked_add(1) != Some(request.serial))
             || request.serial == 0
         {
@@ -646,6 +668,13 @@ pub fn serve() -> Result<()> {
                     Operation::Verify => {
                         cache.verify_sources()?;
                         Ok(Reply::Verified)
+                    }
+                    Operation::Store { manifest } => {
+                        let descriptor = descriptor.ok_or_else(|| {
+                            Error::Invalid("prepared pictures require an owned descriptor".into())
+                        })?;
+                        cache.attach_store(std::fs::File::from(descriptor), manifest)?;
+                        Ok(Reply::Ready)
                     }
                     Operation::Bind { .. } => unreachable!(),
                 }

@@ -23,6 +23,7 @@ mod native_workspace;
 mod natural_sound;
 mod pcm_worker;
 mod picture_cache;
+mod picture_store;
 mod picture_worker;
 mod shared_delivery;
 mod sound_blocks;
@@ -859,6 +860,15 @@ fn run(args: Vec<OsString>) -> Result<()> {
                 .map(Path::new)
                 .unwrap_or(&std::env::current_exe()?),
         )?,
+        ("picture-store", 5) => picture_store::run(
+            Path::new(&args[1]),
+            args[2]
+                .to_str()
+                .ok_or("Composition must be UTF-8")?
+                .parse()?,
+            Path::new(&args[3]),
+            Path::new(&args[4]),
+        )?,
         ("render-graph-worker", 2 | 3) => gpu_graph::run_process(
             Path::new(&args[1]),
             args.get(2)
@@ -944,10 +954,11 @@ fn run(args: Vec<OsString>) -> Result<()> {
             args[2].to_str().ok_or("Composition must be UTF-8")?,
             Path::new(&args[3]),
         )?,
-        ("native-long", 4) => native_workspace::long_timeline(
+        ("native-long" | "native-cached", 4) => native_workspace::long_timeline(
             Path::new(&args[1]),
             Path::new(&args[2]),
             Path::new(&args[3]),
+            args[0] == "native-cached",
         )?,
         ("long-sound", 5) => long_sound::run(
             Path::new(&args[1]),
@@ -1036,6 +1047,8 @@ fn run(args: Vec<OsString>) -> Result<()> {
             println!("  native-playback APP_BINARY SOURCE NEW_EVIDENCE_DIRECTORY [full|half]");
             println!("  native-continuous APP_BINARY SAVED_PROJECT NEW_EVIDENCE_DIRECTORY");
             println!("  native-prepared APP_BINARY SAVED_PROJECT NEW_EVIDENCE_DIRECTORY");
+            println!("  native-cached APP_BINARY SAVED_LONG_PROJECT NEW_EVIDENCE_DIRECTORY");
+            println!("  picture-store PROJECT COMPOSITION NEW_EVIDENCE_DIRECTORY WORKER_BINARY");
             println!("  native-delivery APP_BINARY PROJECT NEW_EVIDENCE_DIRECTORY");
             println!("  timeline-compare PROJECT COMPOSITION UNCUT_MASTER CUT_MASTER");
             println!("  timeline-reorder CLI PROJECT COMPOSITION UNCUT_MASTER NEW_DIRECTORY");
