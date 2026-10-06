@@ -510,6 +510,51 @@ pub struct PreviewPane {
 }
 
 impl PreviewPane {
+    /// Select an authored composition and exact frame in the shared viewer.
+    /// `tab`, `project`, `composition` and `frame` identify document content.
+    /// Returns an error if absent; changing selection stops current playback.
+    pub fn select(
+        &mut self,
+        tab: Uuid,
+        project: &Project,
+        composition: Uuid,
+        frame: u64,
+    ) -> Result<(), String> {
+        let sequence = project
+            .sequences
+            .iter()
+            .find(|s| s.composition == Some(composition))
+            .ok_or("Composition has no sequence")?;
+        let scene = project
+            .compositions
+            .iter()
+            .find(|s| s.id == composition)
+            .ok_or("Composition is absent")?;
+        if frame >= scene.duration {
+            return Err("Frame is beyond the sequence".into());
+        }
+        self.stop_sound();
+        self.resume_sound = None;
+        self.sound_status = None;
+        self.selections.insert(
+            tab,
+            Selection {
+                sequence: sequence.id,
+                frame,
+            },
+        );
+        self.stopped = false;
+        Ok(())
+    }
+
+    /// Read the current viewer frame for source marks or record edits.
+    /// `tab` and `project` resolve the viewer. Returns composition and frame.
+    pub fn position(&self, tab: Uuid, project: &Project) -> Option<(Uuid, u64)> {
+        Some((
+            self.selected_composition(tab, project)?,
+            self.selections.get(&tab).map_or(0, |s| s.frame),
+        ))
+    }
     /// Resolve the composition selected by this tab's actual viewer.
     /// `tab` and `project` identify current content. Returns its composition ID,
     /// falling back to the first authored sequence before the viewer is drawn.

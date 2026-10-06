@@ -243,6 +243,13 @@ full R2 acceptance remain open. Timeline authoring continues next.
 
 ## R3 — finish a paying edit
 
+Issue [#29](https://github.com/michaelmonetized/editbay/issues/29) implements the
+first linked assembly dependency: exact source marks, insert/append, split,
+trim, move, ripple removal, native controls and version-owned CLI commands.
+It uses existing reusable picture/sound compositions without flattening sources.
+See [timeline contracts](TIMELINE_AUTHORING.md). This is partial EB-030/031;
+the full editing and production-job acceptance gates below remain open.
+
 - **EB-030:** Source/record monitors, in/out, three-point edits, track targeting,
   sync locks, linked sound, precision trim/roll/slip/slide, snapping, ripple,
   overwrite/insert, and dependable keyboard workflows.

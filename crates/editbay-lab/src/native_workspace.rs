@@ -2153,3 +2153,297 @@ pub fn run(binary: &Path, directory: &Path, count: usize) -> Result<Value> {
         .write_all(&serde_json::to_vec_pretty(&receipt)?)?;
     Ok(receipt)
 }
+
+/// Exercise linked editing through the real native window and shared export.
+/// `binary`, `project` and new `directory` select actual content and evidence.
+/// Returns native input receipts, saved/recovered identity and decoded output.
+pub fn timeline(binary: &Path, project: &Path, directory: &Path) -> Result<Value> {
+    let binary = binary.canonicalize()?;
+    let original = project.canonicalize()?;
+    let original_hash = hash(&original)?;
+    let seed = load(&original)?;
+    let source = seed
+        .sequences
+        .iter()
+        .find_map(|s| s.composition)
+        .ok_or("Source sequence absent")?;
+    if seed
+        .compositions
+        .iter()
+        .find(|c| c.id == source)
+        .ok_or("Source absent")?
+        .duration
+        < 65
+    {
+        return Err("Timeline qualification needs at least 65 source frames".into());
+    }
+    fs::create_dir(directory)?;
+    let directory = directory.canonicalize()?;
+    let catalog = directory.join("catalog");
+    fs::create_dir(&catalog)?;
+    let copy = directory.join("Cut.editbay");
+    save_new(&seed, &copy)?;
+    let destination = directory.join("Cut.mov");
+    let (mut app, mut trace) = start(
+        &binary,
+        &directory.join("state"),
+        &catalog,
+        &directory.join("native.jsonl"),
+        Some(&copy),
+    )?;
+    picture(&mut trace, 0, 0)?;
+    click_control(&mut trace, "source-media")?;
+    set_frame(&mut trace, 4)?;
+    key(23, false, false)?;
+    trace.wait("source in shortcut", |r| {
+        r["kind"] == "timeline" && r["details"]["source_range"]["start"] == 4
+    })?;
+    set_frame(&mut trace, 27)?;
+    key(24, false, false)?;
+    trace.wait("source out shortcut", |r| {
+        r["kind"] == "timeline" && r["details"]["source_range"]["end"] == 28
+    })?;
+    let mut revision = seed.revision;
+    let mut inputs = Vec::new();
+    let mut edits = Vec::new();
+    let mut perform = |trace: &mut Trace, control: &str| -> Result<Value> {
+        let sent = if control == "timeline-split" || control == "timeline-append" {
+            let sent = now();
+            key(
+                if control == "timeline-split" { 31 } else { 18 },
+                false,
+                false,
+            )?;
+            sent
+        } else {
+            click_control(trace, control)?
+        };
+        revision += 1;
+        let committed = trace.wait("timeline command commit", |r| {
+            has_tab(r, &seed.name, revision)
+        })?;
+        let latency = (committed["unix_us"]
+            .as_u64()
+            .ok_or("Commit timestamp absent")?
+            - sent) as f64
+            / 1000.;
+        inputs.push(latency);
+        let timeline = timeline_record(trace, revision)?;
+        edits.push(
+            json!({"control":control,"input_ms":latency,"committed":committed,"timeline":timeline}),
+        );
+        Ok(timeline)
+    };
+    perform(&mut trace, "timeline-create")?;
+    set_timeline_input(&mut trace, "timeline-source-in", 40)?;
+    set_timeline_input(&mut trace, "timeline-source-out", 64)?;
+    let appended = perform(&mut trace, "timeline-append")?;
+    let first = appended["clips"][0]["id"]
+        .as_str()
+        .ok_or("First clip absent")?
+        .to_owned();
+    click_control(&mut trace, &format!("timeline-clip:{first}"))?;
+    set_timeline_input(&mut trace, "timeline-record-at", 12)?;
+    perform(&mut trace, "timeline-split")?;
+    click_control(&mut trace, &format!("timeline-clip:{first}"))?;
+    let removed = perform(&mut trace, "timeline-remove")?;
+    let last = removed["clips"][1]["id"]
+        .as_str()
+        .ok_or("Last clip absent")?
+        .to_owned();
+    click_control(&mut trace, &format!("timeline-clip:{last}"))?;
+    set_timeline_input(&mut trace, "timeline-trim-in", 42)?;
+    set_timeline_input(&mut trace, "timeline-trim-out", 65)?;
+    let trimmed = perform(&mut trace, "timeline-trim")?;
+    let final_clips = trimmed["clips"].clone();
+    key(44, true, false)?;
+    revision += 1;
+    let undone = timeline_record(&mut trace, revision)?;
+    if undone["clips"][1]["source"]["range"] != json!({"start":40,"end":64}) {
+        return Err("Native undo did not restore the linked trim".into());
+    }
+    key(44, true, true)?;
+    revision += 1;
+    let redone = timeline_record(&mut trace, revision)?;
+    if redone["clips"] != final_clips {
+        return Err("Native redo changed linked identities".into());
+    }
+    if final_clips[0]["range"] != json!({"start":0,"end":12})
+        || final_clips[0]["source"]["range"] != json!({"start":16,"end":28})
+        || final_clips[1]["range"] != json!({"start":12,"end":35})
+        || final_clips[1]["source"]["range"] != json!({"start":42,"end":65})
+    {
+        return Err("Native linked edit boundaries differ".into());
+    }
+    set_frame(&mut trace, 11)?;
+    let before_cut = picture(&mut trace, 11, 0)?;
+    let after_cut = set_frame(&mut trace, 12)?;
+    set_frame(&mut trace, 0)?;
+    let playing = play_sound(&mut trace)?;
+    let paused = pause_sound(&mut trace)?;
+    key(31, true, false)?;
+    trace.wait("saved cut", |record| {
+        has_tab(record, &seed.name, revision) && record["details"]["tabs"][0]["dirty"] == false
+    })?;
+    let saved = load(&copy)?;
+    let composition: uuid::Uuid = redone["record"]
+        .as_str()
+        .ok_or("Record composition absent")?
+        .parse()?;
+    let record_sequence = saved
+        .sequences
+        .iter()
+        .find(|sequence| sequence.composition == Some(composition))
+        .ok_or("Saved record sequence absent")?
+        .id;
+    for observation in [&before_cut, &after_cut, &playing] {
+        if observation["details"]["sequence"] != record_sequence.to_string() {
+            return Err("Native cut qualification viewed or played the wrong sequence".into());
+        }
+    }
+    let checkpoint =
+        editbay_core::checkpoint(&saved, Some(&copy), directory.join("Verified recovery"))?;
+    let recovered = editbay_core::recover_copy(checkpoint, directory.join("Recovered.editbay"))?;
+    if recovered.compositions != saved.compositions
+        || saved.assets != seed.assets
+        || saved.sources != seed.sources
+        || hash(&original)? != original_hash
+    {
+        return Err("Native timeline save/recovery changed identities or original content".into());
+    }
+    let sent = now();
+    choose_master(&mut trace, &destination)?;
+    let deadline = Instant::now() + Duration::from_secs(120);
+    let completed = loop {
+        trace.read()?;
+        if let Some(job) = trace
+            .records
+            .iter()
+            .rev()
+            .filter(|r| {
+                r["kind"] == "delivery" && r["unix_us"].as_u64().is_some_and(|time| time >= sent)
+            })
+            .find_map(|r| {
+                r["details"]["jobs"]
+                    .as_array()?
+                    .last()
+                    .filter(|job| job["running"] == false)
+            })
+        {
+            if job["receipt"].is_null() {
+                return Err(format!("Timeline export failed: {}", job["error"]).into());
+            }
+            break job.clone();
+        }
+        if Instant::now() >= deadline {
+            return Err("Timeline export deadline exceeded".into());
+        }
+        thread::sleep(Duration::from_millis(5));
+    };
+    set_frame(&mut trace, 12)?;
+    trace.focus()?;
+    command(
+        "grim",
+        &[
+            "-g",
+            "80,80 1440x900",
+            directory.join("timeline-native.png").to_str().unwrap(),
+        ],
+    )?;
+    app.kill()?;
+    let (mut reopened, mut reopened_trace) = start(
+        &binary,
+        &directory.join("reopened-state"),
+        &catalog,
+        &directory.join("reopened.jsonl"),
+        Some(&directory.join("Recovered.editbay")),
+    )?;
+    picture(&mut reopened_trace, 0, 0)?;
+    let reopened_timeline = timeline_record(&mut reopened_trace, recovered.revision)?;
+    if reopened_timeline["clips"] != final_clips {
+        return Err("Native recovered cut changed clip identities".into());
+    }
+    click_control(&mut reopened_trace, "source-media")?;
+    thread::sleep(Duration::from_millis(350));
+    click_control(&mut reopened_trace, "timeline-view-record")?;
+    reopened_trace.wait("selected recovered cut", |r| {
+        r["kind"] == "preview" && r["details"]["sequence"] == record_sequence.to_string()
+    })?;
+    let reopened_picture = set_frame(&mut reopened_trace, 12)?;
+    if reopened_picture["details"]["sequence"] != record_sequence.to_string() {
+        return Err("Reopened viewer changed sequences".into());
+    }
+    reopened_trace.focus()?;
+    command(
+        "grim",
+        &[
+            "-g",
+            "80,80 1440x900",
+            directory.join("timeline-reopened.png").to_str().unwrap(),
+        ],
+    )?;
+    let address = window(|window| {
+        window["pid"] == reopened.0.id() && window["class"] == "editbay"
+    })?["address"]
+        .as_str()
+        .ok_or("Reopened native window absent")?
+        .to_owned();
+    dispatch(&format!(
+        "hl.dsp.window.resize({{x=800,y=600,relative=false,window=\"address:{address}\"}})"
+    ))?;
+    dispatch(&format!(
+        "hl.dsp.window.move({{x=80,y=80,relative=false,window=\"address:{address}\"}})"
+    ))?;
+    thread::sleep(Duration::from_millis(350));
+    click_control(&mut reopened_trace, "edit-controls")?;
+    let compact_picture = set_frame(&mut reopened_trace, 11)?;
+    if compact_picture["details"]["sequence"] != record_sequence.to_string() {
+        return Err("Compact viewer changed sequences".into());
+    }
+    command(
+        "grim",
+        &[
+            "-g",
+            "80,80 800x600",
+            directory.join("timeline-800x600.png").to_str().unwrap(),
+        ],
+    )?;
+    reopened.kill()?;
+    let independent = crate::shared_delivery::inspect(
+        &destination,
+        &serde_json::from_value(completed["receipt"].clone())?,
+    )?;
+    let latency = metrics(&mut inputs);
+    let qualified = latency["p95_ms"].as_f64().is_some_and(|ms| ms <= 50.);
+    let receipt = json!({"kind":"native_timeline_qualification","qualified":qualified,"application_sha256":hash(&binary)?,"original_project_sha256":original_hash,
+        "composition":composition,"source":source,"revision":revision,"clips":final_clips,"input_latency":latency,"edits":edits,
+        "cut_before":before_cut,"cut_after":after_cut,"playing":playing,"paused":paused,"undo":undone,"redo":redone,
+        "saved_recovered_equal":true,"reopened_timeline":reopened_timeline,"reopened_picture":reopened_picture,
+        "compact_picture":compact_picture,
+        "source_project_unchanged":true,"completed":completed,"independent":independent,
+        "limits":["Software-injected native input","No physical audibility, client acceptance or independent-user claim"]});
+    File::create_new(directory.join("qualification.json"))?
+        .write_all(&serde_json::to_vec_pretty(&receipt)?)?;
+    if !qualified {
+        return Err("Native timeline input gate missed".into());
+    }
+    Ok(receipt)
+}
+
+fn timeline_record(trace: &mut Trace, revision: u64) -> Result<Value> {
+    Ok(trace.wait("prepared native timeline", |r| {
+        r["kind"] == "timeline"
+            && r["details"]["version"]["revision"] == revision
+            && r["details"]["busy"] == false
+            && r["details"]["error"].is_null()
+    })?["details"]
+        .clone())
+}
+fn set_timeline_input(trace: &mut Trace, name: &str, value: u64) -> Result<()> {
+    click_control(trace, name)?;
+    click_control(trace, name)?;
+    key(30, true, false)?;
+    command("wtype", &["-s", "40", &value.to_string(), "-s", "80"])?;
+    key(28, false, false)?;
+    Ok(())
+}

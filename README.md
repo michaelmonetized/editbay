@@ -105,6 +105,12 @@ Existing destinations and source media are preserved. See
 [shared delivery](docs/SHARED_DELIVERY.md) for the exact eight-bit SDR profile,
 original sound channels, anonymous publication and current limits.
 
+The native Timeline creates linked picture/sound cuts from marked source ranges.
+Append, insert, split, trim, move and ripple removal use the same graph, undo,
+save, recovery, playback and export path. `editbay timeline FILE REQUEST_JSON`
+and `editbay clips FILE COMPOSITION_ID` expose that exact core path. See
+[timeline authoring](docs/TIMELINE_AUTHORING.md) for supported profiles and controls.
+
 Source sequences can retain an explicitly selected sound stream at its natural
 timing, including delayed starts and partial-frame tails. `editbay-lab natural-sound
 SOURCE [WORKER_BINARY]` compares every output sample through the packaged worker
@@ -122,7 +128,7 @@ command, undo, save and recovery path. Existing schema 1 projects/checkpoints
 migrate in memory; their source bytes remain intact until explicit save. Native
 media import selects actual streams, indexes picture timestamps and preserves
 original sound channels through undo/save/recovery; see
-[native ingest](docs/MEDIA_INGEST.md). Native timeline gestures, broader delivery
+[native ingest](docs/MEDIA_INGEST.md). Advanced timeline gestures, broader delivery
 profiles, cloud and artist inference workflows remain roadmap work. The older
 lab picture-only exporter and 30-second sound probe remain separate feasibility
 tools; production preview/playback and the first shared master use the paths above.

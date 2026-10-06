@@ -33,6 +33,7 @@ pub struct Diagnostics {
     previous_media: Value,
     previous_preview: Value,
     previous_delivery: Value,
+    previous_timeline: Value,
 }
 
 impl Diagnostics {
@@ -80,6 +81,7 @@ impl Diagnostics {
             previous_media: Value::Null,
             previous_preview: Value::Null,
             previous_delivery: Value::Null,
+            previous_timeline: Value::Null,
         })
     }
 
@@ -103,6 +105,7 @@ impl Diagnostics {
         media: &crate::media_ui::MediaPane,
         preview: &crate::preview::PreviewPane,
         delivery: &crate::delivery_ui::DeliveryPane,
+        timeline: &crate::timeline_ui::TimelinePane,
     ) {
         let current: Vec<_> = workspace
             .tabs
@@ -137,6 +140,11 @@ impl Diagnostics {
             self.previous_preview = current_preview;
         }
         let current_delivery = delivery.diagnostic_state();
+        let current_timeline = timeline.diagnostic_state();
+        if current_timeline != self.previous_timeline {
+            self.record("timeline", current_timeline.clone());
+            self.previous_timeline = current_timeline;
+        }
         if current_delivery != self.previous_delivery {
             self.record("delivery", current_delivery.clone());
             self.previous_delivery = current_delivery;

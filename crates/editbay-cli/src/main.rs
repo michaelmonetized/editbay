@@ -6,6 +6,13 @@ use editbay_media::{Cancellation, SourceFile, VideoReader};
 use sha2::{Digest, Sha256};
 use std::{ffi::OsString, io::Read, path::Path, process::ExitCode};
 
+#[derive(serde::Deserialize)]
+#[serde(deny_unknown_fields)]
+struct TimelineRequest {
+    expected: DocumentVersion,
+    action: editbay_core::TimelineAction,
+}
+
 const HELP: &str = "EditBay Rust project foundation
 
 Usage:
@@ -13,6 +20,8 @@ Usage:
   editbay info FILE
   editbay rename FILE NAME
   editbay apply FILE COMMAND_GROUP_JSON
+  editbay timeline FILE ACTION_JSON
+  editbay clips FILE COMPOSITION_ID
   editbay migrate SOURCE NEW_FILE
   editbay frame-plan FILE COMPOSITION_ID FRAME
   editbay probe-media SOURCE
@@ -132,6 +141,26 @@ fn run(args: &[OsString]) -> Result<(), Box<dyn std::error::Error>> {
             print(project)?;
         }
         ("info", 2) => print(load(Path::new(&args[1]))?)?,
+        ("clips", 3) => print(editbay_core::timeline_clips(
+            &load(Path::new(&args[1]))?,
+            name(&args[2])?.parse()?,
+        )?)?,
+        ("timeline", 3) => {
+            let path = Path::new(&args[1]);
+            let expected = load(path)?;
+            let request = serde_json::from_slice::<TimelineRequest>(&read_bounded(
+                Path::new(&args[2]),
+                64 * 1024,
+            )?)?;
+            let change = editbay_core::timeline_edit(&expected, &request.action)?;
+            let mut editor = DocumentEditor::new(expected.clone())?;
+            let receipt =
+                editor.apply(request.expected, "Timeline edit".into(), &change.commands)?;
+            save_if_unchanged(editor.project(), path, &expected)?;
+            print(
+                serde_json::json!({"receipt":receipt,"composition":change.composition,"clip":change.clip,"saved":true}),
+            )?;
+        }
         ("export", 4 | 5) => export(args)?,
         ("rename", 3) => {
             let path = Path::new(&args[1]);

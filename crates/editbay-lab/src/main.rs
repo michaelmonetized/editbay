@@ -26,6 +26,7 @@ mod shared_delivery;
 mod sound_blocks;
 mod streaming_sound;
 mod temporal;
+mod timeline_evidence;
 
 type Result<T> = std::result::Result<T, Box<dyn std::error::Error>>;
 
@@ -897,6 +898,30 @@ fn run(args: Vec<OsString>) -> Result<()> {
             Path::new(&args[2]),
             Path::new(&args[3]),
         )?,
+        ("timeline-compare", 5) => timeline_evidence::compare(
+            Path::new(&args[1]),
+            args[2]
+                .to_str()
+                .ok_or("Composition ID must be UTF-8")?
+                .parse()?,
+            Path::new(&args[3]),
+            Path::new(&args[4]),
+        )?,
+        ("timeline-reorder", 6) => timeline_evidence::reorder(
+            Path::new(&args[1]),
+            Path::new(&args[2]),
+            args[3]
+                .to_str()
+                .ok_or("Composition ID must be UTF-8")?
+                .parse()?,
+            Path::new(&args[4]),
+            Path::new(&args[5]),
+        )?,
+        ("native-timeline", 4) => native_workspace::timeline(
+            Path::new(&args[1]),
+            Path::new(&args[2]),
+            Path::new(&args[3]),
+        )?,
         ("native-media", 4) => native_workspace::media(
             Path::new(&args[1]),
             Path::new(&args[2]),
@@ -968,6 +993,9 @@ fn run(args: Vec<OsString>) -> Result<()> {
             println!("  native-preview APP_BINARY SOURCE NEW_EVIDENCE_DIRECTORY [full|half]");
             println!("  native-playback APP_BINARY SOURCE NEW_EVIDENCE_DIRECTORY [full|half]");
             println!("  native-delivery APP_BINARY PROJECT NEW_EVIDENCE_DIRECTORY");
+            println!("  timeline-compare PROJECT COMPOSITION UNCUT_MASTER CUT_MASTER");
+            println!("  timeline-reorder CLI PROJECT COMPOSITION UNCUT_MASTER NEW_DIRECTORY");
+            println!("  native-timeline APP_BINARY PROJECT NEW_EVIDENCE_DIRECTORY");
             println!("  delivery-protocol PROJECT COMPOSITION");
             println!("  delivery-interrupts CLI_BINARY PROJECT COMPOSITION NEW_EVIDENCE_DIRECTORY");
             println!(

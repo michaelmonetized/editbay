@@ -121,3 +121,58 @@ fn real_cli_migration_writes_a_separate_destination_and_preserves_legacy_source(
     );
     assert_eq!(fs::read(&target).unwrap(), migrated);
 }
+
+#[test]
+fn timeline_cli_requires_captured_revision_and_failed_requests_preserve_saved_bytes() {
+    let directory = tempfile::tempdir().unwrap();
+    let file = directory.path().join("Cut.editbay");
+    let input = directory.path().join("Edit.json");
+    let mut project = Project::new("CLI timeline").unwrap();
+    let source: Composition = serde_json::from_value(serde_json::json!({
+        "id":"00000000-0000-0000-0000-000000000010","name":"Solid source","width":16,"height":16,
+        "frame_rate":{"numerator":24,"denominator":1},"duration":48,"tracks":[],
+        "nodes":[{"id":"00000000-0000-0000-0000-000000000011","range":{"start":0,"end":48},"operation":{"kind":"solid","rgba":[1.0,0.1,0.0,1.0]},"animation":[]}],
+        "picture":"00000000-0000-0000-0000-000000000011","audio":null
+    })).unwrap();
+    project.compositions.push(source.clone());
+    save_new(&project, &file).unwrap();
+    let request = serde_json::json!({"expected":DocumentVersion::of(&project),"action":{"kind":"create","name":"Cut","source":{"composition":source.id,"range":{"start":4,"end":16}}}});
+    fs::write(&input, serde_json::to_vec(&request).unwrap()).unwrap();
+    let run = || {
+        Command::new(env!("CARGO_BIN_EXE_editbay"))
+            .arg("timeline")
+            .arg(&file)
+            .arg(&input)
+            .output()
+            .unwrap()
+    };
+    let result = run();
+    assert!(
+        result.status.success(),
+        "{}",
+        String::from_utf8_lossy(&result.stderr)
+    );
+    let receipt: serde_json::Value = serde_json::from_slice(&result.stdout).unwrap();
+    let saved = fs::read(&file).unwrap();
+    let stale = run();
+    assert!(!stale.status.success());
+    assert!(String::from_utf8_lossy(&stale.stderr).contains("stale"));
+    assert_eq!(fs::read(&file).unwrap(), saved);
+    let clips = Command::new(env!("CARGO_BIN_EXE_editbay"))
+        .arg("clips")
+        .arg(&file)
+        .arg(receipt["composition"].as_str().unwrap())
+        .output()
+        .unwrap();
+    assert!(clips.status.success());
+    let clips: serde_json::Value = serde_json::from_slice(&clips.stdout).unwrap();
+    assert_eq!(
+        clips[0]["source"]["range"],
+        serde_json::json!({"start":4,"end":16})
+    );
+    let mut malformed = request;
+    malformed["action"]["undeclared"] = true.into();
+    fs::write(&input, serde_json::to_vec(&malformed).unwrap()).unwrap();
+    assert!(!run().status.success());
+    assert_eq!(fs::read(&file).unwrap(), saved);
+}
