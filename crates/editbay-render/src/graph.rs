@@ -141,6 +141,8 @@ pub struct GraphStats {
     pub uploads: u64,
     pub dispatches: u64,
     pub simplified_nodes: u64,
+    pub temporal_preparation_us: u64,
+    pub source_picture_us: u64,
     pub readbacks: u64,
     pub pictures: PictureCacheStats,
 }
@@ -188,6 +190,8 @@ pub struct GraphRenderer<P: PictureProvider = PictureCache> {
     uploads: u64,
     dispatches: u64,
     simplified_nodes: u64,
+    temporal_preparation_us: u64,
+    source_picture_us: u64,
     readbacks: u64,
     worker: Uuid,
     generation: u64,
@@ -351,6 +355,8 @@ impl<P: PictureProvider> GraphRenderer<P> {
             uploads: 0,
             dispatches: 0,
             simplified_nodes: 0,
+            temporal_preparation_us: 0,
+            source_picture_us: 0,
             readbacks: 0,
             worker: Uuid::new_v4(),
             generation: 0,
@@ -387,7 +393,11 @@ impl<P: PictureProvider> GraphRenderer<P> {
         if depth >= self.budget.nesting_depth {
             return Err("composition nesting exceeds the GPU worker budget".into());
         }
+        let began = Instant::now();
         let frame = self.snapshot.prepare(composition, position, before)?;
+        self.temporal_preparation_us = self
+            .temporal_preparation_us
+            .saturating_add(began.elapsed().as_micros() as u64);
         let by_id: HashMap<_, _> = frame.nodes.iter().map(|n| (n.id, n)).collect();
         let mut reachable = HashSet::new();
         let mut todo: Vec<_> = frame.picture.into_iter().collect();
@@ -469,7 +479,11 @@ impl<P: PictureProvider> GraphRenderer<P> {
                                     ),
                                 };
                                 p.transfer = match color.transfer { 8 => OutputTransfer::Linear, 13 => OutputTransfer::Srgb, 1 => OutputTransfer::Bt709, _ => return Err("source transfer requires the HDR/log renderer or an explicit interpretation".into()) };
+                                let began = Instant::now();
                                 let decoded = self.pictures.picture(request)?;
+                                self.source_picture_us = self
+                                    .source_picture_us
+                                    .saturating_add(began.elapsed().as_micros() as u64);
                                 if let Some(decoded) = decoded {
                                     self.pictures.validate_result(&decoded)?;
                                     if decoded.picture.color != color
@@ -832,6 +846,8 @@ impl<P: PictureProvider> GraphRenderer<P> {
             uploads: self.uploads,
             dispatches: self.dispatches,
             simplified_nodes: self.simplified_nodes,
+            temporal_preparation_us: self.temporal_preparation_us,
+            source_picture_us: self.source_picture_us,
             readbacks: self.readbacks,
             pictures: self.pictures.stats(),
         }
