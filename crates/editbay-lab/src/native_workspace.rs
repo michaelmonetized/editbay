@@ -2531,13 +2531,20 @@ fn native_device_failures(trace: &mut Trace, directory: &Path) -> Result<Value> 
 
 fn reset_sound_start(trace: &mut Trace) -> Result<()> {
     trace.read()?;
-    let current = trace
+    let after = trace
         .records
         .iter()
         .rev()
         .find(|record| record["kind"] == "preview")
-        .and_then(|record| record["details"]["requested_frame"].as_u64())
-        .ok_or("Missing current preview frame")?;
+        .and_then(|record| record["unix_us"].as_u64())
+        .ok_or("Missing current preview state")?;
+    let current = trace.wait("current preview frame after revision change", |record| {
+        record["kind"] == "preview"
+            && record["unix_us"].as_u64().is_some_and(|time| time >= after)
+            && record["details"]["requested_frame"].as_u64().is_some()
+    })?["details"]["requested_frame"]
+        .as_u64()
+        .ok_or("Missing prepared preview frame")?;
     if current == 0 {
         set_frame(trace, 1)?;
     }
