@@ -396,3 +396,138 @@ fn cached_and_evicted_kernels_preserve_uncached_pcm_bits_and_release_storage() {
         }
     }
 }
+
+#[test]
+fn source_preparation_covers_future_reverse_cuts_without_decoding_during_render() {
+    let directory = tempfile::tempdir().unwrap();
+    let mut project = fixture(&directory.path().join("future.wav"), 997);
+    let mut second = project.sources[0].clone();
+    second.id = id(21);
+    project.sources.push(second);
+    let scene = &mut project.compositions[0];
+    let mut clip = scene.tracks[0].clips[0].clone();
+    scene.tracks[0].clips[0].range.end = 48;
+    scene.tracks[0].clips[0].time_map.points[1] = TimePoint {
+        frame: 48,
+        source_tick: 48000,
+    };
+    scene.nodes[0].range.end = 48;
+    clip.id = id(42);
+    clip.range = FrameRange { start: 48, end: 96 };
+    clip.source = ClipSource::Media {
+        source: id(21),
+        stream: 0,
+    };
+    clip.time_map.points = vec![
+        TimePoint {
+            frame: 0,
+            source_tick: 144000,
+        },
+        TimePoint {
+            frame: 48,
+            source_tick: 96000,
+        },
+    ];
+    scene.tracks[0].clips.push(clip);
+    scene.nodes.extend([
+        TimedNode {
+            id: id(51),
+            range: FrameRange { start: 48, end: 96 },
+            operation: NodeOperation::Source { clip: id(42) },
+            animation: vec![],
+        },
+        TimedNode {
+            id: id(52),
+            range: FrameRange { start: 0, end: 96 },
+            operation: NodeOperation::Mix {
+                inputs: vec![id(50), id(51)],
+            },
+            animation: vec![],
+        },
+    ]);
+    scene.audio = Some(id(52));
+    let (snapshot, mut comparison) = renderer(project, 44100, SoundRenderBudget::default());
+    let cancel = Cancellation::new().unwrap();
+    let mut renderer = SoundRenderer::new(
+        snapshot.clone(),
+        PcmBudget {
+            decode_frames: 65536,
+            decoder_handles: 1,
+            cache_entries: 0,
+            ..PcmBudget::default()
+        },
+        SoundRenderBudget::default(),
+        cancel.clone(),
+    )
+    .unwrap();
+    let mut preparation = renderer
+        .source_preparation(0, snapshot.duration_samples())
+        .unwrap();
+    let initial = preparation.progress();
+    assert_eq!(initial.total_sources, 2);
+    assert_eq!(renderer.pcm_stats().decoded_frames, 0);
+    assert!(comparison.prepare_sources_step(&mut preparation).is_err());
+    let mut steps = 0;
+    let mut previous = 0;
+    while !preparation.progress().ready {
+        let decoded = renderer.pcm_stats().decoded_frames;
+        let progress = renderer.prepare_sources_step(&mut preparation).unwrap();
+        assert!(renderer.pcm_stats().decoded_frames - decoded <= 65536);
+        assert!(progress.prepared_samples > previous);
+        previous = progress.prepared_samples;
+        steps += 1;
+    }
+    assert!(steps > 2);
+    assert_eq!(previous, initial.total_samples);
+    let prepared = renderer.pcm_stats();
+    assert_eq!(prepared.decoders, 1);
+    assert_eq!(prepared.stores, 2);
+    for index in (0..snapshot.duration_samples().div_ceil(4096)).rev() {
+        let start = index * 4096;
+        let plan = snapshot
+            .prepare(
+                start,
+                (snapshot.duration_samples() - start).min(4096) as u32,
+            )
+            .unwrap();
+        let actual = renderer.render(&plan).unwrap();
+        let expected = comparison.render(&plan).unwrap();
+        assert!(
+            actual
+                .sound()
+                .samples()
+                .iter()
+                .zip(expected.sound().samples())
+                .all(|(a, b)| a.to_bits() == b.to_bits())
+        );
+        assert_eq!(renderer.pcm_stats().decoded_frames, prepared.decoded_frames);
+        assert_eq!(renderer.pcm_stats().store_bytes, prepared.store_bytes);
+    }
+    renderer.clear();
+    assert!(renderer.prepare_sources_step(&mut preparation).is_err());
+    let mut fresh = renderer
+        .source_preparation(0, snapshot.duration_samples())
+        .unwrap();
+    cancel.cancel();
+    assert!(matches!(
+        renderer.prepare_sources_step(&mut fresh),
+        Err(editbay_media::Error::Cancelled)
+    ));
+    let limited = SoundRenderer::new(
+        snapshot.clone(),
+        PcmBudget {
+            store_bytes: 1024,
+            ..PcmBudget::default()
+        },
+        SoundRenderBudget::default(),
+        Cancellation::new().unwrap(),
+    )
+    .unwrap();
+    assert!(
+        limited
+            .source_preparation(0, snapshot.duration_samples())
+            .is_err()
+    );
+    assert_eq!(limited.pcm_stats().sources, 0);
+    assert_eq!(limited.pcm_stats().stores, 0);
+}

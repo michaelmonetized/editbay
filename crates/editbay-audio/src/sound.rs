@@ -4,8 +4,10 @@ use editbay_media::{
 };
 use serde::Serialize;
 mod kernels;
+mod source_preparation;
 pub use kernels::KernelStats;
 use kernels::Kernels;
+pub use source_preparation::{SoundPreparation, SoundSourceProgress};
 use std::{
     f64::consts::PI,
     sync::{
@@ -13,6 +15,10 @@ use std::{
         atomic::{AtomicUsize, Ordering},
     },
 };
+
+const MAXIMUM_STEP: f64 = 16.;
+const SINC_LOBES: f64 = 48.;
+const DOWNSAMPLE_CUTOFF: f64 = 0.95;
 
 /// Bounds for worker-side sound mixing and band-limited interpolation.
 #[derive(Debug, Clone, Copy, Serialize)]
@@ -393,10 +399,10 @@ impl Point {
     }
     fn weight(&self, relative: i64) -> Option<f64> {
         let distance = (relative as f64 - self.fraction) * self.cutoff;
-        if distance.abs() >= 48. {
+        if distance.abs() >= SINC_LOBES {
             return None;
         }
-        let phase = distance / 48.;
+        let phase = distance / SINC_LOBES;
         let window = 0.42 + 0.5 * (PI * phase).cos() + 0.08 * (2. * PI * phase).cos();
         let sinc = if distance.abs() < 1e-12 {
             1.
@@ -409,7 +415,7 @@ impl Point {
 fn point(sample: SoundSample) -> Result<Point> {
     if !sample.step.is_finite()
         || sample.step == 0.
-        || sample.step.abs() > 16.
+        || sample.step.abs() > MAXIMUM_STEP
         || sample.center.denominator == 0
     {
         return Err(Error::Invalid("unsupported sound resampling slope".into()));
@@ -422,14 +428,14 @@ fn point(sample: SoundSample) -> Result<Point> {
         .map_err(|_| Error::Invalid("sound sample origin overflow".into()))?;
     let fraction = numerator.rem_euclid(denominator) as f64 / denominator as f64;
     let cutoff = if sample.step.abs() > 1. {
-        0.95 / sample.step.abs()
+        DOWNSAMPLE_CUTOFF / sample.step.abs()
     } else {
         1.
     };
     let radius = if exact {
         0
     } else {
-        (48. / cutoff).ceil() as i128
+        (SINC_LOBES / cutoff).ceil() as i128
     };
     let start = i64::try_from(integer - radius)
         .map_err(|_| Error::Invalid("sound interpolation start overflow".into()))?;

@@ -42,6 +42,79 @@ fn fixture_seconds(path: &Path, codec: &str, seconds: u32) -> Arc<EvaluationSnap
 }
 
 #[test]
+fn bounded_preparation_allocates_no_output_handles_and_reaps_cancelled_or_dead_workers() {
+    let directory = tempfile::tempdir().unwrap();
+    let path = directory.path().join("bounded.m4a");
+    let snapshot = fixture(&path, "aac");
+    let source = snapshot.project().sources[0].id;
+    let original = fs::read(&path).unwrap();
+    let expected = reference(&path);
+    let budget = PcmWorkerBudget {
+        pcm: PcmBudget {
+            decode_frames: 65536,
+            ..PcmBudget::default()
+        },
+        ..PcmWorkerBudget::default()
+    };
+    for mode in ["complete", "cancel", "kill"] {
+        let cancel = Cancellation::new().unwrap();
+        let mut worker = spawn(snapshot.clone(), budget, cancel.clone());
+        let pid = worker.process_id().unwrap();
+        let first = worker.prepare_interval(source, 0, 191999, 1).unwrap();
+        assert!(!first.ready);
+        assert!(first.decoded_frames > 0 && first.decoded_frames <= 65536);
+        assert_eq!(worker.transfer_stats().mapped_handles, 0);
+        assert_eq!(worker.transfer_stats().child.live_bytes, 0);
+        assert_eq!(worker.transfer_stats().child.entries, 0);
+        if mode != "complete" {
+            if mode == "cancel" {
+                cancel.cancel();
+            } else {
+                signal(pid, "-KILL");
+            }
+            let began = Instant::now();
+            assert!(worker.prepare_interval(source, 0, 191999, 1).is_err());
+            assert!(began.elapsed() < Duration::from_secs(2));
+            assert!(!Path::new(&format!("/proc/{pid}")).exists());
+            worker
+                .rebind(snapshot.clone(), Cancellation::new().unwrap())
+                .unwrap();
+        }
+        let mut previous = None;
+        for step in 0..1000 {
+            let decoded = worker.transfer_stats().child.decoded_frames;
+            let progress = worker.prepare_interval(source, 0, 191999, 1).unwrap();
+            let record = worker.preparation_log().observation().unwrap();
+            assert!(record.valid_after(previous, snapshot.project(), budget.pcm));
+            previous = Some(record);
+            assert!(worker.transfer_stats().child.decoded_frames - decoded <= 65536);
+            assert_eq!(worker.transfer_stats().mapped_handles, 0);
+            assert_eq!(worker.transfer_stats().child.live_bytes, 0);
+            if progress.ready {
+                break;
+            }
+            assert!(step < 999);
+        }
+        let decoded = worker.transfer_stats().child.decoded_frames;
+        let tail = worker.interval(source, 0, 180000, 4096).unwrap();
+        assert!(
+            tail.pcm()
+                .samples()
+                .iter()
+                .zip(&expected[180000 * 6..184096 * 6])
+                .all(|(a, b)| a.to_bits() == b.to_bits())
+        );
+        assert_eq!(worker.transfer_stats().child.decoded_frames, decoded);
+        worker.clear();
+        assert_eq!(worker.transfer_stats().child.store_bytes, 0);
+        assert!(worker.validate_result(&tail).is_err());
+        drop(tail);
+        assert_eq!(worker.transfer_stats().mapped_handles, 0);
+    }
+    assert_eq!(fs::read(path).unwrap(), original);
+}
+
+#[test]
 fn cold_canonical_worker_progress_matches_sequential_pcm_and_reaps_interrupted_preparation() {
     let directory = tempfile::tempdir().unwrap();
     let path = directory.path().join("long.m4a");

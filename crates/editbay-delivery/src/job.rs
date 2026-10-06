@@ -2,8 +2,11 @@ use crate::{
     DeliveryRequest, Phase, Progress, Receipt, Result,
     worker::{Operation, Outcome, Owner, Request, Response},
 };
+use editbay_audio::{SoundRenderBudget, SoundRenderer};
 use editbay_core::{DocumentVersion, EvaluationSnapshot, Project, SoundBudget, SoundSnapshot};
-use editbay_media::{Cancellation, LosslessMovProfile, SourceFile, native_job::NativeJob};
+use editbay_media::{
+    Cancellation, LosslessMovProfile, PcmBudget, SourceFile, native_job::NativeJob,
+};
 use std::{
     fs::File,
     os::fd::AsRawFd,
@@ -119,6 +122,18 @@ pub fn deliver(
         channels: sound.profile().channels.clone(),
     };
     expected.validate()?;
+    let preparation = SoundRenderer::new(
+        Arc::new(sound),
+        PcmBudget::default(),
+        SoundRenderBudget::default(),
+        control.cancel.clone(),
+    )?
+    .source_preparation(
+        expected.sample_origin()?,
+        expected.samples_through(expected.frames)?,
+    )?
+    .progress()
+    .total_samples;
     if destination
         .extension()
         .and_then(|s| s.to_str())
@@ -150,7 +165,7 @@ pub fn deliver(
         &Progress {
             phase: Phase::Preparing,
             prepared_samples: 0,
-            total_preparation_samples: expected.sample_origin()?,
+            total_preparation_samples: preparation,
             pictures: 0,
             samples: 0,
             total_pictures: 0,
@@ -175,7 +190,14 @@ pub fn deliver(
             (serial == 0).then_some(&temporary),
             &control.cancel,
         )?;
-        validate_reply(&response, owner, serial, &expected, previous.as_ref())?;
+        validate_reply(
+            &response,
+            owner,
+            serial,
+            &expected,
+            preparation,
+            previous.as_ref(),
+        )?;
         match response.outcome {
             Outcome::Failed { message } => return Err(message.into()),
             Outcome::Progress {
@@ -222,8 +244,8 @@ pub fn deliver(
     progress(
         &Progress {
             phase: Phase::Publishing,
-            prepared_samples: expected.sample_origin()?,
-            total_preparation_samples: expected.sample_origin()?,
+            prepared_samples: preparation,
+            total_preparation_samples: preparation,
             pictures: receipt.profile.frames,
             samples: receipt.profile.samples_through(receipt.profile.frames)?,
             total_pictures: receipt.profile.frames,
@@ -247,6 +269,7 @@ fn validate_reply(
     owner: Owner,
     serial: u64,
     expected: &LosslessMovProfile,
+    preparation: u64,
     previous: Option<&Progress>,
 ) -> Result<()> {
     if response.owner != owner || response.serial != serial {
@@ -256,7 +279,6 @@ fn validate_reply(
         return Ok(());
     };
     let samples = expected.samples_through(expected.frames)?;
-    let preparation = expected.sample_origin()?;
     let rank = |phase| match phase {
         Phase::Preparing => Some(0),
         Phase::Rendering => Some(1),
@@ -367,7 +389,7 @@ mod tests {
     };
 
     #[test]
-    fn range_preparation_cannot_skip_rewind_or_claim_another_origin() {
+    fn source_preparation_cannot_skip_work_or_claim_another_total() {
         let owner = Owner {
             job: Uuid::new_v4(),
             version: DocumentVersion::of(&Project::new("Range").unwrap()),
@@ -398,13 +420,21 @@ mod tests {
                 receipt: None,
             },
         };
-        assert!(validate_reply(&response(begin.clone()), owner, 0, &profile, None).is_ok());
+        assert!(validate_reply(&response(begin.clone()), owner, 0, &profile, 6400, None).is_ok());
         let partial = Progress {
             prepared_samples: 4096,
             ..begin.clone()
         };
         assert!(
-            validate_reply(&response(partial.clone()), owner, 0, &profile, Some(&begin)).is_ok()
+            validate_reply(
+                &response(partial.clone()),
+                owner,
+                0,
+                &profile,
+                6400,
+                Some(&begin)
+            )
+            .is_ok()
         );
         let ready = Progress {
             phase: Phase::Rendering,
@@ -412,7 +442,15 @@ mod tests {
             ..begin.clone()
         };
         assert!(
-            validate_reply(&response(ready.clone()), owner, 0, &profile, Some(&partial)).is_ok()
+            validate_reply(
+                &response(ready.clone()),
+                owner,
+                0,
+                &profile,
+                6400,
+                Some(&partial)
+            )
+            .is_ok()
         );
         for invalid in [
             Progress {
@@ -441,10 +479,11 @@ mod tests {
             },
         ] {
             assert!(
-                validate_reply(&response(invalid), owner, 0, &profile, Some(&partial)).is_err()
+                validate_reply(&response(invalid), owner, 0, &profile, 6400, Some(&partial))
+                    .is_err()
             );
         }
-        assert!(validate_reply(&response(ready), owner, 0, &profile, None).is_err());
+        assert!(validate_reply(&response(ready), owner, 0, &profile, 6400, None).is_err());
     }
 
     #[test]
@@ -479,14 +518,14 @@ mod tests {
                 receipt: receipt.map(Box::new),
             },
         };
-        assert!(validate_reply(&make(start.clone(), None), owner, 0, &profile, None).is_ok());
+        assert!(validate_reply(&make(start.clone(), None), owner, 0, &profile, 0, None).is_ok());
         let mut wrong = owner;
         wrong.job = Uuid::new_v4();
-        assert!(validate_reply(&make(start.clone(), None), wrong, 0, &profile, None).is_err());
+        assert!(validate_reply(&make(start.clone(), None), wrong, 0, &profile, 0, None).is_err());
         wrong = owner;
         wrong.version.revision += 1;
-        assert!(validate_reply(&make(start.clone(), None), wrong, 0, &profile, None).is_err());
-        assert!(validate_reply(&make(start.clone(), None), owner, 1, &profile, None).is_err());
+        assert!(validate_reply(&make(start.clone(), None), wrong, 0, &profile, 0, None).is_err());
+        assert!(validate_reply(&make(start.clone(), None), owner, 1, &profile, 0, None).is_err());
         for phase in [
             Phase::Preparing,
             Phase::Publishing,
@@ -506,6 +545,7 @@ mod tests {
                     owner,
                     0,
                     &profile,
+                    0,
                     Some(&start)
                 )
                 .is_err()
@@ -526,6 +566,7 @@ mod tests {
                     owner,
                     0,
                     &profile,
+                    0,
                     Some(&start)
                 )
                 .is_err()
@@ -557,6 +598,7 @@ mod tests {
                 owner,
                 0,
                 &profile,
+                0,
                 Some(&prior)
             )
             .is_ok()
@@ -567,6 +609,7 @@ mod tests {
                 owner,
                 0,
                 &profile,
+                0,
                 Some(&prior)
             )
             .is_err()
@@ -577,6 +620,7 @@ mod tests {
                 owner,
                 0,
                 &profile,
+                0,
                 None
             )
             .is_err()
@@ -589,6 +633,7 @@ mod tests {
                 owner,
                 0,
                 &profile,
+                0,
                 Some(&prior)
             )
             .is_err()
@@ -601,6 +646,7 @@ mod tests {
                 owner,
                 0,
                 &profile,
+                0,
                 Some(&prior)
             )
             .is_err()
@@ -613,6 +659,7 @@ mod tests {
                 owner,
                 0,
                 &profile,
+                0,
                 Some(&prior)
             )
             .is_err()

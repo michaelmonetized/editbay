@@ -98,7 +98,9 @@ pub fn run_range(
                 );
             }
             let trigger = if mode == "cancel-preparation" {
-                status.phase == Phase::Preparing && status.prepared_samples > 0
+                status.phase == Phase::Preparing
+                    && status.total_preparation_samples > 0
+                    && status.total_pictures > 0
             } else if ["collision", "cancel-verify"].contains(&mode) {
                 status.phase == Phase::VerifyingFile
             } else if mode == "source-change" {

@@ -1,0 +1,87 @@
+{
+  "binary_sha256": "cd541d963fb8a409c1171eb0c7cb84e60b4244eca5a5d36b85197bfbb03309f2",
+  "collision_preserved": true,
+  "destination": "/home/michael/Projects/editbay/artifacts/worktrees/r2-sound-worker/artifacts/source-preparation/candidate/delivery-faults/camera-stall.mov",
+  "elapsed_ms": 810.878462,
+  "error": "media operation cancelled",
+  "independent": null,
+  "kind": "shared_delivery_qualification",
+  "memory": [
+    "VmHWM:\t   37680 kB",
+    "VmRSS:\t   37680 kB"
+  ],
+  "mode": "stall",
+  "observations": [
+    {
+      "elapsed_ms": 1.249328,
+      "progress": {
+        "phase": "preparing",
+        "pictures": 0,
+        "prepared_samples": 0,
+        "samples": 0,
+        "total_pictures": 0,
+        "total_preparation_samples": 14810,
+        "total_samples": 0
+      }
+    },
+    {
+      "elapsed_ms": 62.81684,
+      "progress": {
+        "phase": "preparing",
+        "pictures": 0,
+        "prepared_samples": 0,
+        "samples": 0,
+        "total_pictures": 5,
+        "total_preparation_samples": 14810,
+        "total_samples": 10000
+      }
+    },
+    {
+      "elapsed_ms": 99.792357,
+      "progress": {
+        "phase": "rendering",
+        "pictures": 0,
+        "prepared_samples": 14810,
+        "samples": 0,
+        "total_pictures": 5,
+        "total_preparation_samples": 14810,
+        "total_samples": 10000
+      }
+    },
+    {
+      "elapsed_ms": 287.907327,
+      "progress": {
+        "phase": "rendering",
+        "pictures": 1,
+        "prepared_samples": 14810,
+        "samples": 2000,
+        "total_pictures": 5,
+        "total_preparation_samples": 14810,
+        "total_samples": 10000
+      }
+    },
+    {
+      "elapsed_ms": 445.548174,
+      "progress": {
+        "phase": "rendering",
+        "pictures": 2,
+        "prepared_samples": 14810,
+        "samples": 4000,
+        "total_pictures": 5,
+        "total_preparation_samples": 14810,
+        "total_samples": 10000
+      }
+    }
+  ],
+  "published": false,
+  "qualified": true,
+  "range": {
+    "end": 7,
+    "start": 2
+  },
+  "receipt": null,
+  "retirement_ms": 165.649951,
+  "schema": 1,
+  "worker_high_water_kib": 162624,
+  "worker_reaped": true
+}

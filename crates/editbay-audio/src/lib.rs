@@ -11,7 +11,10 @@ pub use device_worker::{StreamingPlayback, serve_device_worker};
 pub use monitor::MonitorRoute;
 pub use preparation::{PreparationStage, PreparationStats};
 pub use sample_clock::{ClockObservation, ClockRejection};
-pub use sound::{KernelStats, SoundBuffer, SoundRenderBudget, SoundRenderer, SoundResult};
+pub use sound::{
+    KernelStats, SoundBuffer, SoundPreparation, SoundRenderBudget, SoundRenderer, SoundResult,
+    SoundSourceProgress,
+};
 pub use streaming::{PlaybackPhase, PlaybackStart, StreamingStatus};
 
 use cpal::{

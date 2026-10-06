@@ -135,6 +135,15 @@ pub fn run(project: &Path, reference: &Path, directory: &Path, count: usize) -> 
     let pid = worker.process_id().ok_or("PCM worker missing")?;
     let mut renderer =
         SoundRenderer::with_provider(sound.clone(), worker, SoundRenderBudget::default())?;
+    let began = Instant::now();
+    let mut source_preparation = renderer.source_preparation(0, sound.duration_samples())?;
+    let mut source_steps = 0;
+    while !source_preparation.progress().ready {
+        renderer.prepare_sources_step(&mut source_preparation)?;
+        source_steps += 1;
+    }
+    let source_preparation_ms = began.elapsed().as_secs_f64() * 1000.;
+    let prepared_pcm = renderer.pcm_stats();
     let mut preparation = Vec::new();
     let mut rendering = Vec::new();
     let mut observations = Vec::new();
@@ -151,6 +160,13 @@ pub fn run(project: &Path, reference: &Path, directory: &Path, count: usize) -> 
         let result = renderer.render(&plan)?;
         rendering.push(began.elapsed().as_secs_f64() * 1000.);
         renderer.validate_result(&result)?;
+        if renderer.pcm_stats().decoded_frames != prepared_pcm.decoded_frames
+            || renderer.pcm_stats().store_bytes != prepared_pcm.store_bytes
+        {
+            return Err(
+                "Long-cut sound decoded or extended source history after preparation".into(),
+            );
+        }
         for (offset, values) in result.sound().samples().chunks_exact(channels).enumerate() {
             let position = first + offset as u64;
             let cut = &clips[(position / per_frame) as usize];
@@ -177,7 +193,7 @@ pub fn run(project: &Path, reference: &Path, directory: &Path, count: usize) -> 
     let rendering = metrics(&mut rendering);
     let gates = json!({"pcm_exact":maximum_error==0.,"planning_p95_5ms":preparation["p95_ms"].as_f64().is_some_and(|value|value<=5.),"compiled_process_256mib":high_water<=262144,"active_paths_bounded":observations.iter().all(|value|value["work"]["active_paths"].as_u64().is_some_and(|count|count<=5)),"pcm_reaped":pcm_reaped,"source_project_unchanged":hash(project)?==original_hash,"saved_recovered_equal":true,"device_finished":true});
     Ok(
-        json!({"kind":"indexed_long_cut_sound","qualified":gates.as_object().unwrap().values().all(|value|*value==Value::Bool(true)),"gates":gates,"application_sha256":hash(&std::env::current_exe()?)?,"original_project_sha256":original_hash,"reference_sha256":hash(reference)?,"reference_pcm_sha256":reference_pcm_sha256,"project":saved,"composition":record,"clips":count,"samples":sound.duration_samples(),"channels":sound.profile().channels,"index":sound.index_stats(),"compilation_ms":compilation_ms,"compiled_memory":compiled_memory,"edit_command_ms":metrics(&mut edits),"preparation":preparation,"rendering":rendering,"maximum_absolute_pcm_error":maximum_error,"pcm_sha256":format!("{:x}",digest.finalize()),"blocks":observations,"playback":playback,"limits":["Real saved-cut sound and backend callbacks; no physical audibility or two-hour drift claim","Sound qualification; native viewing and full picture master require separate receipts"]}),
+        json!({"kind":"indexed_long_cut_sound","qualified":gates.as_object().unwrap().values().all(|value|*value==Value::Bool(true)),"gates":gates,"application_sha256":hash(&std::env::current_exe()?)?,"original_project_sha256":original_hash,"reference_sha256":hash(reference)?,"reference_pcm_sha256":reference_pcm_sha256,"project":saved,"composition":record,"clips":count,"samples":sound.duration_samples(),"channels":sound.profile().channels,"index":sound.index_stats(),"source_preparation":{"progress":source_preparation.progress(),"steps":source_steps,"elapsed_ms":source_preparation_ms,"pcm":prepared_pcm,"no_decode_during_render":true},"compilation_ms":compilation_ms,"compiled_memory":compiled_memory,"edit_command_ms":metrics(&mut edits),"preparation":preparation,"rendering":rendering,"maximum_absolute_pcm_error":maximum_error,"pcm_sha256":format!("{:x}",digest.finalize()),"blocks":observations,"playback":playback,"limits":["Real saved-cut sound and backend callbacks; no physical audibility or two-hour drift claim","Sound qualification; native viewing and full picture master require separate receipts"]}),
     )
 }
 

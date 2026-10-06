@@ -1,5 +1,5 @@
 use crate::{DeliveryRequest, Phase, Progress, Receipt, Result};
-use editbay_audio::{SoundRenderBudget, SoundRenderer};
+use editbay_audio::{SoundPreparation, SoundRenderBudget, SoundRenderer};
 use editbay_core::{
     DocumentVersion, EvaluationSnapshot, OutputTransfer, Project, SoundBudget, SoundSnapshot,
     SourceColor, SourcePosition, TimeBase, WorkingGamut,
@@ -27,8 +27,7 @@ pub(crate) struct Session {
     samples: u64,
     first_sample: u64,
     total_samples: u64,
-    preparing_frame: u64,
-    prepared_samples: u64,
+    source_preparation: SoundPreparation,
     expected_pixels: Sha256,
     expected_pcm: Sha256,
     decoded: Sha256,
@@ -91,6 +90,12 @@ impl Session {
             SoundRenderBudget::default(),
             cancel.clone(),
         )?;
+        let source_preparation = sound.source_preparation(first_sample, total_samples)?;
+        let phase = if source_preparation.progress().ready {
+            Phase::Rendering
+        } else {
+            Phase::Preparing
+        };
         let writer = Some(LosslessMovWriter::new(
             &file,
             profile.clone(),
@@ -106,17 +111,12 @@ impl Session {
             plan,
             writer,
             file,
-            phase: if first_sample == 0 {
-                Phase::Rendering
-            } else {
-                Phase::Preparing
-            },
+            phase,
             pictures: 0,
             samples: 0,
             first_sample,
             total_samples,
-            preparing_frame: 0,
-            prepared_samples: 0,
+            source_preparation,
             expected_pixels: Sha256::new(),
             expected_pcm: Sha256::new(),
             decoded: Sha256::new(),
@@ -131,8 +131,8 @@ impl Session {
     pub(crate) fn progress(&self) -> Progress {
         Progress {
             phase: self.phase,
-            prepared_samples: self.prepared_samples,
-            total_preparation_samples: self.first_sample,
+            prepared_samples: self.source_preparation.progress().prepared_samples,
+            total_preparation_samples: self.source_preparation.progress().total_samples,
             pictures: self.pictures,
             samples: self.samples,
             total_pictures: self.profile.frames,
@@ -158,19 +158,11 @@ impl Session {
     }
 
     fn prepare_sound(&mut self) -> Result<()> {
-        let mut full = self.profile.clone();
-        full.frames += full.first_frame;
-        full.first_frame = 0;
-        let end = full.samples_through(self.preparing_frame + 1)?;
-        let count = (end - self.prepared_samples).min(4096) as u32;
-        let plan = self.plan.prepare(self.prepared_samples, count)?;
-        let sound = self.sound.render(&plan)?;
-        self.sound.validate_result(&sound)?;
-        self.prepared_samples += u64::from(count);
-        if self.prepared_samples == end {
-            self.preparing_frame += 1;
-        }
-        if self.prepared_samples == self.first_sample {
+        if self
+            .sound
+            .prepare_sources_step(&mut self.source_preparation)?
+            .ready
+        {
             self.phase = Phase::Rendering;
         }
         Ok(())

@@ -191,6 +191,18 @@ Omarchy palettes. Recovery tests do not substitute for native visual inspection.
 
 ## R2 — the production engine
 
+Issue [#55](https://github.com/michaelmonetized/editbay/issues/55) /
+[PR #56](https://github.com/michaelmonetized/editbay/pull/56) implements
+[source preparation before playback and delivery](SOURCE_PREPARATION.md),
+including bounded future-cut source coverage and real decoded-source progress.
+Local graph/audio and seven actual-worker tests pass. Frozen `55f9c35` passes two
+256-cut source/device qualifications without decoding during rendering; four
+whole masters / twelve ranges preserve #54's corrected output exactly. Six native
+preparation/device/playback runs, full workspace checks and a 180-second pilot
+pass. One range-job input run fails during synchronous recovery publication; an
+unchanged repeat passes. [#57](https://github.com/michaelmonetized/editbay/issues/57)
+owns that failure. Sustained-clock and release gates stay open.
+
 Issue [#53](https://github.com/michaelmonetized/editbay/issues/53) /
 [PR #54](https://github.com/michaelmonetized/editbay/pull/54) implements
 [canonical source PCM](CANONICAL_PCM.md), bounded sequential preparation and

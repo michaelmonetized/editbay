@@ -1,0 +1,241 @@
+{
+  "application_sha256": "cd541d963fb8a409c1171eb0c7cb84e60b4244eca5a5d36b85197bfbb03309f2",
+  "kind": "shared_delivery_worker_protocol",
+  "qualified": true,
+  "reports": [
+    {
+      "error": "invalid media request: codec worker failed: invalid media request: codec worker closed its socket; editbay delivery worker: invalid media request: invalid type: string \"invalid request\", expected struct Request at line 1 column 17\n",
+      "mode": "malformed",
+      "rejected": true,
+      "retired": true,
+      "retirement_ms": 16.158918
+    },
+    {
+      "error": "invalid media request: codec worker failed: invalid media request: codec worker closed its socket; editbay delivery worker: invalid media request: unknown field `foreign`, expected one of `owner`, `serial`, `operation` at line 1 column 10\n",
+      "mode": "unknown-field",
+      "rejected": true,
+      "retired": true,
+      "retirement_ms": 14.832296999999999
+    },
+    {
+      "error": {
+        "outcome": {
+          "kind": "failed",
+          "message": "Delivery has no private output descriptor"
+        },
+        "owner": {
+          "job": "0109fe0b-3b03-4dbd-9911-41a19c8ea404",
+          "version": {
+            "project_id": "44c766fe-d29f-468b-adea-de29a4b05f25",
+            "revision": 3
+          }
+        },
+        "serial": 0
+      },
+      "mode": "missing-file",
+      "rejected": true,
+      "retired": true,
+      "retirement_ms": 15.876577
+    },
+    {
+      "error": {
+        "outcome": {
+          "kind": "failed",
+          "message": "Delivery requires an anonymous private output file"
+        },
+        "owner": {
+          "job": "952f0cfd-bc63-47ee-9469-a2608fc37e32",
+          "version": {
+            "project_id": "44c766fe-d29f-468b-adea-de29a4b05f25",
+            "revision": 3
+          }
+        },
+        "serial": 0
+      },
+      "mode": "named-file",
+      "rejected": true,
+      "retired": true,
+      "retirement_ms": 14.976593
+    },
+    {
+      "error": {
+        "outcome": {
+          "kind": "failed",
+          "message": "Delivery operation is stale or belongs to another owner"
+        },
+        "owner": {
+          "job": "4da51b1f-25e4-4511-81c9-605fd054dc88",
+          "version": {
+            "project_id": "44c766fe-d29f-468b-adea-de29a4b05f25",
+            "revision": 3
+          }
+        },
+        "serial": 0
+      },
+      "mode": "stale",
+      "rejected": true,
+      "retired": true,
+      "retirement_ms": 6.5290610000000004
+    },
+    {
+      "error": {
+        "outcome": {
+          "kind": "failed",
+          "message": "Delivery operation is stale or belongs to another owner"
+        },
+        "owner": {
+          "job": "674e07bf-6f9c-4d60-b2ee-dc3e745f4a0f",
+          "version": {
+            "project_id": "44c766fe-d29f-468b-adea-de29a4b05f25",
+            "revision": 3
+          }
+        },
+        "serial": 1
+      },
+      "mode": "foreign",
+      "rejected": true,
+      "retired": true,
+      "retirement_ms": 6.291678999999999
+    },
+    {
+      "error": {
+        "outcome": {
+          "kind": "failed",
+          "message": "Delivery operation is stale or belongs to another owner"
+        },
+        "owner": {
+          "job": "f5079bd7-fbb8-4274-92b2-ed6186bcf6fa",
+          "version": {
+            "project_id": "44c766fe-d29f-468b-adea-de29a4b05f25",
+            "revision": 4
+          }
+        },
+        "serial": 1
+      },
+      "mode": "foreign-version",
+      "rejected": true,
+      "retired": true,
+      "retirement_ms": 6.310055
+    },
+    {
+      "error": {
+        "outcome": {
+          "kind": "failed",
+          "message": "Delivery step included a foreign descriptor"
+        },
+        "owner": {
+          "job": "059e595f-4f58-402b-a8a5-9f95c00b8ae2",
+          "version": {
+            "project_id": "44c766fe-d29f-468b-adea-de29a4b05f25",
+            "revision": 3
+          }
+        },
+        "serial": 1
+      },
+      "mode": "extra-file",
+      "rejected": true,
+      "retired": true,
+      "retirement_ms": 6.274595
+    },
+    {
+      "error": {
+        "outcome": {
+          "kind": "failed",
+          "message": "Delivery binding does not own its document"
+        },
+        "owner": {
+          "job": "3aeeb29d-3212-44ac-a885-785d872a6b46",
+          "version": {
+            "project_id": "44c766fe-d29f-468b-adea-de29a4b05f25",
+            "revision": 3
+          }
+        },
+        "serial": 1
+      },
+      "mode": "duplicate-begin",
+      "rejected": true,
+      "retired": true,
+      "retirement_ms": 9.076966
+    },
+    {
+      "error": {
+        "outcome": {
+          "kind": "failed",
+          "message": "Export range is empty or outside the selected sequence"
+        },
+        "owner": {
+          "job": "cb065f49-7c2a-4374-af49-df8acc92ba55",
+          "version": {
+            "project_id": "44c766fe-d29f-468b-adea-de29a4b05f25",
+            "revision": 3
+          }
+        },
+        "serial": 0
+      },
+      "mode": "empty-range",
+      "rejected": true,
+      "retired": true,
+      "retirement_ms": 16.098748999999998
+    },
+    {
+      "error": {
+        "outcome": {
+          "kind": "failed",
+          "message": "Export range is empty or outside the selected sequence"
+        },
+        "owner": {
+          "job": "e56091b7-d1ac-421e-ab22-47a5d6cb0f49",
+          "version": {
+            "project_id": "44c766fe-d29f-468b-adea-de29a4b05f25",
+            "revision": 3
+          }
+        },
+        "serial": 0
+      },
+      "mode": "reversed-range",
+      "rejected": true,
+      "retired": true,
+      "retirement_ms": 15.810490999999999
+    },
+    {
+      "error": {
+        "outcome": {
+          "kind": "failed",
+          "message": "Export range is empty or outside the selected sequence"
+        },
+        "owner": {
+          "job": "921af7d3-bfa7-447a-8821-51b99e42879f",
+          "version": {
+            "project_id": "44c766fe-d29f-468b-adea-de29a4b05f25",
+            "revision": 3
+          }
+        },
+        "serial": 0
+      },
+      "mode": "foreign-range",
+      "rejected": true,
+      "retired": true,
+      "retirement_ms": 15.570693
+    },
+    {
+      "error": {
+        "outcome": {
+          "kind": "failed",
+          "message": "Export range is empty or outside the selected sequence"
+        },
+        "owner": {
+          "job": "1be4060f-2b8d-490d-b2ab-cb5a3e4ca5cb",
+          "version": {
+            "project_id": "44c766fe-d29f-468b-adea-de29a4b05f25",
+            "revision": 3
+          }
+        },
+        "serial": 0
+      },
+      "mode": "overflow-range",
+      "rejected": true,
+      "retired": true,
+      "retirement_ms": 15.284851
+    }
+  ]
+}

@@ -10,6 +10,8 @@ use std::{
 };
 use uuid::Uuid;
 mod index;
+mod source_extents;
+pub use source_extents::SoundSourceExtent;
 
 /// Explicit sound output with unchanged source channel identities.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]

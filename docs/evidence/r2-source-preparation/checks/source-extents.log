@@ -1,0 +1,35 @@
+   Compiling editbay-core v0.1.0 (/home/michael/Projects/editbay/artifacts/worktrees/r2-sound-worker/crates/editbay-core)
+    Finished `test` profile [unoptimized] target(s) in 2.87s
+     Running tests/sound.rs (/home/michael/Projects/editbay/artifacts/worktrees/r2-sound-engine/target/native-build/debug/deps/sound-e09e59b03164a4a4)
+
+running 14 tests
+test fractional_composition_tail_is_silence_beyond_the_exact_duration ... ok
+test cuts_inactive_tracks_and_freeze_are_explicit_silence ... ok
+test finite_gain_overflow_and_compiled_leaf_explosion_are_rejected ... ok
+test gain_interpolation_mix_and_nested_rates_match_closed_form ... ok
+test limits_reject_unbounded_work_and_undeclared_channel_conversion ... ok
+test identical_public_versions_cannot_cross_private_owners_and_labels_do_not_change_content ... ok
+test device_rate_uses_only_reachable_channels_and_rejects_implicit_mixing ... ok
+test rational_conversion_reduces_before_narrowing_and_normalizes_extreme_zero ... ok
+test exact_sample_centers_rate_conversion_reverse_and_final_sample ... ok
+test compiled_storage_and_active_block_budgets_remain_independent ... ok
+test nested_reverse_selects_cull_the_child_timeline_without_losing_sample_centers ... ok
+test thousand_clip_sound_charges_only_the_active_cut_and_keeps_exact_samples ... ok
+test source_preparation_encloses_every_active_center_across_nested_reverse_and_cut_paths ... FAILED
+test constant_rate_fast_path_matches_full_evaluator_at_every_sample ... ok
+
+failures:
+
+---- source_preparation_encloses_every_active_center_across_nested_reverse_and_cut_paths stdout ----
+
+thread 'source_preparation_encloses_every_active_center_across_nested_reverse_and_cut_paths' (3758169) panicked at crates/editbay-core/tests/sound.rs:93:55:
+called `Result::unwrap()` on an `Err` value: Invalid("clip time map extends beyond the source")
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+
+
+failures:
+    source_preparation_encloses_every_active_center_across_nested_reverse_and_cut_paths
+
+test result: FAILED. 13 passed; 1 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.39s
+
+error: test failed, to rerun pass `-p editbay-core --test sound`

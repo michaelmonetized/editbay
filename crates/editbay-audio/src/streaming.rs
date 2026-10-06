@@ -490,9 +490,17 @@ fn run(request: &Request, sender: &SyncSender<Event>) -> Result<()> {
     sender
         .try_send(Event::SourcePreparation(provider.preparation_log()))
         .map_err(|e| e.to_string())?;
-    let renderer =
+    let mut renderer =
         SoundRenderer::with_provider(sound.clone(), provider, SoundRenderBudget::default())
             .map_err(|e| e.to_string())?;
+    let mut source_preparation = renderer
+        .source_preparation(first, end - first)
+        .map_err(|e| e.to_string())?;
+    while !source_preparation.progress().ready {
+        renderer
+            .prepare_sources_step(&mut source_preparation)
+            .map_err(|e| e.to_string())?;
+    }
     let (control, writer, reader) =
         transport::transport(first, end, usize::from(profile.channels), CAPACITY)?;
     let clock = Arc::new(SampleClock::new(profile.sample_rate, first, end)?);
