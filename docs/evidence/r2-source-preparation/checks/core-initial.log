@@ -1,0 +1,130 @@
+   Compiling editbay-core v0.1.0 (/home/michael/Projects/editbay/artifacts/worktrees/r2-sound-worker/crates/editbay-core)
+    Finished `test` profile [unoptimized] target(s) in 1m 08s
+     Running unittests src/lib.rs (/home/michael/Projects/editbay/artifacts/worktrees/r2-sound-engine/target/native-build/debug/deps/editbay_core-e6a39ecc82f9b023)
+
+running 5 tests
+test sound::index::tests::inverse_reduces_extreme_knots_and_enforces_compilation_budgets ... ok
+test sound::index::tests::balanced_lookup_skips_long_history_and_preserves_mix_order ... ok
+test sound::index::tests::repeated_intervals_deduplicate_paths_and_bound_lookup_work ... ok
+test sound::index::tests::candidate_offsets_match_exact_centers_at_fractional_rates_and_boundaries ... ok
+test sound::index::tests::inverse_bounds_never_omit_forward_reverse_boundary_or_nested_fractional_time ... ok
+
+test result: ok. 5 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+     Running tests/authoring.rs (/home/michael/Projects/editbay/artifacts/worktrees/r2-sound-engine/target/native-build/debug/deps/authoring-236d576c66e2ed29)
+
+running 6 tests
+test invalid_or_absent_source_timing_is_rejected_before_authoring ... ok
+test natural_sound_refuses_wrong_streams_absent_overlap_and_clock_overflow_before_mutation ... ok
+test vfr_sequence_keeps_natural_integer_boundaries_and_explicit_partial_tail ... ok
+test exact_uniform_sequence_is_one_reversible_saved_and_recoverable_group ... ok
+test linked_natural_sound_survives_one_undo_group_save_checkpoint_and_independent_recovery ... ok
+test natural_sound_keeps_every_exact_sample_center_at_fractional_picture_rates_and_origins ... ok
+
+test result: ok. 6 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.14s
+
+     Running tests/commands.rs (/home/michael/Projects/editbay/artifacts/worktrees/r2-sound-engine/target/native-build/debug/deps/commands-726e47b834f81fd1)
+
+running 3 tests
+test a_group_consumes_one_revision_at_the_counter_boundary_and_undo_failure_preserves_state ... ok
+test groups_are_atomic_and_undo_redo_never_reuse_an_old_revision ... ok
+test no_op_preserves_history_and_new_edits_discard_the_redo_branch ... ok
+
+test result: ok. 3 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+     Running tests/compositions.rs (/home/michael/Projects/editbay/artifacts/worktrees/r2-sound-engine/target/native-build/debug/deps/compositions-a1929a45ab584f87)
+
+running 15 tests
+test exact_retimes_vfr_and_samples_keep_their_distinct_boundaries ... ok
+test freeze_and_range_boundaries_choose_the_correct_source_side ... ok
+test compiled_integer_inspection_preserves_the_published_receipt ... ok
+test channels_evaluate_and_history_restores_collection_order_and_dependency_impact ... ok
+test rational_retimes_cancel_large_factors_and_preserve_unsigned_endpoints ... ok
+test graph_cycles_socket_errors_global_duplicate_ids_and_invalid_links_fail_atomically ... ok
+test nested_different_rates_keep_fractional_picture_sample_and_animation_time ... ok
+test reverse_nested_end_owns_the_last_picture_sample_and_preceding_step ... ok
+test frame_plans_resolve_animation_sources_and_transitive_content_without_global_revision_churn ... ok
+test mask_bytes_working_color_precision_and_dimensions_invalidate_working_keys ... ok
+test retained_operations_and_held_picture_keys_reuse_only_matching_dependencies ... ok
+test old_checkpoint_is_verified_before_migration_and_original_bytes_are_retained ... ok
+test captured_document_and_cloned_sessions_keep_independent_revision_ownership ... ok
+test structured_job_survives_atomic_commands_undo_save_and_independent_recovery ... ok
+test document_and_recovery_read_and_write_budgets_preserve_existing_files ... ok
+
+test result: ok. 15 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.13s
+
+     Running tests/prepared.rs (/home/michael/Projects/editbay/artifacts/worktrees/r2-sound-engine/target/native-build/debug/deps/prepared-da7339b224071cb5)
+
+running 3 tests
+test bounded_reads_reject_large_documents_without_replacing_the_source ... ok
+test recovery_preparation_is_invisible_until_owned_commit_and_stale_drop_removes_it ... ok
+test deleted_original_directory_does_not_prevent_rescuing_dirty_work_or_allow_original_recreation ... ok
+
+test result: ok. 3 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.01s
+
+     Running tests/recovery.rs (/home/michael/Projects/editbay/artifacts/worktrees/r2-sound-engine/target/native-build/debug/deps/recovery-1f1dcc4cb337d302)
+
+running 16 tests
+test duplicate_ids_and_empty_sequences_are_invalid ... ok
+test rational_time_has_no_fractional_rate_drift ... ok
+test a_competing_writer_is_reported_without_touching_saved_work ... ok
+test changed_checkpoint_payload_fails_integrity_without_creating_a_file ... ok
+test save_reopen_preserves_identity_revision_and_profiles ... ok
+test invalid_edits_cannot_replace_a_valid_saved_project ... ok
+test incomplete_temporary_files_are_not_recovery_candidates ... ok
+test creation_refuses_to_replace_existing_work ... ok
+test recovery_does_not_overwrite_another_project ... ok
+test corrupt_latest_checkpoint_keeps_older_recoverable_work_visible ... ok
+test checked_saves_require_identity_and_revision_continuity ... ok
+test unsupported_schemas_fail_explicitly ... ok
+test stale_edits_cannot_replace_newer_work_or_recreate_a_deleted_project ... ok
+test untitled_project_can_be_checkpointed_without_a_saved_original ... ok
+test checkpoint_survives_source_loss_and_recovers_to_an_independent_copy ... ok
+test symlink_destinations_are_rejected_and_permissions_survive_save ... ok
+
+test result: ok. 16 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.07s
+
+     Running tests/reference.rs (/home/michael/Projects/editbay/artifacts/worktrees/r2-sound-engine/target/native-build/debug/deps/reference-7e43cadbc28f8fc7)
+
+running 1 test
+test immutable_reference_replays_native_roundtrip_and_recovery_without_conversion_loss ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.02s
+
+     Running tests/sound.rs (/home/michael/Projects/editbay/artifacts/worktrees/r2-sound-engine/target/native-build/debug/deps/sound-e09e59b03164a4a4)
+
+running 13 tests
+test fractional_composition_tail_is_silence_beyond_the_exact_duration ... ok
+test cuts_inactive_tracks_and_freeze_are_explicit_silence ... ok
+test device_rate_uses_only_reachable_channels_and_rejects_implicit_mixing ... ok
+test rational_conversion_reduces_before_narrowing_and_normalizes_extreme_zero ... ok
+test finite_gain_overflow_and_compiled_leaf_explosion_are_rejected ... ok
+test gain_interpolation_mix_and_nested_rates_match_closed_form ... ok
+test identical_public_versions_cannot_cross_private_owners_and_labels_do_not_change_content ... ok
+test limits_reject_unbounded_work_and_undeclared_channel_conversion ... ok
+test exact_sample_centers_rate_conversion_reverse_and_final_sample ... ok
+test thousand_clip_sound_charges_only_the_active_cut_and_keeps_exact_samples ... ok
+test compiled_storage_and_active_block_budgets_remain_independent ... ok
+test nested_reverse_selects_cull_the_child_timeline_without_losing_sample_centers ... ok
+test constant_rate_fast_path_matches_full_evaluator_at_every_sample ... ok
+
+test result: ok. 13 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.84s
+
+     Running tests/timeline.rs (/home/michael/Projects/editbay/artifacts/worktrees/r2-sound-engine/target/native-build/debug/deps/timeline-d9bc9b58bd245caf)
+
+running 6 tests
+test unrecognized_graph_and_implicit_profile_conversion_are_rejected ... ok
+test insert_inside_linked_clip_preserves_exact_sample_centers_across_both_cuts ... ok
+test fractional_output_sample_centers_and_silent_gaps_keep_exact_time ... ok
+test ripple_trim_remove_and_move_preserve_linked_identity_and_source_ranges ... ok
+test overlap_overflow_invalid_ranges_and_recursive_insert_leave_document_untouched ... ok
+test undo_redo_save_recovery_preserve_groups_and_stale_commands_fail ... ok
+
+test result: ok. 6 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.03s
+
+   Doc-tests editbay_core
+
+running 0 tests
+
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+

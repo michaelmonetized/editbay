@@ -1,6 +1,6 @@
 # Sound prepared before playback
 
-Issue [#55](https://github.com/michaelmonetized/editbay/issues/55) / draft
+Issue [#55](https://github.com/michaelmonetized/editbay/issues/55) /
 [PR #56](https://github.com/michaelmonetized/editbay/pull/56) follows canonical
 PCM in [PR #54](https://github.com/michaelmonetized/editbay/pull/54).
 
@@ -42,6 +42,20 @@ mappings, cancellation/death/retry and unchanged PCM. Frozen `55f9c35` also pass
 source preparation takes 62.058 / 15.597 ms, and subsequent rendering performs no
 decode or disk growth. Render p95 is 3.606 / 5.782 ms. Four whole masters and twelve
 ranges match the corrected #54 references exactly, including the six-channel
-44.1 kHz tail. Native workflow and full workspace qualification are pending.
+44.1 kHz tail. Six native preparation/device/playback workflows pass, as do
+eighteen stream faults and sixteen delivery fault/protocol groups. The final
+preparation-cancellation trials use the corrected `678050a` lab trigger; both
+original missed-trigger failures are retained. Default/all-feature workspace
+tests pass (250/251 plus seven doc tests each), as do Clippy and formatting.
+
+Three native range workflows pass on their first run. The camera range-job run
+completes correct export and retirement but misses the input gate at 157.870 ms.
+Its trace records a 236.380 ms synchronous recovery publication on the UI thread.
+An unchanged repeat passes at 22.740 ms; this does not erase the failure.
+[Issue #57](https://github.com/michaelmonetized/editbay/issues/57) owns that fix.
+Both 800×600 native playback captures were inspected. The fresh 180-second pilot
+passes with maximum backend-relative drift 0.472165 ms and 133936 KiB peak combined
+RSS. Full raw receipts, failures and provenance are in the
+[evidence directory](evidence/r2-source-preparation/README.md).
 No sustained-clock, hardware, physical audibility or release/adoption gate is
 closed by this dependency.

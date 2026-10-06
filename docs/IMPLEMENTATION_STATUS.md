@@ -1,6 +1,6 @@
 # Rust restart: implementation status
 
-Issue [#55](https://github.com/michaelmonetized/editbay/issues/55) / draft
+Issue [#55](https://github.com/michaelmonetized/editbay/issues/55) /
 [PR #56](https://github.com/michaelmonetized/editbay/pull/56) adds
 [source preparation before playback and delivery](SOURCE_PREPARATION.md).
 Bounded source-time coverage includes nested, reverse and segmented paths;
@@ -9,7 +9,12 @@ before creating the device stream, and delivery stops rendering discarded
 composition pre-roll. Local graph/audio and seven actual worker tests pass.
 Frozen `55f9c35` passes two 256-cut source/device qualifications without further
 decoding after preparation, and four whole masters / twelve ranges preserve
-corrected #54 output exactly. Native and full workspace checks are pending.
+corrected #54 output exactly. Six native preparation/device/playback workflows,
+workspace tests, all-feature Clippy and formatting pass. The 180-second pilot
+passes at 0.472165 ms maximum backend-relative drift. One native range-job input
+failure exposes synchronous recovery publication; its unchanged repeat passes,
+and [#57](https://github.com/michaelmonetized/editbay/issues/57) owns the fix.
+[Raw evidence](evidence/r2-source-preparation/README.md) retains both runs.
 
 Issue [#53](https://github.com/michaelmonetized/editbay/issues/53) /
 [PR #54](https://github.com/michaelmonetized/editbay/pull/54) adds
