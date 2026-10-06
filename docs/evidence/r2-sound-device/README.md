@@ -86,3 +86,8 @@ selected frame and expecting a new change-only draw event. The final driver read
 the actual playhead and makes a fresh seek. Those attempts are not passing native
 workflow receipts. The original portal zero-RT-timeout reproduction remains in
 [the parent evidence](../r3-timeline/earlier/).
+
+Readable streaming receipts omit high-frequency samples; native summaries omit
+repeated control rectangles. Corresponding `*-observations.json.gz` files retain
+the original complete receipts. Raw native traces and focus observations are also
+retained. No failed measurement is removed by this presentation change.
