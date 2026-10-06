@@ -2477,8 +2477,7 @@ fn native_device_failures(trace: &mut Trace, directory: &Path) -> Result<Value> 
         ("stall", "-STOP"),
         ("cancel-stall", "-STOP"),
     ] {
-        set_frame(trace, 1)?;
-        set_frame(trace, 0)?;
+        reset_sound_start(trace)?;
         let active = play_sound(trace)?;
         let device = active["details"]["sound"]["device_worker_pid"]
             .as_u64()
@@ -2517,8 +2516,7 @@ fn native_device_failures(trace: &mut Trace, directory: &Path) -> Result<Value> 
                     .unwrap(),
             ],
         )?;
-        set_frame(trace, 1)?;
-        set_frame(trace, 0)?;
+        reset_sound_start(trace)?;
         let retry = play_sound(trace)?;
         if retry["details"]["sound"]["device_worker_pid"] == device
             || retry["details"]["sound"]["worker_pid"] == pcm
@@ -2529,4 +2527,20 @@ fn native_device_failures(trace: &mut Trace, directory: &Path) -> Result<Value> 
         reports.push(json!({"mode":mode,"active":active,"stopped":stopped,"retirement_ms":elapsed_ms,"retry":retry,"paused":paused,"device_and_pcm_reaped":true}));
     }
     Ok(json!({"qualified":true,"reports":reports}))
+}
+
+fn reset_sound_start(trace: &mut Trace) -> Result<()> {
+    trace.read()?;
+    let current = trace
+        .records
+        .iter()
+        .rev()
+        .find(|record| record["kind"] == "preview")
+        .and_then(|record| record["details"]["requested_frame"].as_u64())
+        .ok_or("Missing current preview frame")?;
+    if current == 0 {
+        set_frame(trace, 1)?;
+    }
+    set_frame(trace, 0)?;
+    Ok(())
 }
