@@ -339,6 +339,7 @@ struct Task {
     cancel: Cancellation,
     mailbox: Arc<(Mutex<Mailbox>, Condvar)>,
     result: Arc<Mutex<Option<Event>>>,
+    coalesced: Arc<AtomicU64>,
     thread: Option<JoinHandle<()>>,
 }
 
@@ -404,6 +405,8 @@ impl Task {
         let cancel = Cancellation::new().map_err(|e| e.to_string())?;
         let mailbox = Arc::new((Mutex::new(Mailbox::default()), Condvar::new()));
         let result = Arc::new(Mutex::new(None));
+        let coalesced = Arc::new(AtomicU64::new(0));
+        let replaced = coalesced.clone();
         let input = mailbox.clone();
         let output = result.clone();
         let token = cancel.clone();
@@ -412,6 +415,9 @@ impl Task {
             .spawn(move || {
                 let publish = |event| {
                     if let Ok(mut result) = output.lock() {
+                        if matches!(result.as_ref(), Some(Event::Picture(_))) {
+                            replaced.fetch_add(1, Ordering::AcqRel);
+                        }
                         *result = Some(event);
                     }
                     ctx.request_repaint();
@@ -564,6 +570,7 @@ impl Task {
             cancel,
             mailbox,
             result,
+            coalesced,
             thread: Some(thread),
         })
     }
@@ -1580,6 +1587,7 @@ impl PreviewPane {
             "stats":self.picture.as_ref().map(|picture|picture.stats), "surface":self.gpu.as_ref().map(|gpu|format!("{:?}",gpu.format)),
             "adapter":self.gpu.as_ref().map(|gpu|format!("{:?}",gpu.adapter.get_info())),
             "rejected_results":self.rejected,"retiring":self.retiring.len(),"creating":self.creation.is_some(),"stopped":self.stopped,"error":self.error,"controls":self.controls,
+            "coalesced_results":self.task.as_ref().map(|task|task.coalesced.load(Ordering::Acquire)),
             "sound":self.sound_status,"sound_active":self.sound.is_some(),"sound_retiring":self.sound_retiring.len(),"skipped_frames":self.skipped_frames,
             "preparing_playback":self.starting.is_some(),"prepared_pictures":self.prepared.as_ref().and_then(|pictures|pictures.lock().ok().map(|pictures|pictures.state())),
             "accepted_picture_gaps":self.skipped_frames,"display":self.completions.as_ref().map(CompletionLog::summary),

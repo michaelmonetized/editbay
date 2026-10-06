@@ -902,8 +902,12 @@ pub fn preview(
         .as_u64()
         .unwrap_or(0)
         == 0
+        && scrubbed["details"]["coalesced_results"]
+            .as_u64()
+            .unwrap_or(0)
+            == 0
     {
-        return Err("Superseded scrub result was not rejected".into());
+        return Err("Superseded scrub result was neither rejected nor coalesced".into());
     }
     let killed_at = now();
     command("kill", &["-KILL", &pid.to_string()])?;
