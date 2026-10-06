@@ -92,6 +92,11 @@ against independent native PCM and declared worker timing/memory budgets.
 See [sound block contracts](docs/SOUND_BLOCKS.md). Native streaming playback
 and shared delivery are subsequent R2 dependencies.
 
+Source sequences can retain an explicitly selected sound stream at its natural
+timing, including delayed starts and partial-frame tails. `editbay-lab natural-sound
+SOURCE [WORKER_BINARY]` compares every output sample through the packaged worker
+against independent PCM. See [native source authoring](docs/NATIVE_PREVIEW.md).
+
 `editbay-lab inventory MEDIA_DIRECTORY NEW_JSON_REPORT` recursively inventories
 local source hashes and first decoded video pictures, reports incomplete/error
 states and refuses to overwrite an existing report. Native MCP currently exposes
