@@ -75,6 +75,8 @@ the synthetic mask tests have fully independent input pixels.
 
 `editbay-lab native-masks APP_BINARY MASK_PROJECT NEW_DIRECTORY` exercises actual
 wide/compact windows, seeks, visible picture bounds, compact cut creation,
-undo/redo/save and reopen. It preserves screenshots and raw diagnostics. Native
+undo/redo/save, exact interval comparison of native cut exports, and reopen.
+It requires the sibling verified `Master.mov` created by `mask-graph` and preserves
+screenshots and raw diagnostics. See [actual evidence](evidence/r2-procedural-masks/README.md). Native
 GPU completion and captured window pixels do not prove physical display timing,
 audibility, artist/client approval or independent-user acceptance.
