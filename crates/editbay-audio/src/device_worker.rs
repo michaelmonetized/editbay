@@ -457,7 +457,7 @@ fn validate(
         || status.callbacks != 0
         || status.clock_observation.is_some()
         || status.prepared_frames != 0
-        || status.preparation != crate::PreparationStats::default()
+        || status.preparation.blocks > u64::from(CAPACITY / 4096)
         || previous.device.is_some()
         || matches!(
             status.phase,

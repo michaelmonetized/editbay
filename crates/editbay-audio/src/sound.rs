@@ -254,8 +254,11 @@ impl<P: PcmProvider> SoundRenderer<P> {
                     let mut normalization = 0.;
                     let mut accumulate = |relative: i64, weight: f64| {
                         let offset = (point.origin + relative - start) as usize * channels;
-                        for (channel, value) in sum[..channels].iter_mut().enumerate() {
-                            *value += f64::from(input_samples[offset + channel]) * weight;
+                        for (value, sample) in sum[..channels]
+                            .iter_mut()
+                            .zip(&input_samples[offset..offset + channels])
+                        {
+                            *value += f64::from(*sample) * weight;
                         }
                     };
                     if let Some(kernel) = self.kernels.get(point) {

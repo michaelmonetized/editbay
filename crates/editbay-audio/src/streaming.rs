@@ -74,7 +74,6 @@ pub struct StreamingStatus {
 }
 
 struct Ready {
-    preparation: Arc<PreparationLog>,
     clock: Arc<SampleClock>,
     control: Control,
     origin: Instant,
@@ -93,6 +92,7 @@ enum Event {
 }
 
 struct Request {
+    preparation: Arc<PreparationLog>,
     project: Arc<Project>,
     composition: Uuid,
     start: PlaybackStart,
@@ -104,6 +104,7 @@ struct Request {
 /// One asynchronous playback lifetime with privately owned prepared sound.
 pub(crate) struct LocalPlayback {
     preparation: PreparationStats,
+    preparation_log: Arc<PreparationLog>,
     version: DocumentVersion,
     route: MonitorRoute,
     cancel: Cancellation,
@@ -131,7 +132,9 @@ impl LocalPlayback {
         let cancel = Cancellation::new().map_err(|e| e.to_string())?;
         let stop = Arc::new(AtomicBool::new(false));
         let (sender, events) = mpsc::sync_channel(4);
+        let preparation_log = Arc::new(PreparationLog::default());
         let request = Request {
+            preparation: preparation_log.clone(),
             project,
             composition,
             start,
@@ -156,6 +159,7 @@ impl LocalPlayback {
             .map_err(|e| e.to_string())?;
         Ok(Self {
             preparation: PreparationStats::default(),
+            preparation_log,
             version,
             route,
             cancel,
@@ -202,11 +206,11 @@ impl LocalPlayback {
         if self.stop.load(Ordering::Acquire) && !self.is_finished() {
             self.phase = PlaybackPhase::Stopping;
         }
+        if let Some(observed) = self.preparation_log.observation() {
+            self.preparation = observed;
+        }
         let (position, end, device, worker_pid, callbacks, latency, prepared, clipped) =
             if let Some(ready) = &self.ready {
-                if let Some(observed) = ready.preparation.observation() {
-                    self.preparation = observed;
-                }
                 if let Some(observation) = ready.clock.observation() {
                     self.clock_observation = Some(observation);
                 }
@@ -472,9 +476,8 @@ fn run(request: &Request, sender: &SyncSender<Event>) -> Result<()> {
         transport::transport(first, end, usize::from(profile.channels), CAPACITY)?;
     let clock = Arc::new(SampleClock::new(profile.sample_rate, first, end)?);
     let clipped = Arc::new(AtomicU64::new(0));
-    let preparation = Arc::new(PreparationLog::default());
     let mut producer = Producer {
-        preparation: preparation.clone(),
+        preparation: request.preparation.clone(),
         measured: PreparationStats::default(),
         previous_block: None,
         sound,
@@ -534,7 +537,6 @@ fn run(request: &Request, sender: &SyncSender<Event>) -> Result<()> {
     };
     sender
         .try_send(Event::Ready(Ready {
-            preparation,
             clock: clock.clone(),
             control: control.clone(),
             origin,
