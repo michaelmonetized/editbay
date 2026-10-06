@@ -126,6 +126,35 @@ mod tests {
     }
 
     #[test]
+    fn finished_worker_keeps_its_specific_failure_during_concurrent_polling() {
+        for _ in 0..256 {
+            let result = Arc::new(Mutex::new(None));
+            let output = result.clone();
+            let thread = std::thread::spawn(move || {
+                *output.lock().unwrap() = Some(Event::Failed("Source color is undeclared".into()));
+            });
+            loop {
+                if let Some(event) = worker_event(&result, Some(&thread)) {
+                    assert!(
+                        matches!(event, Event::Failed(error) if error == "Source color is undeclared")
+                    );
+                    break;
+                }
+                std::thread::yield_now();
+            }
+            thread.join().unwrap();
+        }
+        let thread = std::thread::spawn(|| {});
+        while !thread.is_finished() {
+            std::thread::yield_now();
+        }
+        assert!(
+            matches!(worker_event(&Mutex::new(None), Some(&thread)), Some(Event::Failed(error)) if error.contains("worker stopped"))
+        );
+        thread.join().unwrap();
+    }
+
+    #[test]
     fn authoring_after_edit_tab_switch_or_welcome_cannot_publish() {
         for change in 0..3 {
             let (_directory, mut workspace, tab) = workspace();
@@ -203,6 +232,22 @@ struct Task {
     result: Arc<Mutex<Option<Event>>>,
     thread: Option<JoinHandle<()>>,
 }
+
+/// Read a worker's final event without racing its exit.
+/// `result` owns the single event slot and `thread` reports completion. Returns
+/// the published event first, or an explicit failure after an empty worker exit.
+fn worker_event(result: &Mutex<Option<Event>>, thread: Option<&JoinHandle<()>>) -> Option<Event> {
+    let mut result = match result.lock() {
+        Ok(result) => result,
+        Err(error) => return Some(Event::Failed(error.to_string())),
+    };
+    result.take().or_else(|| {
+        thread
+            .filter(|thread| thread.is_finished())
+            .map(|_| Event::Failed("Viewer worker stopped; retry the viewer".into()))
+    })
+}
+
 impl Task {
     fn stop(&self) {
         self.cancel.cancel();
@@ -683,7 +728,7 @@ impl PreviewPane {
         let event = self
             .task
             .as_ref()
-            .and_then(|task| task.result.lock().ok().and_then(|mut result| result.take()));
+            .and_then(|task| worker_event(&task.result, task.thread.as_ref()));
         match event {
             Some(Event::Started(pid)) => self.worker_pid = Some(pid),
             Some(Event::Picture(picture))
@@ -698,17 +743,7 @@ impl PreviewPane {
                 self.stopped = true;
                 self.error = Some(error);
             }
-            None => {
-                if self
-                    .task
-                    .as_ref()
-                    .is_some_and(|task| task.thread.as_ref().is_some_and(JoinHandle::is_finished))
-                {
-                    self.stop();
-                    self.stopped = true;
-                    self.error = Some("Viewer worker stopped; retry the viewer".into());
-                }
-            }
+            None => {}
         }
         if self
             .picture
