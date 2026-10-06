@@ -2477,6 +2477,7 @@ fn native_device_failures(trace: &mut Trace, directory: &Path) -> Result<Value> 
         ("stall", "-STOP"),
         ("cancel-stall", "-STOP"),
     ] {
+        set_frame(trace, 1)?;
         set_frame(trace, 0)?;
         let active = play_sound(trace)?;
         let device = active["details"]["sound"]["device_worker_pid"]
@@ -2516,6 +2517,7 @@ fn native_device_failures(trace: &mut Trace, directory: &Path) -> Result<Value> 
                     .unwrap(),
             ],
         )?;
+        set_frame(trace, 1)?;
         set_frame(trace, 0)?;
         let retry = play_sound(trace)?;
         if retry["details"]["sound"]["device_worker_pid"] == device
