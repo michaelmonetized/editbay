@@ -191,6 +191,10 @@ Omarchy palettes. Recovery tests do not substitute for native visual inspection.
 
 ## R2 — the production engine
 
+Issue #45 adds [bounded procedural GPU masks](PROCEDURAL_MASKS.md) to the shared
+preview/export graph. Native drawing tools, asset-mask formats and full artist
+workflows remain their R3/R4/R5 gates.
+
 Issue #43 adds coherent [callback-clock measurements](SUSTAINED_PLAYBACK.md).
 Short candidate runs pass; sustained stress and baseline failures, including
 the final 1100-second timing-discontinuity stop,

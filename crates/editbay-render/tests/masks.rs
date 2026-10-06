@@ -455,3 +455,38 @@ fn asset_masks_fail_before_any_gpu_work_until_their_format_is_supported() {
     assert_eq!(worker.stats().dispatches, 0);
     assert_eq!(worker.stats().live_texture_bytes, 0);
 }
+
+#[test]
+fn cancelling_submitted_mask_work_retires_gpu_pins_and_preserves_consumer_charge() {
+    let points: Vec<_> = (0..60)
+        .map(|n| {
+            let angle = n as f64 * std::f64::consts::TAU / 60.;
+            [512. + 480. * angle.cos(), 512. + 480. * angle.sin()]
+        })
+        .collect();
+    let mut p = project(&points, 8., false, [0.; 4]);
+    p.color.precision = FloatPrecision::Full;
+    p.compositions[0].width = 1024;
+    p.compositions[0].height = 1024;
+    let cancel = Cancellation::new().unwrap();
+    let mut worker = renderer(
+        p,
+        GraphBudget {
+            cache_entries: 0,
+            ..GraphBudget::default()
+        },
+        cancel.clone(),
+    );
+    let image = worker
+        .render(id(100), SourcePosition::new(0, 1).unwrap(), false)
+        .unwrap();
+    let began = std::time::Instant::now();
+    cancel.cancel();
+    assert!(worker.validate_result(&image).is_err());
+    worker.clear().unwrap();
+    assert!(began.elapsed() < std::time::Duration::from_secs(2));
+    assert_eq!(worker.stats().pending_submissions, 0);
+    assert_eq!(worker.stats().live_texture_bytes, 1024 * 1024 * 16);
+    drop(image);
+    assert_eq!(worker.stats().live_texture_bytes, 0);
+}

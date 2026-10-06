@@ -8,6 +8,15 @@ pub fn run(binary: &Path, project: &Path, directory: &Path) -> Result<Value> {
     let original = project.canonicalize()?;
     let original_hash = hash(&original)?;
     let seed = load(&original)?;
+    let reference = original
+        .parent()
+        .ok_or("Mask project parent absent")?
+        .join("Master.mov");
+    if !reference.is_file() {
+        return Err(
+            "Run mask-graph first; native qualification requires its verified Master.mov".into(),
+        );
+    }
     let composition = seed
         .sequences
         .iter()
@@ -121,6 +130,47 @@ pub fn run(binary: &Path, project: &Path, directory: &Path) -> Result<Value> {
                 .ok_or("Non-UTF8 evidence path")?,
         ],
     )?;
+    let cut: uuid::Uuid = timeline["record"]
+        .as_str()
+        .ok_or("Cut composition absent")?
+        .parse()?;
+    let cut_sequence = saved
+        .sequences
+        .iter()
+        .find(|s| s.composition == Some(cut))
+        .ok_or("Cut sequence absent")?
+        .id;
+    click_control(&mut trace, "timeline-view-record")?;
+    trace.wait("selected compact cut", |r| {
+        r["kind"] == "preview" && r["details"]["sequence"] == cut_sequence.to_string()
+    })?;
+    let cut_picture = set_frame(&mut trace, 1)?;
+    if cut_picture["details"]["sequence"] != cut_sequence.to_string() {
+        return Err("Compact viewer did not render the saved cut".into());
+    }
+    command(
+        "grim",
+        &[
+            "-g",
+            "80,80 800x600",
+            directory
+                .join("compact-cut-drawn.png")
+                .to_str()
+                .ok_or("Non-UTF8 evidence path")?,
+        ],
+    )?;
+    let destination = directory.join("Cut.mov");
+    let after = now();
+    choose_master(&mut trace, &destination)?;
+    let completed = export_job(&mut trace, after, |job| {
+        job["running"] == false && !job["receipt"].is_null()
+    })?;
+    if completed["receipt"]["version"]["revision"] != saved.revision
+        || completed["receipt"]["file_sha256"] != hash(&destination)?
+    {
+        return Err("Compact export published a different revision or file".into());
+    }
+    let independent = crate::timeline_evidence::compare(&copy, cut, &reference, &destination)?;
     let mut latency: Vec<_> = samples
         .iter()
         .map(|r| {
@@ -141,7 +191,7 @@ pub fn run(binary: &Path, project: &Path, directory: &Path) -> Result<Value> {
     )?;
     let reopened_picture = picture(&mut reopened_trace, 0, 0)?;
     reopened.kill()?;
-    let report = json!({"kind":"native_procedural_masks","binary_sha256":hash(&binary)?,"qualified":views.iter().all(|v|v["qualified"]==true) && input_ms<=50. && hash(&original)?==original_hash && timings["p95_ms"].as_f64().is_some_and(|v|v<=250.),"views":views,"gpu_draw":timings,"samples":samples,"compact_cut":{"input_ms":input_ms,"created":created,"timeline":timeline,"saved_revision":saved.revision,"reopened":reopened_picture},"original_unchanged":hash(&original)?==original_hash,"physical_display_verified":false});
+    let report = json!({"kind":"native_procedural_masks","binary_sha256":hash(&binary)?,"qualified":views.iter().all(|v|v["qualified"]==true) && input_ms<=50. && hash(&original)?==original_hash && timings["p95_ms"].as_f64().is_some_and(|v|v<=250.) && independent["qualified"]==true,"views":views,"gpu_draw":timings,"samples":samples,"compact_cut":{"input_ms":input_ms,"created":created,"timeline":timeline,"saved_revision":saved.revision,"drawn":cut_picture,"export":completed,"independent":independent,"reopened":reopened_picture},"original_unchanged":hash(&original)?==original_hash,"physical_display_verified":false});
     fs::write(
         directory.join("qualification.json"),
         serde_json::to_vec_pretty(&report)?,
