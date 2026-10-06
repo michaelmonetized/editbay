@@ -410,7 +410,8 @@ impl Producer {
 }
 
 fn run(request: &Request, sender: &SyncSender<Event>) -> Result<()> {
-    let device = cpal::default_host()
+    let host = cpal::default_host();
+    let device = host
         .default_output_device()
         .ok_or("No sound output device is available")?;
     let default = device.default_output_config().map_err(|e| e.to_string())?;
@@ -419,6 +420,7 @@ fn run(request: &Request, sender: &SyncSender<Event>) -> Result<()> {
         Err(_) => default,
     };
     let mut profile = DeviceProfile {
+        host: host.id().name().into(),
         name: device
             .description()
             .map_err(|e| e.to_string())?

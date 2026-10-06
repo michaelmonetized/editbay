@@ -37,6 +37,7 @@ use crate::{
 };
 
 mod enumerate;
+mod output;
 
 // ALSA Buffer Size Behavior
 // =========================
@@ -1242,36 +1243,13 @@ fn process_output(
     let info = OutputCallbackInfo { timestamp };
     data_callback(&mut data, &info);
 
-    let mut frames_written = 0;
-    while frames_written < stream.period_size {
-        match stream
-            .handle
-            .io_bytes()
-            .writei(&buffer[frames_written * stream.frame_size..])
-        {
-            Ok(n) => frames_written += n,
-            // EAGAIN = device cannot currently accept more frames: skip this cycle if no
-            // progress was made, otherwise treat as an underrun (partial period cannot be
-            // completed safely).
-            Err(err) if err.errno() == libc::EAGAIN => {
-                if frames_written == 0 {
-                    return Ok(());
-                } else {
-                    return Err(ErrorKind::Xrun.into());
-                }
-            }
-            // EPIPE = xrun: full underrun recovery (prepare) required.
-            Err(err) if err.errno() == libc::EPIPE => return Err(ErrorKind::Xrun.into()),
-            // Suspend: try soft resume first, falling back to underrun recovery if the
-            // hardware doesn't support it. BSD compat: check via PCM state rather than the
-            // Linux-specific ESTRPIPE errno.
-            Err(_) if matches!(stream.handle.state(), alsa::pcm::State::Suspended) => {
-                return try_resume(&stream.handle).map(|_| ());
-            }
-            Err(err) => return Err(err.into()),
-        }
-    }
-    Ok(())
+    output::write_period(
+        buffer,
+        stream.period_size,
+        stream.frame_size,
+        |remaining| stream.handle.io_bytes().writei(remaining),
+        || matches!(stream.handle.state(), alsa::pcm::State::Suspended),
+    )
 }
 
 // Adapted from `timestamp2ns` here:

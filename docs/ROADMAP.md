@@ -191,6 +191,11 @@ Omarchy palettes. Recovery tests do not substitute for native visual inspection.
 
 ## R2 — the production engine
 
+Issue [#59](https://github.com/michaelmonetized/editbay/issues/59) adds native
+[PipeWire presentation timing and checked ALSA submission](PIPEWIRE_CLOCK.md).
+Actual host identity travels in validated device receipts. Backend unit tests and
+production compilation pass; native/sustained qualification is in progress.
+
 Issue [#57](https://github.com/michaelmonetized/editbay/issues/57) /
 [PR #58](https://github.com/michaelmonetized/editbay/pull/58) moves complete
 [recovery publication](RECOVERY_PUBLICATION.md) off the native UI thread, following
