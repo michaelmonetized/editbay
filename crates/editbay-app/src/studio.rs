@@ -1323,10 +1323,12 @@ impl Studio {
             }
             ui.weak(if dirty { "Unsaved changes" } else { "Saved" });
         });
-        ui.weak(path.map_or_else(
+        let location = path.map_or_else(
             || "Untitled local work".into(),
             |path| path.display().to_string(),
-        ));
+        );
+        ui.add(egui::Label::new(egui::RichText::new(&location).weak()).truncate())
+            .on_hover_text(location);
         ui.add_space(12.);
         self.media.show(ui);
         if !project.compositions.is_empty() || !project.sources.is_empty() {
@@ -1452,17 +1454,23 @@ impl Studio {
                             .show(&mut columns[0], &self.workspace, id, project.clone());
                     });
                 } else {
+                    let edit_height = (ui.available_height() * 0.2).clamp(48., 120.);
                     let controls = egui::CollapsingHeader::new("Edit controls")
                         .default_open(true)
                         .show(ui, |ui| {
-                            self.timeline.show(
-                                ui,
-                                &self.workspace,
-                                &mut self.preview,
-                                id,
-                                project.clone(),
-                                interactive,
-                            );
+                            egui::ScrollArea::vertical()
+                                .id_salt("compact-edit-controls")
+                                .max_height(edit_height)
+                                .show(ui, |ui| {
+                                    self.timeline.show(
+                                        ui,
+                                        &self.workspace,
+                                        &mut self.preview,
+                                        id,
+                                        project.clone(),
+                                        interactive,
+                                    );
+                                });
                         });
                     self.preview
                         .observe_control("edit-controls", &controls.header_response, ui);

@@ -1,5 +1,6 @@
 mod cached;
 mod completions;
+pub mod masks;
 pub mod prepared;
 
 use crate::{Result, hash, metrics};

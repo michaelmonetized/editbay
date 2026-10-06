@@ -11,6 +11,34 @@ struct Parameters {
 @group(0) @binding(1) var second: texture_2d<f32>;
 @group(0) @binding(2) var destination: texture_storage_2d<OUTPUT_FORMAT, write>;
 @group(0) @binding(3) var<uniform> p: Parameters;
+@group(0) @binding(4) var mask: texture_2d<f32>;
+@group(0) @binding(5) var<storage, read> vertices: array<vec2f>;
+
+fn coverage(at: vec2f) -> f32 {
+    let count = u32(p.solid.z);
+    var inside = false;
+    var distance_squared = 1e30;
+    for (var i = 0u; i < count; i += 1u) {
+        let a = vertices[i];
+        let b = vertices[(i + 1u) % count];
+        let edge = b - a;
+        let length_squared = dot(edge, edge);
+        var projection = 0.0;
+        if length_squared > 0.0 { projection = clamp(dot(at - a, edge) / length_squared, 0.0, 1.0); }
+        let delta = at - (a + projection * edge);
+        distance_squared = min(distance_squared, dot(delta, delta));
+        if (a.y > at.y) != (b.y > at.y) {
+            let crossing = a.x + (at.y - a.y) * edge.x / edge.y;
+            if at.x < crossing { inside = !inside; }
+        }
+    }
+    var alpha = 0.0;
+    if count > 0u {
+        let distance = sqrt(distance_squared) * select(-1.0, 1.0, inside);
+        alpha = smoothstep(-p.solid.x * 0.5, p.solid.x * 0.5, distance);
+    }
+    return select(alpha, 1.0 - alpha, p.solid.y == 1.0);
+}
 
 fn gamut(v: vec3f) -> vec3f {
     return vec3f(dot(p.red.xyz, v), dot(p.green.xyz, v), dot(p.blue.xyz, v));
@@ -65,8 +93,9 @@ fn evaluate(@builtin(global_invocation_id) id: vec3u) {
         value = bilinear(q, p.mode.x == 1.0) * p.mode.w;
         if p.mode.x == 5.0 { value = vec4f(gamut(value.rgb), value.a); }
     }
-    if p.mode.x == 3.0 {
-        let foreground = textureLoad(first, pixel, 0);
+    if p.mode.x == 3.0 || p.mode.x == 8.0 {
+        var foreground = textureLoad(first, pixel, 0);
+        if p.mode.x == 8.0 { foreground *= textureLoad(mask, pixel, 0).a; }
         let background = textureLoad(second, pixel, 0);
         value = foreground + background * (1.0 - foreground.a);
     }
@@ -75,5 +104,6 @@ fn evaluate(@builtin(global_invocation_id) id: vec3u) {
         let input = textureLoad(first, pixel, 0);
         if input.a > 0.0 { value = vec4f(encode(gamut(input.rgb / input.a)) * input.a, input.a); }
     }
+    if p.mode.x == 7.0 { value = vec4f(coverage(at.xy)); }
     textureStore(destination, pixel, value);
 }
