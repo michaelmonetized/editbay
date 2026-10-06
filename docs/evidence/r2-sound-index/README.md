@@ -60,9 +60,11 @@ Independent FFmpeg source-slice comparison verifies every delivered byte:
 
 Receipts retain per-cut source/record boundaries and hashes, complete stream
 hashes, metadata and file hashes. Native viewing uses no normal CPU pixel readback.
-Saved/recovered manifests, raw native/focus traces and screenshots are retained.
-Readable native JSON omits repeated control rectangles; compressed observation
-files preserve the original complete receipts.
+Saved/recovered manifests and raw native/focus traces are retained as gzip files,
+alongside screenshots. Readable native JSON omits repeated control rectangles and
+reports counts for repeated clip lists; compressed observation files preserve the
+original complete receipts. Original editable manifests remain in the worktree's
+`artifacts/sound-index/qualified-native-{camera,six}` directories.
 
 ## Remaining engine limit
 
