@@ -12,6 +12,8 @@ use std::{
 };
 use uuid::Uuid;
 
+const MAXIMUM_FORWARD_SKIP: u64 = 8;
+
 /// Explicit budgets for retained RGBA8 outputs and native decoder handles.
 #[derive(Debug, Clone, Copy, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
@@ -72,6 +74,8 @@ pub struct PictureCacheStats {
     pub evictions: u64,
     pub seeks: u64,
     pub sequential_decodes: u64,
+    pub forward_decodes: u64,
+    pub skipped_pictures: u64,
 }
 
 pub(crate) struct Allocation {
@@ -169,6 +173,7 @@ pub(crate) struct Selection<'a> {
     pub(crate) stream: u32,
     pub(crate) tick: i64,
     pub(crate) ordinal: u64,
+    pub(crate) presentation_ticks: &'a [i64],
     pub(crate) size: usize,
     pub(crate) key: Key,
 }
@@ -228,18 +233,19 @@ pub(crate) fn selection<'a>(
     let Some(ordinal) = selected else {
         return Ok(None);
     };
-    let tick = match timing {
+    let presentation_ticks = match timing {
         editbay_core::PictureTiming::Variable {
             presentation_ticks, ..
-        } => *presentation_ticks
-            .get(ordinal as usize)
-            .ok_or_else(|| Error::Invalid("picture ordinal is outside its index".into()))?,
+        } => presentation_ticks,
         _ => {
             return Err(Error::Invalid(
                 "exact decoded cache requires an actual presentation index".into(),
             ));
         }
     };
+    let tick = *presentation_ticks
+        .get(ordinal as usize)
+        .ok_or_else(|| Error::Invalid("picture ordinal is outside its index".into()))?;
     let size = (*width as usize)
         .checked_mul(*height as usize)
         .and_then(|size| size.checked_mul(4))
@@ -256,6 +262,7 @@ pub(crate) fn selection<'a>(
         stream: *stream,
         tick,
         ordinal,
+        presentation_ticks,
         size,
         key: Key {
             bytes: reference.bytes,
@@ -289,6 +296,8 @@ pub struct PictureCache {
     evictions: u64,
     seeks: u64,
     sequential_decodes: u64,
+    forward_decodes: u64,
+    skipped_pictures: u64,
     generation: u64,
     worker: Uuid,
     shared: bool,
@@ -320,6 +329,8 @@ impl PictureCache {
             evictions: 0,
             seeks: 0,
             sequential_decodes: 0,
+            forward_decodes: 0,
+            skipped_pictures: 0,
             generation: 0,
             worker: Uuid::new_v4(),
             shared: false,
@@ -355,6 +366,7 @@ impl PictureCache {
             stream,
             tick,
             ordinal,
+            presentation_ticks,
             size,
             key,
         } = selected;
@@ -423,25 +435,26 @@ impl PictureCache {
         }
         let decoded = if decoder.next == Some(ordinal) {
             self.sequential_decodes = self.sequential_decodes.saturating_add(1);
-            decoder
-                .reader
-                .read_picture(output.bytes_mut(), None)
-                .and_then(|frame| {
-                    frame.ok_or_else(|| {
-                        Error::Invalid("indexed picture is unavailable at EOF".into())
-                    })
-                })
+            decoder.reader.read_picture(output.bytes_mut(), None)
+        } else if let Some(next) = decoder
+            .next
+            .filter(|next| *next < ordinal && ordinal - *next <= MAXIMUM_FORWARD_SKIP)
+        {
+            self.forward_decodes = self.forward_decodes.saturating_add(1);
+            (|| {
+                for tick in &presentation_ticks[next as usize..ordinal as usize] {
+                    decoder.reader.skip_picture(*tick)?;
+                    self.skipped_pictures = self.skipped_pictures.saturating_add(1);
+                }
+                decoder.reader.read_picture(output.bytes_mut(), None)
+            })()
         } else {
             self.seeks = self.seeks.saturating_add(1);
-            decoder
-                .reader
-                .read_picture(output.bytes_mut(), Some(tick))
-                .and_then(|frame| {
-                    frame.ok_or_else(|| {
-                        Error::Invalid("indexed picture is unavailable at EOF".into())
-                    })
-                })
-        };
+            decoder.reader.read_picture(output.bytes_mut(), Some(tick))
+        }
+        .and_then(|frame| {
+            frame.ok_or_else(|| Error::Invalid("indexed picture is unavailable at EOF".into()))
+        });
         let decoded = match decoded {
             Ok(decoded) => decoded,
             Err(error) => {
@@ -506,6 +519,8 @@ impl PictureCache {
             evictions: self.evictions,
             seeks: self.seeks,
             sequential_decodes: self.sequential_decodes,
+            forward_decodes: self.forward_decodes,
+            skipped_pictures: self.skipped_pictures,
         }
     }
 

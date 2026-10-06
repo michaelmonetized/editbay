@@ -84,6 +84,225 @@ fn budget() -> PictureBudget {
     }
 }
 
+fn compressed_fixture(path: &Path) -> Arc<EvaluationSnapshot> {
+    let output = Command::new("ffmpeg")
+        .args([
+            "-v",
+            "error",
+            "-f",
+            "lavfi",
+            "-i",
+            "testsrc2=size=64x48:rate=24:duration=3",
+            "-f",
+            "lavfi",
+            "-i",
+            "color=blue:size=8x8:rate=3:duration=1",
+            "-map",
+            "0:v",
+            "-map",
+            "1:v",
+            "-filter:v:0",
+            "select='not(eq(mod(n,7),3))'",
+            "-fps_mode:v:0",
+            "vfr",
+            "-c:v",
+            "libx264",
+            "-g",
+            "48",
+            "-bf",
+            "3",
+        ])
+        .arg(path)
+        .output()
+        .unwrap();
+    assert!(
+        output.status.success(),
+        "{}",
+        String::from_utf8_lossy(&output.stderr)
+    );
+    let cancel = Cancellation::new().unwrap();
+    let imported = SourceFile::open(path, &cancel)
+        .unwrap()
+        .ingest("Indexed B-frame gaps".into(), &[0, 1], cancel, |_, _| {})
+        .unwrap();
+    let mut project = Project::new("Forward decoder fixture").unwrap();
+    project.assets = vec![imported.asset];
+    project.sources = vec![imported.source];
+    Arc::new(EvaluationSnapshot::new(Arc::new(project)).unwrap())
+}
+
+#[test]
+fn bounded_forward_gaps_match_independent_vfr_b_frames_without_moving_on_hits() {
+    let directory = tempdir().unwrap();
+    let path = directory.path().join("Forward gaps.mkv");
+    let snapshot = compressed_fixture(&path);
+    let probe = Command::new("ffprobe")
+        .args([
+            "-v",
+            "error",
+            "-select_streams",
+            "v:0",
+            "-show_entries",
+            "stream=has_b_frames",
+            "-of",
+            "csv=p=0",
+        ])
+        .arg(&path)
+        .output()
+        .unwrap();
+    assert!(probe.status.success());
+    assert!(
+        String::from_utf8(probe.stdout)
+            .unwrap()
+            .trim()
+            .parse::<u32>()
+            .unwrap()
+            > 0
+    );
+    let independent = Command::new("ffmpeg")
+        .args(["-v", "error", "-i"])
+        .arg(&path)
+        .args([
+            "-map",
+            "0:v:0",
+            "-fps_mode",
+            "passthrough",
+            "-pix_fmt",
+            "rgba",
+            "-f",
+            "rawvideo",
+            "-",
+        ])
+        .output()
+        .unwrap();
+    assert!(independent.status.success());
+    let mut reader = VideoReader::open(&path).unwrap();
+    let mut expected = Vec::new();
+    while let Some(frame) = reader.next_frame().unwrap() {
+        expected.push(frame);
+    }
+    let size = 64 * 48 * 4;
+    assert_eq!(independent.stdout.len(), expected.len() * size);
+    let deltas: std::collections::HashSet<_> = expected
+        .windows(2)
+        .map(|pair| pair[1].source_tick.unwrap() - pair[0].source_tick.unwrap())
+        .collect();
+    assert!(deltas.len() > 1);
+    let mut cache = PictureCache::new(
+        snapshot.clone(),
+        PictureBudget {
+            cache_bytes: 2 * size,
+            live_bytes: 3 * size,
+            maximum_picture_bytes: size,
+            ..budget()
+        },
+        Cancellation::new().unwrap(),
+    )
+    .unwrap();
+    let last = expected.len() - 1;
+    assert!(last > 40);
+    for ordinal in [
+        0,
+        3,
+        12,
+        22,
+        24,
+        23,
+        24,
+        26,
+        last,
+        0,
+        8,
+        last,
+        last - 2,
+        last - 1,
+        last,
+    ] {
+        let actual = cache
+            .picture(&request(&snapshot, 0, ordinal))
+            .unwrap()
+            .unwrap();
+        assert_eq!(
+            actual.picture.rgba(),
+            &independent.stdout[ordinal * size..(ordinal + 1) * size]
+        );
+        assert_eq!(actual.picture.rgba(), expected[ordinal].rgba);
+        assert_eq!(
+            Some(actual.picture.source_tick),
+            expected[ordinal].source_tick
+        );
+        assert_eq!(actual.picture.color, expected[ordinal].color);
+        assert_eq!(actual.picture.alpha, expected[ordinal].alpha);
+        cache.validate_result(&actual).unwrap();
+    }
+    let stats = cache.stats();
+    assert_eq!(stats.forward_decodes, 5);
+    assert_eq!(stats.skipped_pictures, 20);
+    assert_eq!(stats.seeks, 6);
+    assert_eq!(stats.sequential_decodes, 3);
+    assert_eq!(stats.hits, 1);
+    cache.picture(&request(&snapshot, 1, 0)).unwrap().unwrap();
+    let after_eviction = cache.picture(&request(&snapshot, 0, 3)).unwrap().unwrap();
+    assert_eq!(after_eviction.picture.rgba(), expected[3].rgba);
+    assert_eq!(cache.stats().forward_decodes, 6);
+    assert_eq!(cache.stats().skipped_pictures, 23);
+    cache.verify_sources().unwrap();
+    cache.clear().unwrap();
+    assert_eq!(cache.stats().live_bytes, size);
+    assert!(cache.validate_result(&after_eviction).is_err());
+    drop(after_eviction);
+    assert_eq!(cache.stats().live_bytes, 0);
+}
+
+#[test]
+fn changed_skipped_timestamp_drops_decoder_and_unpublished_allocation() {
+    let directory = tempdir().unwrap();
+    let snapshot = compressed_fixture(&directory.path().join("Changed index.mkv"));
+    let mut project = (**snapshot.project()).clone();
+    let StreamFormat::Video {
+        timing: PictureTiming::Variable {
+            presentation_ticks, ..
+        },
+        ..
+    } = &mut project.sources[0].streams[0].format
+    else {
+        panic!("index absent")
+    };
+    presentation_ticks[1] += 1;
+    let snapshot = Arc::new(EvaluationSnapshot::new(Arc::new(project)).unwrap());
+    let cancel = Cancellation::new().unwrap();
+    let mut cache =
+        PictureCache::new(snapshot.clone(), PictureBudget::default(), cancel.clone()).unwrap();
+    assert!(
+        cache
+            .picture(&request(&snapshot, 0, 3))
+            .err()
+            .unwrap()
+            .to_string()
+            .contains("skipped native picture")
+    );
+    assert_eq!(cache.stats().decoders, 0);
+    assert_eq!(cache.stats().entries, 0);
+    assert_eq!(cache.stats().live_bytes, 0);
+    assert_eq!(cache.stats().skipped_pictures, 1);
+    let held = cache.picture(&request(&snapshot, 0, 0)).unwrap().unwrap();
+    let bytes = held.picture.rgba().len();
+    assert!(cache.picture(&request(&snapshot, 0, 3)).is_err());
+    assert_eq!(cache.stats().decoders, 0);
+    assert_eq!(cache.stats().live_bytes, bytes);
+    cache.validate_result(&held).unwrap();
+    cancel.cancel();
+    assert!(matches!(
+        cache.picture(&request(&snapshot, 0, 2)),
+        Err(Error::Cancelled)
+    ));
+    assert!(cache.validate_result(&held).is_err());
+    cache.clear().unwrap();
+    assert_eq!(cache.stats().live_bytes, bytes);
+    drop(held);
+    assert_eq!(cache.stats().live_bytes, 0);
+}
+
 #[test]
 fn revision_rebind_reuses_matching_content_and_rejects_previous_receipts() {
     let directory = tempdir().unwrap();
