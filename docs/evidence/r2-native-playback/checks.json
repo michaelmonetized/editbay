@@ -1,0 +1,32 @@
+{
+  "source_commit": "9daa7c52a62c144aa539899682103d10c1c8c918",
+  "lockfile_sha256": "093685aafcd440c7bee3daf42d0950b83478604b84df2ca0fc0822901d07b4a5",
+  "default": {
+    "command": "cargo test --workspace --locked",
+    "exit_code": 0,
+    "tests": 163,
+    "doc_tests": 7
+  },
+  "all_features": {
+    "command": "cargo test --workspace --all-features --locked",
+    "exit_code": 0,
+    "tests": 164,
+    "doc_tests": 7
+  },
+  "clippy": {
+    "command": "cargo clippy --workspace --all-targets --all-features --locked -- -D warnings",
+    "exit_code": 0
+  },
+  "format": {
+    "command": "cargo fmt --all -- --check",
+    "exit_code": 0
+  },
+  "environment": {
+    "cargo_build_jobs": 2,
+    "rustup_force_arg0": "unset",
+    "tmpdir": "project artifacts/tmp",
+    "target": "../r2-sound-engine/target/native-build",
+    "libtorch": "/home/michael/Projects/editbay/artifacts/native-torch/torch",
+    "library_path": "/home/michael/Projects/editbay/artifacts/native-torch/torch/lib"
+  }
+}

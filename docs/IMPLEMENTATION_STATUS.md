@@ -103,6 +103,13 @@ authoring and complete-job release gates remain open.
   partial tails survive one-group undo, save and independent recovery without
   changing source metadata. See [source authoring](NATIVE_PREVIEW.md) and
   [actual native/PCM evidence](evidence/r2-natural-sound/README.md).
+- Native Play/Pause, sample-exact resume, frame seek and end/replay now use a
+  16,384-frame prepared queue and the device sample clock. Shared sound rendering,
+  resampling and packaged PCM decoding remain off the callback/UI. Explicit
+  stereo/original listening routes preserve source channels; underrun and codec
+  failure stop visibly. Real camera/six-channel windows and a 45-second actual
+  device run pass the scoped [native playback gates](evidence/r2-native-playback/README.md).
+  Two-hour hardware drift, sustained playback and shared delivery remain open.
 - Source-owned native decoded-picture cache: exact indexed requests, retained
   sequential decoders, bounded cache/live RGBA payload and handle limits, LRU
   eviction, charged consumer pins, fresh-token version/generation rebinding and
