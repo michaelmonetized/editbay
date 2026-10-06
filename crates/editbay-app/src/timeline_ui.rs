@@ -346,6 +346,12 @@ impl TimelinePane {
                 {
                     self.error = Some(error);
                 }
+            });
+            let source = scenes
+                .iter()
+                .find(|s| Some(s.id) == selected.source)
+                .unwrap();
+            ui.horizontal_wrapped(|ui| {
                 let position = preview
                     .position(tab, &project)
                     .filter(|(id, _)| *id == source.id)

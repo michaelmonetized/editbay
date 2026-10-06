@@ -601,6 +601,11 @@ fn set_frame(trace: &mut Trace, frame: u64) -> Result<Value> {
     }
     let after = click_control(trace, "frame-number")?;
     click_control(trace, "frame-number")?;
+    trace.wait("frame field keyboard focus", |r| {
+        r["kind"] == "frame"
+            && r["unix_us"].as_u64().is_some_and(|us| us >= after)
+            && r["details"]["text_input_focused"] == true
+    })?;
     key(30, true, false)?;
     command("wtype", &["-s", "40", &frame.to_string(), "-s", "80"])?;
     key(28, false, false)?;

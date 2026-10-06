@@ -2039,7 +2039,7 @@ impl eframe::App for Studio {
                 &self.delivery,
                 &self.timeline,
             );
-            diagnostics.record("frame", serde_json::json!({"cpu_us":self.frame_started.elapsed().as_micros() as u64,"catalog_running":self.scan.is_some(),"workspace_busy":self.workspace.busy(),"bank_busy":self.bank.busy(),"welcome":self.welcome,"recovered":self.recovered,"recovery_preview":self.recovery_preview.is_some(),"recoveries_valid":self.workspace.recoveries.valid.len(),"dialog_pending":self.dialog.is_some(),"new_project_name":self.create_name,"rename_name":self.rename.as_ref().map(|(_,_,name)|name),"desktop_font_ready":self.theme.font_path.is_some()}));
+            diagnostics.record("frame", serde_json::json!({"cpu_us":self.frame_started.elapsed().as_micros() as u64,"catalog_running":self.scan.is_some(),"workspace_busy":self.workspace.busy(),"bank_busy":self.bank.busy(),"welcome":self.welcome,"recovered":self.recovered,"recovery_preview":self.recovery_preview.is_some(),"recoveries_valid":self.workspace.recoveries.valid.len(),"dialog_pending":self.dialog.is_some(),"new_project_name":self.create_name,"rename_name":self.rename.as_ref().map(|(_,_,name)|name),"desktop_font_ready":self.theme.font_path.is_some(),"text_input_focused":ctx.text_edit_focused()}));
         }
     }
 }
