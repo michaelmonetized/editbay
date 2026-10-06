@@ -191,6 +191,10 @@ Omarchy palettes. Recovery tests do not substitute for native visual inspection.
 
 ## R2 — the production engine
 
+Issue #43 adds coherent [callback-clock measurements](SUSTAINED_PLAYBACK.md).
+Short candidate runs pass; sustained stress failures and the pending baseline
+remain explicit in [the evidence](evidence/r2-sustained-clock/README.md).
+
 Native sound-clock playback now has bounded picture preparation and owner-tagged
 GPU draw-completion receipts; see [prepared pictures](PREPARED_PICTURES.md).
 Preparation cancellation, worker failure and actual underflow retain visible
