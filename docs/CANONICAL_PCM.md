@@ -61,8 +61,8 @@ All six native preparation/device/playback/edit/save/recovery/export runs pass,
 including an observed partial camera cold-tail preparation. See the
 [raw qualification and retained failures](evidence/r2-canonical-pcm/README.md).
 
-Preparation is currently demanded by requested source intervals. Cold future
-source jumps during active playback can still require more preparation than the
-device queue covers; preparation ahead of those cuts and sustained qualification
-remain open R2 work. This dependency does not establish physical audibility,
+At #54, preparation is demanded by requested source intervals. Preparation ahead
+of future playback cuts now follows in [#56](SOURCE_PREPARATION.md); its native
+qualification and sustained acceptance remain separate work. This dependency
+does not establish physical audibility,
 two-hour clock continuity, other hardware or complete R2/R8 qualification.

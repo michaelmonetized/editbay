@@ -191,11 +191,14 @@ Omarchy palettes. Recovery tests do not substitute for native visual inspection.
 
 ## R2 — the production engine
 
-Issue [#55](https://github.com/michaelmonetized/editbay/issues/55) implements
+Issue [#55](https://github.com/michaelmonetized/editbay/issues/55) / draft
+[PR #56](https://github.com/michaelmonetized/editbay/pull/56) implements
 [source preparation before playback and delivery](SOURCE_PREPARATION.md),
 including bounded future-cut source coverage and real decoded-source progress.
-Local graph/audio and seven actual-worker tests pass. Real-media, native and full
-workspace qualification are pending; sustained-clock and release gates stay open.
+Local graph/audio and seven actual-worker tests pass. Frozen `55f9c35` passes two
+256-cut source/device qualifications without decoding during rendering; four
+whole masters / twelve ranges preserve #54's corrected output exactly. Native
+and full workspace checks are pending; sustained-clock and release gates stay open.
 
 Issue [#53](https://github.com/michaelmonetized/editbay/issues/53) /
 [PR #54](https://github.com/michaelmonetized/editbay/pull/54) implements
