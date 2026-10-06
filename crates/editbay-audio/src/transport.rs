@@ -12,6 +12,8 @@ pub(crate) enum State {
     DeviceFailed,
     Underrun,
     InvalidOutput,
+    BackendClockReset,
+    BackendDiscontinuity,
 }
 
 struct Shared {
@@ -74,6 +76,8 @@ impl Control {
             3 => State::SourceFailed,
             4 => State::DeviceFailed,
             5 => State::Underrun,
+            7 => State::BackendClockReset,
+            8 => State::BackendDiscontinuity,
             _ => State::InvalidOutput,
         }
     }
@@ -87,7 +91,11 @@ impl Control {
                 self.0
                     .state
                     .compare_exchange(0, state as u8, Ordering::AcqRel, Ordering::Acquire);
-            if state == State::DeviceFailed && previous == Err(State::Ended as u8) {
+            if matches!(
+                state,
+                State::DeviceFailed | State::BackendClockReset | State::BackendDiscontinuity
+            ) && previous == Err(State::Ended as u8)
+            {
                 let _ = self.0.state.compare_exchange(
                     State::Ended as u8,
                     state as u8,
@@ -267,6 +275,18 @@ mod tests {
             reader.consume(&mut output[..length], |v| v);
             assert_eq!(control.state(), State::InvalidOutput);
         }
+    }
+
+    #[test]
+    fn backend_reset_during_tail_drain_overrides_end_but_not_an_earlier_failure() {
+        let (control, mut writer, mut reader) = transport(0, 2, 1, 4).unwrap();
+        writer.push(0, &[1., 2.]).unwrap();
+        reader.consume(&mut [0.; 4], |v| v);
+        assert_eq!(control.state(), State::Ended);
+        control.stop(State::BackendClockReset);
+        assert_eq!(control.state(), State::BackendClockReset);
+        control.stop(State::DeviceFailed);
+        assert_eq!(control.state(), State::BackendClockReset);
     }
 
     #[test]

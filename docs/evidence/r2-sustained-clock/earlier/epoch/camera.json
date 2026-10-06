@@ -1,0 +1,123 @@
+{
+  "application_sha256": "26b69283bdb228e44418b95c0b320b12955cbedb44d0411056a60c686c9d25b0",
+  "authored": {
+    "audio_stream": 0,
+    "composition": "e934237c-08d2-4434-9f8d-5f791f7eaa57",
+    "fingerprint": {
+      "bytes": 5235017,
+      "sha256": "498ec6c42b6b440886eb761dc4775c994f7578021890ceae3f370ffc6fb3e021"
+    },
+    "frames": 144,
+    "history_and_reopen_exact": true,
+    "linked_intervals": 1,
+    "project_sha256": "412b7c5ccea052639d0445dc48648d6b5b8b446d3b82f0868291c87df3b8dbe9",
+    "rate": {
+      "denominator": 1,
+      "numerator": 24
+    },
+    "seconds_requested": 6,
+    "source": "/home/michael/Downloads/iCloud Photos/IMG_0001.MP4",
+    "source_frames": 314,
+    "version": {
+      "project_id": "848c8c93-1a15-40b3-9be0-307a777b3768",
+      "revision": 4
+    },
+    "video_stream": 1
+  },
+  "backend_clock_gate": true,
+  "complete": true,
+  "drift": {
+    "absolute_p50_upper_ms": 5.0,
+    "absolute_p95_upper_ms": 8.4,
+    "definition": "Elapsed device frames minus elapsed backend callback plus reported playback latency; relative to the first observed callback after one backend second. Host time and raw callback jitter are reported separately.",
+    "final_signed_ms": -8.937009,
+    "first": {
+      "backend_elapsed_ns": 1046336501,
+      "backend_epoch": 1,
+      "buffer_start_frames": 46376,
+      "callback_elapsed_ns": 1110122036,
+      "callbacks": 195,
+      "reported_latency_ns": 176666666,
+      "submitted_frames": 46611,
+      "valid_end_sample": 264600
+    },
+    "histogram_overflow_at_ms": 200,
+    "histogram_overflow_observations": 0,
+    "histogram_resolution_ms": 0.1,
+    "host_latency_adjusted_maximum_absolute_ms": 8.957494,
+    "last": {
+      "backend_elapsed_ns": 6180466253,
+      "backend_epoch": 1,
+      "buffer_start_frames": 272403,
+      "callback_elapsed_ns": 6244272273,
+      "callbacks": 1153,
+      "reported_latency_ns": 176802721,
+      "submitted_frames": 272639,
+      "valid_end_sample": 264600
+    },
+    "maximum_absolute_ms": 8.937009,
+    "observations": 52,
+    "raw_callback_maximum_absolute_ms": 8.800954,
+    "settling_backend_seconds": 1
+  },
+  "elapsed_seconds": 6.821934639,
+  "failure": null,
+  "final": {
+    "callbacks": 1153,
+    "clipped_monitor_samples": 0,
+    "clock_observation": {
+      "backend_elapsed_ns": 6180466253,
+      "backend_epoch": 1,
+      "buffer_start_frames": 272403,
+      "callback_elapsed_ns": 6244272273,
+      "callbacks": 1153,
+      "reported_latency_ns": 176802721,
+      "submitted_frames": 272639,
+      "valid_end_sample": 264600
+    },
+    "device": {
+      "channels": 2,
+      "name": "default",
+      "sample_format": "F32",
+      "sample_rate": 44100
+    },
+    "device_worker_pid": 3770178,
+    "end_sample": 264600,
+    "error": null,
+    "phase": "finished",
+    "position_samples": 264600,
+    "prepared_capacity_frames": 16384,
+    "prepared_frames": 0,
+    "reported_latency_ns": 176802721,
+    "route": "Stereo",
+    "start_sample": 0,
+    "version": {
+      "project_id": "848c8c93-1a15-40b3-9be0-307a777b3768",
+      "revision": 4
+    },
+    "worker_pid": 3770187
+  },
+  "kind": "sustained_native_sound",
+  "limits": [
+    "Actual native device callbacks; backend and host latency-adjusted clock estimates only. No physical speaker, display, audibility or independent-user proof.",
+    "RSS includes the lab and observed descendants, may double count shared memory, and excludes unmapped page cache and unreported driver/device allocations.",
+    "One backend second of startup is retained in raw samples and excluded from steady clock drift; 100 ms sampling does not observe every callback or memory spike."
+  ],
+  "owned_processes_reaped": true,
+  "peak_combined_rss_kib": 136352,
+  "peak_prepared_frames": 15457,
+  "prepared_capacity_frames": 16384,
+  "processes": [
+    3769805,
+    3770178,
+    3770187
+  ],
+  "project_unchanged": true,
+  "qualified": true,
+  "receipt_bytes": 48907,
+  "receipt_limit_bytes": 134217728,
+  "sample_interval_ms": 100,
+  "samples": 67,
+  "source_unchanged": true,
+  "two_hour_run_complete": false
+}

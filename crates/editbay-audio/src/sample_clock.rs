@@ -1,4 +1,44 @@
+use serde::{Deserialize, Serialize};
 use std::sync::atomic::{AtomicU64, Ordering};
+
+/// One coherent callback receipt, with device frames relative to playback start.
+/// Host time uses the playback's monotonic origin; backend time uses its first
+/// callback timestamp. Neither clock measures physical speaker output.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct ClockObservation {
+    pub callbacks: u64,
+    pub buffer_start_frames: u64,
+    pub submitted_frames: u64,
+    pub callback_elapsed_ns: u64,
+    pub backend_elapsed_ns: u64,
+    pub backend_epoch: u64,
+    pub reported_latency_ns: u64,
+    pub valid_end_sample: u64,
+}
+
+#[derive(Default)]
+pub(crate) struct ClockContinuity {
+    anchor: Option<(u64, i128)>,
+}
+impl ClockContinuity {
+    /// Check elapsed submitted sound against one continuous backend epoch.
+    /// `frames`, backend ns, latency ns and `rate` come from the current callback.
+    /// Returns false for a gap over 20 ms after one second of startup. The check
+    /// uses fixed integer state and must precede consumption of new source sound.
+    pub(crate) fn observe(&mut self, frames: u64, backend: u64, latency: u64, rate: u32) -> bool {
+        if backend < 1_000_000_000 {
+            return true;
+        }
+        let presentation = i128::from(backend) + i128::from(latency);
+        let (first, began) = *self.anchor.get_or_insert((frames, presentation));
+        let Some(elapsed) = frames.checked_sub(first) else {
+            return false;
+        };
+        let sample_ns = i128::from(elapsed) * 1_000_000_000 / i128::from(rate);
+        (sample_ns - (presentation - began)).abs() <= 20_000_000
+    }
+}
 
 pub(crate) struct SampleClock {
     rate: u32,
@@ -7,10 +47,11 @@ pub(crate) struct SampleClock {
     buffer_start: AtomicU64,
     submitted: AtomicU64,
     callback_ns: AtomicU64,
+    backend_ns: AtomicU64,
+    backend_epoch: AtomicU64,
     latency_ns: AtomicU64,
     limit: AtomicU64,
     last_read: AtomicU64,
-    callbacks: AtomicU64,
 }
 
 impl SampleClock {
@@ -28,16 +69,18 @@ impl SampleClock {
             buffer_start: AtomicU64::new(0),
             submitted: AtomicU64::new(0),
             callback_ns: AtomicU64::new(0),
+            backend_ns: AtomicU64::new(0),
+            backend_epoch: AtomicU64::new(0),
             latency_ns: AtomicU64::new(0),
             limit: AtomicU64::new(end),
             last_read: AtomicU64::new(first),
-            callbacks: AtomicU64::new(0),
         })
     }
 
     /// Publish a callback's device interval and reported playback latency.
     /// `start` and `submitted` count every device frame including end padding;
-    /// `callback_ns` shares one monotonic origin, `latency_ns` is backend delay,
+    /// `callback_ns` shares one host origin, `backend` gives the timestamp epoch
+    /// and elapsed ns, `latency_ns` is backend delay,
     /// and `limit` caps valid source sound. Returns false for inconsistent input.
     /// One callback owns publication; only fixed atomic operations occur here.
     pub(crate) fn record(
@@ -45,16 +88,26 @@ impl SampleClock {
         start: u64,
         submitted: u64,
         callback_ns: u64,
+        backend: (u64, u64),
         latency_ns: u64,
         limit: u64,
     ) -> bool {
         let previous_limit = self.limit.load(Ordering::Relaxed);
+        let (epoch, backend_ns) = backend;
+        let previous_epoch = self.backend_epoch.load(Ordering::Relaxed);
+        let valid_epoch = epoch == previous_epoch
+            && backend_ns >= self.backend_ns.load(Ordering::Relaxed)
+            || (previous_epoch == 0
+                && epoch == 1
+                && callback_ns < 1_000_000_000
+                && backend_ns == 0);
         let accepted =
             (u128::from(self.first) + u128::from(start)).min(u128::from(previous_limit)) as u64;
         if start != self.submitted.load(Ordering::Relaxed)
             || submitted < start
             || !(accepted..=previous_limit).contains(&limit)
             || callback_ns < self.callback_ns.load(Ordering::Relaxed)
+            || !valid_epoch
         {
             return false;
         }
@@ -62,10 +115,11 @@ impl SampleClock {
         self.buffer_start.store(start, Ordering::SeqCst);
         self.submitted.store(submitted, Ordering::SeqCst);
         self.callback_ns.store(callback_ns, Ordering::SeqCst);
+        self.backend_ns.store(backend_ns, Ordering::SeqCst);
+        self.backend_epoch.store(epoch, Ordering::SeqCst);
         self.latency_ns.store(latency_ns, Ordering::SeqCst);
         self.limit.store(limit, Ordering::SeqCst);
         self.generation.fetch_add(1, Ordering::SeqCst);
-        self.callbacks.fetch_add(1, Ordering::Relaxed);
         true
     }
 
@@ -98,19 +152,46 @@ impl SampleClock {
         self.last_read.load(Ordering::Acquire)
     }
 
-    /// Inspect the number of published callbacks and latest backend latency.
-    /// Takes no arguments; returns independently observed callback count and ns.
-    pub(crate) fn counters(&self) -> (u64, u64) {
-        (
-            self.callbacks.load(Ordering::Relaxed),
-            self.latency_ns.load(Ordering::SeqCst),
-        )
+    /// Read one complete callback publication without waiting on its writer.
+    /// Takes no arguments; returns none before playback or after three contended
+    /// attempts. Callers may retain their previous coherent observation.
+    pub(crate) fn observation(&self) -> Option<ClockObservation> {
+        for _ in 0..3 {
+            let generation = self.generation.load(Ordering::SeqCst);
+            if generation == 0 || !generation.is_multiple_of(2) {
+                continue;
+            }
+            let observation = ClockObservation {
+                callbacks: generation / 2,
+                buffer_start_frames: self.buffer_start.load(Ordering::SeqCst),
+                submitted_frames: self.submitted.load(Ordering::SeqCst),
+                callback_elapsed_ns: self.callback_ns.load(Ordering::SeqCst),
+                backend_elapsed_ns: self.backend_ns.load(Ordering::SeqCst),
+                backend_epoch: self.backend_epoch.load(Ordering::SeqCst),
+                reported_latency_ns: self.latency_ns.load(Ordering::SeqCst),
+                valid_end_sample: self.limit.load(Ordering::SeqCst),
+            };
+            if generation == self.generation.load(Ordering::SeqCst) {
+                return Some(observation);
+            }
+        }
+        None
     }
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn backend_continuity_accepts_queue_variation_but_rejects_missing_time() {
+        let mut clock = ClockContinuity::default();
+        assert!(clock.observe(0, 0, 30000000, 48000));
+        assert!(clock.observe(48000, 1000000000, 30000000, 48000));
+        assert!(clock.observe(48480, 1012000000, 28000000, 48000));
+        assert!(clock.observe(48960, 1020000000, 30000000, 48000));
+        assert!(!clock.observe(49440, 1060000000, 30000000, 48000));
+    }
 
     #[test]
     fn partial_tail_finishes_when_latency_spans_multiple_buffers() {
@@ -121,6 +202,7 @@ mod tests {
                 index * 480,
                 (index + 1) * 480,
                 index * 10_000_000,
+                (0, index * 10_000_000),
                 30_000_000,
                 750
             ));
@@ -131,7 +213,9 @@ mod tests {
         }
         assert_eq!(clock.position(45_000_000), 750);
         assert_eq!(clock.position(100_000_000), 750);
-        assert_eq!(clock.counters(), (5, 30_000_000));
+        let observed = clock.observation().unwrap();
+        assert_eq!(observed.callbacks, 5);
+        assert_eq!(observed.reported_latency_ns, 30_000_000);
     }
 
     #[test]
@@ -143,7 +227,14 @@ mod tests {
             let block = u64::from(rate) / 2;
             for index in 0..14400 {
                 let now = index * 500_000_000;
-                assert!(clock.record(index * block, (index + 1) * block, now, 17_000_000, end));
+                assert!(clock.record(
+                    index * block,
+                    (index + 1) * block,
+                    now,
+                    (0, now),
+                    17_000_000,
+                    end
+                ));
                 let elapsed = (now + 3_400_000).saturating_sub(17_000_000);
                 let expected =
                     first + (u128::from(elapsed) * u128::from(rate) / 1_000_000_000) as u64;
@@ -156,16 +247,60 @@ mod tests {
     #[test]
     fn jitter_failure_caps_and_invalid_publications_never_advance_missing_sound() {
         let clock = SampleClock::new(48000, 0, 100000).unwrap();
-        assert!(clock.record(0, 480, 0, 0, 100000));
+        assert!(clock.record(0, 480, 0, (0, 0), 0, 100000));
         assert_eq!(clock.position(9_000_000), 432);
-        assert!(clock.record(480, 960, 10_000_000, 20_000_000, 100000));
+        assert!(clock.record(480, 960, 10_000_000, (0, 10_000_000), 20_000_000, 100000));
         assert_eq!(clock.position(11_000_000), 432);
-        assert!(clock.record(960, 1440, 20_000_000, 0, 1000));
+        assert!(clock.record(960, 1440, 20_000_000, (0, 20_000_000), 0, 1000));
         assert_eq!(clock.position(1_000_000_000), 1000);
-        assert!(!clock.record(1441, 1900, 30_000_000, 0, 1000));
-        assert!(!clock.record(1440, 1900, 30_000_000, 0, 100001));
-        assert!(!clock.record(1440, 1900, 30_000_000, 0, 100000));
-        assert!(!clock.record(1440, 1900, 30_000_000, 0, 999));
-        assert_eq!(clock.counters().0, 3);
+        assert!(!clock.record(1441, 1900, 30_000_000, (0, 30_000_000), 0, 1000));
+        assert!(!clock.record(1440, 1900, 30_000_000, (0, 30_000_000), 0, 100001));
+        assert!(!clock.record(1440, 1900, 30_000_000, (0, 30_000_000), 0, 100000));
+        assert!(!clock.record(1440, 1900, 30_000_000, (0, 30_000_000), 0, 999));
+        assert!(!clock.record(1440, 1900, 30_000_000, (0, 19_000_000), 0, 1000));
+        assert_eq!(clock.observation().unwrap().callbacks, 3);
+    }
+
+    #[test]
+    fn contended_observations_never_mix_callback_publications() {
+        let clock = std::sync::Arc::new(SampleClock::new(48000, 0, 100000000).unwrap());
+        assert!(clock.observation().is_none());
+        let writer = clock.clone();
+        let thread = std::thread::spawn(move || {
+            for i in 0..10000 {
+                assert!(writer.record(
+                    i * 480,
+                    (i + 1) * 480,
+                    i * 10000000 + 7,
+                    (0, i * 10000000),
+                    i,
+                    100000000
+                ));
+            }
+        });
+        while !thread.is_finished() {
+            if let Some(observed) = clock.observation() {
+                let i = observed.callbacks - 1;
+                assert_eq!(observed.buffer_start_frames, i * 480);
+                assert_eq!(observed.submitted_frames, (i + 1) * 480);
+                assert_eq!(observed.callback_elapsed_ns, i * 10000000 + 7);
+                assert_eq!(observed.backend_elapsed_ns, i * 10000000);
+                assert_eq!(observed.reported_latency_ns, i);
+            }
+        }
+        thread.join().unwrap();
+        assert_eq!(clock.observation().unwrap().callbacks, 10000);
+    }
+
+    #[test]
+    fn backend_startup_epoch_is_explicit_and_later_resets_fail() {
+        let clock = SampleClock::new(48000, 0, 480000).unwrap();
+        assert!(clock.record(0, 480, 10_000_000, (0, 0), 30_000_000, 480000));
+        assert!(clock.record(480, 960, 20_000_000, (1, 0), 30_000_000, 480000));
+        assert_eq!(clock.observation().unwrap().backend_epoch, 1);
+        assert!(!clock.record(960, 1440, 30_000_000, (2, 0), 30_000_000, 480000));
+        let late = SampleClock::new(48000, 0, 480000).unwrap();
+        assert!(late.record(0, 480, 10_000_000, (0, 0), 30_000_000, 480000));
+        assert!(!late.record(480, 960, 1_000_000_000, (1, 0), 30_000_000, 480000));
     }
 }

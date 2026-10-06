@@ -8,6 +8,7 @@ mod streaming;
 mod transport;
 pub use device_worker::{StreamingPlayback, serve_device_worker};
 pub use monitor::MonitorRoute;
+pub use sample_clock::ClockObservation;
 pub use sound::{SoundBuffer, SoundRenderBudget, SoundRenderer, SoundResult};
 pub use streaming::{PlaybackPhase, PlaybackStart, StreamingStatus};
 

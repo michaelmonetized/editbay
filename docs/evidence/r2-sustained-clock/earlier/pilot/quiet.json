@@ -1,0 +1,102 @@
+{
+  "application_sha256": "0d690466070bb003b5eca2e49cd6a7c7d59387ebab1d18c04e2560f8cbc97689",
+  "authored": {
+    "audio_stream": 1,
+    "composition": "3e381376-944f-4d3c-a92a-df361ac24202",
+    "fingerprint": {
+      "bytes": 1152891,
+      "sha256": "9be5d3f2de23d3e1e02af73be1fc2d184b71fef8aad179cbdbb980b61239fced"
+    },
+    "frames": 150,
+    "history_and_reopen_exact": true,
+    "linked_intervals": 1,
+    "project_sha256": "cd32352dad1141fa652afc0798c9f461640c39093bba94a91077f8b945df215b",
+    "rate": {
+      "denominator": 1,
+      "numerator": 25
+    },
+    "seconds_requested": 6,
+    "source": "/home/michael/Projects/editbay/artifacts/worktrees/r2-sound-worker/artifacts/streaming/fixtures/quiet-45s.mov",
+    "source_frames": 1125,
+    "version": {
+      "project_id": "d2c2abf2-38cb-4a25-a2c8-6ac224dbe5d5",
+      "revision": 4
+    },
+    "video_stream": 0
+  },
+  "backend_clock_gate": false,
+  "complete": false,
+  "drift": {
+    "absolute_p50_upper_ms": null,
+    "absolute_p95_upper_ms": null,
+    "definition": "Elapsed device frames minus elapsed backend callback plus reported playback latency; relative to the first observed callback after one backend second. Host time and raw callback jitter are reported separately.",
+    "final_signed_ms": 0.0,
+    "first": null,
+    "histogram_overflow_at_ms": 200,
+    "histogram_overflow_observations": 0,
+    "histogram_resolution_ms": 0.1,
+    "host_latency_adjusted_maximum_absolute_ms": 0.0,
+    "last": null,
+    "maximum_absolute_ms": 0.0,
+    "observations": 0,
+    "raw_callback_maximum_absolute_ms": 0.0,
+    "settling_backend_seconds": 1
+  },
+  "elapsed_seconds": 0.240048137,
+  "failure": null,
+  "final": {
+    "callbacks": 1,
+    "clipped_monitor_samples": 0,
+    "clock_observation": {
+      "backend_elapsed_ns": 0,
+      "buffer_start_frames": 0,
+      "callback_elapsed_ns": 11692868,
+      "callbacks": 1,
+      "reported_latency_ns": 170952380,
+      "submitted_frames": 512,
+      "valid_end_sample": 264600
+    },
+    "device": {
+      "channels": 2,
+      "name": "default",
+      "sample_format": "F32",
+      "sample_rate": 44100
+    },
+    "device_worker_pid": 3716253,
+    "end_sample": 264600,
+    "error": "Sound output device returned an invalid buffer or clock",
+    "phase": "failed",
+    "position_samples": 0,
+    "prepared_capacity_frames": 16384,
+    "prepared_frames": 15637,
+    "reported_latency_ns": 170952380,
+    "route": "Stereo",
+    "start_sample": 0,
+    "version": {
+      "project_id": "d2c2abf2-38cb-4a25-a2c8-6ac224dbe5d5",
+      "revision": 4
+    },
+    "worker_pid": 3716259
+  },
+  "kind": "sustained_native_sound",
+  "limits": [
+    "Actual native device callbacks; backend and host latency-adjusted clock estimates only. No physical speaker, display, audibility or independent-user proof.",
+    "RSS includes the lab and observed descendants, may double count shared memory, and excludes unmapped page cache and unreported driver/device allocations.",
+    "One backend second of startup is retained in raw samples and excluded from steady clock drift; 100 ms sampling does not observe every callback or memory spike."
+  ],
+  "owned_processes_reaped": true,
+  "peak_combined_rss_kib": 47728,
+  "peak_prepared_frames": 15637,
+  "prepared_capacity_frames": 16384,
+  "processes": [
+    3716247
+  ],
+  "project_unchanged": true,
+  "qualified": false,
+  "receipt_bytes": 1202,
+  "receipt_limit_bytes": 134217728,
+  "sample_interval_ms": 100,
+  "samples": 2,
+  "source_unchanged": true,
+  "two_hour_run_complete": false
+}

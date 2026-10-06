@@ -28,6 +28,7 @@ mod picture_worker;
 mod shared_delivery;
 mod sound_blocks;
 mod streaming_sound;
+mod sustained_sound;
 mod temporal;
 mod timeline_evidence;
 
@@ -835,6 +836,11 @@ fn run(args: Vec<OsString>) -> Result<()> {
                 .transpose()?
                 .unwrap_or("full"),
         )?,
+        ("sustain-sound", 4) => sustained_sound::run(
+            Path::new(&args[1]),
+            u64::try_from(number(&args[2])?)?,
+            Path::new(&args[3]),
+        )?,
         ("natural-sound", 2 | 3) => natural_sound::run(
             Path::new(&args[1]),
             args.get(2)
@@ -1060,6 +1066,7 @@ fn run(args: Vec<OsString>) -> Result<()> {
             );
             println!("  natural-sound SOURCE [WORKER_BINARY]");
             println!("  stream-sound SOURCE [full|cancel|kill|underrun]");
+            println!("  sustain-sound SOURCE SECONDS NEW_DIRECTORY");
             #[cfg(feature = "torch-reference")]
             println!(
                 "  rvm-parity SOURCE VERIFIED_MODEL VERIFIED_TORCHSCRIPT ORT_LIBRARY FRAME_LIMIT"

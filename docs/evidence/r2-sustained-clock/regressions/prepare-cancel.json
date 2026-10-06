@@ -1,0 +1,88 @@
+{
+  "adopted_pcm_reaped": [],
+  "application_sha256": "4e3f94592f4df2b0b401f78d9cce99ca68da3c561b18bb3a7551f63140bcf668",
+  "device_worker_reaped": true,
+  "elapsed_seconds": 0.157051061,
+  "final": {
+    "callbacks": 0,
+    "clipped_monitor_samples": 0,
+    "clock_observation": null,
+    "device": null,
+    "device_worker_pid": 3914129,
+    "end_sample": null,
+    "error": null,
+    "phase": "stopped",
+    "position_samples": null,
+    "prepared_capacity_frames": 16384,
+    "prepared_frames": 0,
+    "reported_latency_ns": 0,
+    "route": "Stereo",
+    "start_sample": null,
+    "version": {
+      "project_id": "ce928c3d-e7a4-4110-8be0-b2dbad8f19b9",
+      "revision": 1
+    },
+    "worker_pid": null
+  },
+  "kind": "native_streaming_sound",
+  "limits": [
+    "Actual default output device callbacks and backend latency estimate; no physical audibility or speaker timing claim",
+    "Lab-authored graph; native window controls and long hardware drift require separate evidence"
+  ],
+  "memory": [
+    "VmHWM:\t   46896 kB",
+    "VmRSS:\t   46896 kB"
+  ],
+  "mode": "prepare-cancel",
+  "qualified": true,
+  "retirement_ms": 15.248161999999999,
+  "samples": [
+    {
+      "callbacks": 0,
+      "elapsed_ms": 0.0035,
+      "latency_ns": 0,
+      "phase": "preparing",
+      "position": null,
+      "prepared_frames": 0
+    },
+    {
+      "callbacks": 0,
+      "elapsed_ms": 5.043359,
+      "latency_ns": 0,
+      "phase": "preparing",
+      "position": null,
+      "prepared_frames": 0
+    },
+    {
+      "callbacks": 0,
+      "elapsed_ms": 10.120301999999999,
+      "latency_ns": 0,
+      "phase": "stopping",
+      "position": null,
+      "prepared_frames": 0
+    },
+    {
+      "callbacks": 0,
+      "elapsed_ms": 15.175661,
+      "latency_ns": 0,
+      "phase": "stopping",
+      "position": null,
+      "prepared_frames": 0
+    },
+    {
+      "callbacks": 0,
+      "elapsed_ms": 20.249146,
+      "latency_ns": 0,
+      "phase": "stopped",
+      "position": null,
+      "prepared_frames": 0
+    }
+  ],
+  "source": "/home/michael/Projects/editbay/artifacts/worktrees/r2-sound-worker/artifacts/streaming/fixtures/quiet-45s.mov",
+  "source_fingerprint": {
+    "bytes": 1152891,
+    "sha256": "9be5d3f2de23d3e1e02af73be1fc2d184b71fef8aad179cbdbb980b61239fced"
+  },
+  "source_unchanged": true,
+  "worker_reaped": true
+}

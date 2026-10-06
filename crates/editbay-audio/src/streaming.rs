@@ -1,7 +1,7 @@
 use crate::{
-    DeviceProfile, MonitorRoute, SoundRenderBudget, SoundRenderer,
+    ClockObservation, DeviceProfile, MonitorRoute, SoundRenderBudget, SoundRenderer,
     monitor::MonitorMatrix,
-    sample_clock::SampleClock,
+    sample_clock::{ClockContinuity, SampleClock},
     transport::{self, Control, Reader, State, Writer},
 };
 use cpal::{
@@ -62,6 +62,7 @@ pub struct StreamingStatus {
     pub device_worker_pid: Option<u32>,
     pub callbacks: u64,
     pub reported_latency_ns: u64,
+    pub clock_observation: Option<ClockObservation>,
     pub prepared_frames: u64,
     pub prepared_capacity_frames: u32,
     pub clipped_monitor_samples: u64,
@@ -106,6 +107,7 @@ pub(crate) struct LocalPlayback {
     ready: Option<Ready>,
     phase: PlaybackPhase,
     error: Option<String>,
+    clock_observation: Option<ClockObservation>,
 }
 
 impl LocalPlayback {
@@ -156,6 +158,7 @@ impl LocalPlayback {
             ready: None,
             phase: PlaybackPhase::Preparing,
             error: None,
+            clock_observation: None,
         })
     }
 
@@ -194,7 +197,12 @@ impl LocalPlayback {
         }
         let (position, end, device, worker_pid, callbacks, latency, prepared, clipped) =
             if let Some(ready) = &self.ready {
-                let (callbacks, latency) = ready.clock.counters();
+                if let Some(observation) = ready.clock.observation() {
+                    self.clock_observation = Some(observation);
+                }
+                let (callbacks, latency) = self.clock_observation.map_or((0, 0), |observed| {
+                    (observed.callbacks, observed.reported_latency_ns)
+                });
                 if self.phase == PlaybackPhase::Playing
                     && let Some(error) = fault(ready.control.state())
                 {
@@ -227,6 +235,7 @@ impl LocalPlayback {
             device_worker_pid: None,
             callbacks,
             reported_latency_ns: latency,
+            clock_observation: self.clock_observation,
             prepared_frames: prepared,
             prepared_capacity_frames: CAPACITY,
             clipped_monitor_samples: clipped,
@@ -321,7 +330,11 @@ fn run(request: &Request, sender: &SyncSender<Event>) -> Result<()> {
     let device = cpal::default_host()
         .default_output_device()
         .ok_or("No sound output device is available")?;
-    let supported = device.default_output_config().map_err(|e| e.to_string())?;
+    let default = device.default_output_config().map_err(|e| e.to_string())?;
+    let supported = match device.supported_output_configs() {
+        Ok(configurations) => video_output_config(default, configurations),
+        Err(_) => default,
+    };
     let profile = DeviceProfile {
         name: device.name().map_err(|e| e.to_string())?,
         sample_rate: supported.sample_rate().0,
@@ -416,11 +429,15 @@ fn run(request: &Request, sender: &SyncSender<Event>) -> Result<()> {
         cancel: request.cancel.clone(),
         origin,
         cursor: 0,
+        backend_origin: None,
+        backend_previous: None,
+        backend_epoch: 0,
+        continuity: ClockContinuity::default(),
         end,
     };
     let mut config: cpal::StreamConfig = supported.clone().into();
     if let cpal::SupportedBufferSize::Range { min, max } = supported.buffer_size() {
-        config.buffer_size = cpal::BufferSize::Fixed(512u32.clamp(*min, *max));
+        config.buffer_size = cpal::BufferSize::Fixed(2048u32.clamp(*min, *max));
     }
     let stream = match supported.sample_format() {
         cpal::SampleFormat::F32 => build::<f32>(&device, &config, callback),
@@ -473,7 +490,10 @@ fn run(request: &Request, sender: &SyncSender<Event>) -> Result<()> {
     let paused = stream.pause().map_err(|e| e.to_string());
     drop(stream);
     producer.renderer.clear();
-    result.and(paused)
+    match fault(control.state()) {
+        Some(error) => Err(error.into()),
+        None => result.and(paused),
+    }
 }
 
 struct Callback {
@@ -483,6 +503,10 @@ struct Callback {
     cancel: Cancellation,
     origin: Instant,
     cursor: u64,
+    backend_origin: Option<cpal::StreamInstant>,
+    backend_previous: Option<cpal::StreamInstant>,
+    backend_epoch: u64,
+    continuity: ClockContinuity,
     end: u64,
 }
 
@@ -492,6 +516,7 @@ fn build<T: SizedSample + FromSample<f32>>(
     mut callback: Callback,
 ) -> Result<cpal::Stream> {
     let channels = usize::from(config.channels);
+    let rate = config.sample_rate.0;
     let error_control = callback.control.clone();
     let error_cancel = callback.cancel.clone();
     device
@@ -500,6 +525,44 @@ fn build<T: SizedSample + FromSample<f32>>(
             move |output: &mut [T], info| {
                 if callback.cancel.is_cancelled() {
                     callback.control.stop(State::Cancelled);
+                }
+                let timestamp = info.timestamp();
+                let callback_ns = elapsed_ns(callback.origin);
+                if callback
+                    .backend_previous
+                    .is_some_and(|previous| timestamp.callback < previous)
+                {
+                    if callback.backend_epoch != 0 || callback_ns >= 1_000_000_000 {
+                        callback.control.stop(State::BackendClockReset);
+                        callback.cancel.cancel();
+                        output.fill(T::from_sample(0.));
+                        return;
+                    }
+                    callback.backend_epoch = 1;
+                    callback.backend_origin = Some(timestamp.callback);
+                }
+                callback.backend_previous = Some(timestamp.callback);
+                let backend_origin = callback.backend_origin.get_or_insert(timestamp.callback);
+                let Some(backend_elapsed) = timestamp.callback.duration_since(backend_origin)
+                else {
+                    callback.control.stop(State::InvalidOutput);
+                    callback.cancel.cancel();
+                    output.fill(T::from_sample(0.));
+                    return;
+                };
+                let latency = timestamp
+                    .playback
+                    .duration_since(&timestamp.callback)
+                    .map_or(0, |v| v.as_nanos().min(u128::from(u64::MAX)) as u64);
+                let backend_ns = backend_elapsed.as_nanos().min(u128::from(u64::MAX)) as u64;
+                if !callback
+                    .continuity
+                    .observe(callback.cursor, backend_ns, latency, rate)
+                {
+                    callback.control.stop(State::BackendDiscontinuity);
+                    callback.cancel.cancel();
+                    output.fill(T::from_sample(0.));
+                    return;
                 }
                 let delivered = callback.reader.consume(output, T::from_sample);
                 let state = callback.control.state();
@@ -511,15 +574,11 @@ fn build<T: SizedSample + FromSample<f32>>(
                 let submitted = callback
                     .cursor
                     .saturating_add((output.len() / channels) as u64);
-                let timestamp = info.timestamp();
-                let latency = timestamp
-                    .playback
-                    .duration_since(&timestamp.callback)
-                    .map_or(0, |v| v.as_nanos().min(u128::from(u64::MAX)) as u64);
                 if !callback.clock.record(
                     callback.cursor,
                     submitted,
-                    elapsed_ns(callback.origin),
+                    callback_ns,
+                    (callback.backend_epoch, backend_ns),
                     latency,
                     limit,
                 ) {
@@ -539,17 +598,92 @@ fn build<T: SizedSample + FromSample<f32>>(
         .map_err(|e| e.to_string())
 }
 
+fn video_output_config(
+    default: cpal::SupportedStreamConfig,
+    configurations: impl Iterator<Item = cpal::SupportedStreamConfigRange>,
+) -> cpal::SupportedStreamConfig {
+    configurations
+        .take(256)
+        .find(|config| {
+            config.channels() == default.channels()
+                && config.sample_format() == default.sample_format()
+                && config.min_sample_rate().0 <= 48000
+                && config.max_sample_rate().0 >= 48000
+        })
+        .map_or(default, |config| {
+            config.with_sample_rate(cpal::SampleRate(48000))
+        })
+}
+
 fn elapsed_ns(origin: Instant) -> u64 {
     origin.elapsed().as_nanos().min(u128::from(u64::MAX)) as u64
 }
+
 fn fault(state: State) -> Option<&'static str> {
     match state {
         State::SourceFailed => Some("Sound preparation stopped before the sequence ended"),
         State::DeviceFailed => Some("Sound output device failed; retry playback"),
+        State::BackendClockReset => {
+            Some("Sound backend timestamp reset after playback started; retry playback")
+        }
+        State::BackendDiscontinuity => Some(
+            "Sound backend timing lost continuity; playback stopped without skipping source samples",
+        ),
         State::Underrun => Some(
             "Sound preparation fell behind the device; playback stopped without skipping source samples",
         ),
         State::InvalidOutput => Some("Sound output device returned an invalid buffer or clock"),
         _ => None,
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn video_output_preserves_device_channels_and_format_with_honest_rate_fallback() {
+        use cpal::{
+            SampleFormat, SampleRate, SupportedBufferSize, SupportedStreamConfig,
+            SupportedStreamConfigRange,
+        };
+        let default = SupportedStreamConfig::new(
+            2,
+            SampleRate(44100),
+            SupportedBufferSize::Unknown,
+            SampleFormat::F32,
+        );
+        let range = |channels, maximum, format| {
+            SupportedStreamConfigRange::new(
+                channels,
+                SampleRate(44100),
+                SampleRate(maximum),
+                SupportedBufferSize::Unknown,
+                format,
+            )
+        };
+        let chosen = video_output_config(
+            default.clone(),
+            [
+                range(6, 48000, SampleFormat::F32),
+                range(2, 48000, SampleFormat::I16),
+                range(2, 48000, SampleFormat::F32),
+            ]
+            .into_iter(),
+        );
+        assert_eq!(chosen.sample_rate().0, 48000);
+        assert_eq!(chosen.channels(), 2);
+        assert_eq!(chosen.sample_format(), SampleFormat::F32);
+        let fallback = video_output_config(
+            default.clone(),
+            [range(2, 44100, SampleFormat::F32)].into_iter(),
+        );
+        assert_eq!(fallback.sample_rate().0, 44100);
+        assert_eq!(
+            video_output_config(default, std::iter::empty())
+                .sample_rate()
+                .0,
+            44100
+        );
     }
 }

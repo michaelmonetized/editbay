@@ -7,6 +7,19 @@ editorial and complete-job release gates remain open.
 
 ## Implemented
 
+- Coherent callback receipts retain device frames, host/backend time, explicit
+  startup epochs and reported latency through the supervised sound protocol.
+  A bounded Rust tool authors and measures saved repeated source sequences.
+  The 2048-frame device request passes short camera/six-channel and 60-second
+  AAC runs plus native fault/retry regressions. Two sustained stress attempts fail
+  visibly and remain recorded; a separate baseline also fails before three
+  minutes. Supported 48 kHz output passes three minutes; the final continuity
+  guard and native regressions pass, while its two-hour attempt fails after
+  1100.104 seconds with visible timing loss and complete child retirement. See
+  [sustained playback](SUSTAINED_PLAYBACK.md) and
+  [candidate evidence](evidence/r2-sustained-clock/README.md). No physical drift
+  or full R2 gate is closed.
+
 - Exact source-picture preparation for dense cuts runs in the background through
   supervised Rust codec workers. Private read-only disk packs retain checksum,
   source/interpretation and document ownership, bounded storage and reader pins.

@@ -1,0 +1,123 @@
+{
+  "application_sha256": "4e3f94592f4df2b0b401f78d9cce99ca68da3c561b18bb3a7551f63140bcf668",
+  "authored": {
+    "audio_stream": 1,
+    "composition": "31378385-7a52-4dbe-b489-cad0ab298052",
+    "fingerprint": {
+      "bytes": 214558,
+      "sha256": "a6ce0012de62432f8d30e3b7e65532f37651ed0a8650ea4c62c54bd8f141e9b2"
+    },
+    "frames": 144,
+    "history_and_reopen_exact": true,
+    "linked_intervals": 2,
+    "project_sha256": "f2c0f1a83b95923f9ac112ee6f1d2f4fdfbd797da05dc5c64d3d0d67f0b8e375",
+    "rate": {
+      "denominator": 1001,
+      "numerator": 24000
+    },
+    "seconds_requested": 6,
+    "source": "/home/michael/Projects/editbay/artifacts/worktrees/r2-sound-worker/artifacts/natural-sound/fixtures/qualified-six-channel.mov",
+    "source_frames": 79,
+    "version": {
+      "project_id": "272436be-a54f-4915-b5ac-67a755c33c0e",
+      "revision": 5
+    },
+    "video_stream": 0
+  },
+  "backend_clock_gate": true,
+  "complete": true,
+  "drift": {
+    "absolute_p50_upper_ms": 0.1,
+    "absolute_p95_upper_ms": 0.1,
+    "definition": "Elapsed device frames minus the elapsed sum of backend callback time and reported playback latency; relative to the first observed callback after one backend second. Host time and raw callback jitter are reported separately.",
+    "final_signed_ms": -0.001593,
+    "first": {
+      "backend_elapsed_ns": 1023980417,
+      "backend_epoch": 1,
+      "buffer_start_frames": 47206,
+      "callback_elapsed_ns": 1084189147,
+      "callbacks": 50,
+      "reported_latency_ns": 211383219,
+      "submitted_frames": 48147,
+      "valid_end_sample": 264865
+    },
+    "histogram_overflow_at_ms": 200,
+    "histogram_overflow_observations": 0,
+    "histogram_resolution_ms": 0.1,
+    "host_latency_adjusted_maximum_absolute_ms": 0.045328,
+    "last": {
+      "backend_elapsed_ns": 6165319878,
+      "backend_epoch": 1,
+      "buffer_start_frames": 273939,
+      "callback_elapsed_ns": 6225554669,
+      "callbacks": 291,
+      "reported_latency_ns": 211383219,
+      "submitted_frames": 274880,
+      "valid_end_sample": 264865
+    },
+    "maximum_absolute_ms": 0.02615,
+    "observations": 52,
+    "raw_callback_maximum_absolute_ms": 0.399348,
+    "settling_backend_seconds": 1
+  },
+  "elapsed_seconds": 6.696593116,
+  "failure": null,
+  "final": {
+    "callbacks": 291,
+    "clipped_monitor_samples": 28668,
+    "clock_observation": {
+      "backend_elapsed_ns": 6165319878,
+      "backend_epoch": 1,
+      "buffer_start_frames": 273939,
+      "callback_elapsed_ns": 6225554669,
+      "callbacks": 291,
+      "reported_latency_ns": 211383219,
+      "submitted_frames": 274880,
+      "valid_end_sample": 264865
+    },
+    "device": {
+      "channels": 2,
+      "name": "default",
+      "sample_format": "F32",
+      "sample_rate": 44100
+    },
+    "device_worker_pid": 3878512,
+    "end_sample": 264865,
+    "error": null,
+    "phase": "finished",
+    "position_samples": 264865,
+    "prepared_capacity_frames": 16384,
+    "prepared_frames": 0,
+    "reported_latency_ns": 211383219,
+    "route": "Stereo",
+    "start_sample": 0,
+    "version": {
+      "project_id": "272436be-a54f-4915-b5ac-67a755c33c0e",
+      "revision": 5
+    },
+    "worker_pid": 3878519
+  },
+  "kind": "sustained_native_sound",
+  "limits": [
+    "Actual native device callbacks; backend and host latency-adjusted clock estimates only. No physical speaker, display, audibility or independent-user proof.",
+    "RSS includes the lab and observed descendants, may double count shared memory, and excludes unmapped page cache and unreported driver/device allocations.",
+    "One backend second of startup is retained in raw samples and excluded from steady clock drift; 100 ms sampling does not observe every callback or memory spike."
+  ],
+  "owned_processes_reaped": true,
+  "peak_combined_rss_kib": 146016,
+  "peak_prepared_frames": 15578,
+  "prepared_capacity_frames": 16384,
+  "processes": [
+    3878503,
+    3878512,
+    3878519
+  ],
+  "project_unchanged": true,
+  "qualified": true,
+  "receipt_bytes": 58427,
+  "receipt_limit_bytes": 134217728,
+  "sample_interval_ms": 100,
+  "samples": 66,
+  "source_unchanged": true,
+  "two_hour_run_complete": false
+}

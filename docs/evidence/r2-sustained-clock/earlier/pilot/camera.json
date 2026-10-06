@@ -1,0 +1,104 @@
+{
+  "application_sha256": "0d690466070bb003b5eca2e49cd6a7c7d59387ebab1d18c04e2560f8cbc97689",
+  "authored": {
+    "audio_stream": 0,
+    "composition": "98347244-853d-4fdb-921f-9855fc4680ff",
+    "fingerprint": {
+      "bytes": 5235017,
+      "sha256": "498ec6c42b6b440886eb761dc4775c994f7578021890ceae3f370ffc6fb3e021"
+    },
+    "frames": 144,
+    "history_and_reopen_exact": true,
+    "linked_intervals": 1,
+    "project_sha256": "5d0c02e9eeeea6fa58544f61af8563bec53432886d5c6a489ff72ede8d9047a8",
+    "rate": {
+      "denominator": 1,
+      "numerator": 24
+    },
+    "seconds_requested": 6,
+    "source": "/home/michael/Downloads/iCloud Photos/IMG_0001.MP4",
+    "source_frames": 314,
+    "version": {
+      "project_id": "ff867c24-ad8b-4c9f-b393-659a030899de",
+      "revision": 4
+    },
+    "video_stream": 1
+  },
+  "backend_clock_gate": false,
+  "complete": false,
+  "drift": {
+    "absolute_p50_upper_ms": null,
+    "absolute_p95_upper_ms": null,
+    "definition": "Elapsed device frames minus elapsed backend callback plus reported playback latency; relative to the first observed callback after one backend second. Host time and raw callback jitter are reported separately.",
+    "final_signed_ms": 0.0,
+    "first": null,
+    "histogram_overflow_at_ms": 200,
+    "histogram_overflow_observations": 0,
+    "histogram_resolution_ms": 0.1,
+    "host_latency_adjusted_maximum_absolute_ms": 0.0,
+    "last": null,
+    "maximum_absolute_ms": 0.0,
+    "observations": 0,
+    "raw_callback_maximum_absolute_ms": 0.0,
+    "settling_backend_seconds": 1
+  },
+  "elapsed_seconds": 0.467643109,
+  "failure": null,
+  "final": {
+    "callbacks": 1,
+    "clipped_monitor_samples": 0,
+    "clock_observation": {
+      "backend_elapsed_ns": 0,
+      "buffer_start_frames": 0,
+      "callback_elapsed_ns": 47522059,
+      "callbacks": 1,
+      "reported_latency_ns": 170952380,
+      "submitted_frames": 512,
+      "valid_end_sample": 264600
+    },
+    "device": {
+      "channels": 2,
+      "name": "default",
+      "sample_format": "F32",
+      "sample_rate": 44100
+    },
+    "device_worker_pid": 3715992,
+    "end_sample": 264600,
+    "error": "Sound output device returned an invalid buffer or clock",
+    "phase": "failed",
+    "position_samples": 0,
+    "prepared_capacity_frames": 16384,
+    "prepared_frames": 15637,
+    "reported_latency_ns": 170952380,
+    "route": "Stereo",
+    "start_sample": 0,
+    "version": {
+      "project_id": "ff867c24-ad8b-4c9f-b393-659a030899de",
+      "revision": 4
+    },
+    "worker_pid": 3715998
+  },
+  "kind": "sustained_native_sound",
+  "limits": [
+    "Actual native device callbacks; backend and host latency-adjusted clock estimates only. No physical speaker, display, audibility or independent-user proof.",
+    "RSS includes the lab and observed descendants, may double count shared memory, and excludes unmapped page cache and unreported driver/device allocations.",
+    "One backend second of startup is retained in raw samples and excluded from steady clock drift; 100 ms sampling does not observe every callback or memory spike."
+  ],
+  "owned_processes_reaped": true,
+  "peak_combined_rss_kib": 145552,
+  "peak_prepared_frames": 15637,
+  "prepared_capacity_frames": 16384,
+  "processes": [
+    3715794,
+    3715992,
+    3715998
+  ],
+  "project_unchanged": true,
+  "qualified": false,
+  "receipt_bytes": 2113,
+  "receipt_limit_bytes": 134217728,
+  "sample_interval_ms": 100,
+  "samples": 4,
+  "source_unchanged": true,
+  "two_hour_run_complete": false
+}
