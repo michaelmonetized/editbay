@@ -75,6 +75,20 @@ impl MutablePlane {
             )
         }
     }
+    /// Borrow a sample-aligned output as native float PCM.
+    /// Takes this exclusive mapping; returns initialized samples for native writes.
+    pub(crate) fn floats_mut(&mut self) -> &mut [f32] {
+        assert!(self.bytes.is_multiple_of(size_of::<f32>()));
+        unsafe {
+            std::slice::from_raw_parts_mut(
+                self.pointer
+                    .expect("unsealed output owns its mapping")
+                    .as_ptr()
+                    .cast(),
+                self.bytes / size_of::<f32>(),
+            )
+        }
+    }
     /// Finish native output and permanently disable writes before sharing.
     /// Takes this output. Returns a read-only mapping after releasing its writable one.
     pub(crate) fn seal(mut self) -> Result<Plane> {
@@ -182,6 +196,14 @@ impl Plane {
 
     pub(crate) fn bytes(&self) -> &[u8] {
         unsafe { std::slice::from_raw_parts(self.pointer.as_ptr(), self.bytes) }
+    }
+    /// Borrow sealed, sample-aligned native float PCM without copying.
+    /// Takes this page-aligned mapping; returns samples valid for its lifetime.
+    pub(crate) fn floats(&self) -> &[f32] {
+        assert!(self.bytes.is_multiple_of(size_of::<f32>()));
+        unsafe {
+            std::slice::from_raw_parts(self.pointer.as_ptr().cast(), self.bytes / size_of::<f32>())
+        }
     }
     pub(crate) fn descriptor(&self) -> &OwnedFd {
         &self.descriptor

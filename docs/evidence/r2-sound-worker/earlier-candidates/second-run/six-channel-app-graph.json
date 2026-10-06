@@ -1,0 +1,113 @@
+{
+  "active_cancellation_ms": 2.152759,
+  "actual_source_samples": 192000,
+  "budgets": {
+    "cancel": 2000,
+    "combined_high_water_kib": 524288,
+    "first_native": 250,
+    "high_water_kib": 262144,
+    "planning": 5,
+    "sinc_render": 40,
+    "warm_render": 20
+  },
+  "cancellation_ms": 0.00033299999999999996,
+  "channels": [
+    "FL",
+    "FR",
+    "FC",
+    "LFE",
+    "BL",
+    "BR"
+  ],
+  "combined_high_water_kib": 89936,
+  "contributions": 2,
+  "first_native_ms": 2.8030120000000003,
+  "gates": {
+    "active_cancel_2s": true,
+    "active_cancel_cleanup": true,
+    "cancel_2s": true,
+    "cleanup": true,
+    "combined_memory_512mib": true,
+    "first_native_250ms": true,
+    "foreign_plan_rejected": true,
+    "foreign_result_rejected": true,
+    "memory_256mib": true,
+    "pcm_error_1e_6": true,
+    "pins_survive_clear": true,
+    "preparation_p95_5ms": true,
+    "sinc_p95_40ms": true,
+    "source_unchanged": true,
+    "stale_result_rejected": true,
+    "warm_unity_p95_20ms": true
+  },
+  "independent_pcm_sha256": "118b5d59a221d429ebf5d08eb9ce322f90e9406131502579c108ce8e11aafce7",
+  "independent_reference": "sequential FFmpeg CLI native f32le without resampling or channel conversion",
+  "kind": "isolated_sound_blocks",
+  "limits": [
+    "isolated sound worker evidence; no callback, device, UI playback or drift proof",
+    "source interval uses whole natural seconds; fractional source-sequence sound tails remain open",
+    "channel layout retained; no downmix or device routing"
+  ],
+  "maximum_absolute_pcm_error": 0.0,
+  "memory": [
+    "VmHWM:\t   47984 kB",
+    "VmRSS:\t   47104 kB"
+  ],
+  "memory_high_water_kib": 47984,
+  "native_sinc_44100": {
+    "count": 30,
+    "max_ms": 29.601955999999998,
+    "p50_ms": 27.319488,
+    "p95_ms": 27.880366
+  },
+  "native_unity_first_pass": {
+    "count": 46,
+    "max_ms": 2.8030120000000003,
+    "p50_ms": 0.91292,
+    "p95_ms": 1.088629
+  },
+  "native_unity_warm": {
+    "count": 100,
+    "max_ms": 1.012505,
+    "p50_ms": 0.6252519999999999,
+    "p95_ms": 0.9566709999999999
+  },
+  "nested_fps": 60,
+  "output_frames_per_block": 4096,
+  "pcm_stats": {
+    "cache_bytes": 4521984,
+    "decoded_frames": 188416,
+    "decoder_scratch_bytes": 1572864,
+    "decoder_scratch_limit_bytes": 33554432,
+    "decoders": 1,
+    "entries": 46,
+    "evictions": 0,
+    "hits": 246,
+    "live_bytes": 4521984,
+    "misses": 46,
+    "seeks": 0,
+    "sources": 1
+  },
+  "preparation": {
+    "count": 46,
+    "max_ms": 2.8530119999999997,
+    "p50_ms": 2.790262,
+    "p95_ms": 2.834011
+  },
+  "qualified": true,
+  "qualified_whole_seconds": 4,
+  "rendered_blocks_sha256": "b82f5b0900bef18c2201557fa6fc830897884a01556cd4fdc76cce7b47691568",
+  "root_fps": 24,
+  "sample_rate": 48000,
+  "schema": 1,
+  "sinc_child_high_water_kib": 41184,
+  "source": "artifacts/qualification/fixtures/six-channel.m4a",
+  "source_fingerprint": {
+    "bytes": 173208,
+    "sha256": "d0dfc92cd2c8097ef21ba6a019e7dc31b139eb26fa03afa1c09cb46b1aa474ae"
+  },
+  "source_stream": 0,
+  "unity_child_high_water_kib": 41952,
+  "worker_executable": "artifacts/qualification/bin/editbay-studio",
+  "worker_sha256": "f4964f34f989926debf40137a975ef2dd5ebc11c18a473a3063f3ad064c5a260"
+}

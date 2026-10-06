@@ -49,5 +49,7 @@ must accompany the final measurements. None of these proves physical audibility.
 The native source-sequence factory still authors picture only. Audio ending
 between sequence frames needs an explicit natural-time/silence-tail contract;
 compressing sound to the rounded picture tail would introduce drift. Native
-streaming callback scheduling, device routes, two-hour drift, codec process
-isolation, full shared delivery and the R2 hardware matrix remain open.
+streaming callback scheduling, device routes, two-hour drift, full shared delivery
+and the R2 hardware matrix remain open. The renderer now shares its evaluation
+with [isolated native PCM](WORKER_SOUND.md); that route preserves the sound block
+contract and derives cancellation from its underlying provider.

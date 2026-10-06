@@ -1,0 +1,108 @@
+{
+  "active_cancellation_ms": 2.168759,
+  "actual_source_samples": 627040,
+  "budgets": {
+    "cancel": 2000,
+    "combined_high_water_kib": 524288,
+    "first_native": 250,
+    "high_water_kib": 262144,
+    "planning": 5,
+    "sinc_render": 40,
+    "warm_render": 20
+  },
+  "cancellation_ms": 0.00075,
+  "channels": [
+    "FC"
+  ],
+  "combined_high_water_kib": 87680,
+  "contributions": 2,
+  "first_native_ms": 39.515412,
+  "gates": {
+    "active_cancel_2s": true,
+    "active_cancel_cleanup": true,
+    "cancel_2s": true,
+    "cleanup": true,
+    "combined_memory_512mib": true,
+    "first_native_250ms": true,
+    "foreign_plan_rejected": true,
+    "foreign_result_rejected": true,
+    "memory_256mib": true,
+    "pcm_error_1e_6": true,
+    "pins_survive_clear": true,
+    "preparation_p95_5ms": true,
+    "sinc_p95_40ms": true,
+    "source_unchanged": true,
+    "stale_result_rejected": true,
+    "warm_unity_p95_20ms": true
+  },
+  "independent_pcm_sha256": "7857156fee51988279dd3fdc0b834b873b06f9d581f3654b9d3d2dadf2c6acc3",
+  "independent_reference": "sequential FFmpeg CLI native f32le without resampling or channel conversion",
+  "kind": "isolated_sound_blocks",
+  "limits": [
+    "isolated sound worker evidence; no callback, device, UI playback or drift proof",
+    "source interval uses whole natural seconds; fractional source-sequence sound tails remain open",
+    "channel layout retained; no downmix or device routing"
+  ],
+  "maximum_absolute_pcm_error": 0.0,
+  "memory": [
+    "VmHWM:\t   44832 kB",
+    "VmRSS:\t   44832 kB"
+  ],
+  "memory_high_water_kib": 44832,
+  "native_sinc_44100": {
+    "count": 30,
+    "max_ms": 120.36970099999999,
+    "p50_ms": 25.866064,
+    "p95_ms": 29.456204
+  },
+  "native_unity_first_pass": {
+    "count": 64,
+    "max_ms": 39.515412,
+    "p50_ms": 0.81317,
+    "p95_ms": 1.457964
+  },
+  "native_unity_warm": {
+    "count": 100,
+    "max_ms": 1.5044220000000001,
+    "p50_ms": 0.7472530000000001,
+    "p95_ms": 1.143546
+  },
+  "nested_fps": 60,
+  "output_frames_per_block": 4096,
+  "pcm_stats": {
+    "cache_bytes": 1048576,
+    "decoded_frames": 263104,
+    "decoder_scratch_bytes": 262144,
+    "decoder_scratch_limit_bytes": 33554432,
+    "decoders": 1,
+    "entries": 64,
+    "evictions": 0,
+    "hits": 264,
+    "live_bytes": 1048576,
+    "misses": 64,
+    "seeks": 0,
+    "sources": 1
+  },
+  "preparation": {
+    "count": 64,
+    "max_ms": 10.293792,
+    "p50_ms": 2.98522,
+    "p95_ms": 3.9679750000000005
+  },
+  "qualified": true,
+  "qualified_whole_seconds": 12,
+  "rendered_blocks_sha256": "d3ac68f66437bf9708b4210ac9311b08d463ab1ba591d107dc2f70a5eae07a20",
+  "root_fps": 24,
+  "sample_rate": 48000,
+  "schema": 1,
+  "sinc_child_high_water_kib": 42848,
+  "source": "/home/michael/Downloads/iCloud Photos/IMG_0001.MP4",
+  "source_fingerprint": {
+    "bytes": 5235017,
+    "sha256": "498ec6c42b6b440886eb761dc4775c994f7578021890ceae3f370ffc6fb3e021"
+  },
+  "source_stream": 0,
+  "unity_child_high_water_kib": 42848,
+  "worker_executable": "artifacts/qualification/bin/editbay-studio",
+  "worker_sha256": "f4964f34f989926debf40137a975ef2dd5ebc11c18a473a3063f3ad064c5a260"
+}

@@ -93,6 +93,11 @@ authoring and complete-job release gates remain open.
   against independent sequential PCM. Worker gates pass; streaming callbacks,
   physical devices, sound process isolation, drift and shared delivery remain open.
   See [sound contracts and evidence](SOUND_BLOCKS.md).
+- Supervised packaged app/CLI sound workers now write native original-channel
+  PCM directly into bounded sealed mappings. The shared renderer uses either
+  provider with one cancellation owner. Parent/child byte and handle accounting,
+  stale/foreign/malformed rejection, source checks, process death/retry and active
+  cancellation are verified; see [isolated sound](WORKER_SOUND.md).
 - Source-owned native decoded-picture cache: exact indexed requests, retained
   sequential decoders, bounded cache/live RGBA payload and handle limits, LRU
   eviction, charged consumer pins, fresh-token version/generation rebinding and
@@ -124,8 +129,8 @@ authoring and complete-job release gates remain open.
 
 | Check | Result |
 | --- | --- |
-| `cargo test --workspace --locked` | 142 tests and 7 documentation examples passed; 0 failed or ignored |
-| `cargo test --workspace --all-features --locked` | 143 tests and 7 documentation examples passed with native libtorch selected; 0 failed or ignored |
+| `cargo test --workspace --locked` | 149 tests and 7 documentation examples passed; 0 failed or ignored |
+| `cargo test --workspace --all-features --locked` | 150 tests and 7 documentation examples passed with native libtorch selected; 0 failed or ignored |
 | Core regression suite | 23 tests: identity/rational time, validation, round trips, permission preservation, concurrent/stale writers, corruption, source loss, bounded reads, unpublished preparation/cleanup and overwrite refusal |
 | CLI binary integration suite | 3 tests: complete recovery flow, command failures and real process interruption during save; paths contain spaces |
 | Native codec/GPU/worker/clock tests | 8 tests: lossless pictures and rational time; delayed video/audio drain; invalid codecs; output descriptor/path ownership; actual FP16/FP32 GPU parity; export/cancel cleanup; device-clock interpolation |
@@ -150,6 +155,7 @@ authoring and complete-job release gates remain open.
 | GPU over codec IPC | Same real five-node graph: 480 pictures and 4,000 resident hits. Camera FP16/FP32 completed p95 21.625/23.983 ms; portrait 25.242/28.276 ms, all within the 33.3 ms picture-kernel budget. Every channel of 12 independent references agrees within existing tolerances. No timed sequence readback; native surface/audio/delivery gates remain open |
 | Native storage failures | Actual EACCES and ENOSPC errors displayed; no false checkpoint acknowledgement; retry published a valid checkpoint after repair |
 | Native shared-device viewer | 7 new core/app/GPU regressions; 4 real camera/portrait FP16/FP32 window cases, 160 inputs p95 <=33.257 ms and 152 cached submitted-draw samples p95 <=38.215 ms; cancellation <=137.680 ms. Same-pass revision invalidation, coalesced scrub rejection, SIGKILL/retry, underlying SIGSTOP cancellation, native Undo/Redo/Save/recovery/reopen and zero preview readbacks pass. Scoped paused viewing; full sound/playback/export stays open |
+| Isolated native sound | 7 new regressions plus all picture-worker regressions pass. Four real camera/six-channel app/CLI routes: 4,000 shared PCM handoffs p95 <=0.087751 ms, independent PCM error zero; shared graph preparation p95 <=2.465802 ms, unity render <=1.030712 ms, sinc <=28.541994 ms. Combined parent/child HWM <=90016 KiB. Actual worker death/retry, active/SIGSTOP cancellation and zero pin/handle cleanup pass. Earlier timing misses are retained separately; streaming callback, native playback, drift and delivery remain open |
 | Native preview foundation regression | Same frozen app passes fresh actual camera ingest/cancel/recovery and 100/100 kill/recover/reopen trials with 4,000 catalog documents; 250 inputs p95 29.030 ms, maximum 45.946 ms; 200 UI checkpoint publications p95 3.534 ms; parent HWM <=132,928 KiB. Current Flea picker, sources, originals/checkpoints and independent recovery identities verified; earlier candidates remain separately recorded |
 | Native layout/input/assets | Final 800x600 and 1440x900 dark/light welcome captures inspected; native portrait profiles, Fcitx IME, Ctrl+V/Shift+Insert, preferences and repeated portal imports/exports inspected; exact SVG/font byte round trips and unsaved-bank close guard |
 | `cargo clippy --workspace --all-targets --all-features --locked -- -D warnings` | Passed with native libtorch selected |

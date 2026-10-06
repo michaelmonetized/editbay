@@ -1,7 +1,10 @@
 use crate::{Result, memory, metrics};
 use editbay_audio::{SoundRenderBudget, SoundRenderer};
 use editbay_core::*;
-use editbay_media::{Cancellation, PcmBudget, SourceFile, StreamType};
+use editbay_media::{
+    Cancellation, NativePcmCache, PcmBudget, PcmProvider, SourceFile, StreamType,
+    pcm_worker::{PcmWorker, PcmWorkerBudget},
+};
 use serde_json::{Value, json};
 use sha2::{Digest, Sha256};
 use std::{
@@ -51,15 +54,49 @@ fn compile(p: Project, rate: u32, channels: &[String]) -> Result<Arc<SoundSnapsh
         SoundBudget::default(),
     )?))
 }
-fn renderer(s: Arc<SoundSnapshot>, cancel: Cancellation) -> Result<SoundRenderer> {
-    Ok(SoundRenderer::new(
+fn renderer(
+    s: Arc<SoundSnapshot>,
+    cancel: Cancellation,
+    executable: Option<&Path>,
+) -> Result<SoundRenderer<Box<dyn PcmProvider>>> {
+    let provider: Box<dyn PcmProvider> = match executable {
+        Some(executable) => Box::new(PcmWorker::new(
+            executable,
+            s.evaluation().clone(),
+            PcmWorkerBudget::default(),
+            cancel.clone(),
+        )?),
+        None => Box::new(NativePcmCache::new(
+            s.evaluation().clone(),
+            PcmBudget::default(),
+            cancel.clone(),
+        )?),
+    };
+    Ok(SoundRenderer::with_provider(
         s,
-        PcmBudget::default(),
+        provider,
         SoundRenderBudget::default(),
-        cancel,
     )?)
 }
-fn independent_pcm(path: &Path, stream: u32) -> Result<(Vec<f32>, String)> {
+fn child_memory(renderer: &SoundRenderer<Box<dyn PcmProvider>>) -> Result<u64> {
+    renderer
+        .pcm_provider()
+        .process_id()
+        .map(high_water)
+        .transpose()
+        .map(|v| v.unwrap_or(0))
+}
+fn high_water(pid: u32) -> Result<u64> {
+    Ok(std::fs::read_to_string(format!("/proc/{pid}/status"))?
+        .lines()
+        .find_map(|line| {
+            line.strip_prefix("VmHWM:")
+                .and_then(|v| v.split_whitespace().next())
+                .and_then(|v| v.parse().ok())
+        })
+        .ok_or("process high-water memory absent")?)
+}
+pub(crate) fn independent_pcm(path: &Path, stream: u32) -> Result<(Vec<f32>, String)> {
     let mut process = Command::new("ffmpeg")
         .args(["-v", "error", "-i"])
         .arg(path)
@@ -106,6 +143,16 @@ fn independent_pcm(path: &Path, stream: u32) -> Result<(Vec<f32>, String)> {
 /// `path` is read-only media. Returns measurements and gate results; no device or
 /// UI playback, drift, callback scheduling or codec-process isolation is inferred.
 pub fn run(path: &Path) -> Result<Value> {
+    run_route(path, None)
+}
+
+/// Qualify the same sound graph through a packaged isolated PCM provider.
+/// `path` is original media and `executable` hosts --pcm-worker; returns measured
+/// worker receipts separately from callback, device and sustained playback proof.
+pub fn run_process(path: &Path, executable: &Path) -> Result<Value> {
+    run_route(path, Some(executable))
+}
+fn run_route(path: &Path, executable: Option<&Path>) -> Result<Value> {
     let cancel = Cancellation::new()?;
     let source = SourceFile::open(path, &cancel)?;
     let before = source.fingerprint().clone();
@@ -245,7 +292,7 @@ pub fn run(path: &Path) -> Result<Value> {
     p.compositions.extend([root, child]);
     let compiled = compile(p.clone(), rate, &channels)?;
     let (reference, reference_hash) = independent_pcm(path, selected)?;
-    let mut render = renderer(compiled.clone(), Cancellation::new()?)?;
+    let mut render = renderer(compiled.clone(), Cancellation::new()?, executable)?;
     let frames = 4096;
     let count = (compiled.duration_samples() / u64::from(frames)).min(64) as usize;
     let mut preparation = vec![];
@@ -280,11 +327,17 @@ pub fn run(path: &Path) -> Result<Value> {
     let first_native_ms = cold[0];
     let stats = render.pcm_stats();
     render.verify_sources()?;
+    let unity_child_high_water_kib = child_memory(&render)?;
     let held = render.render(&compiled.prepare(0, frames)?)?;
     let held_bytes = render.live_bytes();
-    let mut foreign = renderer(compile(p.clone(), rate, &channels)?, Cancellation::new()?)?;
+    let mut foreign = renderer(
+        compile(p.clone(), rate, &channels)?,
+        Cancellation::new()?,
+        executable,
+    )?;
     let foreign_plan_rejected = foreign.render(&compiled.prepare(0, frames)?).is_err();
     let foreign_result_rejected = foreign.validate_result(&held).is_err();
+    drop(foreign);
     render.clear();
     let stale_result_rejected = render.validate_result(&held).is_err();
     let pinned_after_clear = render.live_bytes() == held_bytes && held_bytes > 0;
@@ -294,7 +347,7 @@ pub fn run(path: &Path) -> Result<Value> {
         && render.pcm_stats().sources == 0
         && render.pcm_stats().decoders == 0;
     let canceled = Cancellation::new()?;
-    let mut canceled_renderer = renderer(compiled.clone(), canceled.clone())?;
+    let mut canceled_renderer = renderer(compiled.clone(), canceled.clone(), executable)?;
     let plan = compiled.prepare(0, frames)?;
     let began = Instant::now();
     canceled.cancel();
@@ -303,9 +356,11 @@ pub fn run(path: &Path) -> Result<Value> {
         Err(editbay_media::Error::Cancelled)
     );
     let cancellation_ms = began.elapsed().as_secs_f64() * 1000.;
+    canceled_renderer.clear();
+    drop(canceled_renderer);
     let output_rate = 44100;
     let resampled = compile(p, output_rate, &channels)?;
-    let mut converter = renderer(resampled.clone(), Cancellation::new()?)?;
+    let mut converter = renderer(resampled.clone(), Cancellation::new()?, executable)?;
     let mut sinc = vec![];
     for n in 0..30 {
         let plan = resampled.prepare(4096 + (n % 5) * 4096, frames)?;
@@ -314,6 +369,9 @@ pub fn run(path: &Path) -> Result<Value> {
         sinc.push(began.elapsed().as_secs_f64() * 1000.);
         converter.validate_result(&result)?;
     }
+    let sinc_child_high_water_kib = child_memory(&converter)?;
+    converter.clear();
+    drop(converter);
     source.verify(&cancel)?;
     let source_unchanged = source.fingerprint() == &before;
     let preparation = metrics(&mut preparation);
@@ -324,9 +382,14 @@ pub fn run(path: &Path) -> Result<Value> {
     let worker_token = active_token.clone();
     let (ready, began) = std::sync::mpsc::channel();
     let active_snapshot = resampled.clone();
+    let worker_executable = executable.map(Path::to_owned);
     let thread = std::thread::spawn(move || -> std::result::Result<(bool, bool), String> {
-        let mut engine =
-            renderer(active_snapshot.clone(), worker_token).map_err(|e| e.to_string())?;
+        let mut engine = renderer(
+            active_snapshot.clone(),
+            worker_token,
+            worker_executable.as_deref(),
+        )
+        .map_err(|e| e.to_string())?;
         let plan = active_snapshot
             .prepare(4096, 4096)
             .map_err(|e| e.to_string())?;
@@ -364,5 +427,26 @@ pub fn run(path: &Path) -> Result<Value> {
     gates["active_cancel_cleanup"] = json!(active_cleanup);
     let mut receipt = json!({"schema":1,"kind":"native_sound_blocks","source":path,"source_fingerprint":before,"source_stream":selected,"sample_rate":rate,"channels":channels,"actual_source_samples":samples,"qualified_whole_seconds":seconds,"output_frames_per_block":frames,"contributions":2,"root_fps":24,"nested_fps":60,"independent_reference":"sequential FFmpeg CLI native f32le without resampling or channel conversion","independent_pcm_sha256":reference_hash,"rendered_blocks_sha256":format!("{:x}",output_digest.finalize()),"maximum_absolute_pcm_error":maximum_error,"preparation":preparation,"native_unity_first_pass":cold,"native_unity_warm":warm,"native_sinc_44100":sinc,"first_native_ms":first_native_ms,"cancellation_ms":cancellation_ms,"pcm_stats":stats,"memory":memory,"memory_high_water_kib":high_water_kib,"budgets":{"planning":5,"warm_render":20,"sinc_render":40,"first_native":250,"cancel":2000,"high_water_kib":256*1024},"gates":gates,"qualified":gates.as_object().unwrap().values().all(|v| v == &Value::Bool(true)),"limits":["sound-only worker evidence; no callback, device, UI playback, drift or codec-process isolation proof","source interval uses whole natural seconds; fractional source-sequence sound tails remain open","channel layout retained; no downmix or device routing"]});
     receipt["active_cancellation_ms"] = json!(active_cancellation_ms);
+    if let Some(executable) = executable {
+        let combined = high_water_kib + unity_child_high_water_kib.max(sinc_child_high_water_kib);
+        receipt["kind"] = json!("isolated_sound_blocks");
+        receipt["worker_executable"] = json!(executable);
+        receipt["worker_sha256"] = json!(crate::hash(executable)?);
+        receipt["unity_child_high_water_kib"] = json!(unity_child_high_water_kib);
+        receipt["sinc_child_high_water_kib"] = json!(sinc_child_high_water_kib);
+        receipt["combined_high_water_kib"] = json!(combined);
+        receipt["budgets"]["combined_high_water_kib"] = json!(512 * 1024);
+        receipt["gates"]["combined_memory_512mib"] = json!(combined <= 512 * 1024);
+        receipt["qualified"] = json!(
+            receipt["gates"]
+                .as_object()
+                .unwrap()
+                .values()
+                .all(|v| v == &Value::Bool(true))
+        );
+        receipt["limits"][0] = json!(
+            "isolated sound worker evidence; no callback, device, UI playback or drift proof"
+        );
+    }
     Ok(receipt)
 }

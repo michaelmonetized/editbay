@@ -1,0 +1,106 @@
+{
+  "budgets": {
+    "cancel_join_reap_ms": 2000,
+    "combined_high_water_kib": 524288,
+    "handoff_p95_ms": 10
+  },
+  "cached_handoff": {
+    "count": 1000,
+    "max_ms": 1.4106310000000002,
+    "p50_ms": 0.058584,
+    "p95_ms": 0.137042
+  },
+  "cancellation": [
+    {
+      "cancel_join_reap_ms": 3.373472,
+      "clean": true,
+      "pid": 790277,
+      "rejected": true,
+      "stopped": false
+    },
+    {
+      "cancel_join_reap_ms": 104.861514,
+      "clean": true,
+      "pid": 790325,
+      "rejected": true,
+      "stopped": true
+    }
+  ],
+  "channels": [
+    "FL",
+    "FR",
+    "FC",
+    "LFE",
+    "BL",
+    "BR"
+  ],
+  "child_high_water_kib": 41088,
+  "combined_high_water_kib": 86752,
+  "distinct_blocks": 46,
+  "first_pass": {
+    "count": 46,
+    "max_ms": 3.348764,
+    "p50_ms": 0.39237700000000003,
+    "p95_ms": 1.270422
+  },
+  "first_sample": 0,
+  "frames_per_block": 4096,
+  "gates": {
+    "active_cancellation": true,
+    "cleanup": true,
+    "combined_memory_512mib": true,
+    "death_reaped": true,
+    "death_rejected": true,
+    "handoff_p95_10ms": true,
+    "independent_pcm_1e_6": true,
+    "old_rejected": true,
+    "pins_survive_clear": true,
+    "retry_equal": true,
+    "retry_rejects_old": true,
+    "same_mapping": true,
+    "source_unchanged": true
+  },
+  "independent_pcm_sha256": "118b5d59a221d429ebf5d08eb9ce322f90e9406131502579c108ce8e11aafce7",
+  "independent_reference": "sequential FFmpeg CLI original-channel f32le",
+  "kind": "isolated_native_pcm",
+  "limits": [
+    "local PCM process transport only; native streaming callback/device playback/drift and complete delivery remain separate"
+  ],
+  "maximum_absolute_pcm_error": 0.0,
+  "parent_high_water_kib": 45664,
+  "qualified": true,
+  "sample_rate": 48000,
+  "schema": 1,
+  "source": "artifacts/qualification/fixtures/six-channel.m4a",
+  "source_fingerprint": {
+    "bytes": 173208,
+    "sha256": "d0dfc92cd2c8097ef21ba6a019e7dc31b139eb26fa03afa1c09cb46b1aa474ae"
+  },
+  "startup_ms": 93.47134199999999,
+  "stream": 0,
+  "transfers": {
+    "cache_bytes": 4521984,
+    "cache_entries": 46,
+    "child": {
+      "cache_bytes": 4521984,
+      "decoded_frames": 188416,
+      "decoder_scratch_bytes": 1572864,
+      "decoder_scratch_limit_bytes": 33554432,
+      "decoders": 1,
+      "entries": 46,
+      "evictions": 0,
+      "hits": 1001,
+      "live_bytes": 4521984,
+      "misses": 46,
+      "seeks": 0,
+      "sources": 1
+    },
+    "mapped_bytes": 4521984,
+    "mapped_handles": 46,
+    "mapping_hits": 1001,
+    "received_planes": 1047,
+    "spawns": 1
+  },
+  "worker_executable": "artifacts/qualification/bin/editbay-studio",
+  "worker_sha256": "f4964f34f989926debf40137a975ef2dd5ebc11c18a473a3063f3ad064c5a260"
+}

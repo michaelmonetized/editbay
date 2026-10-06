@@ -57,7 +57,8 @@ impl PcmBudget {
 }
 
 /// Actual retained PCM, decoder scratch and source activity.
-#[derive(Debug, Clone, Copy, Serialize, Default)]
+#[derive(Debug, Clone, Copy, Serialize, Deserialize, Default)]
+#[serde(deny_unknown_fields)]
 pub struct PcmStats {
     pub cache_bytes: usize,
     pub live_bytes: usize,
@@ -72,9 +73,9 @@ pub struct PcmStats {
     pub seeks: u64,
     pub decoded_frames: u64,
 }
-struct Charge {
-    bytes: usize,
-    live: Arc<AtomicUsize>,
+pub(crate) struct Charge {
+    pub(crate) bytes: usize,
+    pub(crate) live: Arc<AtomicUsize>,
 }
 impl Drop for Charge {
     fn drop(&mut self) {
@@ -84,10 +85,11 @@ impl Drop for Charge {
 
 /// Immutable PCM whose memory remains charged while any consumer retains it.
 pub struct PcmBlock {
-    first_sample: i64,
-    channels: usize,
-    samples: Vec<f32>,
-    _charge: Charge,
+    pub(crate) first_sample: i64,
+    pub(crate) channels: usize,
+    pub(crate) samples: Samples,
+    pub(crate) _charge: Charge,
+    pub(crate) _handle: Option<crate::pictures::HandleAllocation>,
 }
 impl PcmBlock {
     /// Inspect absolute original-rate sample boundaries and channel count.
@@ -95,14 +97,14 @@ impl PcmBlock {
     pub fn interval(&self) -> (i64, usize, usize) {
         (
             self.first_sample,
-            self.samples.len() / self.channels,
+            self.samples().len() / self.channels,
             self.channels,
         )
     }
     /// Inspect unchanged-channel interleaved float samples.
     /// Takes no arguments; returns immutable PCM, retaining finite headroom.
     pub fn samples(&self) -> &[f32] {
-        &self.samples
+        self.samples.as_slice()
     }
 }
 
@@ -114,10 +116,10 @@ impl PcmBlock {
 /// }
 /// ```
 pub struct PcmResult {
-    pcm: Arc<PcmBlock>,
-    version: DocumentVersion,
-    owner: Arc<()>,
-    asset: Uuid,
+    pub(crate) pcm: Arc<PcmBlock>,
+    pub(crate) version: DocumentVersion,
+    pub(crate) owner: Arc<()>,
+    pub(crate) asset: Uuid,
 }
 impl PcmResult {
     /// Retain this receipt's immutable original-channel PCM.
@@ -154,6 +156,7 @@ pub struct NativePcmCache {
     live: Arc<AtomicUsize>,
     stats: PcmStats,
     serial: u64,
+    shared: bool,
 }
 impl NativePcmCache {
     /// Bind native decoding to one immutable document.
@@ -179,7 +182,21 @@ impl NativePcmCache {
             live: Arc::new(AtomicUsize::new(0)),
             stats: PcmStats::default(),
             serial: 0,
+            shared: false,
         })
+    }
+
+    /// Bind native decoding to charged sealed sample mappings.
+    /// `snapshot`, `budget` and `cancel` declare ownership and limits; returns
+    /// an empty cache that writes directly into shared PCM for codec transport.
+    pub(crate) fn new_shared(
+        snapshot: Arc<EvaluationSnapshot>,
+        budget: PcmBudget,
+        cancel: Cancellation,
+    ) -> Result<Self> {
+        let mut cache = Self::new(snapshot, budget, cancel)?;
+        cache.shared = true;
+        Ok(cache)
     }
 
     /// Read a bounded interval in absolute original-rate sample units.
@@ -239,7 +256,11 @@ impl NativePcmCache {
             self.evict();
         }
         let charge = self.reserve(bytes)?;
-        let mut output = vec![0.; frames as usize * channels.len()];
+        let mut output = if self.shared {
+            Output::Shared(crate::planes::MutablePlane::new(bytes)?)
+        } else {
+            Output::Owned(vec![0.; frames as usize * channels.len()])
+        };
         let rate = FrameRate::new(sample_rate, 1)?;
         let start = profile
             .time_base
@@ -373,7 +394,8 @@ impl NativePcmCache {
                         let from = (filled - block_start) as usize * channels.len();
                         let to = (filled - first) as usize * channels.len();
                         let count = (copy_end - filled) as usize * channels.len();
-                        output[to..to + count].copy_from_slice(&block.samples[from..from + count]);
+                        output.samples_mut()[to..to + count]
+                            .copy_from_slice(&block.samples[from..from + count]);
                         filled = copy_end;
                         if filled == wanted_end {
                             break;
@@ -407,8 +429,9 @@ impl NativePcmCache {
         let pcm = Arc::new(PcmBlock {
             first_sample: first,
             channels: channels.len(),
-            samples: output,
+            samples: output.freeze()?,
             _charge: charge,
+            _handle: None,
         });
         if bytes <= self.budget.cache_bytes && self.budget.cache_entries > 0 {
             self.stats.cache_bytes += bytes;
@@ -561,7 +584,140 @@ impl NativePcmCache {
             .map(|(key, _)| key.clone())
             .unwrap();
         let entry = self.entries.remove(&key).unwrap();
-        self.stats.cache_bytes -= entry.pcm.samples.len() * 4;
+        self.stats.cache_bytes -= entry.pcm.samples().len() * 4;
         self.stats.evictions += 1;
+    }
+}
+
+pub(crate) enum Samples {
+    Owned(Vec<f32>),
+    Shared(crate::planes::Plane),
+}
+impl Samples {
+    fn as_slice(&self) -> &[f32] {
+        match self {
+            Self::Owned(samples) => samples,
+            Self::Shared(plane) => plane.floats(),
+        }
+    }
+}
+enum Output {
+    Owned(Vec<f32>),
+    Shared(crate::planes::MutablePlane),
+}
+impl Output {
+    fn samples_mut(&mut self) -> &mut [f32] {
+        match self {
+            Self::Owned(samples) => samples,
+            Self::Shared(plane) => plane.floats_mut(),
+        }
+    }
+    fn freeze(self) -> Result<Samples> {
+        match self {
+            Self::Owned(samples) => Ok(Samples::Owned(samples)),
+            Self::Shared(plane) => Ok(Samples::Shared(plane.seal()?)),
+        }
+    }
+}
+
+/// Original-channel PCM routes shared by sound preview and delivery workers.
+pub trait PcmProvider {
+    /// Inspect the cancellation owner of underlying decode and transport work.
+    /// Takes no arguments; returns the token shared by a bound sound renderer.
+    fn cancellation(&self) -> &Cancellation;
+    /// Inspect a supervised codec child when this route uses one.
+    /// Takes no arguments; returns no PID for in-process native decoding.
+    fn process_id(&self) -> Option<u32> {
+        None
+    }
+    /// Inspect the immutable source interpretation owner.
+    /// Takes no arguments; returns the exact retained evaluation snapshot.
+    fn snapshot(&self) -> &Arc<EvaluationSnapshot>;
+    /// Read an exact absolute original-rate sample interval.
+    /// `source`/`stream` select captured media; `first`/`frames` select samples.
+    /// Returns immutable, lifetime-charged PCM with declared edge padding.
+    fn interval(&mut self, source: Uuid, stream: u32, first: i64, frames: u32)
+    -> Result<PcmResult>;
+    /// Validate private receipt ownership and retained source identity.
+    /// `result` supplies a previous result; returns an error when stale or foreign.
+    fn validate_result(&mut self, result: &PcmResult) -> Result<()>;
+    /// Recheck used source identities before transient publication.
+    /// Takes no arguments; returns an error after mutation, cancellation or worker death.
+    fn check_sources(&mut self) -> Result<()>;
+    /// Recheck complete used source checksums before durable publication.
+    /// Takes no arguments; returns success only for unchanged source bytes.
+    fn verify_sources(&mut self) -> Result<()>;
+    /// Inspect native and consumer-held resource accounting.
+    /// Takes no arguments; returns current counters without decoding.
+    fn stats(&self) -> PcmStats;
+    /// Release decoding resources and invalidate all previous receipts.
+    /// Takes no arguments; retained consumer buffers remain charged and immutable.
+    fn clear(&mut self);
+}
+impl PcmProvider for NativePcmCache {
+    fn cancellation(&self) -> &Cancellation {
+        &self.cancel
+    }
+    fn snapshot(&self) -> &Arc<EvaluationSnapshot> {
+        &self.snapshot
+    }
+    fn interval(
+        &mut self,
+        source: Uuid,
+        stream: u32,
+        first: i64,
+        frames: u32,
+    ) -> Result<PcmResult> {
+        NativePcmCache::interval(self, source, stream, first, frames)
+    }
+    fn validate_result(&mut self, result: &PcmResult) -> Result<()> {
+        NativePcmCache::validate_result(self, result)
+    }
+    fn check_sources(&mut self) -> Result<()> {
+        NativePcmCache::check_sources(self)
+    }
+    fn verify_sources(&mut self) -> Result<()> {
+        NativePcmCache::verify_sources(self)
+    }
+    fn stats(&self) -> PcmStats {
+        NativePcmCache::stats(self)
+    }
+    fn clear(&mut self) {
+        NativePcmCache::clear(self)
+    }
+}
+impl<P: PcmProvider + ?Sized> PcmProvider for Box<P> {
+    fn cancellation(&self) -> &Cancellation {
+        (**self).cancellation()
+    }
+    fn process_id(&self) -> Option<u32> {
+        (**self).process_id()
+    }
+    fn snapshot(&self) -> &Arc<EvaluationSnapshot> {
+        (**self).snapshot()
+    }
+    fn interval(
+        &mut self,
+        source: Uuid,
+        stream: u32,
+        first: i64,
+        frames: u32,
+    ) -> Result<PcmResult> {
+        (**self).interval(source, stream, first, frames)
+    }
+    fn validate_result(&mut self, result: &PcmResult) -> Result<()> {
+        (**self).validate_result(result)
+    }
+    fn check_sources(&mut self) -> Result<()> {
+        (**self).check_sources()
+    }
+    fn verify_sources(&mut self) -> Result<()> {
+        (**self).verify_sources()
+    }
+    fn stats(&self) -> PcmStats {
+        (**self).stats()
+    }
+    fn clear(&mut self) {
+        (**self).clear()
     }
 }

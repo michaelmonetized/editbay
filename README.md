@@ -145,3 +145,9 @@ save or recover the editable document. Cancel and Retry supervise the actual
 codec job. See [native preview](docs/NATIVE_PREVIEW.md) for ownership, timing,
 color and qualification limits. Audio-clock scheduling and complete delivery
 remain open.
+
+`editbay-lab pcm-worker SOURCE [WORKER_BINARY]` checks bounded original-channel
+sound transport through a packaged app/CLI codec child. `sound-blocks-worker`
+uses that route in the same nested gain/mix renderer as `sound-blocks`.
+See [isolated sound](docs/WORKER_SOUND.md) for ownership, budgets, cancellation
+and the remaining streaming playback and delivery gates.

@@ -99,9 +99,11 @@ normalizes document audio to sample units. Cache/live outputs and decoder scratc
 have separate bounds; consumer-held samples remain charged after eviction.
 The sound renderer uses exact unity-rate copies and declared anti-aliasing sinc
 interpolation, private compiler/worker ownership and native cancellation. Its
-camera/multichannel receipts are worker evidence. Streaming callback scheduling,
-sound codec process isolation and complete shared delivery remain open; see
-[sound blocks](SOUND_BLOCKS.md).
+camera/multichannel receipts are worker evidence. The same renderer now accepts
+isolated original-channel PCM from supervised packaged codec processes, using
+sealed mappings, independent parent/child budgets and shared cancellation
+ownership; see [isolated sound](WORKER_SOUND.md). Streaming callback scheduling
+and complete shared delivery remain open; see [sound blocks](SOUND_BLOCKS.md).
 Schema 1 migrates after integrity verification without writing its source; unknown
 schemas fail. Format-copy migration uses a separate destination.
 

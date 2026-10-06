@@ -140,3 +140,14 @@ sound-only high-water memory is **50,592/56,976 KiB** against 256 MiB. Failed
 preparation candidates remain recorded; no budget was raised. See
 [sound block evidence](evidence/r2-sound/README.md). These receipts do not close
 device callback, sound codec isolation, two-hour drift or shared delivery gates.
+
+The isolated sound dependency passes its declared PCM handoff p95 <=10 ms gate
+at <=0.087751 ms over 4000 actual shared app/CLI transfers. All camera/six-channel
+raw and nested graph routes agree exactly with independent PCM. Preparation p95
+<=2.465802 ms, unity render <=1.030712 ms and sinc <=28.541994 ms retain their
+existing bounds; combined parent/child HWM <=90016 KiB is within 512 MiB.
+Active cancellation/join/reap <=3.158221 ms and SIGSTOP fallback <=102.833721 ms
+pass 2 s. Earlier sinc/preparation misses are retained separately. See
+[isolated sound evidence](evidence/r2-sound-worker/README.md). This closes the
+bounded PCM process route, while native streaming, natural source timing,
+devices, long drift, shared delivery and full R2 remain separate open gates.

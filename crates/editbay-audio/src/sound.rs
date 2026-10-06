@@ -1,5 +1,7 @@
 use editbay_core::{DocumentVersion, SoundBlockPlan, SoundProfile, SoundSample, SoundSnapshot};
-use editbay_media::{Cancellation, Error, NativePcmCache, PcmBudget, PcmStats, Result};
+use editbay_media::{
+    Cancellation, Error, NativePcmCache, PcmBudget, PcmProvider, PcmStats, Result,
+};
 use serde::Serialize;
 use std::{
     f64::consts::PI,
@@ -93,9 +95,9 @@ impl SoundResult {
 }
 
 /// Retained native sound evaluator shared by preview and durable delivery workers.
-pub struct SoundRenderer {
+pub struct SoundRenderer<P: PcmProvider = NativePcmCache> {
     snapshot: Arc<SoundSnapshot>,
-    pcm: NativePcmCache,
+    pcm: P,
     budget: SoundRenderBudget,
     live: Arc<AtomicUsize>,
     cancel: Cancellation,
@@ -111,6 +113,33 @@ impl SoundRenderer {
         budget: SoundRenderBudget,
         cancel: Cancellation,
     ) -> Result<Self> {
+        let pcm = NativePcmCache::new(snapshot.evaluation().clone(), pcm_budget, cancel.clone())?;
+        Self::with_provider(snapshot, pcm, budget)
+    }
+}
+impl<P: PcmProvider> SoundRenderer<P> {
+    /// Inspect the source provider for supervision and resource measurements.
+    /// Takes no arguments; returns the retained provider without ownership mutation.
+    pub fn pcm_provider(&self) -> &P {
+        &self.pcm
+    }
+    /// Bind a captured sound graph to an existing native or isolated PCM provider.
+    /// `snapshot` and `pcm` must own the same evaluation snapshot; `budget`
+    /// bounds rendering. Returns an evaluator sharing the provider's cancellation.
+    pub fn with_provider(
+        snapshot: Arc<SoundSnapshot>,
+        pcm: P,
+        budget: SoundRenderBudget,
+    ) -> Result<Self> {
+        let cancel = pcm.cancellation().clone();
+        if cancel.is_cancelled() {
+            return Err(Error::Cancelled);
+        }
+        if !Arc::ptr_eq(snapshot.evaluation(), pcm.snapshot()) {
+            return Err(Error::Invalid(
+                "sound provider owns a different source snapshot".into(),
+            ));
+        }
         if budget.live_bytes == 0
             || budget.live_bytes > 512 * 1024 * 1024
             || budget.operations == 0
@@ -120,7 +149,6 @@ impl SoundRenderer {
                 "sound render budgets exceed supported limits".into(),
             ));
         }
-        let pcm = NativePcmCache::new(snapshot.evaluation().clone(), pcm_budget, cancel.clone())?;
         Ok(Self {
             snapshot,
             pcm,
@@ -267,7 +295,7 @@ impl SoundRenderer {
 
     /// Reject foreign or obsolete rendered publications.
     /// `result` is a rendered block; returns success only under this worker owner.
-    pub fn validate_result(&self, result: &SoundResult) -> Result<()> {
+    pub fn validate_result(&mut self, result: &SoundResult) -> Result<()> {
         self.check()?;
         if !Arc::ptr_eq(&self.owner, &result.owner) {
             return Err(Error::Invalid(
@@ -278,7 +306,7 @@ impl SoundRenderer {
     }
     /// Recheck all decoded source bytes before durable delivery publication.
     /// Takes no arguments; returns after every retained source checksum matches.
-    pub fn verify_sources(&self) -> Result<()> {
+    pub fn verify_sources(&mut self) -> Result<()> {
         self.pcm.verify_sources()
     }
     /// Inspect retained native sample accounting.
