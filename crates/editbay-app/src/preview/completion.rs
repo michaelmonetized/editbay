@@ -28,6 +28,7 @@ pub(crate) struct Completed {
     pub request_serial: u64,
     pub elapsed_us: u64,
     pub request_to_draw_us: u64,
+    pub selection_to_draw_us: u64,
 }
 
 struct Shared {
@@ -46,9 +47,16 @@ pub(super) struct Publisher {
 
 impl Publisher {
     /// Report one real GPU display completion without waiting for the UI.
-    /// `frame`, `serial` and `request_to_draw_us` identify the completed picture.
+    /// `frame` and `serial` own the picture; timings measure preparation-request
+    /// and sound-clock selection through this completion.
     /// Returns immediately; bounded-channel loss is retained as invalid evidence.
-    pub(super) fn completed(&self, frame: u64, serial: u64, request_to_draw_us: u64) {
+    pub(super) fn completed(
+        &self,
+        frame: u64,
+        serial: u64,
+        request_to_draw_us: u64,
+        selection_to_draw_us: u64,
+    ) {
         if !self.shared.open.load(Ordering::Acquire) {
             return;
         }
@@ -60,6 +68,7 @@ impl Publisher {
             request_serial: serial,
             elapsed_us: self.began.elapsed().as_micros() as u64,
             request_to_draw_us,
+            selection_to_draw_us,
         };
         if self.shared.queue.push(receipt).is_err() {
             self.shared.overflow.fetch_add(1, Ordering::AcqRel);
@@ -295,6 +304,7 @@ mod tests {
                 request_serial: frame + 1,
                 elapsed_us,
                 request_to_draw_us: 10,
+                selection_to_draw_us: 5,
             })
             .unwrap();
     }
@@ -339,7 +349,7 @@ mod tests {
     fn overflow_foreign_ranges_cancellation_and_retired_publishers_never_pass() {
         let mut overflowing = log(0, 100);
         for frame in 0..=CAPACITY as u64 {
-            overflowing.publisher().completed(frame, frame, 10);
+            overflowing.publisher().completed(frame, frame, 10, 5);
         }
         overflowing.observe_end();
         assert_eq!(overflowing.summary().overflow, 1);
@@ -359,6 +369,7 @@ mod tests {
                 request_serial: 1,
                 elapsed_us: 0,
                 request_to_draw_us: 0,
+                selection_to_draw_us: 0,
             })
             .unwrap();
         wrong.observe_end();
@@ -366,12 +377,12 @@ mod tests {
         assert!(wrong.summary().missing_by_observed_end.is_none());
         let retired = wrong.publisher();
         wrong.cancel();
-        retired.completed(12, 2, 10);
+        retired.completed(12, 2, 10, 5);
         wrong.poll();
         assert_eq!(wrong.summary().received, 3);
         assert!(wrong.summary().cancelled);
         drop(wrong);
-        retired.completed(13, 3, 10);
+        retired.completed(13, 3, 10, 5);
         assert_eq!(retired.shared.overflow.load(Ordering::Acquire), 0);
     }
 
@@ -386,7 +397,7 @@ mod tests {
                 threads.spawn(move || {
                     barrier.wait();
                     for frame in producer * 4..producer * 4 + 4 {
-                        publisher.completed(frame, frame + 1, 10);
+                        publisher.completed(frame, frame + 1, 10, 5);
                     }
                 });
             }
