@@ -22,8 +22,10 @@ step, normalized over the complete kernel. Presentation-edge padding is zero.
 The source step is composed through every nested time-map segment. Steps above
 16 source samples per output sample are rejected before media IO.
 
-Default core bounds: 4096 output frames, 64 source paths, 256 path steps,
-262144 resolved positions, 1048576 primitive operations. Native PCM bounds:
+Default core block bounds: 4096 output frames, 64 possibly active source paths, 256 path steps,
+262144 resolved positions, 1048576 primitive operations. Longer cuts use the
+[conservative interval index](SOUND_INDEX.md) with separately bounded compiled
+paths and storage. Native PCM bounds:
 131072 frames per request, 32 MiB cache, 64 MiB live PCM, 64 entries, 8 retained
 sources, 2 decoders, 262144 decoded frames per request. Each decoder has at most
 65536 x 64 float samples of adapter scratch (16 MiB); codec-library internal

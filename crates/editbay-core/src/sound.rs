@@ -4,8 +4,12 @@ use crate::{
 };
 use serde::Serialize;
 use sha2::{Digest, Sha256};
-use std::{collections::HashSet, sync::Arc};
+use std::{
+    collections::{HashMap, HashSet},
+    sync::Arc,
+};
 use uuid::Uuid;
+mod index;
 
 /// Explicit sound output with unchanged source channel identities.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
@@ -14,9 +18,14 @@ pub struct SoundProfile {
     pub channels: Vec<String>,
 }
 
-/// Bounds for compiled paths and each prepared sound block.
+/// Separate bounds for retained paths and each prepared sound block.
+/// `compiled_paths`, `compiled_steps` and `intervals` bound storage. `leaves`
+/// bounds possibly active paths; position and operation limits charge only them.
 #[derive(Debug, Clone, Copy)]
 pub struct SoundBudget {
+    pub compiled_paths: usize,
+    pub compiled_steps: usize,
+    pub intervals: usize,
     pub leaves: usize,
     pub path_steps: usize,
     pub block_frames: u32,
@@ -27,6 +36,9 @@ pub struct SoundBudget {
 impl Default for SoundBudget {
     fn default() -> Self {
         Self {
+            compiled_paths: 16_384,
+            compiled_steps: 1_048_576,
+            intervals: 65_536,
             leaves: 64,
             path_steps: 256,
             block_frames: 4096,
@@ -36,7 +48,7 @@ impl Default for SoundBudget {
     }
 }
 
-#[derive(Clone, Copy)]
+#[derive(Clone, Copy, PartialEq, Eq, Hash)]
 enum Step {
     Node(usize, usize),
     Clip(usize, usize, usize),
@@ -46,6 +58,23 @@ struct Leaf {
     source: Uuid,
     stream: u32,
     steps: Vec<Step>,
+}
+
+/// Retained sound path and interval counts, independent of playback duration.
+#[derive(Debug, Clone, Copy, Serialize)]
+pub struct SoundIndexStats {
+    pub paths: usize,
+    pub steps: usize,
+    pub intervals: usize,
+}
+
+/// Actual bounded work selected for a single sound block.
+#[derive(Debug, Clone, Copy, Serialize)]
+pub struct SoundPreparationStats {
+    pub lookup_nodes: usize,
+    pub active_paths: usize,
+    pub positions: usize,
+    pub operations: usize,
 }
 
 /// Exact source sample center and gain for one output sample.
@@ -81,6 +110,7 @@ pub struct SoundBlockPlan {
     first_sample: u64,
     frames: u32,
     sources: Vec<SoundSourcePlan>,
+    work: SoundPreparationStats,
     sha256: String,
 }
 
@@ -101,9 +131,15 @@ impl SoundBlockPlan {
         (self.first_sample, self.frames)
     }
     /// Inspect resolved source contributions without granting mutation.
-    /// Takes no arguments and returns source-center/gain plans including silence.
+    /// Takes no arguments and returns possible contributors including per-sample
+    /// silence. Paths outside the block's conservative interval can be absent.
     pub fn sources(&self) -> &[SoundSourcePlan] {
         &self.sources
+    }
+    /// Inspect charged work without exposing mutable planning state.
+    /// Takes no arguments; returns interval visits and conservative active work.
+    pub fn work(&self) -> SoundPreparationStats {
+        self.work
     }
     /// Inspect this block's semantic content identity.
     /// Takes no arguments and returns its hash, independent of document labels/revision.
@@ -120,6 +156,8 @@ pub struct SoundSnapshot {
     profile: SoundProfile,
     budget: SoundBudget,
     leaves: Vec<Leaf>,
+    index: index::Index,
+    steps: usize,
     owner: Arc<()>,
     fingerprint: String,
     duration_samples: u64,
@@ -178,6 +216,12 @@ impl SoundSnapshot {
             || profile.channels.iter().collect::<HashSet<_>>().len() != profile.channels.len()
             || budget.leaves == 0
             || budget.leaves > 256
+            || budget.compiled_paths == 0
+            || budget.compiled_paths > 65_536
+            || budget.compiled_steps == 0
+            || budget.compiled_steps > 8_388_608
+            || budget.intervals == 0
+            || budget.intervals > 1_048_576
             || budget.path_steps == 0
             || budget.path_steps > 1024
             || budget.block_frames == 0
@@ -210,6 +254,8 @@ impl SoundSnapshot {
             profile,
             budget,
             leaves: Vec::new(),
+            index: index::Index::default(),
+            steps: 0,
             owner: Arc::new(()),
             fingerprint: String::new(),
             duration_samples,
@@ -217,6 +263,7 @@ impl SoundSnapshot {
         if let Some(audio) = compiled.snapshot.project().compositions[root].audio {
             compiled.walk(root, audio, Vec::new())?;
         }
+        compiled.compile_index()?;
         if infer_channels && let Some(leaf) = compiled.leaves.first() {
             let (_, stream, _) = compiled.snapshot.source_stream(leaf.source, leaf.stream)?;
             let StreamFormat::Audio { channels, .. } = &stream.format else {
@@ -224,7 +271,12 @@ impl SoundSnapshot {
             };
             compiled.profile.channels = channels.clone();
         }
-        let mut semantic = Vec::new();
+        let mut fingerprint = Sha256::new();
+        fingerprint.update(b"editbay-sound-graph-3");
+        fingerprint.update(hash(&compiled.profile)?.as_bytes());
+        fingerprint.update((compiled.leaves.len() as u64).to_le_bytes());
+        let mut sources = HashMap::new();
+        let mut steps = HashMap::new();
         for leaf in &compiled.leaves {
             let (asset, stream, _) = compiled.snapshot.source_stream(leaf.source, leaf.stream)?;
             if !matches!(&stream.format, StreamFormat::Audio { channels, .. } if *channels == compiled.profile.channels)
@@ -233,20 +285,38 @@ impl SoundSnapshot {
                     "source channel identities require explicit routing",
                 ));
             }
-            let steps = leaf.steps.iter().map(|step| match *step {
-                Step::Node(scene, node) => {
-                    let node = &compiled.snapshot.project().compositions[scene].nodes[node];
-                    serde_json::json!({"range":node.range,"operation":node.operation,"animation":node.animation})
+            let source = match sources.entry((leaf.source, leaf.stream)) {
+                std::collections::hash_map::Entry::Occupied(entry) => entry.into_mut(),
+                std::collections::hash_map::Entry::Vacant(entry) => {
+                    entry.insert(hash(&(leaf.source, stream, asset.bytes, &asset.sha256))?)
                 }
-                Step::Clip(scene, track, clip) => {
-                    let track = &compiled.snapshot.project().compositions[scene].tracks[track];
-                    let clip = &track.clips[clip];
-                    serde_json::json!({"enabled":track.enabled,"range":clip.range,"source":clip.source,"time_map":clip.time_map})
-                }
-            }).collect::<Vec<_>>();
-            semantic.push(serde_json::json!({"source":leaf.source,"stream":stream,"bytes":asset.bytes,"sha256":asset.sha256,"steps":steps}));
+            };
+            fingerprint.update(source.as_bytes());
+            fingerprint.update((leaf.steps.len() as u64).to_le_bytes());
+            for step in &leaf.steps {
+                let stamp = match steps.entry(*step) {
+                    std::collections::hash_map::Entry::Occupied(entry) => entry.into_mut(),
+                    std::collections::hash_map::Entry::Vacant(entry) => {
+                        let stamp = match *step {
+                            Step::Node(scene, node) => {
+                                let node =
+                                    &compiled.snapshot.project().compositions[scene].nodes[node];
+                                hash(&(node.range, &node.operation, &node.animation))?
+                            }
+                            Step::Clip(scene, track, clip) => {
+                                let track =
+                                    &compiled.snapshot.project().compositions[scene].tracks[track];
+                                let clip = &track.clips[clip];
+                                hash(&(track.enabled, clip.range, clip.source, &clip.time_map))?
+                            }
+                        };
+                        entry.insert(stamp)
+                    }
+                };
+                fingerprint.update(stamp.as_bytes());
+            }
         }
-        compiled.fingerprint = hash(&(compiled.profile.clone(), semantic))?;
+        compiled.fingerprint = format!("{:x}", fingerprint.finalize());
         Ok(compiled)
     }
 
@@ -286,9 +356,16 @@ impl SoundSnapshot {
                         let StreamFormat::Audio { .. } = &profile.format else {
                             return Err(invalid("sound source is not audio"));
                         };
-                        if self.leaves.len() >= self.budget.leaves {
+                        if self.leaves.len() >= self.budget.compiled_paths {
                             return Err(invalid("compiled sound graph exceeds its source budget"));
                         }
+                        self.steps = self
+                            .steps
+                            .checked_add(steps.len())
+                            .filter(|count| *count <= self.budget.compiled_steps)
+                            .ok_or_else(|| {
+                                invalid("compiled sound graph exceeds its total step budget")
+                            })?;
                         self.leaves.push(Leaf {
                             source,
                             stream,
@@ -320,6 +397,46 @@ impl SoundSnapshot {
             _ => return Err(invalid("unsupported sound operation")),
         }
         Ok(())
+    }
+
+    fn compile_index(&mut self) -> Result<()> {
+        let project = self.snapshot.project();
+        let mut builder = index::Builder::new(self.budget.intervals);
+        for (id, leaf) in self.leaves.iter().enumerate() {
+            let mut spans = None;
+            for step in leaf.steps.iter().rev() {
+                spans = Some(match *step {
+                    Step::Node(scene, node) => {
+                        builder.intersect(spans, project.compositions[scene].nodes[node].range)?
+                    }
+                    Step::Clip(scene, track, clip) => {
+                        let track = &project.compositions[scene].tracks[track];
+                        if track.enabled {
+                            builder.preimage(spans, &track.clips[clip])?
+                        } else {
+                            Vec::new()
+                        }
+                    }
+                });
+                if spans.as_ref().is_some_and(Vec::is_empty) {
+                    break;
+                }
+            }
+            self.index
+                .add(id, spans.unwrap_or_default(), self.budget.intervals)?;
+        }
+        self.index.finish();
+        Ok(())
+    }
+
+    /// Inspect bounded compiled storage before preparing sound.
+    /// Takes no arguments; returns retained paths, path steps and root intervals.
+    pub fn index_stats(&self) -> SoundIndexStats {
+        SoundIndexStats {
+            paths: self.leaves.len(),
+            steps: self.steps,
+            intervals: self.index.len(),
+        }
     }
 
     /// Inspect the exact output duration without float rounding.
@@ -360,25 +477,54 @@ impl SoundSnapshot {
             || first_sample
                 .checked_add(u64::from(frames))
                 .is_none_or(|end| end > self.duration_samples)
-            || self
-                .leaves
-                .len()
-                .checked_mul(frames as usize)
-                .is_none_or(|count| count > self.budget.positions)
-            || self
-                .leaves
-                .iter()
-                .map(|leaf| leaf.steps.len())
-                .sum::<usize>()
-                .checked_mul(frames as usize)
-                .is_none_or(|count| count > self.budget.operations)
         {
             return Err(invalid(
                 "sound block exceeds its interval or preparation budget",
             ));
         }
         let composition = &self.snapshot.project().compositions[self.root];
-        let centers = if self.leaves.is_empty() {
+        let first = sample_center(
+            first_sample,
+            self.profile.sample_rate,
+            composition.frame_rate,
+        )?;
+        let last = sample_center(
+            first_sample + u64::from(frames) - 1,
+            self.profile.sample_rate,
+            composition.frame_rate,
+        )?;
+        let (paths, visited) = self.index.query(first, last, self.budget.leaves)?;
+        self.prepare_paths(first_sample, frames, &paths, visited)
+    }
+
+    fn prepare_paths(
+        &self,
+        first_sample: u64,
+        frames: u32,
+        paths: &[usize],
+        lookup_nodes: usize,
+    ) -> Result<SoundBlockPlan> {
+        let positions = paths
+            .len()
+            .checked_mul(frames as usize)
+            .filter(|count| *count <= self.budget.positions)
+            .ok_or_else(|| invalid("sound block exceeds its position budget"))?;
+        let operations = paths
+            .iter()
+            .map(|id| self.leaves[*id].steps.len())
+            .sum::<usize>()
+            .checked_mul(frames as usize)
+            .and_then(|count| count.checked_add(lookup_nodes))
+            .filter(|count| *count <= self.budget.operations)
+            .ok_or_else(|| invalid("sound block exceeds its operation budget"))?;
+        let work = SoundPreparationStats {
+            lookup_nodes,
+            active_paths: paths.len(),
+            positions,
+            operations,
+        };
+        let composition = &self.snapshot.project().compositions[self.root];
+        let centers = if paths.is_empty() {
             Vec::new()
         } else {
             (first_sample..first_sample + u64::from(frames))
@@ -399,8 +545,9 @@ impl SoundSnapshot {
                 })
                 .collect::<Result<Vec<_>>>()?
         };
-        let mut sources = Vec::with_capacity(self.leaves.len());
-        for leaf in &self.leaves {
+        let mut sources = Vec::with_capacity(paths.len());
+        for id in paths {
+            let leaf = &self.leaves[*id];
             let (asset, stream, fingerprint) =
                 self.snapshot.source_stream(leaf.source, leaf.stream)?;
             let StreamFormat::Audio { sample_rate, .. } = stream.format else {
@@ -490,6 +637,7 @@ impl SoundSnapshot {
             first_sample,
             frames,
             sources,
+            work,
             sha256,
         })
     }

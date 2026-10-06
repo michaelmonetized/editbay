@@ -219,10 +219,8 @@ fn cuts_inactive_tracks_and_freeze_are_explicit_silence() {
         sound(p.clone(), 48000, SoundBudget::default())
             .prepare(48000, 32)
             .unwrap()
-            .sources()[0]
-            .samples
-            .iter()
-            .all(Option::is_none)
+            .sources()
+            .is_empty()
     );
     p.compositions[0].tracks[0].enabled = true;
     p.compositions[0].tracks[0].clips[0].time_map = map(24, 48000, 48000);
@@ -230,10 +228,8 @@ fn cuts_inactive_tracks_and_freeze_are_explicit_silence() {
         sound(p, 48000, SoundBudget::default())
             .prepare(48000, 32)
             .unwrap()
-            .sources()[0]
-            .samples
-            .iter()
-            .all(Option::is_none)
+            .sources()
+            .is_empty()
     );
 }
 
@@ -501,7 +497,7 @@ fn finite_gain_overflow_and_compiled_leaf_explosion_are_rejected() {
                 channels: vec!["FL".into(), "FR".into()]
             },
             SoundBudget {
-                leaves: 1,
+                compiled_paths: 1,
                 ..SoundBudget::default()
             }
         )
@@ -523,4 +519,198 @@ fn fractional_composition_tail_is_silence_beyond_the_exact_duration() {
     let tail = compiled.prepare(1470, 2).unwrap();
     assert!(tail.sources()[0].samples[0].is_some());
     assert!(tail.sources()[0].samples[1].is_none());
+}
+
+fn sequential_sound(count: usize) -> Project {
+    let mut project = project();
+    let scene = &mut project.compositions[0];
+    let template = scene.tracks[0].clips[0].clone();
+    scene.duration = count as u64 * 24;
+    scene.tracks[0].clips.clear();
+    scene.nodes.clear();
+    let full = FrameRange {
+        start: 0,
+        end: scene.duration,
+    };
+    let mut sources = Vec::new();
+    for index in 0..count {
+        let clip_id = id(1000 + index as u128 * 2);
+        let node_id = id(1001 + index as u128 * 2);
+        let range = FrameRange {
+            start: index as u64 * 24,
+            end: (index as u64 + 1) * 24,
+        };
+        let mut clip = template.clone();
+        clip.id = clip_id;
+        clip.range = range;
+        clip.time_map = if index.is_multiple_of(2) {
+            map(24, 0, 48000)
+        } else {
+            map(24, 48000, 0)
+        };
+        scene.tracks[0].clips.push(clip);
+        scene.nodes.push(TimedNode {
+            id: node_id,
+            range,
+            operation: NodeOperation::Source { clip: clip_id },
+            animation: vec![],
+        });
+        sources.push(node_id);
+    }
+    let mut groups = Vec::new();
+    for (index, sources) in sources.chunks(128).enumerate() {
+        let group = id(100000 + index as u128);
+        scene.nodes.push(TimedNode {
+            id: group,
+            range: full,
+            operation: NodeOperation::Mix {
+                inputs: sources.to_vec(),
+            },
+            animation: vec![],
+        });
+        groups.push(group);
+    }
+    scene.nodes.push(TimedNode {
+        id: id(200000),
+        range: full,
+        operation: NodeOperation::Mix { inputs: groups },
+        animation: vec![],
+    });
+    scene.audio = Some(id(200000));
+    project
+}
+
+#[test]
+fn thousand_clip_sound_charges_only_the_active_cut_and_keeps_exact_samples() {
+    let snapshot = sound(sequential_sound(1024), 48000, SoundBudget::default());
+    assert_eq!(snapshot.index_stats().paths, 1024);
+    assert_eq!(snapshot.index_stats().steps, 4096);
+    assert_eq!(snapshot.index_stats().intervals, 1024);
+    for cut in [0u64, 1, 15, 127, 128, 511, 512, 1023] {
+        let plan = snapshot.prepare(cut * 48000 + 12000, 4096).unwrap();
+        assert_eq!(plan.sources().len(), 1);
+        assert_eq!(plan.work().active_paths, 1);
+        assert_eq!(plan.work().positions, 4096);
+        assert!(plan.work().lookup_nodes < 64);
+        assert!(plan.work().operations < 17000);
+        for (index, value) in plan.sources()[0].samples.iter().enumerate() {
+            let value = value.unwrap();
+            let center = if cut.is_multiple_of(2) {
+                24001 + index as i64 * 2
+            } else {
+                71999 - index as i64 * 2
+            };
+            assert_eq!(value.center, SourcePosition::new(center, 2).unwrap());
+            assert_eq!(value.reverse, !cut.is_multiple_of(2));
+        }
+    }
+    let boundary = snapshot.prepare(48000 - 1, 2).unwrap();
+    assert_eq!(boundary.sources().len(), 2);
+    assert!(boundary.sources()[0].samples[0].is_some());
+    assert!(boundary.sources()[0].samples[1].is_none());
+    assert!(boundary.sources()[1].samples[0].is_none());
+    assert!(boundary.sources()[1].samples[1].is_some());
+}
+
+#[test]
+fn nested_reverse_selects_cull_the_child_timeline_without_losing_sample_centers() {
+    let mut project = sequential_sound(1024);
+    let child = &project.compositions[0];
+    let duration = child.duration;
+    let mut outer = child.clone();
+    outer.id = id(900001);
+    outer.duration = 96;
+    outer.frame_rate = FrameRate::new(48, 1).unwrap();
+    outer.tracks.truncate(1);
+    outer.tracks[0].id = id(900002);
+    outer.tracks[0].clips.truncate(1);
+    let clip = &mut outer.tracks[0].clips[0];
+    clip.id = id(900003);
+    clip.range = FrameRange { start: 0, end: 96 };
+    clip.source = ClipSource::Composition {
+        composition: id(30),
+    };
+    clip.time_map = map(96, duration as i64, duration as i64 - 48);
+    outer.nodes = vec![TimedNode {
+        id: id(900004),
+        range: clip.range,
+        operation: NodeOperation::Source { clip: clip.id },
+        animation: vec![],
+    }];
+    outer.audio = Some(id(900004));
+    project.compositions.push(outer);
+    let snapshot = SoundSnapshot::at_output_rate(
+        Arc::new(EvaluationSnapshot::new(Arc::new(project)).unwrap()),
+        id(900001),
+        48000,
+        SoundBudget::default(),
+    )
+    .unwrap();
+    assert_eq!(snapshot.index_stats().paths, 1024);
+    assert!(snapshot.index_stats().intervals <= 3);
+    let plan = snapshot.prepare(12000, 4096).unwrap();
+    assert_eq!(plan.work().active_paths, 1);
+    for (index, value) in plan.sources()[0].samples.iter().enumerate() {
+        let value = value.unwrap();
+        assert_eq!(
+            value.center,
+            SourcePosition::new(24001 + index as i64 * 2, 2).unwrap()
+        );
+        assert!(!value.reverse);
+        assert_eq!(value.step, 1.);
+    }
+}
+
+#[test]
+fn compiled_storage_and_active_block_budgets_remain_independent() {
+    let project = sequential_sound(128);
+    let compile = |budget| {
+        SoundSnapshot::at_output_rate(
+            Arc::new(EvaluationSnapshot::new(Arc::new(project.clone())).unwrap()),
+            id(30),
+            48000,
+            budget,
+        )
+    };
+    for budget in [
+        SoundBudget {
+            compiled_paths: 127,
+            ..SoundBudget::default()
+        },
+        SoundBudget {
+            compiled_steps: 511,
+            ..SoundBudget::default()
+        },
+        SoundBudget {
+            intervals: 127,
+            ..SoundBudget::default()
+        },
+    ] {
+        assert!(compile(budget).is_err());
+    }
+    let sound = compile(SoundBudget {
+        leaves: 1,
+        ..SoundBudget::default()
+    })
+    .unwrap();
+    assert!(sound.prepare(12000, 4096).is_ok());
+    assert!(sound.prepare(47999, 2).is_err());
+    assert!(
+        compile(SoundBudget {
+            positions: 4095,
+            ..SoundBudget::default()
+        })
+        .unwrap()
+        .prepare(12000, 4096)
+        .is_err()
+    );
+    assert!(
+        compile(SoundBudget {
+            operations: 16384,
+            ..SoundBudget::default()
+        })
+        .unwrap()
+        .prepare(12000, 4096)
+        .is_err()
+    );
 }

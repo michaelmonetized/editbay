@@ -17,6 +17,7 @@ mod delivery_protocol;
 mod device_protocol;
 mod gpu_graph;
 mod inventory;
+mod long_sound;
 mod media_ingest;
 mod native_workspace;
 mod natural_sound;
@@ -932,6 +933,12 @@ fn run(args: Vec<OsString>) -> Result<()> {
             Path::new(&args[1]),
             args[2].to_str().ok_or("Composition must be UTF-8")?,
             Path::new(&args[3]),
+        )?,
+        ("long-sound", 5) => long_sound::run(
+            Path::new(&args[1]),
+            Path::new(&args[2]),
+            Path::new(&args[3]),
+            number(&args[4])?,
         )?,
         ("device-protocol", 3) => device_protocol::run(
             Path::new(&args[1]),
