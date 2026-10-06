@@ -833,6 +833,12 @@ fn run(args: Vec<OsString>) -> Result<()> {
             Path::new(&args[3]),
             Path::new(&args[4]),
         )?,
+        ("native-range-jobs", 5) => native_workspace::range_jobs(
+            Path::new(&args[1]),
+            Path::new(&args[2]),
+            Path::new(&args[3]),
+            Path::new(&args[4]),
+        )?,
         ("shared-delivery", 4 | 5) => shared_delivery::run(
             Path::new(&args[1]),
             args[2].to_str().ok_or("Composition must be UTF-8")?,
@@ -1089,6 +1095,7 @@ fn run(args: Vec<OsString>) -> Result<()> {
             println!("  range-delivery CLI_BINARY PROJECT COMPOSITION NEW_DIRECTORY");
             println!("  range-fault PROJECT COMPOSITION NEW_MOV MODE");
             println!("  native-range APP_BINARY PROJECT FULL_MASTER NEW_DIRECTORY");
+            println!("  native-range-jobs APP_BINARY PROJECT FULL_MASTER NEW_DIRECTORY");
             println!("  mask-graph SAVED_SOURCE_PROJECT NEW_EVIDENCE_DIRECTORY");
             println!("  native-masks APP_BINARY MASK_PROJECT NEW_EVIDENCE_DIRECTORY");
             println!("  timeline-compare PROJECT COMPOSITION UNCUT_MASTER CUT_MASTER");

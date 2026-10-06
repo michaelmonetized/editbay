@@ -1,0 +1,99 @@
+{
+  "binary_sha256": "8a3e30fc8b76f6bfa1f169d728ca3448ff82786aa2e056bd34659bc1659bff70",
+  "collision_preserved": true,
+  "destination": "/home/michael/Projects/editbay/artifacts/worktrees/r2-sound-worker/artifacts/range-delivery/prepared/faults/six-channel-kill.mov",
+  "elapsed_ms": 257.47200799999996,
+  "error": "invalid media request: codec worker failed: filesystem: Connection reset by peer (os error 104); ",
+  "independent": null,
+  "kind": "shared_delivery_qualification",
+  "memory": [
+    "VmHWM:\t   36464 kB",
+    "VmRSS:\t   36464 kB"
+  ],
+  "mode": "kill",
+  "observations": [
+    {
+      "elapsed_ms": 1.2922159999999998,
+      "progress": {
+        "phase": "preparing",
+        "pictures": 0,
+        "prepared_samples": 0,
+        "samples": 0,
+        "total_pictures": 0,
+        "total_preparation_samples": 4004,
+        "total_samples": 0
+      }
+    },
+    {
+      "elapsed_ms": 66.14393,
+      "progress": {
+        "phase": "preparing",
+        "pictures": 0,
+        "prepared_samples": 0,
+        "samples": 0,
+        "total_pictures": 5,
+        "total_preparation_samples": 4004,
+        "total_samples": 10010
+      }
+    },
+    {
+      "elapsed_ms": 66.45330700000001,
+      "progress": {
+        "phase": "preparing",
+        "pictures": 0,
+        "prepared_samples": 2002,
+        "samples": 0,
+        "total_pictures": 5,
+        "total_preparation_samples": 4004,
+        "total_samples": 10010
+      }
+    },
+    {
+      "elapsed_ms": 66.643475,
+      "progress": {
+        "phase": "rendering",
+        "pictures": 0,
+        "prepared_samples": 4004,
+        "samples": 0,
+        "total_pictures": 5,
+        "total_preparation_samples": 4004,
+        "total_samples": 10010
+      }
+    },
+    {
+      "elapsed_ms": 90.804424,
+      "progress": {
+        "phase": "rendering",
+        "pictures": 1,
+        "prepared_samples": 4004,
+        "samples": 2002,
+        "total_pictures": 5,
+        "total_preparation_samples": 4004,
+        "total_samples": 10010
+      }
+    },
+    {
+      "elapsed_ms": 105.11255799999999,
+      "progress": {
+        "phase": "rendering",
+        "pictures": 2,
+        "prepared_samples": 4004,
+        "samples": 4004,
+        "total_pictures": 5,
+        "total_preparation_samples": 4004,
+        "total_samples": 10010
+      }
+    }
+  ],
+  "published": false,
+  "qualified": true,
+  "range": {
+    "end": 7,
+    "start": 2
+  },
+  "receipt": null,
+  "retirement_ms": 8.507555,
+  "schema": 1,
+  "worker_high_water_kib": 115024,
+  "worker_reaped": true
+}

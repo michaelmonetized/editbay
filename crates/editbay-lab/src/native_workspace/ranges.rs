@@ -1,5 +1,14 @@
 use super::*;
 
+pub(super) fn choose(trace: &mut Trace, destination: &Path) -> Result<()> {
+    click_control(trace, "export-sequence")?;
+    click_control(trace, "export-range")?;
+    input(trace, "export-start", 2)?;
+    input(trace, "export-end", 7)?;
+    click_control(trace, "export-continue")?;
+    choose_destination(destination)
+}
+
 fn input(trace: &mut Trace, field: &str, value: u64) -> Result<()> {
     let after = click_control(trace, field)?;
     trace.wait("range field keyboard focus", |r| {
