@@ -232,6 +232,7 @@ impl<P: PcmProvider> SoundRenderer<P> {
             if input.pcm().interval().2 != channels {
                 return Err(Error::Invalid("sound channel routing is undeclared".into()));
             }
+            let input_samples = input.pcm().samples();
             for (frame, point) in points.iter().enumerate() {
                 if frame.is_multiple_of(32) {
                     self.check()?;
@@ -243,9 +244,8 @@ impl<P: PcmProvider> SoundRenderer<P> {
                 let out = &mut mixed[frame * channels..(frame + 1) * channels];
                 if point.exact {
                     let index = (point.start - start) as usize * channels;
-                    for (value, sample) in out
-                        .iter_mut()
-                        .zip(&input.pcm().samples()[index..index + channels])
+                    for (value, sample) in
+                        out.iter_mut().zip(&input_samples[index..index + channels])
                     {
                         *value += f64::from(*sample) * gain;
                     }
@@ -255,7 +255,7 @@ impl<P: PcmProvider> SoundRenderer<P> {
                     let mut accumulate = |relative: i64, weight: f64| {
                         let offset = (point.origin + relative - start) as usize * channels;
                         for (channel, value) in sum[..channels].iter_mut().enumerate() {
-                            *value += f64::from(input.pcm().samples()[offset + channel]) * weight;
+                            *value += f64::from(input_samples[offset + channel]) * weight;
                         }
                     };
                     if let Some(kernel) = self.kernels.get(point) {
