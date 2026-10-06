@@ -9,74 +9,6 @@ pub(super) struct Store {
     channels: usize,
 }
 
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn anonymous_storage_preserves_bits_and_rejects_incomplete_or_cancelled_io() {
-        let directory = tempfile::tempdir().unwrap();
-        let cancel = Cancellation::new().unwrap();
-        let mut store = Store::new(directory.path(), -2, 2).unwrap();
-        let samples = vec![0., -0., f32::MIN_POSITIVE, f32::from_bits(1), -1.25, 3.5];
-        let block = AudioBlock {
-            source_tick: None,
-            first_sample: Some(-2),
-            samples: samples.clone(),
-        };
-        assert!(store.append(&block, 23, &cancel).is_err());
-        assert_eq!(store.bytes(), 0);
-        assert_eq!(store.append(&block, 24, &cancel).unwrap(), 24);
-        assert_eq!(store.append(&block, 0, &cancel).unwrap(), 0);
-        let mut actual = vec![0.; samples.len()];
-        store.read(-2, &mut actual, &cancel).unwrap();
-        assert!(
-            actual
-                .iter()
-                .zip(&samples)
-                .all(|(a, b)| a.to_bits() == b.to_bits())
-        );
-        assert_eq!(std::fs::read_dir(directory.path()).unwrap().count(), 0);
-        assert!(store.read(-3, &mut actual, &cancel).is_err());
-        assert!(store.read(-2, &mut actual[..5], &cancel).is_err());
-        let gap = AudioBlock {
-            first_sample: Some(2),
-            source_tick: None,
-            samples: samples.clone(),
-        };
-        assert!(store.append(&gap, 24, &cancel).is_err());
-        let unaligned = AudioBlock {
-            first_sample: Some(1),
-            samples: vec![1.],
-            source_tick: None,
-        };
-        assert!(store.append(&unaligned, 24, &cancel).is_err());
-        cancel.cancel();
-        let next = AudioBlock {
-            first_sample: Some(1),
-            ..block
-        };
-        assert!(matches!(
-            store.append(&next, 24, &cancel),
-            Err(Error::Cancelled)
-        ));
-        assert_eq!(store.bytes(), 24);
-        assert_eq!(store.file.metadata().unwrap().len(), 24);
-        assert!(matches!(
-            store.read(-2, &mut actual, &cancel),
-            Err(Error::Cancelled)
-        ));
-        store.file.set_len(20).unwrap();
-        assert!(
-            store
-                .read(-2, &mut actual, &Cancellation::new().unwrap())
-                .is_err()
-        );
-        drop(store);
-        assert_eq!(std::fs::read_dir(directory.path()).unwrap().count(), 0);
-    }
-}
-
 impl Store {
     /// Own an empty anonymous PCM file in an explicitly selected directory.
     /// `first` and `channels` declare the canonical sample grid. Returns storage
@@ -200,5 +132,73 @@ impl Store {
             return Err(Error::Cancelled);
         }
         Ok(())
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn anonymous_storage_preserves_bits_and_rejects_incomplete_or_cancelled_io() {
+        let directory = tempfile::tempdir().unwrap();
+        let cancel = Cancellation::new().unwrap();
+        let mut store = Store::new(directory.path(), -2, 2).unwrap();
+        let samples = vec![0., -0., f32::MIN_POSITIVE, f32::from_bits(1), -1.25, 3.5];
+        let block = AudioBlock {
+            source_tick: None,
+            first_sample: Some(-2),
+            samples: samples.clone(),
+        };
+        assert!(store.append(&block, 23, &cancel).is_err());
+        assert_eq!(store.bytes(), 0);
+        assert_eq!(store.append(&block, 24, &cancel).unwrap(), 24);
+        assert_eq!(store.append(&block, 0, &cancel).unwrap(), 0);
+        let mut actual = vec![0.; samples.len()];
+        store.read(-2, &mut actual, &cancel).unwrap();
+        assert!(
+            actual
+                .iter()
+                .zip(&samples)
+                .all(|(a, b)| a.to_bits() == b.to_bits())
+        );
+        assert_eq!(std::fs::read_dir(directory.path()).unwrap().count(), 0);
+        assert!(store.read(-3, &mut actual, &cancel).is_err());
+        assert!(store.read(-2, &mut actual[..5], &cancel).is_err());
+        let gap = AudioBlock {
+            first_sample: Some(2),
+            source_tick: None,
+            samples: samples.clone(),
+        };
+        assert!(store.append(&gap, 24, &cancel).is_err());
+        let unaligned = AudioBlock {
+            first_sample: Some(1),
+            samples: vec![1.],
+            source_tick: None,
+        };
+        assert!(store.append(&unaligned, 24, &cancel).is_err());
+        cancel.cancel();
+        let next = AudioBlock {
+            first_sample: Some(1),
+            ..block
+        };
+        assert!(matches!(
+            store.append(&next, 24, &cancel),
+            Err(Error::Cancelled)
+        ));
+        assert_eq!(store.bytes(), 24);
+        assert_eq!(store.file.metadata().unwrap().len(), 24);
+        assert!(matches!(
+            store.read(-2, &mut actual, &cancel),
+            Err(Error::Cancelled)
+        ));
+        store.file.set_len(20).unwrap();
+        assert!(
+            store
+                .read(-2, &mut actual, &Cancellation::new().unwrap())
+                .is_err()
+        );
+        drop(store);
+        assert_eq!(std::fs::read_dir(directory.path()).unwrap().count(), 0);
     }
 }

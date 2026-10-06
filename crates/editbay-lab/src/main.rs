@@ -12,6 +12,7 @@ use std::{
 };
 use tempfile::NamedTempFile;
 
+mod canonical_oracle;
 mod canonical_pcm;
 mod delivery_interrupts;
 mod delivery_protocol;
@@ -868,6 +869,15 @@ fn run(args: Vec<OsString>) -> Result<()> {
                 .map(std::path::PathBuf::from)
                 .unwrap_or(std::env::current_exe()?),
         )?,
+        ("canonical-master", 5) => canonical_oracle::run(
+            Path::new(&args[1]),
+            args[2]
+                .to_str()
+                .ok_or("Composition must be UTF-8")?
+                .parse()?,
+            Path::new(&args[3]),
+            Path::new(&args[4]),
+        )?,
         ("stream-sound", 2 | 3) => streaming_sound::run(
             Path::new(&args[1]),
             args.get(2)
@@ -1120,6 +1130,7 @@ fn run(args: Vec<OsString>) -> Result<()> {
             println!("  natural-sound SOURCE [WORKER_BINARY]");
             println!("  stream-sound SOURCE [full|cancel|kill|underrun]");
             println!("  canonical-pcm SOURCE [WORKER_BINARY]");
+            println!("  canonical-master PROJECT COMPOSITION MASTER NEW_DIRECTORY");
             println!("  sustain-sound SOURCE SECONDS NEW_DIRECTORY");
             #[cfg(feature = "torch-reference")]
             println!(

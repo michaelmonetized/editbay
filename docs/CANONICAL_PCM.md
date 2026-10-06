@@ -1,6 +1,8 @@
 # Canonical source sound
 
-Issue #53 follows #51 / PR #52. Source PCM is decoded sequentially from its
+Issue [#53](https://github.com/michaelmonetized/editbay/issues/53) /
+[PR #54](https://github.com/michaelmonetized/editbay/pull/54) follows #51 / PR #52.
+Source PCM is decoded sequentially from its
 presentation start and retained in private anonymous files. Cold late reads,
 backward access and overlapping intervals use the same original float samples.
 A decoder evicted from memory reopens at the beginning and advances through its
@@ -39,7 +41,18 @@ independent sequential PCM. Malformed/foreign/stale progress is rejected.
 `editbay-lab canonical-pcm SOURCE [WORKER_BINARY]` measures ten fresh late reads
 and 320 warm random reads against independent FFmpeg PCM; its unchanged gates are
 1-second cold / 250 ms warm p95, exact sample bits and bounded storage/cleanup.
-Real camera/multichannel, full output and native workflow evidence is pending.
+Frozen `1210983` passes all three real-media suites on the camera, six-channel AAC
+and 45-second stereo AAC fixtures. Each canonical trial compares original sample
+bits, including backward/overlapping intervals and declared zero-padded edges.
+
+| Fixture | Cold late p95 (10) | Warm random p95 (320) |
+| --- | ---: | ---: |
+| Camera mono 48 kHz | 524.125 ms | 0.409 ms |
+| Six-channel 48 kHz | 204.953 ms | 0.773 ms |
+| Stereo 44.1 kHz, 45 seconds | 177.637 ms | 1.755 ms |
+
+The existing actual PCM transport and sound-block suites also pass their original
+gates for all three sources. Full output and native workflow evidence is pending.
 
 Preparation is currently demanded by requested source intervals. Cold future
 source jumps during active playback can still require more preparation than the

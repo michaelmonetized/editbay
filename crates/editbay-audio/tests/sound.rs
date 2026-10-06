@@ -127,6 +127,65 @@ fn reference(path: &Path) -> Vec<f32> {
         .map(|v| f32::from_le_bytes(*v))
         .collect()
 }
+
+#[test]
+fn late_resampled_aac_matches_full_independent_decode_across_overlapping_reads() {
+    let directory = tempfile::tempdir().unwrap();
+    let original = directory.path().join("original.wav");
+    let captured = fixture(&original, 997);
+    let aac = directory.path().join("encoded.m4a");
+    let decoded = directory.path().join("decoded.wav");
+    for (input, output, codec) in [(&original, &aac, "aac"), (&aac, &decoded, "pcm_f32le")] {
+        let result = Command::new("ffmpeg")
+            .args(["-v", "error", "-i"])
+            .arg(input)
+            .args(["-c:a", codec])
+            .arg(output)
+            .output()
+            .unwrap();
+        assert!(
+            result.status.success(),
+            "{}",
+            String::from_utf8_lossy(&result.stderr)
+        );
+    }
+    let with_source = |path: &Path| {
+        let cancel = Cancellation::new().unwrap();
+        let mut imported = SourceFile::open(path, &cancel)
+            .unwrap()
+            .ingest("Decoded history".into(), &[0], cancel, |_, _| {})
+            .unwrap();
+        let mut project = captured.clone();
+        imported.asset.id = project.assets[0].id;
+        imported.source.id = project.sources[0].id;
+        imported.source.asset = imported.asset.id;
+        imported.source.streams[0].duration_ticks = Some(192000);
+        project.assets[0] = imported.asset;
+        project.sources[0] = imported.source;
+        project
+    };
+    let (aac_plan, mut aac_renderer) =
+        renderer(with_source(&aac), 44100, SoundRenderBudget::default());
+    let (decoded_plan, mut decoded_renderer) =
+        renderer(with_source(&decoded), 44100, SoundRenderBudget::default());
+    for first in [147000, 145000, 126000, 128000, 127500, 170000, 0] {
+        let actual = aac_renderer
+            .render(&aac_plan.prepare(first, 4096).unwrap())
+            .unwrap();
+        let expected = decoded_renderer
+            .render(&decoded_plan.prepare(first, 4096).unwrap())
+            .unwrap();
+        assert!(
+            actual
+                .sound()
+                .samples()
+                .iter()
+                .zip(expected.sound().samples())
+                .all(|(actual, expected)| actual.to_bits() == expected.to_bits()),
+            "late block {first}"
+        );
+    }
+}
 #[test]
 fn unchanged_samples_reverse_and_mix_preserve_original_channel_order_and_headroom() {
     let dir = tempfile::tempdir().unwrap();

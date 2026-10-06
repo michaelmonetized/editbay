@@ -103,9 +103,12 @@ stepping after full endpoint evaluation; all other paths retain full temporal
 evaluation. Storage and active-block budgets remain separate; see
 [longer-cut sound planning](SOUND_INDEX.md). The retained native PCM cache
 preserves original rates/channel identities, decoded sample origins and float
-headroom. Container seeking uses the original native time base even when ingest
-normalizes document audio to sample units. Cache/live outputs and decoder scratch
-have separate bounds; consumer-held samples remain charged after eviction.
+headroom. It prepares canonical sequential PCM from presentation start in bounded
+steps, retaining original bits in anonymous files independently of decoder
+eviction. Disk bytes/handles, cache/live outputs and decoder scratch have separate
+bounds; consumer-held samples remain charged after eviction. Supervised source
+progress is validated and displayed outside the callback; see
+[canonical source sound](CANONICAL_PCM.md).
 The sound renderer uses exact unity-rate copies and declared anti-aliasing sinc
 interpolation, private compiler/worker ownership and native cancellation. Its
 camera/multichannel receipts are worker evidence. The same renderer now accepts

@@ -1,11 +1,14 @@
 # Rust restart: implementation status
 
-Issue [#53](https://github.com/michaelmonetized/editbay/issues/53) adds
+Issue [#53](https://github.com/michaelmonetized/editbay/issues/53) / draft
+[PR #54](https://github.com/michaelmonetized/editbay/pull/54) adds
 [canonical source PCM](CANONICAL_PCM.md): bounded sequential preparation in
 anonymous files, original-bit random reads after decoder eviction, supervised
 source-progress replies and native preparation status. Local and actual worker
-tests pass; fresh real-media, native workflow and full workspace qualification
-are pending. Preparation ahead of future playback cuts remains open.
+tests pass. Frozen `1210983` passes camera/six-channel/45-second AAC original-bit
+comparisons, cold p95 <=524.125 ms and warm p95 <=1.755 ms, plus existing PCM and
+sound-block worker gates. Native workflow and full workspace qualification are
+pending. Preparation ahead of future playback cuts remains open.
 
 Issue [#51](https://github.com/michaelmonetized/editbay/issues/51) / draft
 [PR #52](https://github.com/michaelmonetized/editbay/pull/52) adds bounded exact
