@@ -40,7 +40,8 @@ The final device trial streamed a **45-second** quiet synthetic H.264/AAC source
 **16,384 frames**, zero monitor clips and no underrun. Elapsed wall time including
 startup/retirement was 45.164823 s; parent HWM **57,584 KiB**. It exceeds the old
 30-second full-buffer feasibility limit without growing the prepared queue.
-`device-full.json` retains every observation. Separate actual cancellation,
+`device-full.json.gz` retains every observation; `device-full.json` summarizes it.
+Separate actual cancellation,
 SIGKILL and SIGSTOP trials retired in **5.085176 / 42.391541 / 421.035280 ms**;
 all owned children were reaped. The stopped codec exhausts prepared sound, causes
 a visible underrun and cancels the underlying process. A video-only source also
