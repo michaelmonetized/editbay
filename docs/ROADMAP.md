@@ -241,6 +241,11 @@ independent decode verification, captured ownership, cancellation and retry.
 Complete playback workloads, broader delivery profiles, long hardware drift and
 full R2 acceptance remain open. Timeline authoring continues next.
 
+Issue #30 isolates native device discovery, playback and teardown in a packaged
+Rust child, supervised independently of the editor. It retains the same bounded
+sound renderer and exact clock, with validated status, cancellation and visible
+backend failure/retry. See [device containment](SOUND_DEVICE_WORKER.md).
+
 ## R3 — finish a paying edit
 
 Issue [#29](https://github.com/michaelmonetized/editbay/issues/29) implements the

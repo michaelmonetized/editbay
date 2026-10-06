@@ -2158,6 +2158,23 @@ pub fn run(binary: &Path, directory: &Path, count: usize) -> Result<Value> {
 /// `binary`, `project` and new `directory` select actual content and evidence.
 /// Returns native input receipts, saved/recovered identity and decoded output.
 pub fn timeline(binary: &Path, project: &Path, directory: &Path) -> Result<Value> {
+    timeline_run(binary, project, directory, false)
+}
+
+/// Prove device failure leaves native editing, save, recovery and export usable.
+/// `binary`, `project` and new `directory` select the app and evidence. Returns
+/// actual process failure, visible retry and the complete linked-cut workflow.
+pub fn device_timeline(binary: &Path, project: &Path, directory: &Path) -> Result<Value> {
+    rustix::process::set_child_subreaper(Some(rustix::process::Pid::INIT))?;
+    timeline_run(binary, project, directory, true)
+}
+
+fn timeline_run(
+    binary: &Path,
+    project: &Path,
+    directory: &Path,
+    device_trials: bool,
+) -> Result<Value> {
     let binary = binary.canonicalize()?;
     let original = project.canonicalize()?;
     let original_hash = hash(&original)?;
@@ -2192,6 +2209,11 @@ pub fn timeline(binary: &Path, project: &Path, directory: &Path) -> Result<Value
         Some(&copy),
     )?;
     picture(&mut trace, 0, 0)?;
+    let device_failures = if device_trials {
+        Some(native_device_failures(&mut trace, &directory)?)
+    } else {
+        None
+    };
     click_control(&mut trace, "source-media")?;
     set_frame(&mut trace, 4)?;
     key(23, false, false)?;
@@ -2419,7 +2441,7 @@ pub fn timeline(binary: &Path, project: &Path, directory: &Path) -> Result<Value
         "composition":composition,"source":source,"revision":revision,"clips":final_clips,"input_latency":latency,"edits":edits,
         "cut_before":before_cut,"cut_after":after_cut,"playing":playing,"paused":paused,"undo":undone,"redo":redone,
         "saved_recovered_equal":true,"reopened_timeline":reopened_timeline,"reopened_picture":reopened_picture,
-        "compact_picture":compact_picture,
+        "compact_picture":compact_picture,"device_failures":device_failures,
         "source_project_unchanged":true,"completed":completed,"independent":independent,
         "limits":["Software-injected native input","No physical audibility, client acceptance or independent-user claim"]});
     File::create_new(directory.join("qualification.json"))?
@@ -2446,4 +2468,69 @@ fn set_timeline_input(trace: &mut Trace, name: &str, value: u64) -> Result<()> {
     command("wtype", &["-s", "40", &value.to_string(), "-s", "80"])?;
     key(28, false, false)?;
     Ok(())
+}
+
+fn native_device_failures(trace: &mut Trace, directory: &Path) -> Result<Value> {
+    let mut reports = Vec::new();
+    for (mode, signal) in [
+        ("death", "-KILL"),
+        ("stall", "-STOP"),
+        ("cancel-stall", "-STOP"),
+    ] {
+        set_frame(trace, 0)?;
+        let active = play_sound(trace)?;
+        let device = active["details"]["sound"]["device_worker_pid"]
+            .as_u64()
+            .ok_or("Missing device child")?;
+        let pcm = active["details"]["sound"]["worker_pid"]
+            .as_u64()
+            .ok_or("Missing PCM child")?;
+        let after = now();
+        command("kill", &[signal, &device.to_string()])?;
+        let stopped = if mode == "cancel-stall" {
+            pause_sound(trace)?
+        } else {
+            sound_record(trace, "visible device failure", after, |details| {
+                details["sound_active"] == false
+                    && details["sound_retiring"] == 0
+                    && details["error"].is_string()
+            })?
+        };
+        let elapsed_ms = (stopped["unix_us"]
+            .as_u64()
+            .ok_or("Missing device failure time")?
+            - after) as f64
+            / 1000.;
+        crate::device_protocol::reap_orphan(
+            pcm as u32,
+            Instant::now() + Duration::from_millis(500),
+        )?;
+        if elapsed_ms > 2000.
+            || Path::new(&format!("/proc/{device}")).exists()
+            || Path::new(&format!("/proc/{pcm}")).exists()
+        {
+            return Err("Native device failure retained a child or exceeded two seconds".into());
+        }
+        command(
+            "grim",
+            &[
+                "-g",
+                "80,80 1440x900",
+                directory
+                    .join(format!("device-{mode}.png"))
+                    .to_str()
+                    .unwrap(),
+            ],
+        )?;
+        set_frame(trace, 0)?;
+        let retry = play_sound(trace)?;
+        if retry["details"]["sound"]["device_worker_pid"] == device
+            || retry["details"]["sound"]["worker_pid"] == pcm
+        {
+            return Err("Device retry reused a failed child".into());
+        }
+        let paused = pause_sound(trace)?;
+        reports.push(json!({"mode":mode,"active":active,"stopped":stopped,"retirement_ms":elapsed_ms,"retry":retry,"paused":paused,"device_and_pcm_reaped":true}));
+    }
+    Ok(json!({"qualified":true,"reports":reports}))
 }

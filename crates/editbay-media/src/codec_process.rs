@@ -110,6 +110,19 @@ impl<T: DeserializeOwned + Send + 'static> Process<T> {
         cancel: &Cancellation,
         descriptor: Option<&OwnedFd>,
     ) -> Result<(T, Option<OwnedFd>)> {
+        self.exchange_file_timeout(request, cancel, descriptor, Duration::from_secs(120))
+    }
+
+    pub(crate) fn exchange_file_timeout(
+        &mut self,
+        request: &impl Serialize,
+        cancel: &Cancellation,
+        descriptor: Option<&OwnedFd>,
+        timeout: Duration,
+    ) -> Result<(T, Option<OwnedFd>)> {
+        if timeout.is_zero() || timeout > Duration::from_secs(120) {
+            return Err(Error::Invalid("invalid native request deadline".into()));
+        }
         if cancel.is_cancelled() {
             return Err(Error::Cancelled);
         }
@@ -120,8 +133,8 @@ impl<T: DeserializeOwned + Send + 'static> Process<T> {
             if cancel.is_cancelled() {
                 return Err(Error::Cancelled);
             }
-            if started.elapsed() > Duration::from_secs(120) {
-                return Err(self.error("response exceeded 120 seconds"));
+            if started.elapsed() > timeout {
+                return Err(self.error(format!("response exceeded {} ms", timeout.as_millis())));
             }
             match self.responses.recv_timeout(Duration::from_millis(2)) {
                 Ok(Ok(packet)) => return Ok(packet),

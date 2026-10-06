@@ -189,3 +189,11 @@ matching-profile subset, not full EB-030/031 or the paying-edit gate. Broader
 editing/interchange, production client acceptance, sustained hardware workloads
 and R4–R11/adoption gates remain open. The reproduced host portal failure is
 retained; supervised sound-device isolation continues as issue #30.
+
+Sound-device isolation is a separate EB-023/025 dependency: actual backend death,
+stall, cancellation and controller-death trials must retire both process layers
+within two seconds, preserve the editor, and permit playback retry followed by
+native edit/save/recovery/export. Typed protocol substitution checks supplement
+those real process trials. This does not close physical audibility, device unplug,
+two-hour drift or the full R2 hardware gates. See
+[device containment](SOUND_DEVICE_WORKER.md).

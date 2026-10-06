@@ -1,8 +1,8 @@
 use editbay_core::SoundProfile;
-use serde::Serialize;
+use serde::{Deserialize, Serialize};
 
 /// An explicit listening route; source and delivery channels remain unchanged.
-#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Serialize)]
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
 pub enum MonitorRoute {
     Original,
     #[default]

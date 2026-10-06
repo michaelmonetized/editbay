@@ -10,10 +10,12 @@ queue stops with a visible error; Play creates a fresh lifetime.
 ## Preparation and device work
 
 `StreamingPlayback` captures an immutable project and its document version.
-Its worker owns device discovery, graph compilation, the packaged `--pcm-worker`
-child, shared `SoundRenderer`, monitor routing and stream teardown. The UI only
-requests cancellation, reads bounded events and atomics, and joins finished jobs.
-It never waits for device, codec or filesystem work.
+Its supervised packaged `--sound-device-worker` owns device discovery, graph
+compilation, the packaged `--pcm-worker` child, shared `SoundRenderer`, monitor
+routing and stream teardown. The UI requests cancellation, copies the latest
+validated status and joins only finished supervisors. It never waits for device,
+codec or filesystem work. See [device isolation](SOUND_DEVICE_WORKER.md) for
+ownership, response deadlines and failure recovery.
 
 The producer renders 4,096-frame blocks. A preallocated single-producer,
 single-consumer queue retains at most 16,384 device frames regardless of sequence

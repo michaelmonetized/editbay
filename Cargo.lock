@@ -1210,6 +1210,7 @@ dependencies = [
  "editbay-core",
  "editbay-media",
  "serde",
+ "serde_json",
  "tempfile",
  "uuid",
 ]
@@ -1232,6 +1233,7 @@ dependencies = [
 name = "editbay-cli"
 version = "0.1.0"
 dependencies = [
+ "editbay-audio",
  "editbay-core",
  "editbay-delivery",
  "editbay-media",

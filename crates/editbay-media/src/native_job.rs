@@ -4,6 +4,7 @@ use std::{
     fs::File,
     os::{fd::OwnedFd, unix::net::UnixStream},
     path::Path,
+    time::Duration,
 };
 
 /// A supervised packaged job using bounded messages and one optional owned file.
@@ -32,8 +33,23 @@ impl<R: DeserializeOwned + Send + 'static> NativeJob<R> {
         file: Option<&File>,
         cancel: &Cancellation,
     ) -> Result<R> {
+        self.request_with_timeout(request, file, cancel, Duration::from_secs(120))
+    }
+
+    /// Exchange one operation with a caller-declared bounded response deadline.
+    /// `request`, `file` and `cancel` retain ordinary job ownership; `timeout`
+    /// must be positive and at most 120 seconds. Returns a typed reply or failure.
+    pub fn request_with_timeout(
+        &mut self,
+        request: &impl Serialize,
+        file: Option<&File>,
+        cancel: &Cancellation,
+        timeout: Duration,
+    ) -> Result<R> {
         let descriptor: Option<OwnedFd> = file.map(File::try_clone).transpose()?.map(Into::into);
-        let (reply, file) = self.0.exchange_file(request, cancel, descriptor.as_ref())?;
+        let (reply, file) =
+            self.0
+                .exchange_file_timeout(request, cancel, descriptor.as_ref(), timeout)?;
         if file.is_some() {
             return Err(Error::Invalid(
                 "job returned an unexpected descriptor".into(),

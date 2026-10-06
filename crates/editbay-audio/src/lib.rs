@@ -1,19 +1,21 @@
 //! Bounded shared sound evaluation and device-clock playback feasibility.
 
+mod device_worker;
 mod monitor;
 mod sample_clock;
 mod sound;
 mod streaming;
 mod transport;
+pub use device_worker::{StreamingPlayback, serve_device_worker};
 pub use monitor::MonitorRoute;
 pub use sound::{SoundBuffer, SoundRenderBudget, SoundRenderer, SoundResult};
-pub use streaming::{PlaybackPhase, PlaybackStart, StreamingPlayback, StreamingStatus};
+pub use streaming::{PlaybackPhase, PlaybackStart, StreamingStatus};
 
 use cpal::{
     FromSample, SizedSample,
     traits::{DeviceTrait, HostTrait, StreamTrait},
 };
-use serde::Serialize;
+use serde::{Deserialize, Serialize};
 use std::{
     sync::{
         Arc,
@@ -24,7 +26,8 @@ use std::{
 
 type Result<T> = std::result::Result<T, Box<dyn std::error::Error>>;
 
-#[derive(Debug, Clone, Serialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
 pub struct DeviceProfile {
     pub name: String,
     pub sample_rate: u32,
