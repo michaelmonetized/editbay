@@ -2,8 +2,9 @@
 
 Issue [#24](https://github.com/michaelmonetized/editbay/issues/24) supplies native
 Play/Pause, exact sample resume, frame seek, end/replay, device-clock picture
-scheduling and supervised sound preparation. This layer follows natural sound
-PR #25. See the [implementation contract](../../STREAMING_SOUND.md).
+scheduling and supervised sound preparation in
+[PR #27](https://github.com/michaelmonetized/editbay/pull/27). This layer follows
+natural sound PR #25. See the [implementation contract](../../STREAMING_SOUND.md).
 
 Qualified runtime source: `9daa7c5` (full identity in `source-commit.txt`). The
 compiled input manifest, lockfile and frozen app/lab hashes accompany this file.
