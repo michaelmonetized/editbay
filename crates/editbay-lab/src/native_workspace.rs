@@ -2486,6 +2486,7 @@ fn native_device_failures(trace: &mut Trace, directory: &Path) -> Result<Value> 
             .as_u64()
             .ok_or("Missing PCM child")?;
         let after = now();
+        let began = Instant::now();
         command("kill", &[signal, &device.to_string()])?;
         let stopped = if mode == "cancel-stall" {
             pause_sound(trace)?
@@ -2496,15 +2497,8 @@ fn native_device_failures(trace: &mut Trace, directory: &Path) -> Result<Value> 
                     && details["error"].is_string()
             })?
         };
-        let elapsed_ms = (stopped["unix_us"]
-            .as_u64()
-            .ok_or("Missing device failure time")?
-            - after) as f64
-            / 1000.;
-        crate::device_protocol::reap_orphan(
-            pcm as u32,
-            Instant::now() + Duration::from_millis(500),
-        )?;
+        crate::device_protocol::reap_orphan(pcm as u32, began + Duration::from_secs(2))?;
+        let elapsed_ms = began.elapsed().as_secs_f64() * 1000.;
         if elapsed_ms > 2000.
             || Path::new(&format!("/proc/{device}")).exists()
             || Path::new(&format!("/proc/{pcm}")).exists()
