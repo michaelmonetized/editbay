@@ -426,6 +426,8 @@ fn run(request: &Request, sender: &SyncSender<Event>) -> Result<()> {
         origin,
         cursor: 0,
         backend_origin: None,
+        backend_previous: None,
+        backend_epoch: 0,
         end,
     };
     let mut config: cpal::StreamConfig = supported.clone().into();
@@ -494,6 +496,8 @@ struct Callback {
     origin: Instant,
     cursor: u64,
     backend_origin: Option<cpal::StreamInstant>,
+    backend_previous: Option<cpal::StreamInstant>,
+    backend_epoch: u64,
     end: u64,
 }
 
@@ -523,6 +527,20 @@ fn build<T: SizedSample + FromSample<f32>>(
                     .cursor
                     .saturating_add((output.len() / channels) as u64);
                 let timestamp = info.timestamp();
+                let callback_ns = elapsed_ns(callback.origin);
+                if callback
+                    .backend_previous
+                    .is_some_and(|previous| timestamp.callback < previous)
+                {
+                    if callback.backend_epoch != 0 || callback_ns >= 1_000_000_000 {
+                        callback.control.stop(State::InvalidOutput);
+                        callback.cancel.cancel();
+                        return;
+                    }
+                    callback.backend_epoch = 1;
+                    callback.backend_origin = Some(timestamp.callback);
+                }
+                callback.backend_previous = Some(timestamp.callback);
                 let backend_origin = callback.backend_origin.get_or_insert(timestamp.callback);
                 let Some(backend_elapsed) = timestamp.callback.duration_since(backend_origin)
                 else {
@@ -537,8 +555,11 @@ fn build<T: SizedSample + FromSample<f32>>(
                 if !callback.clock.record(
                     callback.cursor,
                     submitted,
-                    elapsed_ns(callback.origin),
-                    backend_elapsed.as_nanos().min(u128::from(u64::MAX)) as u64,
+                    callback_ns,
+                    (
+                        callback.backend_epoch,
+                        backend_elapsed.as_nanos().min(u128::from(u64::MAX)) as u64,
+                    ),
                     latency,
                     limit,
                 ) {

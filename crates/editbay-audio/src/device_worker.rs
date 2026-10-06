@@ -374,6 +374,7 @@ fn validate(
                 if observed.callbacks == 0
                     || observed.callbacks != status.callbacks
                     || observed.reported_latency_ns != status.reported_latency_ns
+                    || observed.backend_epoch > 1
                     || observed.submitted_frames <= observed.buffer_start_frames
                     || observed.submitted_frames - observed.buffer_start_frames
                         > u64::from(CAPACITY)
@@ -386,7 +387,11 @@ fn validate(
                             || observed.buffer_start_frames < prior.buffer_start_frames
                             || observed.submitted_frames < prior.submitted_frames
                             || observed.callback_elapsed_ns < prior.callback_elapsed_ns
-                            || observed.backend_elapsed_ns < prior.backend_elapsed_ns
+                            || observed.backend_epoch < prior.backend_epoch
+                            || (observed.backend_epoch == prior.backend_epoch
+                                && observed.backend_elapsed_ns < prior.backend_elapsed_ns)
+                            || (observed.backend_epoch > prior.backend_epoch
+                                && prior.callback_elapsed_ns >= 1_000_000_000)
                             || observed.valid_end_sample > prior.valid_end_sample
                             || (observed.callbacks == prior.callbacks && observed != prior)
                             || (observed.callbacks > prior.callbacks
@@ -531,6 +536,7 @@ mod tests {
             submitted_frames: 1440,
             callback_elapsed_ns: 21000000,
             backend_elapsed_ns: 20000000,
+            backend_epoch: 0,
             reported_latency_ns: 0,
             valid_end_sample: 48048,
         });
@@ -595,6 +601,7 @@ mod tests {
                 json!(19000000),
             ),
             ("/status/clock_observation/reported_latency_ns", json!(1)),
+            ("/status/clock_observation/backend_epoch", json!(2)),
             ("/status/clock_observation/valid_end_sample", json!(48049)),
             ("/status/prepared_frames", json!(16385)),
             ("/status/prepared_capacity_frames", json!(16385)),

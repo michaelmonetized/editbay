@@ -67,6 +67,9 @@ impl Drift {
             return Ok(());
         }
         let first = *self.first.get_or_insert(observed);
+        if first.backend_epoch != observed.backend_epoch {
+            return Err("Backend timestamp epoch changed after settling".into());
+        }
         let frames = observed
             .buffer_start_frames
             .checked_sub(first.buffer_start_frames)
@@ -423,6 +426,7 @@ mod tests {
             submitted_frames: 48480,
             callback_elapsed_ns: 1_010_000_000,
             backend_elapsed_ns: 1_000_000_000,
+            backend_epoch: 0,
             reported_latency_ns: 30_000_000,
             valid_end_sample: 480000,
         };
