@@ -2654,6 +2654,7 @@ pub fn long_timeline(binary: &Path, project: &Path, directory: &Path) -> Result<
     {
         return Err("Native long cut did not reach its exact end".into());
     }
+    trace.focus()?;
     key(31, true, false)?;
     trace.wait("saved long cut", |r| {
         has_tab(r, &seed.name, revision) && r["details"]["tabs"][0]["dirty"] == false
