@@ -117,7 +117,7 @@ impl Drift {
             "absolute_p50_upper_ms":percentile(50),"absolute_p95_upper_ms":percentile(95),
             "histogram_resolution_ms":0.1,"histogram_overflow_at_ms":200,
             "histogram_overflow_observations":self.buckets[2000],
-            "definition":"Elapsed device frames minus elapsed backend callback plus reported playback latency; relative to the first observed callback after one backend second. Host time and raw callback jitter are reported separately."})
+            "definition":"Elapsed device frames minus the elapsed sum of backend callback time and reported playback latency; relative to the first observed callback after one backend second. Host time and raw callback jitter are reported separately."})
     }
 }
 
@@ -176,6 +176,35 @@ fn resources(observed: &mut BTreeSet<u32>) -> Result<u64> {
         return Err("Process memory sample is empty".into());
     }
     Ok(total)
+}
+
+fn host_pressure() -> Result<Value> {
+    let memory = fs::read_to_string("/proc/meminfo")?;
+    let amount = |name: &str| -> Result<u64> {
+        Ok(memory
+            .lines()
+            .find_map(|line| line.strip_prefix(name)?.split_whitespace().next())
+            .ok_or("Host memory field absent")?
+            .parse()?)
+    };
+    let total = |path: &str, name: &str| -> Result<u64> {
+        let pressure = fs::read_to_string(path)?;
+        Ok(pressure
+            .lines()
+            .find(|line| line.starts_with(name))
+            .and_then(|line| {
+                line.split_whitespace()
+                    .find_map(|part| part.strip_prefix("total="))
+            })
+            .ok_or("Host pressure field absent")?
+            .parse()?)
+    };
+    Ok(
+        json!({"available_kib":amount("MemAvailable:")?,"swap_free_kib":amount("SwapFree:")?,
+        "cpu_stall_us":total("/proc/pressure/cpu", "some ")?,
+        "memory_stall_us":total("/proc/pressure/memory", "some ")?,
+        "memory_full_stall_us":total("/proc/pressure/memory", "full ")?}),
+    )
 }
 
 fn author(path: &Path, seconds: u64, directory: &Path) -> Result<(Project, uuid::Uuid, Value)> {
@@ -329,7 +358,7 @@ pub fn run(path: &Path, seconds: u64, directory: &Path) -> Result<Value> {
             drift.record(clock, device.sample_rate)?;
         }
         let line = serde_json::to_vec(
-            &json!({"elapsed_ns":began.elapsed().as_nanos() as u64,"status":status,"combined_rss_kib":rss}),
+            &json!({"elapsed_ns":began.elapsed().as_nanos() as u64,"status":status,"combined_rss_kib":rss,"host":host_pressure()?}),
         )?;
         bytes += line.len() as u64 + 1;
         polls += 1;

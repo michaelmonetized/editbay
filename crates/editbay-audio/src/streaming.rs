@@ -432,7 +432,7 @@ fn run(request: &Request, sender: &SyncSender<Event>) -> Result<()> {
     };
     let mut config: cpal::StreamConfig = supported.clone().into();
     if let cpal::SupportedBufferSize::Range { min, max } = supported.buffer_size() {
-        config.buffer_size = cpal::BufferSize::Fixed(512u32.clamp(*min, *max));
+        config.buffer_size = cpal::BufferSize::Fixed(2048u32.clamp(*min, *max));
     }
     let stream = match supported.sample_format() {
         cpal::SampleFormat::F32 => build::<f32>(&device, &config, callback),
@@ -533,7 +533,7 @@ fn build<T: SizedSample + FromSample<f32>>(
                     .is_some_and(|previous| timestamp.callback < previous)
                 {
                     if callback.backend_epoch != 0 || callback_ns >= 1_000_000_000 {
-                        callback.control.stop(State::InvalidOutput);
+                        callback.control.stop(State::BackendClockReset);
                         callback.cancel.cancel();
                         return;
                     }
@@ -586,6 +586,9 @@ fn fault(state: State) -> Option<&'static str> {
     match state {
         State::SourceFailed => Some("Sound preparation stopped before the sequence ended"),
         State::DeviceFailed => Some("Sound output device failed; retry playback"),
+        State::BackendClockReset => {
+            Some("Sound backend timestamp reset after playback started; retry playback")
+        }
         State::Underrun => Some(
             "Sound preparation fell behind the device; playback stopped without skipping source samples",
         ),
