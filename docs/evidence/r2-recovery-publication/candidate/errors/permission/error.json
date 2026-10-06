@@ -1,0 +1,66 @@
+{
+  "checkpoint_sha256": "e3f19498ba22217af9fc41f019ffccfad70dc00c99edbdeedc3f7b3fc5c7fe45",
+  "error": {
+    "details": {
+      "active": "bbe747cb-f930-4217-9ba8-32cdc252de8f",
+      "last_recovery_accept_us": null,
+      "last_recovery_worker_commit_us": null,
+      "recovery_publications": 0,
+      "tabs": [
+        {
+          "assets": 0,
+          "compositions": 0,
+          "dirty": true,
+          "name": "Storage failure QA",
+          "path": null,
+          "project": "b81ff9f2-6c25-4462-9aa5-b872374f6684",
+          "recovery_error": "filesystem error: Permission denied (os error 13)",
+          "recovery_revision": null,
+          "revision": 0,
+          "session": "bbe747cb-f930-4217-9ba8-32cdc252de8f",
+          "sources": 0
+        }
+      ]
+    },
+    "dropped_before": 0,
+    "kind": "workspace",
+    "pid": 403032,
+    "unix_us": 1791296720128747
+  },
+  "false_checkpoint_acknowledgement": false,
+  "input_injection_to_ui_acceptance": {
+    "count": 1,
+    "max_ms": 10.977,
+    "p50_ms": 10.977,
+    "p95_ms": 10.977
+  },
+  "kind": "real_eacces_owned_directory",
+  "retry": {
+    "details": {
+      "active": "bbe747cb-f930-4217-9ba8-32cdc252de8f",
+      "last_recovery_accept_us": 1,
+      "last_recovery_worker_commit_us": 1499,
+      "recovery_publications": 1,
+      "tabs": [
+        {
+          "assets": 0,
+          "compositions": 0,
+          "dirty": true,
+          "name": "Storage failure QA",
+          "path": null,
+          "project": "b81ff9f2-6c25-4462-9aa5-b872374f6684",
+          "recovery_error": null,
+          "recovery_revision": 0,
+          "revision": 0,
+          "session": "bbe747cb-f930-4217-9ba8-32cdc252de8f",
+          "sources": 0
+        }
+      ]
+    },
+    "dropped_before": 0,
+    "kind": "workspace",
+    "pid": 403032,
+    "unix_us": 1791296722258007
+  },
+  "valid_checkpoints": 1
+}

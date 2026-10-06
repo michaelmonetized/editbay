@@ -1,4 +1,5 @@
 mod cached;
+mod checkpoints;
 mod completions;
 pub mod masks;
 pub mod prepared;
@@ -1990,7 +1991,9 @@ fn flea_state(pid: &str) -> Result<Value> {
     )?)?)
 }
 
+#[track_caller]
 fn flea_wait(pid: &str, predicate: impl Fn(&Value) -> bool) -> Result<Value> {
+    let caller = std::panic::Location::caller();
     let deadline = Instant::now() + Duration::from_secs(5);
     loop {
         let state = flea_state(pid)?;
@@ -1998,7 +2001,11 @@ fn flea_wait(pid: &str, predicate: impl Fn(&Value) -> bool) -> Result<Value> {
             return Ok(state);
         }
         if Instant::now() >= deadline {
-            return Err("Owned Flea picker did not acknowledge native input".into());
+            let observed = json!({"path":state["path"],"state":state["state"],"cursor":state["cursor"],"held":state["held"],"listFocus":state["listFocus"],"railFocus":state["railFocus"],"backendUnavailable":state["backendUnavailable"],"message":state["message"]});
+            return Err(format!(
+                "Owned Flea picker did not acknowledge native input at {caller}: {observed}"
+            )
+            .into());
         }
         thread::sleep(Duration::from_millis(20));
     }
@@ -2015,6 +2022,14 @@ fn flea_point(pid: &str, point: &str) -> Result<()> {
     let pid = pid.parse::<u64>()?;
     let native =
         window(|window| window["pid"] == pid && window["class"] == "com.thisisgm.flea.picker")?;
+    let address = native["address"]
+        .as_str()
+        .ok_or("Missing Flea window identity")?;
+    if !address.starts_with("0x") || !address[2..].bytes().all(|byte| byte.is_ascii_hexdigit()) {
+        return Err("Invalid owned Flea window identity".into());
+    }
+    dispatch(&format!("hl.dsp.focus({{window=\"address:{address}\"}})"))?;
+    focused(pid)?;
     click(
         native["at"][0].as_i64().ok_or("Missing Flea x")? + point[0],
         native["at"][1].as_i64().ok_or("Missing Flea y")? + point[1],
@@ -2041,6 +2056,7 @@ fn flea_entry(pid: &str, name: &str) -> Result<()> {
             ],
         )?;
         flea_point(pid, point.trim())?;
+        flea_wait(pid, |state| state["listFocus"] == true)?;
     }
     key(102, false, false)?;
     state = flea_wait(pid, |state| state["cursor"] == 0 && state["held"] == 0)?;
@@ -2262,6 +2278,7 @@ pub fn run(binary: &Path, directory: &Path, count: usize) -> Result<Value> {
     let mut latencies = Vec::new();
     let mut frames = Vec::new();
     let mut commits = Vec::new();
+    let mut accepts = Vec::new();
     for index in 0..count {
         let folder = directory.join(format!("trial-{index:03}"));
         fs::create_dir(&folder)?;
@@ -2314,15 +2331,24 @@ pub fn run(binary: &Path, directory: &Path, count: usize) -> Result<Value> {
         trace.wait("native undo", |record| has_tab(record, &active, 2))?;
         trace.focus()?;
         key(44, true, true)?;
-        trace.wait("native redo", |record| has_tab(record, &revised, 3))?;
-        let acknowledged = trace.wait("active and inactive checkpoints", |record| {
-            record["kind"] == "workspace"
-                && record["details"]["tabs"].as_array().is_some_and(|tabs| {
-                    tabs.len() == 2
-                        && tabs
-                            .iter()
-                            .all(|tab| tab["recovery_revision"] == tab["revision"])
+        let redone = trace.wait("native redo", |record| has_tab(record, &revised, 3))?;
+        let expected: Vec<editbay_core::DocumentVersion> = redone["details"]["tabs"]
+            .as_array()
+            .ok_or("Redo tabs missing")?
+            .iter()
+            .map(|tab| {
+                Ok(editbay_core::DocumentVersion {
+                    project_id: tab["project"]
+                        .as_str()
+                        .ok_or("Redo project missing")?
+                        .parse()?,
+                    revision: tab["revision"].as_u64().ok_or("Redo revision missing")?,
                 })
+            })
+            .collect::<Result<_>>()?;
+        let after = redone["unix_us"].as_u64().ok_or("Redo timestamp missing")?;
+        let acknowledged = trace.wait("active and inactive checkpoints", |record| {
+            checkpoints::acknowledged(record, after, &expected)
         })?;
         let pid = application.0.id();
         let memory = fs::read_to_string(format!("/proc/{pid}/status"))?
@@ -2389,6 +2415,7 @@ pub fn run(binary: &Path, directory: &Path, count: usize) -> Result<Value> {
             has_tab(record, &revised, 3)
         })?;
         reopened.kill()?;
+        let mut publications = std::collections::HashSet::new();
         for record in &trace.records {
             if record["kind"] == "frame"
                 && let Some(cpu) = record["details"]["cpu_us"].as_u64()
@@ -2396,9 +2423,16 @@ pub fn run(binary: &Path, directory: &Path, count: usize) -> Result<Value> {
                 frames.push(cpu as f64 / 1000.);
             }
             if record["kind"] == "workspace"
-                && let Some(time) = record["details"]["last_recovery_commit_us"].as_u64()
+                && let Some(count) = record["details"]["recovery_publications"].as_u64()
+                && count > 0
+                && publications.insert(count)
             {
-                commits.push(time as f64 / 1000.);
+                if let Some(time) = record["details"]["last_recovery_worker_commit_us"].as_u64() {
+                    commits.push(time as f64 / 1000.);
+                }
+                if let Some(time) = record["details"]["last_recovery_accept_us"].as_u64() {
+                    accepts.push(time as f64 / 1000.);
+                }
             }
         }
         let report = json!({"index":index,"saved_original":saved,"original_sha256":original_hash,"checkpoint_sha256":checkpoint_hash,"inactive_checkpoint_sha256":inactive_hash,"recovered_sha256":hash(&recovered_path)?,"original_project":active_id,"recovered_project":recovered.id,"revision":recovered.revision,"checkpoint_acknowledged_unix_us":acknowledged["unix_us"],"memory":memory,"native_ui_recovery":true,"native_reopen":true});
@@ -2414,7 +2448,7 @@ pub fn run(binary: &Path, directory: &Path, count: usize) -> Result<Value> {
         }
     }
     let input = metrics(&mut latencies);
-    let receipt = json!({"schema":1,"kind":"native_workspace_qualification","application_sha256":hash(&binary)?,"architecture":std::env::consts::ARCH,"desktop":"Hyprland Wayland / installed native portal","catalog_documents":4000,"trials":count,"passed":reports.len(),"latest_revision":3,"input_injection_to_ui_acceptance":input,"cpu_frame_work":metrics(&mut frames),"checkpoint_main_thread_commit":metrics(&mut commits),"input_gate_pass":input["p95_ms"].as_f64().is_some_and(|latency|latency <= 50.),"reports":reports,"limits":["Software-injected Wayland text/portal keys and persistent Linux keyboard/pointer events; no physical-device input measurement","Native UI recovery uses the installed native file chooser","These fixtures qualify local workspace behavior, not completed client edits or media playback"]});
+    let receipt = json!({"schema":1,"kind":"native_workspace_qualification","application_sha256":hash(&binary)?,"architecture":std::env::consts::ARCH,"desktop":"Hyprland Wayland / installed native portal","catalog_documents":4000,"trials":count,"passed":reports.len(),"latest_revision":3,"input_injection_to_ui_acceptance":input,"cpu_frame_work":metrics(&mut frames),"checkpoint_worker_commit":metrics(&mut commits),"checkpoint_main_thread_accept":metrics(&mut accepts),"input_gate_pass":input["p95_ms"].as_f64().is_some_and(|latency|latency <= 50.),"reports":reports,"limits":["Software-injected Wayland text/portal keys and persistent Linux keyboard/pointer events; no physical-device input measurement","Native UI recovery uses the installed native file chooser","These fixtures qualify local workspace behavior, not completed client edits or media playback"]});
     File::create_new(directory.join("qualification.json"))?
         .write_all(&serde_json::to_vec_pretty(&receipt)?)?;
     Ok(receipt)

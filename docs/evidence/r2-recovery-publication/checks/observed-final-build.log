@@ -1,0 +1,18 @@
+   Compiling editbay-lab v0.1.0 (/home/michael/Projects/editbay/artifacts/worktrees/r2-sound-worker/crates/editbay-lab)
+    Finished `test` profile [unoptimized] target(s) in 3.64s
+     Running unittests src/main.rs (/home/michael/Projects/editbay/artifacts/worktrees/r2-sound-engine/target/native-build/debug/deps/editbay_lab-083fe5aaf79968f6)
+
+running 6 tests
+test native_workspace::checkpoints::tests::earlier_current_checkpoints_cannot_acknowledge_newer_requested_revisions ... ok
+test sustained_sound::tests::backend_drift_distinguishes_queue_latency_from_clock_error ... ok
+test sustained_sound::tests::thread_schedule_handles_parentheses_and_rejects_truncation ... ok
+test native_workspace::completions::tests::missing_foreign_or_overflowed_events_cannot_pass ... ok
+test native_workspace::completions::tests::actual_events_keep_initial_tail_and_late_omissions ... ok
+test native_workspace::completions::tests::prepared_bounds_and_first_draw_must_precede_sound ... ok
+
+test result: ok. 6 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+    Checking editbay-lab v0.1.0 (/home/michael/Projects/editbay/artifacts/worktrees/r2-sound-worker/crates/editbay-lab)
+    Finished `dev` profile [unoptimized] target(s) in 2.83s
+   Compiling editbay-lab v0.1.0 (/home/michael/Projects/editbay/artifacts/worktrees/r2-sound-worker/crates/editbay-lab)
+    Finished `dev` profile [unoptimized] target(s) in 7.48s

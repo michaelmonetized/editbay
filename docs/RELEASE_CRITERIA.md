@@ -49,6 +49,17 @@ separately. Passing software checks cannot close those gates.
 
 ## Evidence and current disposition
 
+Source preparation in [PR #56](https://github.com/michaelmonetized/editbay/pull/56)
+has exact 256-cut PCM, whole/range output, worker faults, native workflows and a
+180-second sound pilot. Its camera range-job input failure exposed synchronous
+recovery publication. [PR #58](https://github.com/michaelmonetized/editbay/pull/58)
+moves that work off the UI and passes fresh 100/100 native recovery trials,
+input p95 18.904 ms, continuous-edit publication within 9826.256 ms and actual
+storage-error retry. [Evidence](evidence/r2-recovery-publication/README.md) retains
+the earlier checkpoint timeout and driver failures. Native PipeWire/device-write qualification follows in
+[#59](https://github.com/michaelmonetized/editbay/issues/59). No two-hour,
+physical-hardware or later release/adoption gate is closed by these dependencies.
+
 The dense-cut dependency now has [exact-picture evidence](evidence/r2-exact-pictures/README.md).
 Both recorded 128-cut camera/six-channel native workflows complete all 128 GPU
 draws by the observed sound end and retain identical verified masters. Seek p95

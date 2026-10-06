@@ -1,0 +1,138 @@
+{
+  "application_sha256": "e7a4de2e6507bb0236a79b2d1f79d18c82d6471823da3a5c9c1273b92a48fb9b",
+  "disk_full": {
+    "checkpoint_sha256": "7cd9d2c6da3ad7073183901c98f4f56dbd8e4cd67ab0f6c3898f99e60b327be7",
+    "error": {
+      "details": {
+        "active": "2eb72139-b229-481b-84c7-28406a9adfc0",
+        "last_recovery_accept_us": null,
+        "last_recovery_worker_commit_us": null,
+        "recovery_publications": 0,
+        "tabs": [
+          {
+            "assets": 0,
+            "compositions": 0,
+            "dirty": true,
+            "name": "Storage failure QA",
+            "path": null,
+            "project": "97e06265-7a74-4887-9a5b-643315be654a",
+            "recovery_error": "filesystem error: No space left on device (os error 28)",
+            "recovery_revision": null,
+            "revision": 0,
+            "session": "2eb72139-b229-481b-84c7-28406a9adfc0",
+            "sources": 0
+          }
+        ]
+      },
+      "dropped_before": 0,
+      "kind": "workspace",
+      "pid": 404806,
+      "unix_us": 1791296724334354
+    },
+    "false_checkpoint_acknowledgement": false,
+    "input_injection_to_ui_acceptance": {
+      "count": 1,
+      "max_ms": 11.138,
+      "p50_ms": 11.138,
+      "p95_ms": 11.138
+    },
+    "kind": "real_enospc_private_tmpfs",
+    "retry": {
+      "details": {
+        "active": "2eb72139-b229-481b-84c7-28406a9adfc0",
+        "last_recovery_accept_us": 2,
+        "last_recovery_worker_commit_us": 37,
+        "recovery_publications": 1,
+        "tabs": [
+          {
+            "assets": 0,
+            "compositions": 0,
+            "dirty": true,
+            "name": "Storage failure QA",
+            "path": null,
+            "project": "97e06265-7a74-4887-9a5b-643315be654a",
+            "recovery_error": null,
+            "recovery_revision": 0,
+            "revision": 0,
+            "session": "2eb72139-b229-481b-84c7-28406a9adfc0",
+            "sources": 0
+          }
+        ]
+      },
+      "dropped_before": 0,
+      "kind": "workspace",
+      "pid": 404806,
+      "unix_us": 1791296726342941
+    },
+    "valid_checkpoints": 1
+  },
+  "kind": "native_storage_errors",
+  "pass": true,
+  "permission": {
+    "checkpoint_sha256": "e3f19498ba22217af9fc41f019ffccfad70dc00c99edbdeedc3f7b3fc5c7fe45",
+    "error": {
+      "details": {
+        "active": "bbe747cb-f930-4217-9ba8-32cdc252de8f",
+        "last_recovery_accept_us": null,
+        "last_recovery_worker_commit_us": null,
+        "recovery_publications": 0,
+        "tabs": [
+          {
+            "assets": 0,
+            "compositions": 0,
+            "dirty": true,
+            "name": "Storage failure QA",
+            "path": null,
+            "project": "b81ff9f2-6c25-4462-9aa5-b872374f6684",
+            "recovery_error": "filesystem error: Permission denied (os error 13)",
+            "recovery_revision": null,
+            "revision": 0,
+            "session": "bbe747cb-f930-4217-9ba8-32cdc252de8f",
+            "sources": 0
+          }
+        ]
+      },
+      "dropped_before": 0,
+      "kind": "workspace",
+      "pid": 403032,
+      "unix_us": 1791296720128747
+    },
+    "false_checkpoint_acknowledgement": false,
+    "input_injection_to_ui_acceptance": {
+      "count": 1,
+      "max_ms": 10.977,
+      "p50_ms": 10.977,
+      "p95_ms": 10.977
+    },
+    "kind": "real_eacces_owned_directory",
+    "retry": {
+      "details": {
+        "active": "bbe747cb-f930-4217-9ba8-32cdc252de8f",
+        "last_recovery_accept_us": 1,
+        "last_recovery_worker_commit_us": 1499,
+        "recovery_publications": 1,
+        "tabs": [
+          {
+            "assets": 0,
+            "compositions": 0,
+            "dirty": true,
+            "name": "Storage failure QA",
+            "path": null,
+            "project": "b81ff9f2-6c25-4462-9aa5-b872374f6684",
+            "recovery_error": null,
+            "recovery_revision": 0,
+            "revision": 0,
+            "session": "bbe747cb-f930-4217-9ba8-32cdc252de8f",
+            "sources": 0
+          }
+        ]
+      },
+      "dropped_before": 0,
+      "kind": "workspace",
+      "pid": 403032,
+      "unix_us": 1791296722258007
+    },
+    "valid_checkpoints": 1
+  },
+  "schema": 1
+}

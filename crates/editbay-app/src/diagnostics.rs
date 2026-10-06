@@ -29,6 +29,7 @@ pub struct Diagnostics {
     errors: Receiver<String>,
     previous: Vec<Tab>,
     previous_active: Option<uuid::Uuid>,
+    previous_recovery: Vec<crate::workspace::RecoveryWork>,
     dropped: u64,
     previous_media: Value,
     previous_preview: Value,
@@ -79,6 +80,7 @@ impl Diagnostics {
             errors,
             previous: Vec::new(),
             previous_active: None,
+            previous_recovery: Vec::new(),
             dropped: 0,
             previous_media: Value::Null,
             previous_preview: Value::Null,
@@ -128,10 +130,15 @@ impl Diagnostics {
                 assets: tab.editor.project().assets.len(),
             })
             .collect();
-        if current != self.previous || workspace.active != self.previous_active {
-            self.record("workspace", json!({"tabs":&current,"active":workspace.active,"recovery_publications":workspace.recovery_commit_times.len(),"last_recovery_commit_us":workspace.recovery_commit_times.last().map(|time|time.as_micros() as u64)}));
+        let recovery = workspace.recovery_jobs();
+        if current != self.previous
+            || workspace.active != self.previous_active
+            || recovery != self.previous_recovery
+        {
+            self.record("workspace", json!({"tabs":&current,"active":workspace.active,"recovery_jobs":&recovery,"recovery_publications":workspace.recovery_publication_times.len(),"last_recovery_worker_commit_us":workspace.recovery_publication_times.last().map(|time|time.as_micros() as u64),"last_recovery_accept_us":workspace.recovery_accept_times.last().map(|time|time.as_micros() as u64)}));
             self.previous = current;
             self.previous_active = workspace.active;
+            self.previous_recovery = recovery;
         }
         let current_media = media.diagnostic_state();
         if current_media != self.previous_media {
