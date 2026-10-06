@@ -87,6 +87,7 @@ fn preparing(version: DocumentVersion, route: MonitorRoute) -> StreamingStatus {
         prepared_frames: 0,
         prepared_capacity_frames: CAPACITY,
         clipped_monitor_samples: 0,
+        preparation: crate::PreparationStats::default(),
         error: None,
     }
 }
@@ -344,6 +345,7 @@ fn validate(
         return Err("Foreign or stale sound device response".into());
     }
     if status.prepared_capacity_frames != CAPACITY
+        || !status.preparation.valid_after(previous.preparation)
         || status.prepared_frames > u64::from(CAPACITY)
         || status.callbacks < previous.callbacks
         || status.clipped_monitor_samples < previous.clipped_monitor_samples
@@ -391,6 +393,9 @@ fn validate(
             return Err("Sound device identity changed or is invalid".into());
         }
         let (first, end) = bounds.interval(device.sample_rate)?;
+        if status.preparation.blocks > (end - first).div_ceil(4096) {
+            return Err("Sound preparation exceeded its captured interval".into());
+        }
         match status.clock_observation {
             Some(observed) => {
                 if observed.callbacks == 0
@@ -452,6 +457,7 @@ fn validate(
         || status.callbacks != 0
         || status.clock_observation.is_some()
         || status.prepared_frames != 0
+        || status.preparation != crate::PreparationStats::default()
         || previous.device.is_some()
         || matches!(
             status.phase,

@@ -2,6 +2,7 @@ use crate::{
     ClockObservation, ClockRejection, DeviceProfile, MonitorRoute, SoundRenderBudget,
     SoundRenderer,
     monitor::MonitorMatrix,
+    preparation::{PreparationLog, PreparationStats},
     sample_clock::{ClockContinuity, SampleClock},
     transport::{self, Control, Reader, State, Writer},
 };
@@ -68,10 +69,12 @@ pub struct StreamingStatus {
     pub prepared_frames: u64,
     pub prepared_capacity_frames: u32,
     pub clipped_monitor_samples: u64,
+    pub preparation: PreparationStats,
     pub error: Option<String>,
 }
 
 struct Ready {
+    preparation: Arc<PreparationLog>,
     clock: Arc<SampleClock>,
     control: Control,
     origin: Instant,
@@ -100,6 +103,7 @@ struct Request {
 
 /// One asynchronous playback lifetime with privately owned prepared sound.
 pub(crate) struct LocalPlayback {
+    preparation: PreparationStats,
     version: DocumentVersion,
     route: MonitorRoute,
     cancel: Cancellation,
@@ -151,6 +155,7 @@ impl LocalPlayback {
             })
             .map_err(|e| e.to_string())?;
         Ok(Self {
+            preparation: PreparationStats::default(),
             version,
             route,
             cancel,
@@ -199,6 +204,9 @@ impl LocalPlayback {
         }
         let (position, end, device, worker_pid, callbacks, latency, prepared, clipped) =
             if let Some(ready) = &self.ready {
+                if let Some(observed) = ready.preparation.observation() {
+                    self.preparation = observed;
+                }
                 if let Some(observation) = ready.clock.observation() {
                     self.clock_observation = Some(observation);
                 }
@@ -249,6 +257,7 @@ impl LocalPlayback {
             prepared_frames: prepared,
             prepared_capacity_frames: CAPACITY,
             clipped_monitor_samples: clipped,
+            preparation: self.preparation,
             error: self.error.clone(),
         }
     }
@@ -295,6 +304,9 @@ impl Drop for LocalPlayback {
 }
 
 struct Producer {
+    preparation: Arc<PreparationLog>,
+    measured: PreparationStats,
+    previous_block: Option<Instant>,
     sound: Arc<SoundSnapshot>,
     renderer: SoundRenderer<PcmWorker>,
     matrix: MonitorMatrix,
@@ -314,11 +326,48 @@ impl Producer {
             if self.control.prepared() + u64::from(frames) > u64::from(CAPACITY) {
                 break;
             }
-            let plan = self
-                .sound
-                .prepare(self.cursor, frames)
-                .map_err(|e| e.to_string())?;
-            let result = self.renderer.render(&plan).map_err(|e| e.to_string())?;
+            let began = Instant::now();
+            if let Some(previous) = self.previous_block.replace(began) {
+                self.measured.max_interval_ns = self
+                    .measured
+                    .max_interval_ns
+                    .max(began.duration_since(previous).as_nanos() as u64);
+            }
+            self.measured.last_plan_ns = 0;
+            self.measured.last_render_ns = 0;
+            self.measured.last_finish_ns = 0;
+            let result = self.prepare(frames);
+            self.measured.blocks = self.measured.blocks.saturating_add(1);
+            self.measured.last_block_ns = began.elapsed().as_nanos() as u64;
+            if self.measured.last_block_ns >= self.measured.max_block_ns {
+                self.measured.max_block_ns = self.measured.last_block_ns;
+                self.measured.slowest_plan_ns = self.measured.last_plan_ns;
+                self.measured.slowest_render_ns = self.measured.last_render_ns;
+                self.measured.slowest_finish_ns = self.measured.last_finish_ns;
+            }
+            if result.is_ok() {
+                self.measured.published_blocks = self.measured.published_blocks.saturating_add(1);
+            }
+            self.preparation.publish(self.measured);
+            result?;
+        }
+        Ok(())
+    }
+
+    fn prepare(&mut self, frames: u32) -> Result<()> {
+        let began = Instant::now();
+        let plan = self
+            .sound
+            .prepare(self.cursor, frames)
+            .map_err(|e| e.to_string());
+        self.measured.last_plan_ns = began.elapsed().as_nanos() as u64;
+        let plan = plan?;
+        let began = Instant::now();
+        let result = self.renderer.render(&plan).map_err(|e| e.to_string());
+        self.measured.last_render_ns = began.elapsed().as_nanos() as u64;
+        let result = result?;
+        let began = Instant::now();
+        let finished = (|| {
             self.renderer
                 .validate_result(&result)
                 .map_err(|e| e.to_string())?;
@@ -331,8 +380,10 @@ impl Producer {
             }
             self.clipped.fetch_add(clipped, Ordering::Relaxed);
             self.cursor += u64::from(frames);
-        }
-        Ok(())
+            Ok(())
+        })();
+        self.measured.last_finish_ns = began.elapsed().as_nanos() as u64;
+        finished
     }
 }
 
@@ -421,7 +472,11 @@ fn run(request: &Request, sender: &SyncSender<Event>) -> Result<()> {
         transport::transport(first, end, usize::from(profile.channels), CAPACITY)?;
     let clock = Arc::new(SampleClock::new(profile.sample_rate, first, end)?);
     let clipped = Arc::new(AtomicU64::new(0));
+    let preparation = Arc::new(PreparationLog::default());
     let mut producer = Producer {
+        preparation: preparation.clone(),
+        measured: PreparationStats::default(),
+        previous_block: None,
         sound,
         renderer,
         matrix,
@@ -479,6 +534,7 @@ fn run(request: &Request, sender: &SyncSender<Event>) -> Result<()> {
     };
     sender
         .try_send(Event::Ready(Ready {
+            preparation,
             clock: clock.clone(),
             control: control.clone(),
             origin,

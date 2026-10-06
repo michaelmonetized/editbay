@@ -818,7 +818,7 @@ fn run(args: Vec<OsString>) -> Result<()> {
             args[3].to_str().ok_or("Composition must be UTF-8")?,
             Path::new(&args[4]),
         )?,
-        ("range-delivery", 5) => range_delivery::run(
+        ("range-delivery", 5 | 6) => range_delivery::run(
             Path::new(&args[1]),
             Path::new(&args[2]),
             args[3]
@@ -826,6 +826,7 @@ fn run(args: Vec<OsString>) -> Result<()> {
                 .ok_or("Composition must be UTF-8")?
                 .parse()?,
             Path::new(&args[4]),
+            args.get(5).map(Path::new),
         )?,
         ("native-range", 5) => native_workspace::ranges::run(
             Path::new(&args[1]),
@@ -1092,7 +1093,9 @@ fn run(args: Vec<OsString>) -> Result<()> {
             println!("  native-cached APP_BINARY SAVED_LONG_PROJECT NEW_EVIDENCE_DIRECTORY");
             println!("  picture-store PROJECT COMPOSITION NEW_EVIDENCE_DIRECTORY WORKER_BINARY");
             println!("  native-delivery APP_BINARY PROJECT NEW_EVIDENCE_DIRECTORY");
-            println!("  range-delivery CLI_BINARY PROJECT COMPOSITION NEW_DIRECTORY");
+            println!(
+                "  range-delivery CLI_BINARY PROJECT COMPOSITION NEW_DIRECTORY [BASELINE_DIRECTORY]"
+            );
             println!("  range-fault PROJECT COMPOSITION NEW_MOV MODE");
             println!("  native-range APP_BINARY PROJECT FULL_MASTER NEW_DIRECTORY");
             println!("  native-range-jobs APP_BINARY PROJECT FULL_MASTER NEW_DIRECTORY");

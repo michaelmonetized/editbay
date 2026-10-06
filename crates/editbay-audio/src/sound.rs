@@ -3,6 +3,9 @@ use editbay_media::{
     Cancellation, Error, NativePcmCache, PcmBudget, PcmProvider, PcmStats, Result,
 };
 use serde::Serialize;
+mod kernels;
+pub use kernels::KernelStats;
+use kernels::Kernels;
 use std::{
     f64::consts::PI,
     sync::{
@@ -16,12 +19,16 @@ use std::{
 pub struct SoundRenderBudget {
     pub live_bytes: usize,
     pub operations: usize,
+    pub kernel_bytes: usize,
+    pub kernel_entries: usize,
 }
 impl Default for SoundRenderBudget {
     fn default() -> Self {
         Self {
             live_bytes: 32 * 1024 * 1024,
             operations: 16 * 1024 * 1024,
+            kernel_bytes: 512 * 1024,
+            kernel_entries: 256,
         }
     }
 }
@@ -102,6 +109,7 @@ pub struct SoundRenderer<P: PcmProvider = NativePcmCache> {
     live: Arc<AtomicUsize>,
     cancel: Cancellation,
     owner: Arc<()>,
+    kernels: Kernels,
 }
 impl SoundRenderer {
     /// Bind one compiled sound graph to bounded native PCM reads.
@@ -144,6 +152,8 @@ impl<P: PcmProvider> SoundRenderer<P> {
             || budget.live_bytes > 512 * 1024 * 1024
             || budget.operations == 0
             || budget.operations > 128 * 1024 * 1024
+            || budget.kernel_bytes > 16 * 1024 * 1024
+            || budget.kernel_entries > 4096
         {
             return Err(Error::Invalid(
                 "sound render budgets exceed supported limits".into(),
@@ -156,6 +166,7 @@ impl<P: PcmProvider> SoundRenderer<P> {
             live: Arc::new(AtomicUsize::new(0)),
             cancel,
             owner: Arc::new(()),
+            kernels: Kernels::new(budget.kernel_bytes, budget.kernel_entries),
         })
     }
 
@@ -241,26 +252,23 @@ impl<P: PcmProvider> SoundRenderer<P> {
                 } else {
                     let mut sum = [0f64; 64];
                     let mut normalization = 0.;
-                    for index in point.start..point.end {
-                        let distance = ((i128::from(index) - i128::from(point.origin)) as f64
-                            - point.fraction)
-                            * point.cutoff;
-                        if distance.abs() >= 48. {
-                            continue;
-                        }
-                        let phase = distance / 48.;
-                        let window =
-                            0.42 + 0.5 * (PI * phase).cos() + 0.08 * (2. * PI * phase).cos();
-                        let sinc = if distance.abs() < 1e-12 {
-                            1.
-                        } else {
-                            (PI * distance).sin() / (PI * distance)
-                        };
-                        let weight = sinc * window * point.cutoff;
-                        normalization += weight;
-                        let offset = (index - start) as usize * channels;
+                    let mut accumulate = |relative: i64, weight: f64| {
+                        let offset = (point.origin + relative - start) as usize * channels;
                         for (channel, value) in sum[..channels].iter_mut().enumerate() {
                             *value += f64::from(input.pcm().samples()[offset + channel]) * weight;
+                        }
+                    };
+                    if let Some(kernel) = self.kernels.get(point) {
+                        normalization = kernel.normalization;
+                        for tap in kernel.weights.iter() {
+                            accumulate(tap.relative, tap.weight);
+                        }
+                    } else {
+                        for relative in point.start - point.origin..point.end - point.origin {
+                            if let Some(weight) = point.weight(relative) {
+                                normalization += weight;
+                                accumulate(relative, weight);
+                            }
                         }
                     }
                     if !normalization.is_finite() || normalization.abs() < 0.5 {
@@ -326,10 +334,17 @@ impl<P: PcmProvider> SoundRenderer<P> {
     pub fn live_bytes(&self) -> usize {
         self.live.load(Ordering::Acquire)
     }
+    /// Inspect bounded interpolation storage and exact coefficient reuse.
+    /// Takes no arguments; returns actual entry metadata and coefficient bytes
+    /// separately from rendered buffers and native PCM ownership.
+    pub fn kernel_stats(&self) -> KernelStats {
+        self.kernels.stats()
+    }
     /// Release native source/cache ownership and invalidate sound publications.
     /// Takes no arguments; consumer-held sound remains immutable and charged.
     pub fn clear(&mut self) {
         self.pcm.clear();
+        self.kernels.clear();
         self.owner = Arc::new(());
     }
     fn check(&self) -> Result<()> {
@@ -351,6 +366,20 @@ struct Point {
 impl Point {
     fn taps(&self) -> usize {
         (self.end - self.start) as usize
+    }
+    fn weight(&self, relative: i64) -> Option<f64> {
+        let distance = (relative as f64 - self.fraction) * self.cutoff;
+        if distance.abs() >= 48. {
+            return None;
+        }
+        let phase = distance / 48.;
+        let window = 0.42 + 0.5 * (PI * phase).cos() + 0.08 * (2. * PI * phase).cos();
+        let sinc = if distance.abs() < 1e-12 {
+            1.
+        } else {
+            (PI * distance).sin() / (PI * distance)
+        };
+        Some(sinc * window * self.cutoff)
     }
 }
 fn point(sample: SoundSample) -> Result<Point> {

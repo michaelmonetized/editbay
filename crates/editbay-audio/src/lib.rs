@@ -2,14 +2,16 @@
 
 mod device_worker;
 mod monitor;
+mod preparation;
 mod sample_clock;
 mod sound;
 mod streaming;
 mod transport;
 pub use device_worker::{StreamingPlayback, serve_device_worker};
 pub use monitor::MonitorRoute;
+pub use preparation::PreparationStats;
 pub use sample_clock::{ClockObservation, ClockRejection};
-pub use sound::{SoundBuffer, SoundRenderBudget, SoundRenderer, SoundResult};
+pub use sound::{KernelStats, SoundBuffer, SoundRenderBudget, SoundRenderer, SoundResult};
 pub use streaming::{PlaybackPhase, PlaybackStart, StreamingStatus};
 
 use cpal::{

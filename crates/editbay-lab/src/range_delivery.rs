@@ -102,7 +102,13 @@ fn master(
 /// `cli`, `path`, `composition` and new `directory` select the executable, saved
 /// project and outputs. Full references use the lab worker; ranges use the CLI.
 /// Returns independent FFmpeg slice agreement while preserving every input asset.
-pub fn run(cli: &Path, path: &Path, composition: Uuid, directory: &Path) -> Result<Value> {
+pub fn run(
+    cli: &Path,
+    path: &Path,
+    composition: Uuid,
+    directory: &Path,
+    baseline: Option<&Path>,
+) -> Result<Value> {
     let project = Arc::new(load(path)?);
     let scene = project
         .compositions
@@ -125,6 +131,9 @@ pub fn run(cli: &Path, path: &Path, composition: Uuid, directory: &Path) -> Resu
         let reference = directory.join(format!("Full-{rate}.mov"));
         let full = master(project.clone(), composition, rate, None, &reference)?;
         let full_inspection = crate::shared_delivery::inspect(&reference, &full)?;
+        let baseline_comparison = baseline
+            .map(|base| compare(&base.join(format!("Full-{rate}.mov")), &reference, &full))
+            .transpose()?;
         let mut ranges = Vec::new();
         for (first, end) in [
             (2, 7),
@@ -153,7 +162,7 @@ pub fn run(cli: &Path, path: &Path, composition: Uuid, directory: &Path) -> Resu
                 json!({"receipt":receipt,"comparison":compare(&reference, &output, &receipt)?}),
             );
         }
-        reports.push(json!({"sample_rate":rate,"full":full,"full_inspection":full_inspection,"ranges":ranges}));
+        reports.push(json!({"sample_rate":rate,"full":full,"full_inspection":full_inspection,"baseline_comparison":baseline_comparison,"ranges":ranges}));
     }
     if hash(path)? != original
         || sources
