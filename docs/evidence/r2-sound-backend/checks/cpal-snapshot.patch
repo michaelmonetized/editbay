@@ -1,0 +1,26 @@
+--- /home/michael/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/cpal-0.18.2/src/host/alsa/mod.rs	2006-07-23 21:21:28.000000000 -0400
++++ vendor/cpal/src/host/alsa/mod.rs	2026-10-06 06:25:39.654186885 -0400
+@@ -1123,7 +1123,7 @@
+     }
+     // POLLERR signals an xrun or suspend; avail_delay() below returns an error accordingly.
+     // POLLIN/POLLOUT: data is ready, fall through to process it.
+-    let (avail_frames, delay_frames) = match stream.handle.avail_delay() {
++    let (avail_frames, _) = match stream.handle.avail_delay() {
+         // Suspend: try hardware resume first; fall back to prepare() if unsupported.
+         // BSD compat: check via PCM state rather than the Linux-specific ESTRPIPE errno.
+         Err(_) if matches!(stream.handle.state(), alsa::pcm::State::Suspended) => {
+@@ -1156,9 +1156,13 @@
+         .audio_htstamp_config(audio_ts_type, false)
+         .build(&stream.handle)?;
+ 
++    let delay_frames = status.get_delay();
++    if delay_frames < 0 {
++        return Err(ErrorKind::Xrun.into());
++    }
+     Ok(Poll::Ready {
+         status,
+-        delay_frames: delay_frames.max(0) as usize,
++        delay_frames: delay_frames as usize,
+     })
+ }
+ 

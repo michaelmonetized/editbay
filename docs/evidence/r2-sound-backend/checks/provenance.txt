@@ -1,0 +1,11 @@
+Default workspace tests: 231 + 7 doc, passed on runtime a646013 (then uncommitted; identical code tree).
+All-feature workspace tests: 232 + 7 doc, passed on the same code tree.
+Initial all-target/all-feature Clippy: failed on redundant CPAL Copy clone; retained.
+Final all-target/all-feature Clippy -D warnings: passed on 61c09af.
+Final formatting check: passed on 61c09af.
+Final audio tests: 26 unit + 3 integration + 1 doc, passed on 61c09af.
+61c09af changes only three redundant clones to copies in runtime/tests, plus status docs.
+Frozen native lab/app: 61c09af; source/binary/lockfile hashes are in snapshot-bin artifacts and will accompany native receipts.
+All checks use --locked, project-local TMPDIR and native-build target, one Cargo build job.
+All-feature checks use EDITBAY_LIBTORCH=/home/michael/Projects/editbay/artifacts/native-torch/torch and its lib directory in LD_LIBRARY_PATH.
+Native/default runs clear LD_LIBRARY_PATH. Cargo clears RUSTUP_FORCE_ARG0.
