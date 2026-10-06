@@ -1,0 +1,37 @@
+    Checking editbay-core v0.1.0 (/home/michael/Projects/editbay/artifacts/worktrees/r2-sound-worker/crates/editbay-core)
+    Checking editbay-media v0.1.0 (/home/michael/Projects/editbay/artifacts/worktrees/r2-sound-worker/crates/editbay-media)
+    Checking editbay-audio v0.1.0 (/home/michael/Projects/editbay/artifacts/worktrees/r2-sound-worker/crates/editbay-audio)
+    Checking editbay-render v0.1.0 (/home/michael/Projects/editbay/artifacts/worktrees/r2-sound-worker/crates/editbay-render)
+    Checking editbay-delivery v0.1.0 (/home/michael/Projects/editbay/artifacts/worktrees/r2-sound-worker/crates/editbay-delivery)
+    Checking egui-winit v0.36.1 (/home/michael/Projects/editbay/artifacts/worktrees/r2-sound-worker/vendor/egui-winit)
+    Checking eframe v0.36.1 (/home/michael/Projects/editbay/artifacts/worktrees/r2-sound-worker/vendor/eframe)
+    Checking editbay-ai v0.1.0 (/home/michael/Projects/editbay/artifacts/worktrees/r2-sound-worker/crates/editbay-ai)
+    Checking editbay-app v0.1.0 (/home/michael/Projects/editbay/artifacts/worktrees/r2-sound-worker/crates/editbay-app)
+    Checking editbay-lab v0.1.0 (/home/michael/Projects/editbay/artifacts/worktrees/r2-sound-worker/crates/editbay-lab)
+error[E0308]: `match` arms have incompatible types
+   --> crates/editbay-lab/src/main.rs:864:37
+    |
+811 |       let receipt = match (command, args.len()) {
+    |                     --------------------------- `match` arms have incompatible types
+...
+863 |           ("sound-blocks", 2) => sound_blocks::run(Path::new(&args[1]))?,
+    |                                  --------------------------------------- this and all prior arms are found to be of type `serde_json::Value`
+864 |           ("canonical-pcm", 2 | 3) => canonical_pcm::run(
+    |  _____________________________________^
+865 | |             Path::new(&args[1]),
+866 | |             &args
+867 | |                 .get(2)
+868 | |                 .map(std::path::PathBuf::from)
+869 | |                 .unwrap_or(std::env::current_exe()?),
+870 | |         ),
+    | |_________^ expected `Value`, found `Result<Value, Box<dyn Error>>`
+    |
+    = note: expected enum `serde_json::Value`
+               found enum `std::result::Result<serde_json::Value, std::boxed::Box<(dyn std::error::Error + 'static)>>`
+help: use the `?` operator to extract the `std::result::Result<serde_json::Value, std::boxed::Box<(dyn std::error::Error + 'static)>>` value, propagating a `Result::Err` value to the caller
+    |
+870 |         )?,
+    |          +
+
+For more information about this error, try `rustc --explain E0308`.
+error: could not compile `editbay-lab` (bin "editbay-lab" test) due to 1 previous error

@@ -1,0 +1,10 @@
+   Compiling bytemuck v1.25.2
+   Compiling editbay-media v0.1.0 (/home/michael/Projects/editbay/artifacts/worktrees/r2-sound-worker/crates/editbay-media)
+error[E0063]: missing field `required_frames` in initializer of `pcm_worker::Selection`
+   --> crates/editbay-media/src/pcm_worker.rs:813:24
+    |
+813 |         let selected = Selection {
+    |                        ^^^^^^^^^ missing `required_frames`
+
+For more information about this error, try `rustc --explain E0063`.
+error: could not compile `editbay-media` (lib test) due to 1 previous error

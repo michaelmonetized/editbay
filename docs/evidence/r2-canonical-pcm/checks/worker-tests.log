@@ -1,0 +1,18 @@
+   Compiling editbay-media v0.1.0 (/home/michael/Projects/editbay/artifacts/worktrees/r2-sound-worker/crates/editbay-media)
+   Compiling editbay-render v0.1.0 (/home/michael/Projects/editbay/artifacts/worktrees/r2-sound-worker/crates/editbay-render)
+   Compiling editbay-audio v0.1.0 (/home/michael/Projects/editbay/artifacts/worktrees/r2-sound-worker/crates/editbay-audio)
+   Compiling editbay-delivery v0.1.0 (/home/michael/Projects/editbay/artifacts/worktrees/r2-sound-worker/crates/editbay-delivery)
+   Compiling editbay-lab v0.1.0 (/home/michael/Projects/editbay/artifacts/worktrees/r2-sound-worker/crates/editbay-lab)
+    Finished `test` profile [unoptimized] target(s) in 17.55s
+     Running tests/pcm_worker.rs (/home/michael/Projects/editbay/artifacts/worktrees/r2-sound-engine/target/native-build/debug/deps/pcm_worker-b23b601ed6e7aba6)
+
+running 6 tests
+test changed_source_rejects_cached_samples_and_publication_without_touching_either_file ... ok
+test parent_byte_and_handle_pins_remain_charged_through_eviction_clear_and_rebind ... ok
+test death_and_stopped_request_cancellation_reap_children_and_require_explicit_retry ... ok
+test shared_renderer_uses_identical_fractional_reverse_gain_and_mix_over_codec_ipc ... ok
+test actual_pcm_process_preserves_original_channels_headroom_seeks_and_padding ... ok
+test cold_canonical_worker_progress_matches_sequential_pcm_and_reaps_interrupted_preparation ... ok
+
+test result: ok. 6 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 1.05s
+

@@ -52,7 +52,14 @@ bits, including backward/overlapping intervals and declared zero-padded edges.
 | Stereo 44.1 kHz, 45 seconds | 177.637 ms | 1.755 ms |
 
 The existing actual PCM transport and sound-block suites also pass their original
-gates for all three sources. Full output and native workflow evidence is pending.
+gates for all three sources. Twelve ranges match whole-master slices. The camera
+masters and six-channel 48 kHz master preserve prior output; the six-channel
+44.1 kHz master corrects a tail error in the previous cache. Full independent
+source decode, stored as verified float WAV and passed through the same graph,
+matches the new master exactly; the old master differs by up to 0.151653.
+All six native preparation/device/playback/edit/save/recovery/export runs pass,
+including an observed partial camera cold-tail preparation. See the
+[raw qualification and retained failures](evidence/r2-canonical-pcm/README.md).
 
 Preparation is currently demanded by requested source intervals. Cold future
 source jumps during active playback can still require more preparation than the

@@ -191,14 +191,17 @@ Omarchy palettes. Recovery tests do not substitute for native visual inspection.
 
 ## R2 — the production engine
 
-Issue [#53](https://github.com/michaelmonetized/editbay/issues/53) / draft
+Issue [#53](https://github.com/michaelmonetized/editbay/issues/53) /
 [PR #54](https://github.com/michaelmonetized/editbay/pull/54) implements
 [canonical source PCM](CANONICAL_PCM.md), bounded sequential preparation and
 supervised progress. Cold late reads and decoder eviction preserve source sample
 bits in local and actual worker tests. Camera/six-channel/45-second AAC pass
 original-bit comparisons and cold/warm timing gates with frozen `1210983`.
-Native qualification and preparation ahead of future cuts remain open; no R2
-release gate is closed.
+Twelve ranges match whole masters, independent decoded-source PCM proves the old
+six-channel 44.1 kHz tail defect is corrected, and all six native workflows pass.
+Workspace tests, all-feature Clippy and formatting pass. Preparation ahead of
+future cuts continues in [#55](https://github.com/michaelmonetized/editbay/issues/55);
+the full R2 release gate stays open.
 
 Issue [#51](https://github.com/michaelmonetized/editbay/issues/51) / draft
 [PR #52](https://github.com/michaelmonetized/editbay/pull/52) adds bounded exact
@@ -328,8 +331,8 @@ Issue [#49](https://github.com/michaelmonetized/editbay/issues/49) /
 worker faults and native cancellation/retry/save/recovery/reopen workflows pass;
 [raw evidence and earlier failures](evidence/r3-range-delivery/README.md) remain.
 Bounded sound pre-roll preserves whole-master PCM through compressed source history.
-Delivery queues, standalone cold PCM seeking, sustained playback and full release
-gates stay open.
+Canonical cold PCM access follows in #54. Delivery queues, preparation ahead of
+future cuts, sustained playback and full release gates stay open.
 
 Issue [#29](https://github.com/michaelmonetized/editbay/issues/29) implements the
 first linked assembly dependency: exact source marks, insert/append, split,
