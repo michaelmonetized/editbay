@@ -82,6 +82,7 @@ fn preparing(version: DocumentVersion, route: MonitorRoute) -> StreamingStatus {
         device_worker_pid: None,
         callbacks: 0,
         reported_latency_ns: 0,
+        clock_observation: None,
         prepared_frames: 0,
         prepared_capacity_frames: CAPACITY,
         clipped_monitor_samples: 0,
@@ -368,6 +369,42 @@ fn validate(
             return Err("Sound device identity changed or is invalid".into());
         }
         let (first, end) = bounds.interval(device.sample_rate)?;
+        match status.clock_observation {
+            Some(observed) => {
+                if observed.callbacks == 0
+                    || observed.callbacks != status.callbacks
+                    || observed.reported_latency_ns != status.reported_latency_ns
+                    || observed.submitted_frames <= observed.buffer_start_frames
+                    || observed.submitted_frames - observed.buffer_start_frames
+                        > u64::from(CAPACITY)
+                    || observed.callbacks > observed.submitted_frames
+                    || u128::from(observed.submitted_frames)
+                        > u128::from(end - first) + u128::from(device.sample_rate) * 6
+                    || !(first..=end).contains(&observed.valid_end_sample)
+                    || previous.clock_observation.is_some_and(|prior| {
+                        observed.callbacks < prior.callbacks
+                            || observed.buffer_start_frames < prior.buffer_start_frames
+                            || observed.submitted_frames < prior.submitted_frames
+                            || observed.callback_elapsed_ns < prior.callback_elapsed_ns
+                            || observed.backend_elapsed_ns < prior.backend_elapsed_ns
+                            || observed.valid_end_sample > prior.valid_end_sample
+                            || (observed.callbacks == prior.callbacks && observed != prior)
+                            || (observed.callbacks > prior.callbacks
+                                && observed.buffer_start_frames < prior.submitted_frames)
+                    })
+                {
+                    return Err("Malformed or regressing callback observation".into());
+                }
+            }
+            None if status.callbacks != 0
+                || status.reported_latency_ns != 0
+                || previous.clock_observation.is_some()
+                || status.phase == PlaybackPhase::Finished =>
+            {
+                return Err("Sound device omitted its callback observation".into());
+            }
+            None => {}
+        }
         if status.start_sample != Some(first)
             || status.end_sample != Some(end)
             || status.position_samples.is_none_or(|position| {
@@ -386,6 +423,7 @@ fn validate(
         || status.position_samples.is_some()
         || status.worker_pid.is_some()
         || status.callbacks != 0
+        || status.clock_observation.is_some()
         || status.prepared_frames != 0
         || previous.device.is_some()
         || matches!(
@@ -487,6 +525,15 @@ mod tests {
         status.position_samples = Some(3000);
         status.end_sample = Some(48048);
         status.callbacks = 3;
+        status.clock_observation = Some(crate::ClockObservation {
+            callbacks: 3,
+            buffer_start_frames: 960,
+            submitted_frames: 1440,
+            callback_elapsed_ns: 21000000,
+            backend_elapsed_ns: 20000000,
+            reported_latency_ns: 0,
+            valid_end_sample: 48048,
+        });
         status.prepared_frames = 8192;
         let bounds = Bounds {
             duration: 24,
@@ -535,6 +582,20 @@ mod tests {
             ("/status/route", json!("Original")),
             ("/status/device_worker_pid", json!(123)),
             ("/status/callbacks", json!(2)),
+            ("/status/clock_observation", json!(null)),
+            ("/status/clock_observation/callbacks", json!(4)),
+            ("/status/clock_observation/buffer_start_frames", json!(1440)),
+            ("/status/clock_observation/submitted_frames", json!(2000)),
+            (
+                "/status/clock_observation/callback_elapsed_ns",
+                json!(20000000),
+            ),
+            (
+                "/status/clock_observation/backend_elapsed_ns",
+                json!(19000000),
+            ),
+            ("/status/clock_observation/reported_latency_ns", json!(1)),
+            ("/status/clock_observation/valid_end_sample", json!(48049)),
             ("/status/prepared_frames", json!(16385)),
             ("/status/prepared_capacity_frames", json!(16385)),
             ("/status/reported_latency_ns", json!(5_000_000_001u64)),
@@ -559,6 +620,51 @@ mod tests {
                 validate(&reply, owner, 7, &previous, &bounds).is_err(),
                 "accepted {pointer}"
             );
+        }
+    }
+
+    #[test]
+    fn callback_observations_accept_skipped_polls_but_reject_overlapping_or_huge_buffers() {
+        let (owner, previous, bounds) = playing();
+        let mut reply = Response {
+            owner,
+            serial: 8,
+            status: previous.clone(),
+        };
+        reply.status.callbacks = 8;
+        let observation = reply.status.clock_observation.as_mut().unwrap();
+        observation.callbacks = 8;
+        observation.buffer_start_frames = 3360;
+        observation.submitted_frames = 3840;
+        observation.callback_elapsed_ns = 71000000;
+        observation.backend_elapsed_ns = 70000000;
+        assert!(validate(&reply, owner, 8, &previous, &bounds).is_ok());
+        let valid = reply.status.clock_observation.unwrap();
+        for altered in [
+            crate::ClockObservation {
+                buffer_start_frames: 1000,
+                ..valid
+            },
+            crate::ClockObservation {
+                submitted_frames: u64::MAX,
+                ..valid
+            },
+            crate::ClockObservation {
+                buffer_start_frames: 400000,
+                submitted_frames: 400480,
+                ..valid
+            },
+            crate::ClockObservation {
+                callback_elapsed_ns: 1,
+                ..valid
+            },
+            crate::ClockObservation {
+                backend_elapsed_ns: 1,
+                ..valid
+            },
+        ] {
+            reply.status.clock_observation = Some(altered);
+            assert!(validate(&reply, owner, 8, &previous, &bounds).is_err());
         }
     }
 

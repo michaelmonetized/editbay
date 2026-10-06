@@ -1,5 +1,5 @@
 use crate::{
-    DeviceProfile, MonitorRoute, SoundRenderBudget, SoundRenderer,
+    ClockObservation, DeviceProfile, MonitorRoute, SoundRenderBudget, SoundRenderer,
     monitor::MonitorMatrix,
     sample_clock::SampleClock,
     transport::{self, Control, Reader, State, Writer},
@@ -62,6 +62,7 @@ pub struct StreamingStatus {
     pub device_worker_pid: Option<u32>,
     pub callbacks: u64,
     pub reported_latency_ns: u64,
+    pub clock_observation: Option<ClockObservation>,
     pub prepared_frames: u64,
     pub prepared_capacity_frames: u32,
     pub clipped_monitor_samples: u64,
@@ -106,6 +107,7 @@ pub(crate) struct LocalPlayback {
     ready: Option<Ready>,
     phase: PlaybackPhase,
     error: Option<String>,
+    clock_observation: Option<ClockObservation>,
 }
 
 impl LocalPlayback {
@@ -156,6 +158,7 @@ impl LocalPlayback {
             ready: None,
             phase: PlaybackPhase::Preparing,
             error: None,
+            clock_observation: None,
         })
     }
 
@@ -194,7 +197,12 @@ impl LocalPlayback {
         }
         let (position, end, device, worker_pid, callbacks, latency, prepared, clipped) =
             if let Some(ready) = &self.ready {
-                let (callbacks, latency) = ready.clock.counters();
+                if let Some(observation) = ready.clock.observation() {
+                    self.clock_observation = Some(observation);
+                }
+                let (callbacks, latency) = self.clock_observation.map_or((0, 0), |observed| {
+                    (observed.callbacks, observed.reported_latency_ns)
+                });
                 if self.phase == PlaybackPhase::Playing
                     && let Some(error) = fault(ready.control.state())
                 {
@@ -227,6 +235,7 @@ impl LocalPlayback {
             device_worker_pid: None,
             callbacks,
             reported_latency_ns: latency,
+            clock_observation: self.clock_observation,
             prepared_frames: prepared,
             prepared_capacity_frames: CAPACITY,
             clipped_monitor_samples: clipped,
@@ -416,6 +425,7 @@ fn run(request: &Request, sender: &SyncSender<Event>) -> Result<()> {
         cancel: request.cancel.clone(),
         origin,
         cursor: 0,
+        backend_origin: None,
         end,
     };
     let mut config: cpal::StreamConfig = supported.clone().into();
@@ -483,6 +493,7 @@ struct Callback {
     cancel: Cancellation,
     origin: Instant,
     cursor: u64,
+    backend_origin: Option<cpal::StreamInstant>,
     end: u64,
 }
 
@@ -512,6 +523,13 @@ fn build<T: SizedSample + FromSample<f32>>(
                     .cursor
                     .saturating_add((output.len() / channels) as u64);
                 let timestamp = info.timestamp();
+                let backend_origin = callback.backend_origin.get_or_insert(timestamp.callback);
+                let Some(backend_elapsed) = timestamp.callback.duration_since(backend_origin)
+                else {
+                    callback.control.stop(State::InvalidOutput);
+                    callback.cancel.cancel();
+                    return;
+                };
                 let latency = timestamp
                     .playback
                     .duration_since(&timestamp.callback)
@@ -520,6 +538,7 @@ fn build<T: SizedSample + FromSample<f32>>(
                     callback.cursor,
                     submitted,
                     elapsed_ns(callback.origin),
+                    backend_elapsed.as_nanos().min(u128::from(u64::MAX)) as u64,
                     latency,
                     limit,
                 ) {
