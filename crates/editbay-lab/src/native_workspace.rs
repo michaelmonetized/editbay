@@ -2845,21 +2845,33 @@ pub fn long_timeline(binary: &Path, project: &Path, directory: &Path) -> Result<
     let playing = play_sound(&mut trace)?;
     let finished = sound_record(
         &mut trace,
-        "long-cut final sample",
+        "long-cut playback outcome",
         playing["unix_us"].as_u64().ok_or("Play time absent")?,
         |d| {
             d["sound_active"] == false
                 && d["sound_retiring"] == 0
-                && d["sound"]["phase"] == "finished"
+                && (d["sound"]["phase"] == "finished" || d["error"].is_string())
         },
     )?;
+    let playback_completed = finished["details"]["sound"]["phase"] == "finished";
     if finished["details"]["sequence"] != sequence.to_string()
-        || finished["details"]["sound"]["position_samples"]
-            != finished["details"]["sound"]["end_sample"]
+        || (playback_completed
+            && finished["details"]["sound"]["position_samples"]
+                != finished["details"]["sound"]["end_sample"])
     {
         return Err("Native long cut did not reach its exact end".into());
     }
     trace.focus()?;
+    if !playback_completed {
+        command(
+            "grim",
+            &[
+                "-g",
+                "80,80 1440x900",
+                directory.join("playback-failure.png").to_str().unwrap(),
+            ],
+        )?;
+    }
     key(31, true, false)?;
     trace.wait("saved long cut", |r| {
         has_tab(r, &seed.name, revision) && r["details"]["tabs"][0]["dirty"] == false
@@ -2967,7 +2979,8 @@ pub fn long_timeline(binary: &Path, project: &Path, directory: &Path) -> Result<
         &serde_json::from_value(completed["receipt"].clone())?,
     )?;
     let latency = metrics(&mut inputs);
-    let receipt = json!({"kind":"native_long_cut","qualified":latency["p95_ms"].as_f64().is_some_and(|ms|ms<=50.),"application_sha256":hash(&binary)?,"original_project_sha256":original_hash,"composition":composition,"clips":clips.len(),"revision":revision,"input_latency":latency,"edits":edits,"seeks":seeks,"playing":playing,"finished":finished,"saved_recovered_equal":true,"source_project_unchanged":true,"reopened_timeline":restored,"reopened_picture":restored_picture,"compact_picture":compact_picture,"completed":completed,"independent":independent,"limits":["Native long-cut functionality and software-injected inputs; sustained frame-drop and hardware drift gates remain separate","No physical audibility or independent-user acceptance claim"]});
+    let input_gate_passed = latency["p95_ms"].as_f64().is_some_and(|ms| ms <= 50.);
+    let receipt = json!({"kind":"native_long_cut","qualified":input_gate_passed && playback_completed,"input_gate_passed":input_gate_passed,"playback_completed":playback_completed,"application_sha256":hash(&binary)?,"original_project_sha256":original_hash,"composition":composition,"clips":clips.len(),"revision":revision,"input_latency":latency,"edits":edits,"seeks":seeks,"playing":playing,"finished":finished,"saved_recovered_equal":true,"source_project_unchanged":true,"reopened_timeline":restored,"reopened_picture":restored_picture,"compact_picture":compact_picture,"completed":completed,"independent":independent,"limits":["Native long-cut functionality and software-injected inputs; sustained frame-drop and hardware drift gates remain separate","No physical audibility or independent-user acceptance claim"]});
     File::create_new(directory.join("qualification.json"))?
         .write_all(&serde_json::to_vec_pretty(&receipt)?)?;
     Ok(receipt)
