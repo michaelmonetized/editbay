@@ -232,56 +232,14 @@ impl<P: PcmProvider> SoundRenderer<P> {
             if input.pcm().interval().2 != channels {
                 return Err(Error::Invalid("sound channel routing is undeclared".into()));
             }
-            let input_samples = input.pcm().samples();
-            for (frame, point) in points.iter().enumerate() {
-                if frame.is_multiple_of(32) {
-                    self.check()?;
-                }
-                let Some(point) = point else {
-                    continue;
-                };
-                let gain = source.samples[frame].unwrap().gain;
-                let out = &mut mixed[frame * channels..(frame + 1) * channels];
-                if point.exact {
-                    let index = (point.start - start) as usize * channels;
-                    for (value, sample) in
-                        out.iter_mut().zip(&input_samples[index..index + channels])
-                    {
-                        *value += f64::from(*sample) * gain;
-                    }
-                } else {
-                    let mut sum = [0f64; 64];
-                    let mut normalization = 0.;
-                    let mut accumulate = |relative: i64, weight: f64| {
-                        let offset = (point.origin + relative - start) as usize * channels;
-                        for (value, sample) in sum[..channels]
-                            .iter_mut()
-                            .zip(&input_samples[offset..offset + channels])
-                        {
-                            *value += f64::from(*sample) * weight;
-                        }
-                    };
-                    if let Some(kernel) = self.kernels.get(point) {
-                        normalization = kernel.normalization;
-                        for tap in kernel.weights.iter() {
-                            accumulate(tap.relative, tap.weight);
-                        }
-                    } else {
-                        for relative in point.start - point.origin..point.end - point.origin {
-                            if let Some(weight) = point.weight(relative) {
-                                normalization += weight;
-                                accumulate(relative, weight);
-                            }
-                        }
-                    }
-                    if !normalization.is_finite() || normalization.abs() < 0.5 {
-                        return Err(Error::Invalid("invalid sound interpolation kernel".into()));
-                    }
-                    for channel in 0..channels {
-                        out[channel] += sum[channel] * gain / normalization;
-                    }
-                }
+            SourceMix {
+                source: &source.samples,
+                points: &points,
+                input: input.pcm().samples(),
+                first: start,
+                channels,
             }
+            .mix(&mut mixed, &mut self.kernels, &self.cancel)?;
             self.pcm.validate_result(&input)?;
         }
         self.check()?;
@@ -356,6 +314,69 @@ impl<P: PcmProvider> SoundRenderer<P> {
         } else {
             Ok(())
         }
+    }
+}
+struct SourceMix<'a> {
+    source: &'a [Option<SoundSample>],
+    points: &'a [Option<Point>],
+    input: &'a [f32],
+    first: i64,
+    channels: usize,
+}
+impl SourceMix<'_> {
+    /// Sum one pinned source using the audio library's compiled sample loop.
+    /// `output` holds the mix, `kernels` bounds coefficient reuse and `cancel`
+    /// interrupts every 32 frames. Returns after preserving tap and channel order.
+    fn mix(&self, output: &mut [f64], kernels: &mut Kernels, cancel: &Cancellation) -> Result<()> {
+        let channels = self.channels;
+        for (frame, point) in self.points.iter().enumerate() {
+            if frame.is_multiple_of(32) && cancel.is_cancelled() {
+                return Err(Error::Cancelled);
+            }
+            let Some(point) = point else {
+                continue;
+            };
+            let gain = self.source[frame].unwrap().gain;
+            let out = &mut output[frame * channels..(frame + 1) * channels];
+            if point.exact {
+                let index = (point.start - self.first) as usize * channels;
+                for (value, sample) in out.iter_mut().zip(&self.input[index..index + channels]) {
+                    *value += f64::from(*sample) * gain;
+                }
+            } else {
+                let mut sum = [0f64; 64];
+                let mut normalization = 0.;
+                let mut accumulate = |relative: i64, weight: f64| {
+                    let offset = (point.origin + relative - self.first) as usize * channels;
+                    for (value, sample) in sum[..channels]
+                        .iter_mut()
+                        .zip(&self.input[offset..offset + channels])
+                    {
+                        *value += f64::from(*sample) * weight;
+                    }
+                };
+                if let Some(kernel) = kernels.get(point) {
+                    normalization = kernel.normalization;
+                    for tap in kernel.weights.iter() {
+                        accumulate(tap.relative, tap.weight);
+                    }
+                } else {
+                    for relative in point.start - point.origin..point.end - point.origin {
+                        if let Some(weight) = point.weight(relative) {
+                            normalization += weight;
+                            accumulate(relative, weight);
+                        }
+                    }
+                }
+                if !normalization.is_finite() || normalization.abs() < 0.5 {
+                    return Err(Error::Invalid("invalid sound interpolation kernel".into()));
+                }
+                for channel in 0..channels {
+                    out[channel] += sum[channel] * gain / normalization;
+                }
+            }
+        }
+        Ok(())
     }
 }
 struct Point {
