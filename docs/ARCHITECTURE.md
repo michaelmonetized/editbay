@@ -302,3 +302,11 @@ RGBA conversion/allocation, then returns the exact requested picture. Backward
 and larger jumps retain seek; failure discards decoder state and unpublished
 payloads. [Forward-decode contracts](FORWARD_PICTURES.md) distinguish decode-route
 counters from accepted-picture and actual display-completion observations.
+
+Native playback prepares a dimension-bounded queue of resident pictures on that
+same worker before starting sound. Private reservations reject cancelled or
+replaced results; the exact device clock selects due pictures. An actual queue
+underflow stops playback visibly. GPU callbacks publish bounded, owner-tagged
+completion records independently of accepted-picture counters. See
+[prepared pictures](PREPARED_PICTURES.md) for queue, pin, cancellation and evidence
+limits. The isolated sound callback is unchanged.

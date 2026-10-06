@@ -1,0 +1,140 @@
+{
+  "schema": 1,
+  "runtime_commit": "5578d568c134ca3ca1b99b825320f6dccab5c2d8",
+  "full_R2_qualified": false,
+  "source_playback": [
+    {
+      "frames": 314,
+      "completed": 314,
+      "missing": 0,
+      "queue": {
+        "bounded": true,
+        "first_picture_completed_before_sound_started": true,
+        "maximum_queued": 8,
+        "prepared": 314
+      },
+      "selection_to_draw": {
+        "count": 314,
+        "max_ms": 15.269,
+        "p50_ms": 2.288,
+        "p95_ms": 7.051
+      },
+      "sampled_combined_rss_kib": 516320,
+      "exact_sound_end": true,
+      "owned_processes_reaped": true
+    },
+    {
+      "frames": 79,
+      "completed": 79,
+      "missing": 0,
+      "queue": {
+        "bounded": true,
+        "first_picture_completed_before_sound_started": true,
+        "maximum_queued": 8,
+        "prepared": 79
+      },
+      "selection_to_draw": {
+        "count": 79,
+        "max_ms": 11.988,
+        "p50_ms": 7.693,
+        "p95_ms": 10.38
+      },
+      "sampled_combined_rss_kib": 253680,
+      "exact_sound_end": true,
+      "owned_processes_reaped": true
+    }
+  ],
+  "faults": [
+    {
+      "qualified": true,
+      "preparing_cancellation_ms": 128.447,
+      "exact_sample_resume": true,
+      "retirement_ms": [
+        56.592,
+        482.916
+      ],
+      "owned_processes_reaped": true
+    },
+    {
+      "qualified": true,
+      "preparing_cancellation_ms": 121.669,
+      "exact_sample_resume": true,
+      "retirement_ms": [
+        47.865,
+        481.462
+      ],
+      "owned_processes_reaped": true
+    }
+  ],
+  "dense_edits": [
+    {
+      "qualified": false,
+      "input_gate_passed": true,
+      "playback_completed": false,
+      "input_latency": {
+        "count": 4,
+        "max_ms": 44.812,
+        "p50_ms": 27.371,
+        "p95_ms": 44.812
+      },
+      "error": "Pictures could not keep up with sound; playback stopped. Retry playback",
+      "saved_recovered_equal": true,
+      "source_project_unchanged": true,
+      "master_sha256": "2b998a7824cf19b7c88aeb5ee07388819521ccd9f3ff9842605e7fe437404a72",
+      "independent_streams": [
+        {
+          "kind": "picture",
+          "bytes": 471859200,
+          "exact": true,
+          "sha256": "ffa518029481a764fbe711c2e9690f7d19a4fd5c79673b0a87fe2f23cdf11956"
+        },
+        {
+          "kind": "sound",
+          "bytes": 1024000,
+          "exact": true,
+          "sha256": "8c3bd7056c0ef73826960a1c41d0ea177738dd9bc8fce7df9a199f8cec7dd9d5"
+        }
+      ]
+    },
+    {
+      "qualified": false,
+      "input_gate_passed": false,
+      "playback_completed": true,
+      "input_latency": {
+        "count": 4,
+        "max_ms": 57.501,
+        "p50_ms": 36.433,
+        "p95_ms": 57.501
+      },
+      "error": null,
+      "saved_recovered_equal": true,
+      "source_project_unchanged": true,
+      "master_sha256": "77955d21f2bf4698d820f88fe067714c844db1449d04a5347cf08ac61c6a04aa",
+      "independent_streams": [
+        {
+          "kind": "picture",
+          "bytes": 29491200,
+          "exact": true,
+          "sha256": "217a5906aad875a53d88afbbcfa0e658a676aaf80693141af828378963c440be"
+        },
+        {
+          "kind": "sound",
+          "bytes": 6150144,
+          "exact": true,
+          "sha256": "8c62e35b17f99b3c9f503ad2ed25c519883e0e9f842df9862976bb7c7dc87ae2"
+        }
+      ]
+    }
+  ],
+  "retained_misses": [
+    "Earlier build-concurrent camera run omitted actual frame 10: 313/314 completed",
+    "128-cut camera playback exhausts prepared pictures and stops visibly",
+    "Six-channel 128-cut Redo input 57.501 ms exceeds 50 ms; no same-binary repeat substituted",
+    "Camera dense sequence seek p95 300.185 ms exceeds 250 ms across four sampled targets"
+  ],
+  "limits": [
+    "GPU completion and observed sound end are software observations, not physical display or DAC timing",
+    "Every frame completed before sound end does not prove every frame met its individual presentation deadline",
+    "No sustained 1080p/4K, physical audibility, two-hour hardware drift, client approval or independent-user acceptance"
+  ]
+}

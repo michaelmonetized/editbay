@@ -191,6 +191,12 @@ Omarchy palettes. Recovery tests do not substitute for native visual inspection.
 
 ## R2 — the production engine
 
+Native sound-clock playback now has bounded picture preparation and owner-tagged
+GPU draw-completion receipts; see [prepared pictures](PREPARED_PICTURES.md).
+Preparation cancellation, worker failure and actual underflow retain visible
+outcomes. Dense random-access cuts still require further cache work; none of the
+full playback, seek, hardware or drift gates below is closed by this dependency.
+
 R1 cards show natural-aspect empty sequences. Media cover frames and schema
 migration fixtures follow the actual R2 media/composition implementation; shared
 bank imports preserve original bytes without claiming title/LUT execution.
