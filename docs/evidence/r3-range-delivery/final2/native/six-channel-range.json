@@ -1,0 +1,351 @@
+{
+  "application_sha256": "b58544c2a0d92045c33bcebb2c900d2a8cf782465a048311192720e23929d4f8",
+  "completed": {
+    "cancellation": null,
+    "destination": "/home/michael/Projects/editbay/artifacts/worktrees/r2-sound-worker/artifacts/range-delivery/final2/native/six-channel-range/Range.mov",
+    "error": null,
+    "id": "151f1718-8392-4d97-8d41-5ba831fd392d",
+    "owner": {
+      "project_id": "4f509bef-6fd0-4773-ae1d-2191d9bcb1d4",
+      "revision": 3
+    },
+    "progress": {
+      "phase": "publishing",
+      "pictures": 5,
+      "prepared_samples": 4004,
+      "samples": 10010,
+      "total_pictures": 5,
+      "total_preparation_samples": 4004,
+      "total_samples": 10010
+    },
+    "receipt": {
+      "adapter": "AdapterInfo { name: \"Apple M1 Pro (G13S C0)\", vendor: 65541, device: 0, device_type: IntegratedGpu, device_pci_bus_id: \"\", driver: \"Honeykrisp\", driver_info: \"Mesa 26.2.3-arch1.1\", backend: Vulkan, subgroup_min_size: 32, subgroup_max_size: 32, transient_saves_memory: Some(false), limit_bucket: None }",
+      "clipped_picture_values": 0,
+      "file_bytes": 340244,
+      "file_sha256": "790b99bd7f875489271a41bcdf3b805edf9e223a11da5f1eed69abe541dfea54",
+      "pcm_sha256": "7e29992706aec3248fb8608c5e8beb260d83cc225a1d75f03feccc27bc4cf37f",
+      "pixel_sha256": "7127802feb8b722a4b5d41734f177500f677c77b19b560347408c1abf7c5a72b",
+      "profile": {
+        "channels": [
+          "FL",
+          "FR",
+          "FC",
+          "LFE",
+          "BL",
+          "BR"
+        ],
+        "first_frame": 2,
+        "frame_rate": {
+          "denominator": 1001,
+          "numerator": 24000
+        },
+        "frames": 5,
+        "height": 180,
+        "sample_rate": 48000,
+        "width": 320
+      },
+      "version": {
+        "project_id": "4f509bef-6fd0-4773-ae1d-2191d9bcb1d4",
+        "revision": 3
+      }
+    },
+    "request": {
+      "composition": "8692a2b3-18c2-4d6b-ac7c-b5e2b5f36983",
+      "range": {
+        "end": 7,
+        "start": 2
+      },
+      "sample_rate": 48000
+    },
+    "running": false,
+    "tab": "3c9dd718-3e4d-4685-ab47-bd69cbc56fd5",
+    "worker_pid": 1886449
+  },
+  "independent": {
+    "exact": true,
+    "frames": {
+      "end": 7,
+      "start": 2
+    },
+    "inspection": {
+      "metadata": {
+        "format": {
+          "bit_rate": "13052296",
+          "duration": "0.208542",
+          "filename": "/home/michael/Projects/editbay/artifacts/worktrees/r2-sound-worker/artifacts/range-delivery/final2/native/six-channel-range/Range.mov",
+          "format_long_name": "QuickTime / MOV",
+          "format_name": "mov,mp4,m4a,3gp,3g2,mj2",
+          "nb_programs": 0,
+          "nb_stream_groups": 0,
+          "nb_streams": 2,
+          "probe_score": 100,
+          "size": "340244",
+          "start_time": "0.000000",
+          "tags": {
+            "compatible_brands": "qt  ",
+            "encoder": "Lavf63.1.101",
+            "major_brand": "qt  ",
+            "minor_version": "512"
+          }
+        },
+        "streams": [
+          {
+            "avg_frame_rate": "24000/1001",
+            "bit_rate": "3785603",
+            "codec_long_name": "PNG (Portable Network Graphics) image",
+            "codec_name": "png",
+            "codec_tag": "0x20676e70",
+            "codec_tag_string": "png ",
+            "codec_type": "video",
+            "coded_height": 180,
+            "coded_width": 320,
+            "color_primaries": "bt709",
+            "color_range": "pc",
+            "color_space": "gbr",
+            "color_transfer": "iec61966-2-1",
+            "disposition": {
+              "attached_pic": 0,
+              "captions": 0,
+              "clean_effects": 0,
+              "comment": 0,
+              "default": 1,
+              "dependent": 0,
+              "descriptions": 0,
+              "dub": 0,
+              "forced": 0,
+              "hearing_impaired": 0,
+              "karaoke": 0,
+              "lyrics": 0,
+              "metadata": 0,
+              "multilayer": 0,
+              "non_diegetic": 0,
+              "original": 0,
+              "still_image": 0,
+              "timed_thumbnails": 0,
+              "visual_impaired": 0
+            },
+            "duration": "0.208542",
+            "duration_ts": 5005,
+            "has_b_frames": 0,
+            "height": 180,
+            "id": "0x1",
+            "index": 0,
+            "level": -99,
+            "nb_frames": "5",
+            "pix_fmt": "rgba",
+            "r_frame_rate": "24000/1001",
+            "start_pts": 0,
+            "start_time": "0.000000",
+            "tags": {
+              "handler_name": "VideoHandler",
+              "vendor_id": "FFMP"
+            },
+            "time_base": "1/24000",
+            "width": 320
+          },
+          {
+            "avg_frame_rate": "0/0",
+            "bit_rate": "9216000",
+            "bits_per_sample": 32,
+            "channel_layout": "5.1",
+            "channels": 6,
+            "codec_long_name": "PCM 32-bit floating point little-endian",
+            "codec_name": "pcm_f32le",
+            "codec_tag": "0x6d63706c",
+            "codec_tag_string": "lpcm",
+            "codec_type": "audio",
+            "disposition": {
+              "attached_pic": 0,
+              "captions": 0,
+              "clean_effects": 0,
+              "comment": 0,
+              "default": 1,
+              "dependent": 0,
+              "descriptions": 0,
+              "dub": 0,
+              "forced": 0,
+              "hearing_impaired": 0,
+              "karaoke": 0,
+              "lyrics": 0,
+              "metadata": 0,
+              "multilayer": 0,
+              "non_diegetic": 0,
+              "original": 0,
+              "still_image": 0,
+              "timed_thumbnails": 0,
+              "visual_impaired": 0
+            },
+            "duration": "0.208542",
+            "duration_ts": 10010,
+            "id": "0x2",
+            "index": 1,
+            "initial_padding": 0,
+            "nb_frames": "10010",
+            "r_frame_rate": "0/0",
+            "sample_fmt": "flt",
+            "sample_rate": "48000",
+            "start_pts": 0,
+            "start_time": "0.000000",
+            "tags": {
+              "handler_name": "SoundHandler",
+              "vendor_id": "[0][0][0][0]"
+            },
+            "time_base": "1/48000"
+          }
+        ]
+      },
+      "streams": [
+        {
+          "bytes": 1152000,
+          "exact": true,
+          "kind": "picture",
+          "sha256": "7127802feb8b722a4b5d41734f177500f677c77b19b560347408c1abf7c5a72b",
+          "transparent_last_picture_pixels": 0
+        },
+        {
+          "bytes": 240240,
+          "exact": true,
+          "kind": "sound",
+          "sha256": "7e29992706aec3248fb8608c5e8beb260d83cc225a1d75f03feccc27bc4cf37f",
+          "transparent_last_picture_pixels": null
+        }
+      ]
+    },
+    "output_sha256": "790b99bd7f875489271a41bcdf3b805edf9e223a11da5f1eed69abe541dfea54",
+    "reference_sha256": "508d0b6a675b3b2efbfa6afe13e6b7ec1549052e68b040e4e6849f141ca09517",
+    "samples": {
+      "end": 14014,
+      "start": 4004
+    },
+    "streams": [
+      {
+        "bytes": 1152000,
+        "exact": true,
+        "expected_sha256": "7127802feb8b722a4b5d41734f177500f677c77b19b560347408c1abf7c5a72b",
+        "kind": "picture",
+        "sha256": "7127802feb8b722a4b5d41734f177500f677c77b19b560347408c1abf7c5a72b",
+        "units": 5
+      },
+      {
+        "bytes": 240240,
+        "exact": true,
+        "expected_sha256": "7e29992706aec3248fb8608c5e8beb260d83cc225a1d75f03feccc27bc4cf37f",
+        "kind": "sound",
+        "sha256": "7e29992706aec3248fb8608c5e8beb260d83cc225a1d75f03feccc27bc4cf37f",
+        "units": 10010
+      }
+    ]
+  },
+  "input": {
+    "count": 5,
+    "max_ms": 18.115,
+    "p50_ms": 14.871,
+    "p95_ms": 18.115
+  },
+  "kind": "native_range_delivery",
+  "limits": [
+    "Actual native windows and file chooser with software-injected input.",
+    "No physical output, client approval or independent-user acceptance claim."
+  ],
+  "originals_unchanged": true,
+  "project_sha256": "3bc50751d9ae88ccb7d816fe950be156669e442d5f64f1aabd1a1f6fd81e333a",
+  "qualified": true,
+  "views": [
+    {
+      "invalid": {
+        "details": {
+          "busy": false,
+          "choice": {
+            "composition": "8692a2b3-18c2-4d6b-ac7c-b5e2b5f36983",
+            "duration": 79,
+            "end": "2",
+            "full": false,
+            "owner": {
+              "project_id": "4f509bef-6fd0-4773-ae1d-2191d9bcb1d4",
+              "revision": 3
+            },
+            "start": "7"
+          },
+          "jobs": []
+        },
+        "dropped_before": 0,
+        "kind": "delivery",
+        "pid": 1881664,
+        "unix_us": 1791285793781393
+      },
+      "selected": {
+        "details": {
+          "busy": false,
+          "choice": {
+            "composition": "8692a2b3-18c2-4d6b-ac7c-b5e2b5f36983",
+            "duration": 79,
+            "end": "7",
+            "full": false,
+            "owner": {
+              "project_id": "4f509bef-6fd0-4773-ae1d-2191d9bcb1d4",
+              "revision": 3
+            },
+            "start": "2"
+          },
+          "jobs": []
+        },
+        "dropped_before": 0,
+        "kind": "delivery",
+        "pid": 1881664,
+        "unix_us": 1791285794639389
+      },
+      "size": [
+        1440,
+        900
+      ]
+    },
+    {
+      "invalid": {
+        "details": {
+          "busy": false,
+          "choice": {
+            "composition": "8692a2b3-18c2-4d6b-ac7c-b5e2b5f36983",
+            "duration": 79,
+            "end": "2",
+            "full": false,
+            "owner": {
+              "project_id": "4f509bef-6fd0-4773-ae1d-2191d9bcb1d4",
+              "revision": 3
+            },
+            "start": "7"
+          },
+          "jobs": []
+        },
+        "dropped_before": 0,
+        "kind": "delivery",
+        "pid": 1881664,
+        "unix_us": 1791285796325775
+      },
+      "selected": {
+        "details": {
+          "busy": false,
+          "choice": {
+            "composition": "8692a2b3-18c2-4d6b-ac7c-b5e2b5f36983",
+            "duration": 79,
+            "end": "7",
+            "full": false,
+            "owner": {
+              "project_id": "4f509bef-6fd0-4773-ae1d-2191d9bcb1d4",
+              "revision": 3
+            },
+            "start": "2"
+          },
+          "jobs": []
+        },
+        "dropped_before": 0,
+        "kind": "delivery",
+        "pid": 1881664,
+        "unix_us": 1791285797174697
+      },
+      "size": [
+        800,
+        600
+      ]
+    }
+  ]
+}

@@ -23,8 +23,8 @@ The options capture document ownership before the native file chooser opens.
 
 Qualification uses actual camera and delayed six-channel media, full references
 at 48 and 44.1 kHz, independent FFmpeg trim/atrim decode/hash comparisons, actual
-native options/chooser windows and worker fault injection. Receipts are added
-after execution; implementation alone does not establish these gates.
+native options/chooser windows and worker fault injection. [Actual receipts](evidence/r3-range-delivery/README.md) pass the scoped ranges,
+native workflow, worker faults and checks, retaining all earlier failures.
 
 Delivery queues, additional profiles, sustained playback, physical timing and
 complete R2/R3/R7/R11 production acceptance remain open.
