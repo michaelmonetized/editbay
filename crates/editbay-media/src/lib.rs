@@ -177,6 +177,18 @@ impl VideoReader {
         }))
     }
 
+    /// Advance one exact indexed picture without allocating or converting RGBA.
+    /// `tick` is the expected next presentation timestamp. Returns after native
+    /// decode, or an error when EOF, cancellation or a changed index intervenes.
+    pub(crate) fn skip_picture(&mut self, tick: i64) -> Result<()> {
+        match self.inner.next_timing()? {
+            Some(frame) if frame.pts != i64::MIN && frame.pts == tick => Ok(()),
+            _ => Err(Error::Invalid(
+                "skipped native picture differs from the exact captured index".into(),
+            )),
+        }
+    }
+
     /// Select a picture stream from an owned local source.
     /// `source` retains the validated descriptor, `stream` is its explicit index,
     /// and `cancel` interrupts native IO/decode. Returns an RGBA8 CPU reader.

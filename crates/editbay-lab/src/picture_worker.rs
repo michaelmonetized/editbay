@@ -76,6 +76,10 @@ pub fn run(path: &Path, executable: &Path) -> Result<Value> {
     let targets: Vec<_> = (0..count)
         .map(|i| i * (presentation_ticks.len() - 1) / (count - 1))
         .collect();
+    let forward_targets: Vec<_> = [0, 3, 12, 22, 24, 23, 26, 0, 8, presentation_ticks.len() - 1]
+        .into_iter()
+        .filter(|ordinal| *ordinal < presentation_ticks.len())
+        .collect();
     let request = |ordinal: usize| -> SourceRequest {
         SourceRequest::Media {
             source: snapshot.project().sources[0].id,
@@ -99,7 +103,7 @@ pub fn run(path: &Path, executable: &Path) -> Result<Value> {
         if frame.source_tick != presentation_ticks.get(decoded).copied() {
             return Err("independent source tick mismatch".into());
         }
-        if targets.contains(&decoded) {
+        if targets.contains(&decoded) || forward_targets.contains(&decoded) {
             expected.insert(
                 decoded,
                 (
@@ -172,6 +176,8 @@ pub fn run(path: &Path, executable: &Path) -> Result<Value> {
     if after.child.misses != before.child.misses
         || after.child.seeks != before.child.seeks
         || after.child.sequential_decodes != before.child.sequential_decodes
+        || after.child.forward_decodes != before.child.forward_decodes
+        || after.child.skipped_pictures != before.child.skipped_pictures
     {
         return Err("already-decoded handoff caused native decode".into());
     }
@@ -239,6 +245,72 @@ pub fn run(path: &Path, executable: &Path) -> Result<Value> {
     }
     let cancellation = active_cancel(executable, snapshot.clone(), request(decoded - 1))?;
     let stopped = stopped_cancel(executable, snapshot.clone(), request(decoded - 1))?;
+    let mut forward_budget = budget;
+    forward_budget.pictures.cache_bytes = 0;
+    forward_budget.pictures.cache_entries = 0;
+    let mut forward = PictureWorker::new(
+        executable,
+        snapshot.clone(),
+        forward_budget,
+        Cancellation::new()?,
+    )?;
+    let forward_pid = forward.process_id().ok_or("forward codec absent")?;
+    let mut next = 0;
+    let (mut expected_sequential, mut expected_forward, mut expected_skipped, mut expected_seeks) =
+        (0, 0, 0, 0);
+    let mut gap_checks = Vec::new();
+    let mut gap_times = Vec::new();
+    for ordinal in forward_targets {
+        let route = if ordinal == next {
+            expected_sequential += 1;
+            "next"
+        } else if ordinal > next && ordinal - next <= 8 {
+            expected_forward += 1;
+            expected_skipped += ordinal - next;
+            "forward"
+        } else {
+            expected_seeks += 1;
+            "seek"
+        };
+        let started = Instant::now();
+        let result = forward
+            .picture(&request(ordinal))?
+            .ok_or("forward picture absent")?;
+        let elapsed = started.elapsed().as_secs_f64() * 1000.;
+        let hash = format!("{:x}", Sha256::digest(result.picture.rgba()));
+        if hash != expected[&ordinal].0
+            || result.picture.color != expected[&ordinal].1
+            || result.picture.alpha != expected[&ordinal].2
+            || result.picture.source_tick != presentation_ticks[ordinal]
+            || result.cache_hit
+        {
+            return Err(
+                "uncached forward pixels/metadata differ from independent reference".into(),
+            );
+        }
+        forward.validate_result(&result)?;
+        gap_checks.push(json!({"ordinal":ordinal,"route":route,"tick":result.picture.source_tick,"rgba_sha256":hash,"elapsed_ms":elapsed}));
+        gap_times.push(elapsed);
+        next = ordinal + 1;
+    }
+    let forward_stats = forward.transfer_stats();
+    if forward_stats.child.sequential_decodes != expected_sequential
+        || forward_stats.child.forward_decodes != expected_forward
+        || forward_stats.child.skipped_pictures != expected_skipped as u64
+        || forward_stats.child.seeks != expected_seeks
+        || forward_stats.mapped_bytes != 0
+        || forward_stats.mapped_handles != 0
+    {
+        return Err("forward route counters or uncached pin cleanup differ".into());
+    }
+    forward.verify_sources()?;
+    let forward_memory = process_memory(forward_pid)?;
+    forward.clear()?;
+    if Path::new(&format!("/proc/{forward_pid}")).exists() {
+        return Err("forward codec was not reaped".into());
+    }
+    let forward_receipt = json!({"checks":gap_checks,"timings":metrics(&mut gap_times),"before_clear":forward_stats,
+        "cleanup":forward.transfer_stats(),"child_memory":forward_memory,"worker_reaped":true});
     source.verify(&cancel)?;
     let first_sequential_ms = sequential.remove(0);
     Ok(
@@ -250,7 +322,7 @@ pub fn run(path: &Path, executable: &Path) -> Result<Value> {
         "before_hits":before,"after_hits":after,"before_clear":before_clear,"worker_limits":limits,
         "worker_death":{"failed_visibly":true,"reaped":!Path::new(&format!("/proc/{pid}")).exists(),"error_latency_ms":death_ms,"retry_ms":retry_ms,"matching_content_shared":true,"old_receipt_rejected":true},
         "first_sequential_includes_restart_and_binding_ms":first_sequential_ms,"steady_sequential_pictures":metrics(&mut sequential),
-        "active_cancel":cancellation,"stopped_cancel":stopped,"cleanup":cleanup,"parent_memory":memory()?,
+        "active_cancel":cancellation,"stopped_cancel":stopped,"cleanup":cleanup,"forward_gaps":forward_receipt,"parent_memory":memory()?,
         "child_memory":[first_memory,sequential_memory],"includes_gpu_or_native_surface":false,"full_r2_gate_pass":false}),
     )
 }

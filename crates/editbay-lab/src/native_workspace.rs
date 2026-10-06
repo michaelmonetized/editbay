@@ -1131,6 +1131,186 @@ pub fn preview(
     Ok(receipt)
 }
 
+/// Observe one entire saved native sequence on its real sound clock.
+/// `binary`, `project` and `directory` select the app, immutable input and new
+/// evidence folder. Returns actual frame/clock/memory observations and source
+/// preservation, without treating a short workload as full hardware acceptance.
+pub fn continuous(binary: &Path, project: &Path, directory: &Path) -> Result<Value> {
+    let binary = binary.canonicalize()?;
+    let original = project.canonicalize()?;
+    let original_hash = hash(&original)?;
+    let seed = load(&original)?;
+    let sequence = seed.sequences.first().ok_or("No saved sequence")?;
+    let composition = seed
+        .compositions
+        .iter()
+        .find(|c| Some(c.id) == sequence.composition)
+        .ok_or("No saved composition")?;
+    let seconds = composition.duration as f64 * f64::from(composition.frame_rate.denominator)
+        / f64::from(composition.frame_rate.numerator);
+    if !(0.0..=600.0).contains(&seconds) || composition.audio.is_none() {
+        return Err("Continuous native trial needs sound and at most ten minutes".into());
+    }
+    for asset in &seed.assets {
+        if hash(&asset.path)? != asset.sha256 {
+            return Err("Source differs before native playback".into());
+        }
+    }
+    fs::create_dir(directory)?;
+    let directory = directory.canonicalize()?;
+    let copy = directory.join("Preview.editbay");
+    save_new(&seed, &copy)?;
+    let catalog = directory.join("catalog");
+    fs::create_dir(&catalog)?;
+    let (mut application, mut trace) = start(
+        &binary,
+        &directory.join("state"),
+        &catalog,
+        &directory.join("native.jsonl"),
+        Some(&copy),
+    )?;
+    let first = picture(&mut trace, 0, 0)?;
+    let playing = play_sound(&mut trace)?;
+    let after = playing["unix_us"].as_u64().ok_or("Play time absent")?;
+    let deadline = Instant::now() + Duration::from_secs_f64(seconds + 15.);
+    let mut memory = std::collections::BTreeMap::<u64, Value>::new();
+    let mut sampled_combined_rss_kib = 0;
+    let mut observed_peak_combined_rss_kib = 0;
+    let finished =
+        loop {
+            trace.read()?;
+            if let Some(record) = trace.records.iter().rev().find(|r| {
+                r["kind"] == "preview" && r["unix_us"].as_u64().is_some_and(|t| t >= after)
+            }) {
+                let d = &record["details"];
+                if d["error"].is_string() {
+                    return Err(format!("Native continuous playback: {}", d["error"]).into());
+                }
+                let pids = [
+                    Some(u64::from(application.0.id())),
+                    d["worker_pid"].as_u64(),
+                    d["sound"]["worker_pid"].as_u64(),
+                    d["sound"]["device_worker_pid"].as_u64(),
+                ];
+                for pid in pids.into_iter().flatten() {
+                    let status = match fs::read_to_string(format!("/proc/{pid}/status")) {
+                        Ok(status) => status,
+                        Err(error) if error.kind() == std::io::ErrorKind::NotFound => continue,
+                        Err(error) => return Err(error.into()),
+                    };
+                    let kib = |prefix: &str| -> u64 {
+                        status
+                            .lines()
+                            .find_map(|line| line.strip_prefix(prefix))
+                            .and_then(|v| v.split_whitespace().next())
+                            .and_then(|v| v.parse().ok())
+                            .unwrap_or(0)
+                    };
+                    let rss = kib("VmRSS:");
+                    sampled_combined_rss_kib += rss;
+                    let high_water = kib("VmHWM:").max(
+                        memory
+                            .get(&pid)
+                            .and_then(|v| v["high_water_kib"].as_u64())
+                            .unwrap_or(0),
+                    );
+                    memory.insert(
+                        pid,
+                        json!({"pid":pid,"last_rss_kib":rss,"high_water_kib":high_water}),
+                    );
+                }
+                observed_peak_combined_rss_kib =
+                    observed_peak_combined_rss_kib.max(sampled_combined_rss_kib);
+                sampled_combined_rss_kib = 0;
+                if d["sound"]["phase"] == "finished"
+                    && d["sound_active"] == false
+                    && d["sound_retiring"] == 0
+                {
+                    break record.clone();
+                }
+            }
+            if Instant::now() >= deadline {
+                return Err(
+                    "Continuous native trial exceeded its duration plus fifteen seconds".into(),
+                );
+            }
+            thread::sleep(Duration::from_millis(50));
+        };
+    if finished["details"]["sound"]["position_samples"]
+        != finished["details"]["sound"]["end_sample"]
+    {
+        return Err("Continuous native sound missed the exact end".into());
+    }
+    let last = picture(&mut trace, composition.duration - 1, 0)?;
+    trace.focus()?;
+    command(
+        "grim",
+        &[
+            "-g",
+            "80,80 1440x900",
+            directory.join("finished.png").to_str().unwrap(),
+        ],
+    )?;
+    application.kill()?;
+    let reaped_by = Instant::now() + Duration::from_secs(2);
+    while memory
+        .keys()
+        .any(|pid| Path::new(&format!("/proc/{pid}")).exists())
+    {
+        if Instant::now() >= reaped_by {
+            return Err("Continuous native trial retained an owned process".into());
+        }
+        thread::sleep(Duration::from_millis(10));
+    }
+    if hash(&original)? != original_hash || load(&copy)? != seed {
+        return Err("Continuous native observation changed its saved project".into());
+    }
+    for asset in &seed.assets {
+        if hash(&asset.path)? != asset.sha256 {
+            return Err("Source differs after native playback".into());
+        }
+    }
+    let mut seen = std::collections::HashSet::new();
+    let observations: Vec<_> = trace
+        .records
+        .iter()
+        .filter(|r| {
+            r["kind"] == "preview"
+                && r["unix_us"]
+                    .as_u64()
+                    .is_some_and(|t| t >= after && t <= finished["unix_us"].as_u64().unwrap())
+        })
+        .filter(|r| {
+            r["details"]["gpu_draw_completed_us"]
+                .as_u64()
+                .is_some_and(|v| v > 0)
+        })
+        .filter(|r| {
+            seen.insert((
+                r["details"]["displayed_frame"].as_u64(),
+                r["details"]["displayed_serial"].as_u64(),
+            ))
+        })
+        .cloned()
+        .collect();
+    let mut times: Vec<_> = observations
+        .iter()
+        .filter_map(|r| r["details"]["gpu_draw_completed_us"].as_u64())
+        .map(|us| us as f64 / 1000.)
+        .collect();
+    let receipt = json!({"kind":"native_continuous_sequence","application_sha256":hash(&binary)?,"original_project_sha256":original_hash,
+        "duration_frames":composition.duration,"duration_seconds":seconds,"frame_rate":composition.frame_rate,
+        "first":first,"playing":playing,"at_sound_end":finished,"last":last,"displayed_observations":observations,
+        "request_to_gpu_completion":metrics(&mut times),"process_memory":memory.values().collect::<Vec<_>>(),
+        "observed_peak_combined_rss_kib":observed_peak_combined_rss_kib,"memory_sample_interval_ms":50,
+        "exact_sound_end":true,"source_project_preserved":true,"owned_processes_reaped":true,"full_R2_qualified":false,
+        "limits":["Sampled process RSS can count shared pages more than once and excludes unreported GPU allocations",
+            "Short native software observations; no physical audibility, two-hour drift, client or hardware-matrix qualification"]});
+    File::create_new(directory.join("qualification.json"))?
+        .write_all(&serde_json::to_vec_pretty(&receipt)?)?;
+    Ok(receipt)
+}
+
 fn has_tab(record: &Value, name: &str, revision: u64) -> bool {
     record["kind"] == "workspace"
         && record["details"]["tabs"].as_array().is_some_and(|tabs| {

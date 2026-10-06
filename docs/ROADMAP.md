@@ -265,6 +265,14 @@ retrieval dominates the remaining camera cost; bounded forward decoder advanceme
 continues in [issue #36](https://github.com/michaelmonetized/editbay/issues/36).
 This scoped GPU reduction does not close sustained picture, seek or full R2 gates.
 
+Issue #36 implements bounded indexed forward decoding with
+[real app/CLI and native evidence](evidence/r2-forward-pictures/README.md).
+Exact masters and source playback pass their functional checks, while a 53.123 ms
+input miss and 333.848 ms native seek remain recorded. The existing viewer skip
+counter measures accepted pictures, not every completed display draw. Bounded
+completion records and preparation ahead of the sound clock continue in
+[issue #38](https://github.com/michaelmonetized/editbay/issues/38).
+
 ## R3 — finish a paying edit
 
 Issue [#29](https://github.com/michaelmonetized/editbay/issues/29) implements the

@@ -489,6 +489,8 @@ impl PictureProvider for PictureWorker {
             evictions: self.evictions,
             seeks: self.child_stats.seeks,
             sequential_decodes: self.child_stats.sequential_decodes,
+            forward_decodes: self.child_stats.forward_decodes,
+            skipped_pictures: self.child_stats.skipped_pictures,
         }
     }
     fn clear(&mut self) -> Result<()> {
