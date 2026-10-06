@@ -82,3 +82,7 @@ verify exact fractional-rate conversion and retained terminal failure.
 
 Physical audibility, unplugged hardware, two-hour device drift, sustained 1080p/4K
 playback on all supported hardware and full R2/R3 acceptance remain separate gates.
+
+[Recorded native/process evidence](evidence/r2-sound-device/README.md) passes the
+scoped device-containment gates. It retains a camera planning timing miss and
+keeps full sound-performance, hardware and release acceptance open.

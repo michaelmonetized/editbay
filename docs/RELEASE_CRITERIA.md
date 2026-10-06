@@ -197,3 +197,10 @@ native edit/save/recovery/export. Typed protocol substitution checks supplement
 those real process trials. This does not close physical audibility, device unplug,
 two-hour drift or the full R2 hardware gates. See
 [device containment](SOUND_DEVICE_WORKER.md).
+
+The [device evidence](evidence/r2-sound-device/README.md) passes 16 real streaming,
+24 protocol, six controller-death and two complete native failure/retry/edit/export
+workflows. Native retirement stays below 624 ms and edit p95 below 28 ms; independent
+pixel/PCM slices are exact. Camera planning includes a retained 10.698 ms p95 miss
+against 5 ms (same-binary repeat 2.521 ms); six-channel p95 is 3.918 ms. This is scoped
+device-containment acceptance, not a blanket sound-performance or R2 pass.
