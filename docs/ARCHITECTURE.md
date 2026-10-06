@@ -102,7 +102,12 @@ interpolation, private compiler/worker ownership and native cancellation. Its
 camera/multichannel receipts are worker evidence. The same renderer now accepts
 isolated original-channel PCM from supervised packaged codec processes, using
 sealed mappings, independent parent/child budgets and shared cancellation
-ownership; see [isolated sound](WORKER_SOUND.md). Streaming callback scheduling
+ownership; see [isolated sound](WORKER_SOUND.md). Native playback prepares this
+graph on a Rust worker into a 16,384-frame atomic queue. The callback only consumes
+prepared samples and publishes its device sample clock. Pause keeps the exact
+sample boundary; seek/edit cancels the captured owner. Late pictures coalesce
+without slowing sound; underrun stops visibly and cancels the codec. See
+[streaming sound](STREAMING_SOUND.md). Sustained hardware/drift qualification
 and complete shared delivery remain open; see [sound blocks](SOUND_BLOCKS.md).
 Schema 1 migrates after integrity verification without writing its source; unknown
 schemas fail. Format-copy migration uses a separate destination.

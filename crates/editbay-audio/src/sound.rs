@@ -309,6 +309,13 @@ impl<P: PcmProvider> SoundRenderer<P> {
     pub fn verify_sources(&mut self) -> Result<()> {
         self.pcm.verify_sources()
     }
+    /// Check an idle provider and the identities of its retained sources.
+    /// Takes no arguments; returns a visible cancellation, source or worker error.
+    /// This runs on the preparation worker, never on a device callback.
+    pub fn poll(&mut self) -> Result<()> {
+        self.check()?;
+        self.pcm.check_sources()
+    }
     /// Inspect retained native sample accounting.
     /// Takes no arguments; returns PCM cache, consumer and decoder resource use.
     pub fn pcm_stats(&self) -> PcmStats {

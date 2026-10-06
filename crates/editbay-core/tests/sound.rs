@@ -140,6 +140,68 @@ fn exact_sample_centers_rate_conversion_reverse_and_final_sample() {
 }
 
 #[test]
+fn device_rate_uses_only_reachable_channels_and_rejects_implicit_mixing() {
+    let mut p = project();
+    let mut unrelated = p.sources[0].clone();
+    unrelated.id = id(21);
+    if let StreamFormat::Audio { channels, .. } = &mut unrelated.streams[0].format {
+        *channels = vec!["FC".into()];
+    }
+    p.sources.insert(0, unrelated);
+    let compile = |p: Project| {
+        SoundSnapshot::at_output_rate(
+            Arc::new(EvaluationSnapshot::new(Arc::new(p)).unwrap()),
+            id(30),
+            44100,
+            SoundBudget::default(),
+        )
+    };
+    let snapshot = compile(p.clone()).unwrap();
+    assert_eq!(snapshot.profile().channels, ["FL", "FR"]);
+    assert_eq!(snapshot.profile().sample_rate, 44100);
+    assert_eq!(snapshot.duration_samples(), 88200);
+    assert_eq!(
+        snapshot.prepare(0, 1).unwrap().sources()[0].samples[0]
+            .unwrap()
+            .center,
+        SourcePosition::new(80, 147).unwrap()
+    );
+    p.compositions[0].tracks[0].clips[0].source = ClipSource::Media {
+        source: id(21),
+        stream: 0,
+    };
+    assert_eq!(compile(p.clone()).unwrap().profile().channels, ["FC"]);
+    let mut other = p.compositions[0].tracks[0].clips[0].clone();
+    other.id = id(43);
+    other.source = ClipSource::Media {
+        source: id(20),
+        stream: 0,
+    };
+    p.compositions[0].tracks[0].clips.push(other);
+    p.compositions[0]
+        .nodes
+        .push(node(52, NodeOperation::Source { clip: id(43) }));
+    p.compositions[0].nodes.push(node(
+        53,
+        NodeOperation::Mix {
+            inputs: vec![id(50), id(52)],
+        },
+    ));
+    p.compositions[0].audio = Some(id(53));
+    assert!(
+        compile(p.clone())
+            .err()
+            .unwrap()
+            .to_string()
+            .contains("routing")
+    );
+    p.compositions[0].audio = None;
+    let silent = compile(p).unwrap();
+    assert_eq!(silent.profile().channels, ["FL", "FR"]);
+    assert!(silent.prepare(0, 4096).unwrap().sources().is_empty());
+}
+
+#[test]
 fn cuts_inactive_tracks_and_freeze_are_explicit_silence() {
     let mut p = project();
     let clip = &mut p.compositions[0].tracks[0].clips[0];

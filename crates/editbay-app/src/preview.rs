@@ -1,4 +1,7 @@
 use crate::workspace::{DocumentOwner, Workspace};
+use editbay_audio::{
+    MonitorRoute, PlaybackPhase, PlaybackStart, StreamingPlayback, StreamingStatus,
+};
 use editbay_core::{
     DocumentCommand, DocumentEditor, DocumentVersion, EvaluationSnapshot, Project, SourcePosition,
 };
@@ -193,10 +196,34 @@ mod tests {
         }
     }
 }
-#[derive(Clone, Copy)]
+#[derive(Clone, Copy, PartialEq, Eq)]
 struct Selection {
     sequence: Uuid,
     frame: u64,
+}
+struct SoundTask {
+    owner: DocumentOwner,
+    sequence: Uuid,
+    rate: editbay_core::FrameRate,
+    duration: u64,
+    playback: StreamingPlayback,
+}
+impl SoundTask {
+    fn frame(&self, status: &StreamingStatus) -> Option<u64> {
+        let sample = status.position_samples?;
+        let rate = status.device.as_ref()?.sample_rate;
+        Some(
+            (u128::from(sample) * u128::from(self.rate.numerator)
+                / (u128::from(rate) * u128::from(self.rate.denominator)))
+            .min(u128::from(self.duration - 1)) as u64,
+        )
+    }
+}
+#[derive(Clone, Copy)]
+struct ResumeSound {
+    owner: DocumentOwner,
+    sequence: Uuid,
+    start: PlaybackStart,
 }
 struct Request {
     serial: u64,
@@ -462,6 +489,12 @@ pub struct PreviewPane {
     gpu: Option<Gpu>,
     selections: HashMap<Uuid, Selection>,
     source_audio: HashMap<(Uuid, Uuid), Option<u32>>,
+    sound: Option<SoundTask>,
+    sound_retiring: Vec<SoundTask>,
+    sound_status: Option<StreamingStatus>,
+    resume_sound: Option<ResumeSound>,
+    monitor_route: MonitorRoute,
+    skipped_frames: u64,
     task: Option<Task>,
     retiring: Vec<Task>,
     picture: Option<Arc<Picture>>,
@@ -627,6 +660,7 @@ impl PreviewPane {
     }
 
     fn stop(&mut self) {
+        self.stop_sound();
         if let Some(task) = self.task.take() {
             task.stop();
             self.retiring.push(task);
@@ -637,11 +671,46 @@ impl PreviewPane {
         self.worker_pid = None;
     }
 
+    fn stop_sound(&mut self) -> Option<u64> {
+        let mut task = self.sound.take()?;
+        let status = task.playback.status();
+        let frame = task.frame(&status);
+        if let (Some(position), Some(device)) = (status.position_samples, &status.device) {
+            self.resume_sound = Some(ResumeSound {
+                owner: task.owner,
+                sequence: task.sequence,
+                start: if status.end_sample == Some(position) {
+                    PlaybackStart::Frame(0)
+                } else {
+                    PlaybackStart::Sample {
+                        position,
+                        sample_rate: device.sample_rate,
+                    }
+                },
+            });
+        }
+        if let Some(frame) = frame {
+            self.selections.insert(
+                task.owner.tab,
+                Selection {
+                    sequence: task.sequence,
+                    frame,
+                },
+            );
+        }
+        self.sound_status = Some(status);
+        task.playback.stop();
+        self.sound_retiring.push(task);
+        frame
+    }
+
     fn observe_owner(&mut self, owner: Option<DocumentOwner>) {
         if owner != self.view_owner {
             self.stop();
             self.stopped = false;
             self.error = None;
+            self.resume_sound = None;
+            self.sound_status = None;
             self.view_owner = owner;
         }
     }
@@ -658,6 +727,50 @@ impl PreviewPane {
             None
         };
         self.observe_owner(owner);
+        let mut retired_status = None;
+        self.sound_retiring.retain_mut(|task| {
+            let status = task.playback.status();
+            if Some(task.owner) == owner {
+                retired_status = Some(status);
+            }
+            !task.playback.reap()
+        });
+        if self.sound.is_none()
+            && let Some(status) = retired_status
+        {
+            self.sound_status = Some(status);
+        }
+        let mut sound_finished = false;
+        let mut sound_error = None;
+        if let Some(task) = &mut self.sound {
+            let status = task.playback.status();
+            if status.version != task.owner.version {
+                sound_error = Some("Sound belongs to an obsolete document".into());
+            } else if let Some(frame) = task.frame(&status) {
+                self.selections.insert(
+                    task.owner.tab,
+                    Selection {
+                        sequence: task.sequence,
+                        frame,
+                    },
+                );
+            }
+            match status.phase {
+                PlaybackPhase::Failed => sound_error = status.error.clone(),
+                PlaybackPhase::Finished => sound_finished = true,
+                _ => {}
+            }
+            self.sound_status = Some(status);
+        }
+        if let Some(error) = sound_error {
+            self.stop_sound();
+            self.error = Some(error);
+        } else if sound_finished {
+            if let Some(task) = self.sound.take() {
+                self.sound_retiring.push(task);
+            }
+            self.resume_sound = None;
+        }
         self.retiring.retain_mut(|task| {
             if task.thread.as_ref().is_some_and(JoinHandle::is_finished) {
                 if let Some(thread) = task.thread.take() {
@@ -668,7 +781,11 @@ impl PreviewPane {
                 true
             }
         });
-        if !self.retiring.is_empty() || self.creation.is_some() {
+        if !self.retiring.is_empty()
+            || self.creation.is_some()
+            || self.sound.is_some()
+            || !self.sound_retiring.is_empty()
+        {
             ctx.request_repaint_after(Duration::from_millis(16));
         }
         if let Some(creation) = &self.creation {
@@ -730,8 +847,27 @@ impl PreviewPane {
         match event {
             Some(Event::Started(pid)) => self.worker_pid = Some(pid),
             Some(Event::Picture(picture))
-                if picture.serial == self.serial && Some(picture.frame) == self.requested_frame =>
+                if (picture.serial == self.serial
+                    && Some(picture.frame) == self.requested_frame)
+                    || (self.sound.is_some()
+                        && self
+                            .requested_frame
+                            .is_some_and(|frame| picture.frame <= frame)
+                        && self
+                            .picture
+                            .as_ref()
+                            .is_none_or(|previous| picture.frame >= previous.frame)) =>
             {
+                if self.sound.is_some()
+                    && let Some(previous) = &self.picture
+                {
+                    self.skipped_frames = self.skipped_frames.saturating_add(
+                        picture
+                            .frame
+                            .saturating_sub(previous.frame)
+                            .saturating_sub(1),
+                    );
+                }
                 self.worker_pid = picture.worker_pid;
                 self.picture = Some(picture);
             }
@@ -758,7 +894,7 @@ impl PreviewPane {
 
     /// Show a real saved composition with exact frame stepping and scrubbing.
     /// `ui`, `workspace`, `tab` and `project` supply the native document view.
-    /// Returns no value. No playback control is exposed before sound scheduling exists.
+    /// Returns no value. Playback uses the captured sound graph's device clock.
     pub fn show(
         &mut self,
         ui: &mut egui::Ui,
@@ -792,6 +928,7 @@ impl PreviewPane {
                 sequence: sequences[0].id,
                 frame: 0,
             });
+        let before_interaction = selected;
         egui::ComboBox::from_id_salt(("picture-sequence", tab))
             .selected_text(
                 sequences
@@ -845,6 +982,86 @@ impl PreviewPane {
             ui.spacing_mut().slider_width = ui.available_width().clamp(100., 960.);
             let scrub = ui.add(egui::Slider::new(&mut selected.frame, 0..=last).show_value(false));
             self.observe_control("scrub", &scrub, ui);
+        }
+        if selected != before_interaction {
+            self.stop_sound();
+            self.resume_sound = None;
+            self.sound_status = None;
+        }
+        ui.horizontal_wrapped(|ui| {
+            if self.sound.is_some() {
+                let pause = ui.button("Pause");
+                self.observe_control("pause-sequence", &pause, ui);
+                if pause.clicked() && let Some(frame) = self.stop_sound() {
+                    selected.frame = frame;
+                }
+            } else {
+                let play = ui.add_enabled(
+                    !self.stopped && self.task.is_some() && self.sound_retiring.is_empty(),
+                    egui::Button::new("Play"),
+                );
+                self.observe_control("play-sequence", &play, ui);
+                if play.clicked() {
+                    let started = workspace.edit_snapshot(tab).and_then(|(owner, project)| {
+                        if self.sound_status.as_ref().is_some_and(|s| s.phase == PlaybackPhase::Finished)
+                            && selected.frame == last
+                        {
+                            selected.frame = 0;
+                        }
+                        let start = self.resume_sound
+                            .filter(|resume| resume.owner == owner && resume.sequence == selected.sequence)
+                            .map_or(PlaybackStart::Frame(selected.frame), |resume| resume.start);
+                        StreamingPlayback::start(project.snapshot(), composition.id, start, self.monitor_route)
+                            .map(|playback| SoundTask {
+                                owner,
+                                sequence: selected.sequence,
+                                rate: composition.frame_rate,
+                                duration: composition.duration,
+                                playback,
+                            })
+                    });
+                    match started {
+                        Ok(task) => {
+                            self.sound = Some(task);
+                            self.sound_status = None;
+                            self.error = None;
+                            self.skipped_frames = 0;
+                            self.picture = None;
+                            self.requested_frame = None;
+                        }
+                        Err(error) => self.error = Some(error),
+                    }
+                }
+            }
+            ui.add_enabled_ui(self.sound.is_none() && self.sound_retiring.is_empty(), |ui| {
+                let response = egui::ComboBox::from_id_salt("monitor-route")
+                    .selected_text(match self.monitor_route {
+                        MonitorRoute::Stereo => "Stereo monitor",
+                        MonitorRoute::Original => "Original channels",
+                    })
+                    .show_ui(ui, |ui| {
+                        ui.selectable_value(&mut self.monitor_route, MonitorRoute::Stereo, "Stereo monitor");
+                        ui.selectable_value(&mut self.monitor_route, MonitorRoute::Original, "Original channels");
+                    }).response.on_hover_text("Stereo monitor sends mono to both speakers, reduces center/surround channels by 3 dB and omits LFE. Original source and delivery channels stay unchanged.");
+                self.observe_control("monitor-route", &response, ui);
+            });
+            if let Some(status) = &self.sound_status {
+                if let Some(device) = &status.device {
+                    ui.weak(format!("{} · {} Hz · {} channels", device.name, device.sample_rate, device.channels));
+                }
+                if status.phase == PlaybackPhase::Preparing {
+                    ui.weak("Preparing sound…");
+                }
+                if status.clipped_monitor_samples > 0 {
+                    ui.colored_label(ui.visuals().warn_fg_color, "Monitor clipping");
+                }
+            }
+            if !self.sound_retiring.is_empty() {
+                ui.weak("Stopping sound…");
+            }
+        });
+        if self.sound.is_some() || !self.sound_retiring.is_empty() {
+            ui.ctx().request_repaint_after(Duration::from_millis(16));
         }
         if let Some(task) = &self.task
             && (task.owner.tab != tab || task.sequence != selected.sequence)
@@ -945,7 +1162,12 @@ impl PreviewPane {
                     compatible: AtomicBool::new(false),
                 },
             ));
-            if picture.serial == self.serial {
+            if self.sound.is_some() {
+                ui.weak(format!(
+                    "Playing · frame {} · {} skipped",
+                    picture.frame, self.skipped_frames
+                ));
+            } else if picture.serial == self.serial {
                 ui.weak(format!("Showing frame {}", picture.frame));
             } else {
                 ui.weak(format!(
@@ -980,6 +1202,8 @@ impl PreviewPane {
             "preparation_us":self.picture.as_ref().map(|picture|picture.preparation_us),
             "gpu_draw_completed_us":self.picture.as_ref().map(|picture|picture.completion_us.load(Ordering::Acquire)),
             "stats":self.picture.as_ref().map(|picture|picture.stats), "surface":self.gpu.as_ref().map(|gpu|format!("{:?}",gpu.format)),
-            "rejected_results":self.rejected,"retiring":self.retiring.len(),"creating":self.creation.is_some(),"stopped":self.stopped,"error":self.error,"controls":self.controls})
+            "rejected_results":self.rejected,"retiring":self.retiring.len(),"creating":self.creation.is_some(),"stopped":self.stopped,"error":self.error,"controls":self.controls,
+            "sound":self.sound_status,"sound_active":self.sound.is_some(),"sound_retiring":self.sound_retiring.len(),"skipped_frames":self.skipped_frames,
+            "resume_sound":self.resume_sound.map(|resume|resume.start)})
     }
 }

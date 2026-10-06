@@ -1,7 +1,13 @@
 //! Bounded shared sound evaluation and device-clock playback feasibility.
 
+mod monitor;
+mod sample_clock;
 mod sound;
+mod streaming;
+mod transport;
+pub use monitor::MonitorRoute;
 pub use sound::{SoundBuffer, SoundRenderBudget, SoundRenderer, SoundResult};
+pub use streaming::{PlaybackPhase, PlaybackStart, StreamingPlayback, StreamingStatus};
 
 use cpal::{
     FromSample, SizedSample,

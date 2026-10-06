@@ -230,8 +230,11 @@ codec children. The unchanged shared sound graph passes exact PCM and worker
 budgets through both app and CLI endpoints, including process death/retry,
 cancellation, source ownership and charged output pins. See
 [isolated sound](WORKER_SOUND.md) and [process evidence](evidence/r2-sound-worker/README.md).
-Natural source-sequence sound timing (#22), streaming transport, shared delivery
-and complete R2 acceptance remain following dependencies.
+Natural source-sequence sound timing (#22) is implemented and separately qualified.
+Issue #24 adds bounded native streaming with exact sample pause/resume,
+audio-clock picture scheduling, explicit monitor routing and visible underrun.
+See [streaming sound](STREAMING_SOUND.md). Shared delivery, complete playback
+workloads, long hardware drift and full R2 acceptance remain following dependencies.
 
 ## R3 — finish a paying edit
 
