@@ -2,7 +2,7 @@ use crate::{
     ClockObservation, ClockRejection, DeviceProfile, MonitorRoute, SoundRenderBudget,
     SoundRenderer,
     monitor::MonitorMatrix,
-    preparation::{PreparationLog, PreparationStats},
+    preparation::{PreparationLog, PreparationStage, PreparationStats},
     sample_clock::{ClockContinuity, SampleClock},
     transport::{self, Control, Reader, State, Writer},
 };
@@ -359,6 +359,7 @@ impl Producer {
     }
 
     fn prepare(&mut self, frames: u32) -> Result<()> {
+        self.preparation.begin(PreparationStage::Plan);
         let began = Instant::now();
         let plan = self
             .sound
@@ -366,10 +367,12 @@ impl Producer {
             .map_err(|e| e.to_string());
         self.measured.last_plan_ns = began.elapsed().as_nanos() as u64;
         let plan = plan?;
+        self.preparation.begin(PreparationStage::Render);
         let began = Instant::now();
         let result = self.renderer.render(&plan).map_err(|e| e.to_string());
         self.measured.last_render_ns = began.elapsed().as_nanos() as u64;
         let result = result?;
+        self.preparation.begin(PreparationStage::Finish);
         let began = Instant::now();
         let finished = (|| {
             self.renderer

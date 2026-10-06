@@ -1,5 +1,19 @@
 use serde::{Deserialize, Serialize};
-use std::sync::atomic::{AtomicU64, Ordering};
+use std::{
+    sync::atomic::{AtomicU64, Ordering},
+    time::Instant,
+};
+
+/// The producer's current work, observed independently of completed blocks.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum PreparationStage {
+    #[default]
+    Idle,
+    Plan,
+    Render,
+    Finish,
+}
 
 /// Measured producer blocks and the stages of the most expensive completed attempt.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
@@ -16,6 +30,9 @@ pub struct PreparationStats {
     pub slowest_plan_ns: u64,
     pub slowest_render_ns: u64,
     pub slowest_finish_ns: u64,
+    pub active_stage: PreparationStage,
+    pub active_block_ns: u64,
+    pub active_stage_ns: u64,
 }
 
 impl PreparationStats {
@@ -26,6 +43,8 @@ impl PreparationStats {
             && self.max_block_ns >= previous.max_block_ns
             && self.max_interval_ns >= previous.max_interval_ns
             && self.last_block_ns <= self.max_block_ns
+            && self.active_stage_ns <= self.active_block_ns
+            && (self.active_stage != PreparationStage::Idle || self.active_block_ns == 0)
             && self
                 .last_plan_ns
                 .checked_add(self.last_render_ns)
@@ -39,10 +58,20 @@ impl PreparationStats {
     }
 }
 
-#[derive(Default)]
 pub(crate) struct PreparationLog {
+    origin: Instant,
     generation: AtomicU64,
-    fields: [AtomicU64; 11],
+    fields: [AtomicU64; 14],
+}
+
+impl Default for PreparationLog {
+    fn default() -> Self {
+        Self {
+            origin: Instant::now(),
+            generation: AtomicU64::new(0),
+            fields: std::array::from_fn(|_| AtomicU64::new(0)),
+        }
+    }
 }
 
 impl PreparationLog {
@@ -62,9 +91,26 @@ impl PreparationLog {
             stats.slowest_plan_ns,
             stats.slowest_render_ns,
             stats.slowest_finish_ns,
+            0,
+            0,
+            0,
         ]) {
             field.store(value, Ordering::SeqCst);
         }
+        self.generation.fetch_add(1, Ordering::SeqCst);
+    }
+
+    /// Start observing a producer stage even if that work never completes.
+    /// `stage` identifies planning, rendering or finishing; returns after a
+    /// fixed atomic update. Planning also starts the next block's elapsed clock.
+    pub fn begin(&self, stage: PreparationStage) {
+        let now = self.origin.elapsed().as_nanos() as u64;
+        self.generation.fetch_add(1, Ordering::SeqCst);
+        self.fields[11].store(stage as u64, Ordering::SeqCst);
+        if stage == PreparationStage::Plan {
+            self.fields[12].store(now, Ordering::SeqCst);
+        }
+        self.fields[13].store(now, Ordering::SeqCst);
         self.generation.fetch_add(1, Ordering::SeqCst);
     }
 
@@ -90,7 +136,18 @@ impl PreparationLog {
                     slowest_plan_ns,
                     slowest_render_ns,
                     slowest_finish_ns,
+                    stage,
+                    block_start,
+                    stage_start,
                 ] = fields;
+                let active_stage = match stage {
+                    0 => PreparationStage::Idle,
+                    1 => PreparationStage::Plan,
+                    2 => PreparationStage::Render,
+                    3 => PreparationStage::Finish,
+                    _ => return None,
+                };
+                let now = self.origin.elapsed().as_nanos() as u64;
                 return Some(PreparationStats {
                     blocks,
                     published_blocks,
@@ -103,6 +160,9 @@ impl PreparationLog {
                     slowest_plan_ns,
                     slowest_render_ns,
                     slowest_finish_ns,
+                    active_stage,
+                    active_block_ns: if stage == 0 { 0 } else { now - block_start },
+                    active_stage_ns: if stage == 0 { 0 } else { now - stage_start },
                 });
             }
         }
@@ -129,6 +189,9 @@ mod tests {
                     slowest_plan_ns: blocks,
                     ..PreparationStats::default()
                 });
+                producer.begin(PreparationStage::Plan);
+                producer.begin(PreparationStage::Render);
+                producer.begin(PreparationStage::Finish);
             }
         });
         while !thread.is_finished() {
@@ -157,6 +220,7 @@ mod tests {
             slowest_plan_ns: 10,
             slowest_render_ns: 20,
             slowest_finish_ns: 5,
+            ..PreparationStats::default()
         };
         assert!(valid.valid_after(PreparationStats::default()));
         for invalid in [
@@ -185,8 +249,44 @@ mod tests {
                 slowest_plan_ns: u64::MAX,
                 ..valid
             },
+            PreparationStats {
+                active_block_ns: 1,
+                ..valid
+            },
+            PreparationStats {
+                active_stage: PreparationStage::Render,
+                active_stage_ns: 2,
+                active_block_ns: 1,
+                ..valid
+            },
         ] {
             assert!(!invalid.valid_after(valid));
         }
+    }
+
+    #[test]
+    fn unfinished_stages_remain_observable_until_completion() {
+        let log = PreparationLog::default();
+        log.begin(PreparationStage::Plan);
+        log.begin(PreparationStage::Render);
+        let rendering = log.observation().unwrap();
+        assert_eq!(rendering.blocks, 0);
+        assert_eq!(rendering.active_stage, PreparationStage::Render);
+        assert!(rendering.active_block_ns >= rendering.active_stage_ns);
+        assert!(rendering.valid_after(PreparationStats::default()));
+        log.begin(PreparationStage::Finish);
+        assert_eq!(
+            log.observation().unwrap().active_stage,
+            PreparationStage::Finish
+        );
+        log.publish(PreparationStats {
+            blocks: 1,
+            ..PreparationStats::default()
+        });
+        let completed = log.observation().unwrap();
+        assert_eq!(completed.blocks, 1);
+        assert_eq!(completed.active_stage, PreparationStage::Idle);
+        assert_eq!(completed.active_block_ns, 0);
+        assert_eq!(completed.active_stage_ns, 0);
     }
 }

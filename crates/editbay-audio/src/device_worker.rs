@@ -639,6 +639,8 @@ mod tests {
             ("/status/preparation/published_blocks", json!(1)),
             ("/status/preparation/last_block_ns", json!(1)),
             ("/status/preparation/last_render_ns", json!(u64::MAX)),
+            ("/status/preparation/active_block_ns", json!(1)),
+            ("/status/preparation/active_stage_ns", json!(1)),
             ("/status/reported_latency_ns", json!(5_000_000_001u64)),
             ("/status/position_samples", json!(2999)),
             ("/status/start_sample", json!(2001)),
@@ -664,6 +666,11 @@ mod tests {
                 "accepted {pointer}"
             );
         }
+        let mut malformed = original;
+        *malformed
+            .pointer_mut("/status/preparation/active_stage")
+            .unwrap() = json!("decode");
+        assert!(serde_json::from_value::<Response>(malformed).is_err());
     }
 
     #[test]
