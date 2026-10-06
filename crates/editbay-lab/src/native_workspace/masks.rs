@@ -69,6 +69,53 @@ pub fn run(binary: &Path, project: &Path, directory: &Path) -> Result<Value> {
         let width_visible = rect[2].as_f64().unwrap_or(0.) - rect[0].as_f64().unwrap_or(0.);
         views.push(json!({"size":[width,height],"image":rect,"height":height_visible,"width":width_visible,"qualified":height_visible>=96. && width_visible>=160. && rect[3].as_f64().is_some_and(|y|y<=f64::from(height)),"observed":visible}));
     }
+    click_control(&mut trace, "timeline-mark-in")?;
+    set_frame(&mut trace, 6)?;
+    click_control(&mut trace, "timeline-mark-out")?;
+    let sent = click_control(&mut trace, "timeline-create")?;
+    let created = trace.wait("compact cut commit", |r| {
+        has_tab(r, &seed.name, seed.revision + 1)
+    })?;
+    let input_ms = (created["unix_us"].as_u64().ok_or("Commit time absent")? - sent) as f64 / 1000.;
+    let timeline = timeline_record(&mut trace, seed.revision + 1)?;
+    if timeline["clips"].as_array().is_none_or(|v| v.len() != 1)
+        || timeline["clips"][0]["source"]["range"]["start"] != 1
+        || timeline["clips"][0]["source"]["range"]["end"] != 7
+    {
+        return Err("Compact mask cut lost its selected source range".into());
+    }
+    trace.focus()?;
+    key(44, true, false)?;
+    trace.wait("compact cut undo", |r| {
+        has_tab(r, &seed.name, seed.revision + 2)
+    })?;
+    key(44, true, true)?;
+    trace.wait("compact cut redo", |r| {
+        has_tab(r, &seed.name, seed.revision + 3)
+    })?;
+    key(31, true, false)?;
+    trace.wait("compact cut save", |r| {
+        has_tab(r, &seed.name, seed.revision + 3) && r["details"]["tabs"][0]["dirty"] == false
+    })?;
+    let saved = load(&copy)?;
+    if saved.compositions.iter().find(|c| c.id == composition)
+        != seed.compositions.iter().find(|c| c.id == composition)
+        || saved.assets != seed.assets
+        || saved.sources != seed.sources
+    {
+        return Err("Compact editing changed the editable mask source".into());
+    }
+    command(
+        "grim",
+        &[
+            "-g",
+            "80,80 800x600",
+            directory
+                .join("compact-cut.png")
+                .to_str()
+                .ok_or("Non-UTF8 evidence path")?,
+        ],
+    )?;
     let mut latency: Vec<_> = samples
         .iter()
         .map(|r| {
@@ -80,7 +127,16 @@ pub fn run(binary: &Path, project: &Path, directory: &Path) -> Result<Value> {
         .collect();
     let timings = metrics(&mut latency);
     app.kill()?;
-    let report = json!({"kind":"native_procedural_masks","binary_sha256":hash(&binary)?,"qualified":views.iter().all(|v|v["qualified"]==true) && hash(&original)?==original_hash && timings["p95_ms"].as_f64().is_some_and(|v|v<=250.),"views":views,"gpu_draw":timings,"samples":samples,"original_unchanged":hash(&original)?==original_hash,"physical_display_verified":false});
+    let (mut reopened, mut reopened_trace) = start(
+        &binary,
+        &directory.join("state"),
+        &catalog,
+        &directory.join("reopened.jsonl"),
+        Some(&copy),
+    )?;
+    let reopened_picture = picture(&mut reopened_trace, 0, 0)?;
+    reopened.kill()?;
+    let report = json!({"kind":"native_procedural_masks","binary_sha256":hash(&binary)?,"qualified":views.iter().all(|v|v["qualified"]==true) && input_ms<=50. && hash(&original)?==original_hash && timings["p95_ms"].as_f64().is_some_and(|v|v<=250.),"views":views,"gpu_draw":timings,"samples":samples,"compact_cut":{"input_ms":input_ms,"created":created,"timeline":timeline,"saved_revision":saved.revision,"reopened":reopened_picture},"original_unchanged":hash(&original)?==original_hash,"physical_display_verified":false});
     fs::write(
         directory.join("qualification.json"),
         serde_json::to_vec_pretty(&report)?,

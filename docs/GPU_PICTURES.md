@@ -2,11 +2,14 @@
 
 `editbay-render::GraphRenderer` consumes the retained `EvaluationSnapshot` and
 source-owned `PictureCache`. Its functioning SDR picture subset covers media and
-nested composition sources, solids, animated affine transforms, unmasked over,
-scalar animation and opacity. Audio is evaluated separately. Geometry/masks,
-mask assets, HDR/log input, PQ/HLG boundaries and source orientation return errors.
+nested composition sources, solids, animated affine transforms, masked/unmasked
+Over, polygon geometry, feathered/inverted masks, scalar animation and opacity.
+Audio is evaluated separately. Asset-mask formats, HDR/log input, PQ/HLG boundaries
+and source orientation return errors. See [procedural masks](PROCEDURAL_MASKS.md)
+for coverage semantics, additional bounds and evidence limits.
 This is a scoped EB-024/026 engine layer. The [native preview](NATIVE_PREVIEW.md)
-now presents it on the actual window device; delivery integration remains open.
+now presents it on the actual window device; the supervised delivery worker uses
+the same graph for real masters.
 No unsupported native controls are enabled.
 
 ## Evaluation and color

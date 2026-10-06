@@ -2628,7 +2628,6 @@ fn timeline_run(
         "hl.dsp.window.move({{x=80,y=80,relative=false,window=\"address:{address}\"}})"
     ))?;
     thread::sleep(Duration::from_millis(350));
-    click_control(&mut reopened_trace, "edit-controls")?;
     let compact_picture = set_frame(&mut reopened_trace, 11)?;
     if compact_picture["details"]["sequence"] != record_sequence.to_string() {
         return Err("Compact viewer changed sequences".into());
@@ -3020,7 +3019,6 @@ pub fn long_timeline(
         "hl.dsp.window.move({{x=80,y=80,relative=false,window=\"address:{address}\"}})"
     ))?;
     thread::sleep(Duration::from_millis(350));
-    click_control(&mut reopened_trace, "edit-controls")?;
     let compact_picture = set_frame(&mut reopened_trace, duration / 2)?;
     if restored_picture["details"]["sequence"] != sequence.to_string()
         || compact_picture["details"]["sequence"] != sequence.to_string()

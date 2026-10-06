@@ -1440,16 +1440,22 @@ impl Studio {
                     && self.settings.is_none()
                     && !self.manual
                     && !self.bank.opened;
-                if ui.available_width() >= 1000. {
+                if ui.available_width() >= 640. {
                     ui.columns(2, |columns| {
-                        self.timeline.show(
-                            &mut columns[1],
-                            &self.workspace,
-                            &mut self.preview,
-                            id,
-                            project.clone(),
-                            interactive,
-                        );
+                        let height = columns[1].available_height();
+                        egui::ScrollArea::vertical()
+                            .id_salt("timeline-controls")
+                            .max_height(height)
+                            .show(&mut columns[1], |ui| {
+                                self.timeline.show(
+                                    ui,
+                                    &self.workspace,
+                                    &mut self.preview,
+                                    id,
+                                    project.clone(),
+                                    interactive,
+                                );
+                            });
                         self.preview
                             .show(&mut columns[0], &self.workspace, id, project.clone());
                     });
