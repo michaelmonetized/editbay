@@ -1,5 +1,5 @@
 use serde::{Deserialize, Serialize};
-use std::sync::atomic::{AtomicU64, Ordering};
+use std::sync::atomic::{AtomicBool, AtomicI64, AtomicU64, Ordering};
 
 /// One coherent callback receipt, with device frames relative to playback start.
 /// Host time uses the playback's monotonic origin; backend time uses its first
@@ -17,9 +17,31 @@ pub struct ClockObservation {
     pub valid_end_sample: u64,
 }
 
+/// The first rejected backend clock, separate from accepted sample submission.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct ClockRejection {
+    pub buffer_start_frames: u64,
+    pub callback_elapsed_ns: u64,
+    pub backend_elapsed_ns: u64,
+    pub reported_latency_ns: u64,
+    pub signed_drift_ns: i64,
+}
+
+#[derive(Default)]
+struct RejectedClock {
+    ready: AtomicBool,
+    start: AtomicU64,
+    host: AtomicU64,
+    backend: AtomicU64,
+    latency: AtomicU64,
+    drift: AtomicI64,
+}
+
 #[derive(Default)]
 pub(crate) struct ClockContinuity {
     anchor: Option<(u64, i128)>,
+    pub(crate) error_ns: i64,
 }
 impl ClockContinuity {
     /// Check elapsed submitted sound against one continuous backend epoch.
@@ -36,7 +58,9 @@ impl ClockContinuity {
             return false;
         };
         let sample_ns = i128::from(elapsed) * 1_000_000_000 / i128::from(rate);
-        (sample_ns - (presentation - began)).abs() <= 20_000_000
+        let error = sample_ns - (presentation - began);
+        self.error_ns = error.clamp(i128::from(i64::MIN), i128::from(i64::MAX)) as i64;
+        error.abs() <= 20_000_000
     }
 }
 
@@ -52,6 +76,7 @@ pub(crate) struct SampleClock {
     latency_ns: AtomicU64,
     limit: AtomicU64,
     last_read: AtomicU64,
+    rejected: RejectedClock,
 }
 
 impl SampleClock {
@@ -74,6 +99,7 @@ impl SampleClock {
             latency_ns: AtomicU64::new(0),
             limit: AtomicU64::new(end),
             last_read: AtomicU64::new(first),
+            rejected: RejectedClock::default(),
         })
     }
 
@@ -121,6 +147,45 @@ impl SampleClock {
         self.limit.store(limit, Ordering::SeqCst);
         self.generation.fetch_add(1, Ordering::SeqCst);
         true
+    }
+
+    /// Retain the first rejected callback without publishing submitted sound.
+    /// `rejection` records the failed clock check; returns nothing. The one data
+    /// callback owns writes, and readers cannot see a partially written receipt.
+    pub(crate) fn reject(&self, rejection: ClockRejection) {
+        let value = &self.rejected;
+        if value.ready.load(Ordering::Relaxed) {
+            return;
+        }
+        value
+            .start
+            .store(rejection.buffer_start_frames, Ordering::Relaxed);
+        value
+            .host
+            .store(rejection.callback_elapsed_ns, Ordering::Relaxed);
+        value
+            .backend
+            .store(rejection.backend_elapsed_ns, Ordering::Relaxed);
+        value
+            .latency
+            .store(rejection.reported_latency_ns, Ordering::Relaxed);
+        value
+            .drift
+            .store(rejection.signed_drift_ns, Ordering::Relaxed);
+        value.ready.store(true, Ordering::Release);
+    }
+
+    /// Read the first immutable rejected callback separately from valid output.
+    /// Takes no arguments; returns none until the callback has latched a failure.
+    pub(crate) fn rejection(&self) -> Option<ClockRejection> {
+        let value = &self.rejected;
+        value.ready.load(Ordering::Acquire).then(|| ClockRejection {
+            buffer_start_frames: value.start.load(Ordering::Relaxed),
+            callback_elapsed_ns: value.host.load(Ordering::Relaxed),
+            backend_elapsed_ns: value.backend.load(Ordering::Relaxed),
+            reported_latency_ns: value.latency.load(Ordering::Relaxed),
+            signed_drift_ns: value.drift.load(Ordering::Relaxed),
+        })
     }
 
     /// Read the monotonic device-estimated source sample position.

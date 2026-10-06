@@ -1,4 +1,5 @@
 [workspace]
+exclude = ["vendor/cpal"]
 members = ["crates/editbay-core", "crates/editbay-cli", "crates/editbay-media", "crates/editbay-render", "crates/editbay-audio", "crates/editbay-delivery", "crates/editbay-lab", "crates/editbay-ai", "crates/editbay-reference", "crates/editbay-automation", "crates/editbay-app", "vendor/eframe", "vendor/egui-winit"]
 default-members = ["crates/editbay-core", "crates/editbay-cli", "crates/editbay-media", "crates/editbay-render", "crates/editbay-audio", "crates/editbay-delivery", "crates/editbay-lab", "crates/editbay-ai", "crates/editbay-reference", "crates/editbay-automation", "crates/editbay-app"]
 resolver = "3"
@@ -21,7 +22,7 @@ rustix = { version = "1.1.5", features = ["fs"] }
 wgpu = "=30.0.1"
 pollster = "0.4"
 half = "2.7"
-cpal = "0.15.3"
+cpal = { version = "=0.18.2", features = ["realtime-dbus"] }
 cc = "1"
 pkg-config = "0.3"
 ort = { version = "=2.0.0-rc.13", default-features = false, features = ["std", "load-dynamic", "api-27"] }
@@ -32,6 +33,7 @@ tokio = { version = "1", features = ["rt-multi-thread", "macros"] }
 eframe = { version = "=0.36.1", default-features = false, features = ["default_fonts", "wayland", "x11", "wgpu"] }
 
 [patch.crates-io]
+cpal = { path = "vendor/cpal" }
 eframe = { path = "vendor/eframe" }
 egui-winit = { path = "vendor/egui-winit" }
 

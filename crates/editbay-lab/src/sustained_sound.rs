@@ -4,6 +4,7 @@ use editbay_audio::{
 };
 use editbay_core::*;
 use editbay_media::{Cancellation, SourceFile, StreamType};
+use serde::Serialize;
 use serde_json::{Value, json};
 use std::{
     collections::BTreeSet,
@@ -178,6 +179,54 @@ fn resources(observed: &mut BTreeSet<u32>) -> Result<u64> {
     Ok(total)
 }
 
+#[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord, Serialize)]
+struct ThreadSchedule {
+    process: u32,
+    thread: u32,
+    name: String,
+    policy: u32,
+    realtime_priority: u32,
+    nice: i32,
+}
+
+fn thread_schedules(process: u32) -> Result<Vec<ThreadSchedule>> {
+    let tasks = match fs::read_dir(format!("/proc/{process}/task")) {
+        Ok(tasks) => tasks,
+        Err(error) if error.kind() == std::io::ErrorKind::NotFound => return Ok(vec![]),
+        Err(error) => return Err(error.into()),
+    };
+    let mut result = Vec::new();
+    for (index, task) in tasks.enumerate() {
+        if index >= 256 {
+            return Err("Device thread sample exceeded 256 entries".into());
+        }
+        let stat = match fs::read_to_string(task?.path().join("stat")) {
+            Ok(stat) => stat,
+            Err(error) if error.kind() == std::io::ErrorKind::NotFound => continue,
+            Err(error) => return Err(error.into()),
+        };
+        result.push(parse_schedule(process, &stat)?);
+    }
+    Ok(result)
+}
+
+fn parse_schedule(process: u32, stat: &str) -> Result<ThreadSchedule> {
+    let (identity, fields) = stat.rsplit_once(") ").ok_or("Thread stat name absent")?;
+    let (thread, name) = identity.split_once(" (").ok_or("Thread stat ID absent")?;
+    let fields: Vec<_> = fields.split_whitespace().take(64).collect();
+    if fields.len() < 39 || name.len() > 64 {
+        return Err("Thread stat fields are incomplete or over budget".into());
+    }
+    Ok(ThreadSchedule {
+        process,
+        thread: thread.parse()?,
+        name: name.into(),
+        nice: fields[16].parse()?,
+        realtime_priority: fields[37].parse()?,
+        policy: fields[38].parse()?,
+    })
+}
+
 fn host_pressure() -> Result<Value> {
     let memory = fs::read_to_string("/proc/meminfo")?;
     let amount = |name: &str| -> Result<u64> {
@@ -336,6 +385,10 @@ pub fn run(path: &Path, seconds: u64, directory: &Path) -> Result<Value> {
     let began = Instant::now();
     let mut drift = Drift::default();
     let mut observed = BTreeSet::new();
+    let mut schedules = BTreeSet::new();
+    let mut schedule_sample = Instant::now() - Duration::from_secs(1);
+    let mut callback_min = u64::MAX;
+    let mut callback_max = 0;
     let mut peak_rss = 0;
     let mut peak_prepared = 0;
     let mut previous_position = 0;
@@ -347,6 +400,15 @@ pub fn run(path: &Path, seconds: u64, directory: &Path) -> Result<Value> {
         let status = playback.0.status();
         let rss = resources(&mut observed)?;
         peak_rss = peak_rss.max(rss);
+        if schedule_sample.elapsed() >= Duration::from_secs(1)
+            && let Some(pid) = status.device_worker_pid
+        {
+            schedules.extend(thread_schedules(pid)?);
+            if schedules.len() > 1024 {
+                return Err("Observed thread schedules exceeded 1024 entries".into());
+            }
+            schedule_sample = Instant::now();
+        }
         peak_prepared = peak_prepared.max(status.prepared_frames);
         if let Some(position) = status.position_samples {
             if position < previous_position {
@@ -355,6 +417,9 @@ pub fn run(path: &Path, seconds: u64, directory: &Path) -> Result<Value> {
             previous_position = position;
         }
         if let (Some(clock), Some(device)) = (status.clock_observation, status.device.as_ref()) {
+            let frames = clock.submitted_frames - clock.buffer_start_frames;
+            callback_min = callback_min.min(frames);
+            callback_max = callback_max.max(frames);
             drift.record(clock, device.sample_rate)?;
         }
         let line = serde_json::to_vec(
@@ -428,6 +493,8 @@ pub fn run(path: &Path, seconds: u64, directory: &Path) -> Result<Value> {
         && peak_prepared <= 16384;
     let receipt = json!({"kind":"sustained_native_sound","authored":authored,"application_sha256":hash(&std::env::current_exe()?)?,
         "elapsed_seconds":began.elapsed().as_secs_f64(),"final":final_status,"drift":drift.receipt(),
+        "sampled_callback_frames_min":(callback_min != u64::MAX).then_some(callback_min),
+        "sampled_callback_frames_max":callback_max,"device_thread_schedules":schedules,"thread_schedule_sample_interval_ms":1000,
         "sample_interval_ms":100,"samples":polls,"receipt_bytes":bytes,"receipt_limit_bytes":MAX_RECEIPT_BYTES,
         "prepared_capacity_frames":16384,"peak_prepared_frames":peak_prepared,"peak_combined_rss_kib":peak_rss,
         "processes":observed,"owned_processes_reaped":owned_reaped,"source_unchanged":source_unchanged,"project_unchanged":project_unchanged,
@@ -435,7 +502,7 @@ pub fn run(path: &Path, seconds: u64, directory: &Path) -> Result<Value> {
         "two_hour_run_complete":seconds == MAX_SECONDS && complete && began.elapsed() >= Duration::from_secs(MAX_SECONDS),
         "limits":["Actual native device callbacks; backend and host latency-adjusted clock estimates only. No physical speaker, display, audibility or independent-user proof.",
         "RSS includes the lab and observed descendants, may double count shared memory, and excludes unmapped page cache and unreported driver/device allocations.",
-        "One backend second of startup is retained in raw samples and excluded from steady clock drift; 100 ms sampling does not observe every callback or memory spike."]});
+        "One backend second of startup is retained in raw samples and excluded from steady clock drift; 100 ms sampling does not observe every callback or memory spike. Thread schedules are sampled once per second; enabling priority support is not proof of promotion."]});
     fs::write(
         directory.join("qualification.json"),
         serde_json::to_vec_pretty(&receipt)?,
@@ -446,6 +513,30 @@ pub fn run(path: &Path, seconds: u64, directory: &Path) -> Result<Value> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    #[test]
+    fn thread_schedule_handles_parentheses_and_rejects_truncation() {
+        let mut fields = vec!["0"; 50];
+        fields[0] = "S";
+        fields[16] = "-5";
+        fields[37] = "20";
+        fields[38] = "1";
+        let line = format!("42 (device (out)) {}", fields.join(" "));
+        let parsed = parse_schedule(7, &line).unwrap();
+        assert_eq!(
+            parsed,
+            ThreadSchedule {
+                process: 7,
+                thread: 42,
+                name: "device (out)".into(),
+                policy: 1,
+                realtime_priority: 20,
+                nice: -5
+            }
+        );
+        assert!(parse_schedule(7, "42 (device) S 1 2").is_err());
+        assert!(parse_schedule(7, "42 invalid").is_err());
+    }
+
     #[test]
     fn backend_drift_distinguishes_queue_latency_from_clock_error() {
         let mut drift = Drift::default();

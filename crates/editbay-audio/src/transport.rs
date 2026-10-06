@@ -14,6 +14,7 @@ pub(crate) enum State {
     InvalidOutput,
     BackendClockReset,
     BackendDiscontinuity,
+    BackendUnderrun,
 }
 
 struct Shared {
@@ -78,6 +79,7 @@ impl Control {
             5 => State::Underrun,
             7 => State::BackendClockReset,
             8 => State::BackendDiscontinuity,
+            9 => State::BackendUnderrun,
             _ => State::InvalidOutput,
         }
     }
@@ -93,7 +95,11 @@ impl Control {
                     .compare_exchange(0, state as u8, Ordering::AcqRel, Ordering::Acquire);
             if matches!(
                 state,
-                State::DeviceFailed | State::BackendClockReset | State::BackendDiscontinuity
+                State::DeviceFailed
+                    | State::InvalidOutput
+                    | State::BackendClockReset
+                    | State::BackendDiscontinuity
+                    | State::BackendUnderrun
             ) && previous == Err(State::Ended as u8)
             {
                 let _ = self.0.state.compare_exchange(
@@ -278,15 +284,24 @@ mod tests {
     }
 
     #[test]
-    fn backend_reset_during_tail_drain_overrides_end_but_not_an_earlier_failure() {
-        let (control, mut writer, mut reader) = transport(0, 2, 1, 4).unwrap();
-        writer.push(0, &[1., 2.]).unwrap();
-        reader.consume(&mut [0.; 4], |v| v);
-        assert_eq!(control.state(), State::Ended);
-        control.stop(State::BackendClockReset);
-        assert_eq!(control.state(), State::BackendClockReset);
-        control.stop(State::DeviceFailed);
-        assert_eq!(control.state(), State::BackendClockReset);
+    fn backend_faults_during_tail_drain_override_end_but_not_earlier_failure() {
+        for failure in [
+            State::BackendClockReset,
+            State::BackendDiscontinuity,
+            State::BackendUnderrun,
+            State::DeviceFailed,
+            State::InvalidOutput,
+        ] {
+            let (control, mut writer, mut reader) = transport(0, 2, 1, 4).unwrap();
+            writer.push(0, &[1., 2.]).unwrap();
+            reader.consume(&mut [0.; 4], |v| v);
+            assert_eq!(control.state(), State::Ended);
+            control.stop(failure);
+            assert_eq!(control.state(), failure);
+            control.stop(State::DeviceFailed);
+            control.stop(State::Cancelled);
+            assert_eq!(control.state(), failure);
+        }
     }
 
     #[test]

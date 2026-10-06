@@ -210,6 +210,7 @@ pub fn run(path: &Path, mode: &str) -> Result<Value> {
                 && final_status.error.as_ref().is_some_and(|error| {
                     error.contains("backend timestamp reset")
                         || error.contains("backend timing lost continuity")
+                        || error.contains("backend reported an underrun")
                 })))
         && (mode != "underrun"
             || final_status

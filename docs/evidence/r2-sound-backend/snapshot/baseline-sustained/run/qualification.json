@@ -1,0 +1,195 @@
+{
+  "application_sha256": "9b2c4819f9725e1b5553394df0a0dae8932cca3893609e5e4e53f4f02e52a726",
+  "authored": {
+    "audio_stream": 1,
+    "composition": "a3aa39ac-13a0-492d-9442-73adea55697e",
+    "fingerprint": {
+      "bytes": 1152891,
+      "sha256": "9be5d3f2de23d3e1e02af73be1fc2d184b71fef8aad179cbdbb980b61239fced"
+    },
+    "frames": 180000,
+    "history_and_reopen_exact": true,
+    "linked_intervals": 160,
+    "project_sha256": "195b81e3745215ed2df717c275bb50a980352bf0856b750d7a1491c2ba14f956",
+    "rate": {
+      "denominator": 1,
+      "numerator": 25
+    },
+    "seconds_requested": 7200,
+    "source": "/home/michael/Projects/editbay/artifacts/worktrees/r2-sound-worker/artifacts/streaming/fixtures/quiet-45s.mov",
+    "source_frames": 1125,
+    "version": {
+      "project_id": "ccf40006-2487-47bc-9662-4e8900e4e689",
+      "revision": 163
+    },
+    "video_stream": 0
+  },
+  "backend_clock_gate": true,
+  "complete": false,
+  "device_thread_schedules": [
+    {
+      "name": "editbay-lab",
+      "nice": 0,
+      "policy": 0,
+      "process": 1309861,
+      "realtime_priority": 0,
+      "thread": 1309861
+    },
+    {
+      "name": "editbay-streami",
+      "nice": 0,
+      "policy": 0,
+      "process": 1309861,
+      "realtime_priority": 0,
+      "thread": 1309865
+    },
+    {
+      "name": "editbay-codec-s",
+      "nice": 0,
+      "policy": 0,
+      "process": 1309861,
+      "realtime_priority": 0,
+      "thread": 1309872
+    },
+    {
+      "name": "editbay-codec-r",
+      "nice": 0,
+      "policy": 0,
+      "process": 1309861,
+      "realtime_priority": 0,
+      "thread": 1309873
+    },
+    {
+      "name": "module-rt",
+      "nice": 0,
+      "policy": 0,
+      "process": 1309861,
+      "realtime_priority": 0,
+      "thread": 1309889
+    },
+    {
+      "name": "alsa-pipewire",
+      "nice": 0,
+      "policy": 0,
+      "process": 1309861,
+      "realtime_priority": 0,
+      "thread": 1309890
+    },
+    {
+      "name": "data-loop.0",
+      "nice": 0,
+      "policy": 2,
+      "process": 1309861,
+      "realtime_priority": 20,
+      "thread": 1309891
+    },
+    {
+      "name": "cpal_alsa_out",
+      "nice": 0,
+      "policy": 0,
+      "process": 1309861,
+      "realtime_priority": 0,
+      "thread": 1309893
+    }
+  ],
+  "drift": {
+    "absolute_p50_upper_ms": 0.3,
+    "absolute_p95_upper_ms": 0.8,
+    "definition": "Elapsed device frames minus the elapsed sum of backend callback time and reported playback latency; relative to the first observed callback after one backend second. Host time and raw callback jitter are reported separately.",
+    "final_signed_ms": 0.800924,
+    "first": {
+      "backend_elapsed_ns": 1087336750,
+      "backend_epoch": 0,
+      "buffer_start_frames": 53248,
+      "callback_elapsed_ns": 1125084218,
+      "callbacks": 27,
+      "reported_latency_ns": 250312500,
+      "submitted_frames": 55296,
+      "valid_end_sample": 345600000
+    },
+    "histogram_overflow_at_ms": 200,
+    "histogram_overflow_observations": 0,
+    "histogram_resolution_ms": 0.1,
+    "host_latency_adjusted_maximum_absolute_ms": 0.986766,
+    "last": {
+      "backend_elapsed_ns": 245481244159,
+      "backend_epoch": 0,
+      "buffer_start_frames": 11784192,
+      "callback_elapsed_ns": 245520712825,
+      "callbacks": 5755,
+      "reported_latency_ns": 250270833,
+      "submitted_frames": 11786240,
+      "valid_end_sample": 11784192
+    },
+    "maximum_absolute_ms": 0.894853,
+    "observations": 2412,
+    "raw_callback_maximum_absolute_ms": 14.437895,
+    "settling_backend_seconds": 1
+  },
+  "elapsed_seconds": 246.202171609,
+  "failure": null,
+  "final": {
+    "callbacks": 5755,
+    "clipped_monitor_samples": 0,
+    "clock_observation": {
+      "backend_elapsed_ns": 245481244159,
+      "backend_epoch": 0,
+      "buffer_start_frames": 11784192,
+      "callback_elapsed_ns": 245520712825,
+      "callbacks": 5755,
+      "reported_latency_ns": 250270833,
+      "submitted_frames": 11786240,
+      "valid_end_sample": 11784192
+    },
+    "clock_rejection": null,
+    "device": {
+      "channels": 2,
+      "name": "Default Audio Device",
+      "reported_callback_frames": 2048,
+      "requested_callback_frames": 2048,
+      "sample_format": "F32",
+      "sample_rate": 48000
+    },
+    "device_worker_pid": 1309861,
+    "end_sample": 345600000,
+    "error": "Sound preparation fell behind the device; playback stopped without skipping source samples",
+    "phase": "failed",
+    "position_samples": 11772536,
+    "prepared_capacity_frames": 16384,
+    "prepared_frames": 0,
+    "reported_latency_ns": 250270833,
+    "route": "Stereo",
+    "start_sample": 0,
+    "version": {
+      "project_id": "ccf40006-2487-47bc-9662-4e8900e4e689",
+      "revision": 163
+    },
+    "worker_pid": 1309871
+  },
+  "kind": "sustained_native_sound",
+  "limits": [
+    "Actual native device callbacks; backend and host latency-adjusted clock estimates only. No physical speaker, display, audibility or independent-user proof.",
+    "RSS includes the lab and observed descendants, may double count shared memory, and excludes unmapped page cache and unreported driver/device allocations.",
+    "One backend second of startup is retained in raw samples and excluded from steady clock drift; 100 ms sampling does not observe every callback or memory spike. Thread schedules are sampled once per second; enabling priority support is not proof of promotion."
+  ],
+  "owned_processes_reaped": true,
+  "peak_combined_rss_kib": 149904,
+  "peak_prepared_frames": 16384,
+  "prepared_capacity_frames": 16384,
+  "processes": [
+    1309589,
+    1309861,
+    1309871
+  ],
+  "project_unchanged": true,
+  "qualified": false,
+  "receipt_bytes": 2463240,
+  "receipt_limit_bytes": 134217728,
+  "sample_interval_ms": 100,
+  "sampled_callback_frames_max": 2048,
+  "sampled_callback_frames_min": 2048,
+  "samples": 2426,
+  "source_unchanged": true,
+  "thread_schedule_sample_interval_ms": 1000,
+  "two_hour_run_complete": false
+}

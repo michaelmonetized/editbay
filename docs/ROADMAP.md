@@ -191,6 +191,16 @@ Omarchy palettes. Recovery tests do not substitute for native visual inspection.
 
 ## R2 — the production engine
 
+Issue [#47](https://github.com/michaelmonetized/editbay/issues/47) / draft
+[PR #48](https://github.com/michaelmonetized/editbay/pull/48) pins the updated
+[native sound backend](SOUND_BACKEND.md), bounds actual callback geometry and
+retains rejected clock evidence. The first upstream candidate fails its sustained
+pilot; [raw evidence](evidence/r2-sound-backend/README.md) remains explicit.
+The ALSA snapshot correction passes a three-minute pilot and 18 real fault trials;
+its concurrent two-hour attempt fails after 47 seconds. The baseline stops after
+246 seconds with an empty preparation queue and bounded clock drift. Native
+driver requalification is still pending. Full R2/R8 stay open.
+
 Issue #45 adds [bounded procedural GPU masks](PROCEDURAL_MASKS.md) to the shared
 preview/export graph. Native drawing tools, asset-mask formats and full artist
 workflows remain their R3/R4/R5 gates.

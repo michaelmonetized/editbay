@@ -1,0 +1,3433 @@
+{
+  "adopted_pcm_reaped": [],
+  "application_sha256": "e01737be7dcb152cb8e2c50d65912d3c394561f45d5726fb21b96190b63d09cc",
+  "device_worker_reaped": true,
+  "elapsed_seconds": 2.516485135,
+  "final": {
+    "callbacks": 31,
+    "clipped_monitor_samples": 0,
+    "clock_observation": {
+      "backend_elapsed_ns": 1237619376,
+      "backend_epoch": 0,
+      "buffer_start_frames": 61440,
+      "callback_elapsed_ns": 1347385854,
+      "callbacks": 31,
+      "reported_latency_ns": 249562500,
+      "submitted_frames": 63488,
+      "valid_end_sample": 2160000
+    },
+    "device": {
+      "channels": 2,
+      "name": "Default Audio Device",
+      "reported_callback_frames": 2048,
+      "requested_callback_frames": 2048,
+      "sample_format": "F32",
+      "sample_rate": 48000
+    },
+    "device_worker_pid": 944362,
+    "end_sample": 2160000,
+    "error": "Sound backend timing lost continuity; playback stopped without skipping source samples",
+    "phase": "failed",
+    "position_samples": 63488,
+    "prepared_capacity_frames": 16384,
+    "prepared_frames": 14336,
+    "reported_latency_ns": 249562500,
+    "route": "Stereo",
+    "start_sample": 0,
+    "version": {
+      "project_id": "d6be2e0a-911e-46c6-92ec-1b19fe4ec86c",
+      "revision": 1
+    },
+    "worker_pid": 944508
+  },
+  "kind": "native_streaming_sound",
+  "limits": [
+    "Actual default output device callbacks and backend latency estimate; no physical audibility or speaker timing claim",
+    "Lab-authored graph; native window controls and long hardware drift require separate evidence"
+  ],
+  "memory": [
+    "VmHWM:\t   48784 kB",
+    "VmRSS:\t   48784 kB"
+  ],
+  "mode": "resume-device",
+  "qualified": true,
+  "resumed_after_stall": true,
+  "retirement_ms": 374.624955,
+  "samples": [
+    {
+      "callbacks": 0,
+      "elapsed_ms": 2.084607,
+      "latency_ns": 0,
+      "phase": "preparing",
+      "position": null,
+      "prepared_frames": 0
+    },
+    {
+      "callbacks": 0,
+      "elapsed_ms": 9.379728,
+      "latency_ns": 0,
+      "phase": "preparing",
+      "position": null,
+      "prepared_frames": 0
+    },
+    {
+      "callbacks": 0,
+      "elapsed_ms": 14.474367,
+      "latency_ns": 0,
+      "phase": "preparing",
+      "position": null,
+      "prepared_frames": 0
+    },
+    {
+      "callbacks": 0,
+      "elapsed_ms": 19.578630999999998,
+      "latency_ns": 0,
+      "phase": "preparing",
+      "position": null,
+      "prepared_frames": 0
+    },
+    {
+      "callbacks": 0,
+      "elapsed_ms": 31.995641,
+      "latency_ns": 0,
+      "phase": "preparing",
+      "position": null,
+      "prepared_frames": 0
+    },
+    {
+      "callbacks": 0,
+      "elapsed_ms": 37.083197,
+      "latency_ns": 0,
+      "phase": "preparing",
+      "position": null,
+      "prepared_frames": 0
+    },
+    {
+      "callbacks": 0,
+      "elapsed_ms": 42.167835000000004,
+      "latency_ns": 0,
+      "phase": "preparing",
+      "position": null,
+      "prepared_frames": 0
+    },
+    {
+      "callbacks": 0,
+      "elapsed_ms": 47.275141,
+      "latency_ns": 0,
+      "phase": "preparing",
+      "position": null,
+      "prepared_frames": 0
+    },
+    {
+      "callbacks": 0,
+      "elapsed_ms": 52.352988,
+      "latency_ns": 0,
+      "phase": "preparing",
+      "position": null,
+      "prepared_frames": 0
+    },
+    {
+      "callbacks": 0,
+      "elapsed_ms": 57.429210000000005,
+      "latency_ns": 0,
+      "phase": "preparing",
+      "position": null,
+      "prepared_frames": 0
+    },
+    {
+      "callbacks": 0,
+      "elapsed_ms": 62.499474,
+      "latency_ns": 0,
+      "phase": "preparing",
+      "position": null,
+      "prepared_frames": 0
+    },
+    {
+      "callbacks": 0,
+      "elapsed_ms": 67.568112,
+      "latency_ns": 0,
+      "phase": "preparing",
+      "position": null,
+      "prepared_frames": 0
+    },
+    {
+      "callbacks": 0,
+      "elapsed_ms": 73.014297,
+      "latency_ns": 0,
+      "phase": "preparing",
+      "position": null,
+      "prepared_frames": 0
+    },
+    {
+      "callbacks": 0,
+      "elapsed_ms": 78.093769,
+      "latency_ns": 0,
+      "phase": "preparing",
+      "position": null,
+      "prepared_frames": 0
+    },
+    {
+      "callbacks": 0,
+      "elapsed_ms": 83.16528199999999,
+      "latency_ns": 0,
+      "phase": "preparing",
+      "position": null,
+      "prepared_frames": 0
+    },
+    {
+      "callbacks": 0,
+      "elapsed_ms": 88.237046,
+      "latency_ns": 0,
+      "phase": "preparing",
+      "position": null,
+      "prepared_frames": 0
+    },
+    {
+      "callbacks": 0,
+      "elapsed_ms": 93.307685,
+      "latency_ns": 0,
+      "phase": "preparing",
+      "position": null,
+      "prepared_frames": 0
+    },
+    {
+      "callbacks": 0,
+      "elapsed_ms": 98.80112000000001,
+      "latency_ns": 0,
+      "phase": "preparing",
+      "position": null,
+      "prepared_frames": 0
+    },
+    {
+      "callbacks": 0,
+      "elapsed_ms": 103.869925,
+      "latency_ns": 0,
+      "phase": "preparing",
+      "position": null,
+      "prepared_frames": 0
+    },
+    {
+      "callbacks": 0,
+      "elapsed_ms": 109.044856,
+      "latency_ns": 0,
+      "phase": "preparing",
+      "position": null,
+      "prepared_frames": 0
+    },
+    {
+      "callbacks": 0,
+      "elapsed_ms": 114.118662,
+      "latency_ns": 0,
+      "phase": "preparing",
+      "position": null,
+      "prepared_frames": 0
+    },
+    {
+      "callbacks": 0,
+      "elapsed_ms": 119.202342,
+      "latency_ns": 0,
+      "phase": "preparing",
+      "position": null,
+      "prepared_frames": 0
+    },
+    {
+      "callbacks": 0,
+      "elapsed_ms": 124.288773,
+      "latency_ns": 0,
+      "phase": "preparing",
+      "position": null,
+      "prepared_frames": 0
+    },
+    {
+      "callbacks": 0,
+      "elapsed_ms": 129.36424499999998,
+      "latency_ns": 0,
+      "phase": "preparing",
+      "position": null,
+      "prepared_frames": 0
+    },
+    {
+      "callbacks": 0,
+      "elapsed_ms": 135.106349,
+      "latency_ns": 0,
+      "phase": "preparing",
+      "position": null,
+      "prepared_frames": 0
+    },
+    {
+      "callbacks": 0,
+      "elapsed_ms": 140.195363,
+      "latency_ns": 0,
+      "phase": "preparing",
+      "position": null,
+      "prepared_frames": 0
+    },
+    {
+      "callbacks": 0,
+      "elapsed_ms": 145.42417,
+      "latency_ns": 0,
+      "phase": "preparing",
+      "position": null,
+      "prepared_frames": 0
+    },
+    {
+      "callbacks": 0,
+      "elapsed_ms": 150.60522600000002,
+      "latency_ns": 0,
+      "phase": "preparing",
+      "position": null,
+      "prepared_frames": 0
+    },
+    {
+      "callbacks": 0,
+      "elapsed_ms": 155.664198,
+      "latency_ns": 0,
+      "phase": "preparing",
+      "position": null,
+      "prepared_frames": 0
+    },
+    {
+      "callbacks": 0,
+      "elapsed_ms": 160.79217100000002,
+      "latency_ns": 0,
+      "phase": "preparing",
+      "position": null,
+      "prepared_frames": 0
+    },
+    {
+      "callbacks": 0,
+      "elapsed_ms": 165.891935,
+      "latency_ns": 0,
+      "phase": "preparing",
+      "position": null,
+      "prepared_frames": 0
+    },
+    {
+      "callbacks": 0,
+      "elapsed_ms": 171.29266,
+      "latency_ns": 0,
+      "phase": "preparing",
+      "position": null,
+      "prepared_frames": 0
+    },
+    {
+      "callbacks": 0,
+      "elapsed_ms": 176.378132,
+      "latency_ns": 0,
+      "phase": "preparing",
+      "position": null,
+      "prepared_frames": 0
+    },
+    {
+      "callbacks": 0,
+      "elapsed_ms": 181.45497899999998,
+      "latency_ns": 0,
+      "phase": "preparing",
+      "position": null,
+      "prepared_frames": 0
+    },
+    {
+      "callbacks": 0,
+      "elapsed_ms": 186.53466,
+      "latency_ns": 0,
+      "phase": "preparing",
+      "position": null,
+      "prepared_frames": 0
+    },
+    {
+      "callbacks": 0,
+      "elapsed_ms": 191.637924,
+      "latency_ns": 0,
+      "phase": "preparing",
+      "position": null,
+      "prepared_frames": 0
+    },
+    {
+      "callbacks": 0,
+      "elapsed_ms": 196.787855,
+      "latency_ns": 0,
+      "phase": "preparing",
+      "position": null,
+      "prepared_frames": 0
+    },
+    {
+      "callbacks": 0,
+      "elapsed_ms": 201.857494,
+      "latency_ns": 0,
+      "phase": "preparing",
+      "position": null,
+      "prepared_frames": 0
+    },
+    {
+      "callbacks": 0,
+      "elapsed_ms": 207.095051,
+      "latency_ns": 0,
+      "phase": "preparing",
+      "position": null,
+      "prepared_frames": 0
+    },
+    {
+      "callbacks": 0,
+      "elapsed_ms": 212.165523,
+      "latency_ns": 0,
+      "phase": "preparing",
+      "position": null,
+      "prepared_frames": 0
+    },
+    {
+      "callbacks": 0,
+      "elapsed_ms": 217.236536,
+      "latency_ns": 0,
+      "phase": "preparing",
+      "position": null,
+      "prepared_frames": 0
+    },
+    {
+      "callbacks": 0,
+      "elapsed_ms": 222.307383,
+      "latency_ns": 0,
+      "phase": "preparing",
+      "position": null,
+      "prepared_frames": 0
+    },
+    {
+      "callbacks": 0,
+      "elapsed_ms": 227.36785500000002,
+      "latency_ns": 0,
+      "phase": "preparing",
+      "position": null,
+      "prepared_frames": 0
+    },
+    {
+      "callbacks": 0,
+      "elapsed_ms": 232.426285,
+      "latency_ns": 0,
+      "phase": "preparing",
+      "position": null,
+      "prepared_frames": 0
+    },
+    {
+      "callbacks": 0,
+      "elapsed_ms": 237.494382,
+      "latency_ns": 0,
+      "phase": "preparing",
+      "position": null,
+      "prepared_frames": 0
+    },
+    {
+      "callbacks": 0,
+      "elapsed_ms": 242.582896,
+      "latency_ns": 0,
+      "phase": "preparing",
+      "position": null,
+      "prepared_frames": 0
+    },
+    {
+      "callbacks": 0,
+      "elapsed_ms": 247.664035,
+      "latency_ns": 0,
+      "phase": "preparing",
+      "position": null,
+      "prepared_frames": 0
+    },
+    {
+      "callbacks": 0,
+      "elapsed_ms": 253.111011,
+      "latency_ns": 0,
+      "phase": "preparing",
+      "position": null,
+      "prepared_frames": 0
+    },
+    {
+      "callbacks": 0,
+      "elapsed_ms": 258.189108,
+      "latency_ns": 0,
+      "phase": "preparing",
+      "position": null,
+      "prepared_frames": 0
+    },
+    {
+      "callbacks": 0,
+      "elapsed_ms": 263.265788,
+      "latency_ns": 0,
+      "phase": "preparing",
+      "position": null,
+      "prepared_frames": 0
+    },
+    {
+      "callbacks": 0,
+      "elapsed_ms": 268.34796900000003,
+      "latency_ns": 0,
+      "phase": "preparing",
+      "position": null,
+      "prepared_frames": 0
+    },
+    {
+      "callbacks": 0,
+      "elapsed_ms": 273.41869099999997,
+      "latency_ns": 0,
+      "phase": "preparing",
+      "position": null,
+      "prepared_frames": 0
+    },
+    {
+      "callbacks": 0,
+      "elapsed_ms": 278.493954,
+      "latency_ns": 0,
+      "phase": "preparing",
+      "position": null,
+      "prepared_frames": 0
+    },
+    {
+      "callbacks": 0,
+      "elapsed_ms": 283.575218,
+      "latency_ns": 0,
+      "phase": "preparing",
+      "position": null,
+      "prepared_frames": 0
+    },
+    {
+      "callbacks": 0,
+      "elapsed_ms": 288.63998200000003,
+      "latency_ns": 0,
+      "phase": "preparing",
+      "position": null,
+      "prepared_frames": 0
+    },
+    {
+      "callbacks": 0,
+      "elapsed_ms": 293.708954,
+      "latency_ns": 0,
+      "phase": "preparing",
+      "position": null,
+      "prepared_frames": 0
+    },
+    {
+      "callbacks": 0,
+      "elapsed_ms": 299.30980600000004,
+      "latency_ns": 0,
+      "phase": "preparing",
+      "position": null,
+      "prepared_frames": 0
+    },
+    {
+      "callbacks": 0,
+      "elapsed_ms": 304.41202899999996,
+      "latency_ns": 0,
+      "phase": "preparing",
+      "position": null,
+      "prepared_frames": 0
+    },
+    {
+      "callbacks": 0,
+      "elapsed_ms": 309.515001,
+      "latency_ns": 0,
+      "phase": "preparing",
+      "position": null,
+      "prepared_frames": 0
+    },
+    {
+      "callbacks": 0,
+      "elapsed_ms": 314.59055600000005,
+      "latency_ns": 0,
+      "phase": "preparing",
+      "position": null,
+      "prepared_frames": 0
+    },
+    {
+      "callbacks": 0,
+      "elapsed_ms": 320.023991,
+      "latency_ns": 0,
+      "phase": "preparing",
+      "position": null,
+      "prepared_frames": 0
+    },
+    {
+      "callbacks": 0,
+      "elapsed_ms": 325.286673,
+      "latency_ns": 0,
+      "phase": "preparing",
+      "position": null,
+      "prepared_frames": 0
+    },
+    {
+      "callbacks": 0,
+      "elapsed_ms": 330.363062,
+      "latency_ns": 0,
+      "phase": "preparing",
+      "position": null,
+      "prepared_frames": 0
+    },
+    {
+      "callbacks": 0,
+      "elapsed_ms": 335.990456,
+      "latency_ns": 0,
+      "phase": "preparing",
+      "position": null,
+      "prepared_frames": 0
+    },
+    {
+      "callbacks": 0,
+      "elapsed_ms": 341.063887,
+      "latency_ns": 0,
+      "phase": "preparing",
+      "position": null,
+      "prepared_frames": 0
+    },
+    {
+      "callbacks": 0,
+      "elapsed_ms": 347.019202,
+      "latency_ns": 0,
+      "phase": "preparing",
+      "position": null,
+      "prepared_frames": 0
+    },
+    {
+      "callbacks": 0,
+      "elapsed_ms": 352.25746699999996,
+      "latency_ns": 0,
+      "phase": "preparing",
+      "position": null,
+      "prepared_frames": 0
+    },
+    {
+      "callbacks": 0,
+      "elapsed_ms": 357.322397,
+      "latency_ns": 0,
+      "phase": "preparing",
+      "position": null,
+      "prepared_frames": 0
+    },
+    {
+      "callbacks": 0,
+      "elapsed_ms": 362.801332,
+      "latency_ns": 0,
+      "phase": "preparing",
+      "position": null,
+      "prepared_frames": 0
+    },
+    {
+      "callbacks": 0,
+      "elapsed_ms": 367.871762,
+      "latency_ns": 0,
+      "phase": "preparing",
+      "position": null,
+      "prepared_frames": 0
+    },
+    {
+      "callbacks": 0,
+      "elapsed_ms": 372.962901,
+      "latency_ns": 0,
+      "phase": "preparing",
+      "position": null,
+      "prepared_frames": 0
+    },
+    {
+      "callbacks": 0,
+      "elapsed_ms": 378.032623,
+      "latency_ns": 0,
+      "phase": "preparing",
+      "position": null,
+      "prepared_frames": 0
+    },
+    {
+      "callbacks": 0,
+      "elapsed_ms": 383.157721,
+      "latency_ns": 0,
+      "phase": "preparing",
+      "position": null,
+      "prepared_frames": 0
+    },
+    {
+      "callbacks": 0,
+      "elapsed_ms": 388.233109,
+      "latency_ns": 0,
+      "phase": "preparing",
+      "position": null,
+      "prepared_frames": 0
+    },
+    {
+      "callbacks": 0,
+      "elapsed_ms": 393.71383599999996,
+      "latency_ns": 0,
+      "phase": "preparing",
+      "position": null,
+      "prepared_frames": 0
+    },
+    {
+      "callbacks": 0,
+      "elapsed_ms": 398.833017,
+      "latency_ns": 0,
+      "phase": "preparing",
+      "position": null,
+      "prepared_frames": 0
+    },
+    {
+      "callbacks": 0,
+      "elapsed_ms": 403.92378099999996,
+      "latency_ns": 0,
+      "phase": "preparing",
+      "position": null,
+      "prepared_frames": 0
+    },
+    {
+      "callbacks": 0,
+      "elapsed_ms": 409.007128,
+      "latency_ns": 0,
+      "phase": "preparing",
+      "position": null,
+      "prepared_frames": 0
+    },
+    {
+      "callbacks": 0,
+      "elapsed_ms": 414.097183,
+      "latency_ns": 0,
+      "phase": "preparing",
+      "position": null,
+      "prepared_frames": 0
+    },
+    {
+      "callbacks": 0,
+      "elapsed_ms": 419.17607200000003,
+      "latency_ns": 0,
+      "phase": "preparing",
+      "position": null,
+      "prepared_frames": 0
+    },
+    {
+      "callbacks": 0,
+      "elapsed_ms": 424.251752,
+      "latency_ns": 0,
+      "phase": "preparing",
+      "position": null,
+      "prepared_frames": 0
+    },
+    {
+      "callbacks": 0,
+      "elapsed_ms": 429.322558,
+      "latency_ns": 0,
+      "phase": "preparing",
+      "position": null,
+      "prepared_frames": 0
+    },
+    {
+      "callbacks": 0,
+      "elapsed_ms": 434.39757099999997,
+      "latency_ns": 0,
+      "phase": "preparing",
+      "position": null,
+      "prepared_frames": 0
+    },
+    {
+      "callbacks": 0,
+      "elapsed_ms": 439.472127,
+      "latency_ns": 0,
+      "phase": "preparing",
+      "position": null,
+      "prepared_frames": 0
+    },
+    {
+      "callbacks": 0,
+      "elapsed_ms": 444.53405699999996,
+      "latency_ns": 0,
+      "phase": "preparing",
+      "position": null,
+      "prepared_frames": 0
+    },
+    {
+      "callbacks": 0,
+      "elapsed_ms": 449.60098700000003,
+      "latency_ns": 0,
+      "phase": "preparing",
+      "position": null,
+      "prepared_frames": 0
+    },
+    {
+      "callbacks": 0,
+      "elapsed_ms": 454.67387599999995,
+      "latency_ns": 0,
+      "phase": "preparing",
+      "position": null,
+      "prepared_frames": 0
+    },
+    {
+      "callbacks": 0,
+      "elapsed_ms": 459.892266,
+      "latency_ns": 0,
+      "phase": "preparing",
+      "position": null,
+      "prepared_frames": 0
+    },
+    {
+      "callbacks": 0,
+      "elapsed_ms": 465.00507200000004,
+      "latency_ns": 0,
+      "phase": "preparing",
+      "position": null,
+      "prepared_frames": 0
+    },
+    {
+      "callbacks": 0,
+      "elapsed_ms": 470.793051,
+      "latency_ns": 0,
+      "phase": "preparing",
+      "position": null,
+      "prepared_frames": 0
+    },
+    {
+      "callbacks": 0,
+      "elapsed_ms": 475.935899,
+      "latency_ns": 0,
+      "phase": "preparing",
+      "position": null,
+      "prepared_frames": 0
+    },
+    {
+      "callbacks": 0,
+      "elapsed_ms": 481.136289,
+      "latency_ns": 0,
+      "phase": "preparing",
+      "position": null,
+      "prepared_frames": 0
+    },
+    {
+      "callbacks": 0,
+      "elapsed_ms": 486.204511,
+      "latency_ns": 0,
+      "phase": "preparing",
+      "position": null,
+      "prepared_frames": 0
+    },
+    {
+      "callbacks": 0,
+      "elapsed_ms": 491.27194099999997,
+      "latency_ns": 0,
+      "phase": "preparing",
+      "position": null,
+      "prepared_frames": 0
+    },
+    {
+      "callbacks": 0,
+      "elapsed_ms": 496.337205,
+      "latency_ns": 0,
+      "phase": "preparing",
+      "position": null,
+      "prepared_frames": 0
+    },
+    {
+      "callbacks": 0,
+      "elapsed_ms": 501.403469,
+      "latency_ns": 0,
+      "phase": "preparing",
+      "position": null,
+      "prepared_frames": 0
+    },
+    {
+      "callbacks": 0,
+      "elapsed_ms": 506.47356600000006,
+      "latency_ns": 0,
+      "phase": "preparing",
+      "position": null,
+      "prepared_frames": 0
+    },
+    {
+      "callbacks": 0,
+      "elapsed_ms": 513.080096,
+      "latency_ns": 0,
+      "phase": "preparing",
+      "position": null,
+      "prepared_frames": 0
+    },
+    {
+      "callbacks": 0,
+      "elapsed_ms": 518.113109,
+      "latency_ns": 0,
+      "phase": "preparing",
+      "position": null,
+      "prepared_frames": 0
+    },
+    {
+      "callbacks": 0,
+      "elapsed_ms": 527.79909,
+      "latency_ns": 0,
+      "phase": "preparing",
+      "position": null,
+      "prepared_frames": 0
+    },
+    {
+      "callbacks": 0,
+      "elapsed_ms": 532.8951870000001,
+      "latency_ns": 0,
+      "phase": "preparing",
+      "position": null,
+      "prepared_frames": 0
+    },
+    {
+      "callbacks": 0,
+      "elapsed_ms": 537.999159,
+      "latency_ns": 0,
+      "phase": "preparing",
+      "position": null,
+      "prepared_frames": 0
+    },
+    {
+      "callbacks": 0,
+      "elapsed_ms": 543.08234,
+      "latency_ns": 0,
+      "phase": "preparing",
+      "position": null,
+      "prepared_frames": 0
+    },
+    {
+      "callbacks": 0,
+      "elapsed_ms": 548.144853,
+      "latency_ns": 0,
+      "phase": "preparing",
+      "position": null,
+      "prepared_frames": 0
+    },
+    {
+      "callbacks": 0,
+      "elapsed_ms": 553.2122,
+      "latency_ns": 0,
+      "phase": "preparing",
+      "position": null,
+      "prepared_frames": 0
+    },
+    {
+      "callbacks": 0,
+      "elapsed_ms": 558.298381,
+      "latency_ns": 0,
+      "phase": "preparing",
+      "position": null,
+      "prepared_frames": 0
+    },
+    {
+      "callbacks": 0,
+      "elapsed_ms": 563.363894,
+      "latency_ns": 0,
+      "phase": "preparing",
+      "position": null,
+      "prepared_frames": 0
+    },
+    {
+      "callbacks": 0,
+      "elapsed_ms": 568.4309499999999,
+      "latency_ns": 0,
+      "phase": "preparing",
+      "position": null,
+      "prepared_frames": 0
+    },
+    {
+      "callbacks": 0,
+      "elapsed_ms": 573.499422,
+      "latency_ns": 0,
+      "phase": "preparing",
+      "position": null,
+      "prepared_frames": 0
+    },
+    {
+      "callbacks": 0,
+      "elapsed_ms": 578.571019,
+      "latency_ns": 0,
+      "phase": "preparing",
+      "position": null,
+      "prepared_frames": 0
+    },
+    {
+      "callbacks": 0,
+      "elapsed_ms": 584.4902079999999,
+      "latency_ns": 0,
+      "phase": "preparing",
+      "position": null,
+      "prepared_frames": 0
+    },
+    {
+      "callbacks": 0,
+      "elapsed_ms": 591.5321180000001,
+      "latency_ns": 0,
+      "phase": "preparing",
+      "position": null,
+      "prepared_frames": 0
+    },
+    {
+      "callbacks": 0,
+      "elapsed_ms": 596.6058400000001,
+      "latency_ns": 0,
+      "phase": "preparing",
+      "position": null,
+      "prepared_frames": 0
+    },
+    {
+      "callbacks": 0,
+      "elapsed_ms": 601.697979,
+      "latency_ns": 0,
+      "phase": "preparing",
+      "position": null,
+      "prepared_frames": 0
+    },
+    {
+      "callbacks": 0,
+      "elapsed_ms": 606.7886599999999,
+      "latency_ns": 0,
+      "phase": "preparing",
+      "position": null,
+      "prepared_frames": 0
+    },
+    {
+      "callbacks": 0,
+      "elapsed_ms": 611.861215,
+      "latency_ns": 0,
+      "phase": "preparing",
+      "position": null,
+      "prepared_frames": 0
+    },
+    {
+      "callbacks": 0,
+      "elapsed_ms": 616.934104,
+      "latency_ns": 0,
+      "phase": "preparing",
+      "position": null,
+      "prepared_frames": 0
+    },
+    {
+      "callbacks": 0,
+      "elapsed_ms": 622.024284,
+      "latency_ns": 0,
+      "phase": "preparing",
+      "position": null,
+      "prepared_frames": 0
+    },
+    {
+      "callbacks": 0,
+      "elapsed_ms": 627.801639,
+      "latency_ns": 0,
+      "phase": "preparing",
+      "position": null,
+      "prepared_frames": 0
+    },
+    {
+      "callbacks": 0,
+      "elapsed_ms": 632.962528,
+      "latency_ns": 0,
+      "phase": "playing",
+      "position": 0,
+      "prepared_frames": 16384
+    },
+    {
+      "callbacks": 0,
+      "elapsed_ms": 638.278711,
+      "latency_ns": 0,
+      "phase": "playing",
+      "position": 0,
+      "prepared_frames": 16384
+    },
+    {
+      "callbacks": 2,
+      "elapsed_ms": 643.359142,
+      "latency_ns": 250333333,
+      "phase": "playing",
+      "position": 0,
+      "prepared_frames": 12288
+    },
+    {
+      "callbacks": 2,
+      "elapsed_ms": 648.440239,
+      "latency_ns": 250333333,
+      "phase": "playing",
+      "position": 0,
+      "prepared_frames": 12288
+    },
+    {
+      "callbacks": 2,
+      "elapsed_ms": 653.5062109999999,
+      "latency_ns": 250333333,
+      "phase": "playing",
+      "position": 0,
+      "prepared_frames": 12288
+    },
+    {
+      "callbacks": 2,
+      "elapsed_ms": 658.573349,
+      "latency_ns": 250333333,
+      "phase": "playing",
+      "position": 0,
+      "prepared_frames": 12288
+    },
+    {
+      "callbacks": 2,
+      "elapsed_ms": 663.640905,
+      "latency_ns": 250333333,
+      "phase": "playing",
+      "position": 0,
+      "prepared_frames": 12288
+    },
+    {
+      "callbacks": 2,
+      "elapsed_ms": 668.716168,
+      "latency_ns": 250333333,
+      "phase": "playing",
+      "position": 0,
+      "prepared_frames": 16384
+    },
+    {
+      "callbacks": 2,
+      "elapsed_ms": 673.796182,
+      "latency_ns": 250333333,
+      "phase": "playing",
+      "position": 0,
+      "prepared_frames": 16384
+    },
+    {
+      "callbacks": 2,
+      "elapsed_ms": 678.879821,
+      "latency_ns": 250333333,
+      "phase": "playing",
+      "position": 0,
+      "prepared_frames": 16384
+    },
+    {
+      "callbacks": 3,
+      "elapsed_ms": 683.9635010000001,
+      "latency_ns": 250104167,
+      "phase": "playing",
+      "position": 0,
+      "prepared_frames": 14336
+    },
+    {
+      "callbacks": 3,
+      "elapsed_ms": 689.032473,
+      "latency_ns": 250104167,
+      "phase": "playing",
+      "position": 0,
+      "prepared_frames": 14336
+    },
+    {
+      "callbacks": 3,
+      "elapsed_ms": 694.0956120000001,
+      "latency_ns": 250104167,
+      "phase": "playing",
+      "position": 0,
+      "prepared_frames": 14336
+    },
+    {
+      "callbacks": 3,
+      "elapsed_ms": 699.153125,
+      "latency_ns": 250104167,
+      "phase": "playing",
+      "position": 0,
+      "prepared_frames": 14336
+    },
+    {
+      "callbacks": 3,
+      "elapsed_ms": 704.21543,
+      "latency_ns": 250104167,
+      "phase": "playing",
+      "position": 0,
+      "prepared_frames": 14336
+    },
+    {
+      "callbacks": 3,
+      "elapsed_ms": 709.4510710000001,
+      "latency_ns": 250104167,
+      "phase": "playing",
+      "position": 0,
+      "prepared_frames": 14336
+    },
+    {
+      "callbacks": 3,
+      "elapsed_ms": 714.5296679999999,
+      "latency_ns": 250104167,
+      "phase": "playing",
+      "position": 0,
+      "prepared_frames": 14336
+    },
+    {
+      "callbacks": 3,
+      "elapsed_ms": 719.835892,
+      "latency_ns": 250104167,
+      "phase": "playing",
+      "position": 0,
+      "prepared_frames": 14336
+    },
+    {
+      "callbacks": 3,
+      "elapsed_ms": 725.117367,
+      "latency_ns": 250104167,
+      "phase": "playing",
+      "position": 0,
+      "prepared_frames": 14336
+    },
+    {
+      "callbacks": 3,
+      "elapsed_ms": 730.358299,
+      "latency_ns": 250104167,
+      "phase": "playing",
+      "position": 0,
+      "prepared_frames": 14336
+    },
+    {
+      "callbacks": 4,
+      "elapsed_ms": 742.394972,
+      "latency_ns": 249687500,
+      "phase": "playing",
+      "position": 0,
+      "prepared_frames": 12288
+    },
+    {
+      "callbacks": 4,
+      "elapsed_ms": 747.768822,
+      "latency_ns": 249687500,
+      "phase": "playing",
+      "position": 0,
+      "prepared_frames": 12288
+    },
+    {
+      "callbacks": 4,
+      "elapsed_ms": 752.8485029999999,
+      "latency_ns": 249687500,
+      "phase": "playing",
+      "position": 0,
+      "prepared_frames": 12288
+    },
+    {
+      "callbacks": 4,
+      "elapsed_ms": 757.9178079999999,
+      "latency_ns": 249687500,
+      "phase": "playing",
+      "position": 0,
+      "prepared_frames": 12288
+    },
+    {
+      "callbacks": 4,
+      "elapsed_ms": 762.981446,
+      "latency_ns": 249687500,
+      "phase": "playing",
+      "position": 0,
+      "prepared_frames": 12288
+    },
+    {
+      "callbacks": 5,
+      "elapsed_ms": 768.054293,
+      "latency_ns": 250270833,
+      "phase": "playing",
+      "position": 0,
+      "prepared_frames": 14336
+    },
+    {
+      "callbacks": 5,
+      "elapsed_ms": 773.132432,
+      "latency_ns": 250270833,
+      "phase": "playing",
+      "position": 0,
+      "prepared_frames": 14336
+    },
+    {
+      "callbacks": 5,
+      "elapsed_ms": 778.1987369999999,
+      "latency_ns": 250270833,
+      "phase": "playing",
+      "position": 0,
+      "prepared_frames": 14336
+    },
+    {
+      "callbacks": 5,
+      "elapsed_ms": 783.264418,
+      "latency_ns": 250270833,
+      "phase": "playing",
+      "position": 0,
+      "prepared_frames": 14336
+    },
+    {
+      "callbacks": 5,
+      "elapsed_ms": 788.340598,
+      "latency_ns": 250270833,
+      "phase": "playing",
+      "position": 0,
+      "prepared_frames": 14336
+    },
+    {
+      "callbacks": 5,
+      "elapsed_ms": 793.427528,
+      "latency_ns": 250270833,
+      "phase": "playing",
+      "position": 0,
+      "prepared_frames": 14336
+    },
+    {
+      "callbacks": 5,
+      "elapsed_ms": 799.664305,
+      "latency_ns": 250270833,
+      "phase": "playing",
+      "position": 0,
+      "prepared_frames": 14336
+    },
+    {
+      "callbacks": 5,
+      "elapsed_ms": 804.881528,
+      "latency_ns": 250270833,
+      "phase": "playing",
+      "position": 0,
+      "prepared_frames": 14336
+    },
+    {
+      "callbacks": 5,
+      "elapsed_ms": 814.031378,
+      "latency_ns": 250270833,
+      "phase": "playing",
+      "position": 0,
+      "prepared_frames": 14336
+    },
+    {
+      "callbacks": 6,
+      "elapsed_ms": 819.6585640000001,
+      "latency_ns": 249791667,
+      "phase": "playing",
+      "position": 0,
+      "prepared_frames": 12288
+    },
+    {
+      "callbacks": 6,
+      "elapsed_ms": 824.836121,
+      "latency_ns": 249791667,
+      "phase": "playing",
+      "position": 0,
+      "prepared_frames": 12288
+    },
+    {
+      "callbacks": 6,
+      "elapsed_ms": 832.643414,
+      "latency_ns": 249791667,
+      "phase": "playing",
+      "position": 0,
+      "prepared_frames": 12288
+    },
+    {
+      "callbacks": 6,
+      "elapsed_ms": 837.7414699999999,
+      "latency_ns": 249791667,
+      "phase": "playing",
+      "position": 0,
+      "prepared_frames": 12288
+    },
+    {
+      "callbacks": 6,
+      "elapsed_ms": 842.798233,
+      "latency_ns": 249791667,
+      "phase": "playing",
+      "position": 0,
+      "prepared_frames": 16384
+    },
+    {
+      "callbacks": 6,
+      "elapsed_ms": 849.298263,
+      "latency_ns": 249791667,
+      "phase": "playing",
+      "position": 0,
+      "prepared_frames": 16384
+    },
+    {
+      "callbacks": 6,
+      "elapsed_ms": 854.388193,
+      "latency_ns": 249791667,
+      "phase": "playing",
+      "position": 231,
+      "prepared_frames": 16384
+    },
+    {
+      "callbacks": 7,
+      "elapsed_ms": 859.517791,
+      "latency_ns": 250229167,
+      "phase": "playing",
+      "position": 627,
+      "prepared_frames": 14336
+    },
+    {
+      "callbacks": 7,
+      "elapsed_ms": 864.591013,
+      "latency_ns": 250229167,
+      "phase": "playing",
+      "position": 627,
+      "prepared_frames": 14336
+    },
+    {
+      "callbacks": 7,
+      "elapsed_ms": 869.80832,
+      "latency_ns": 250229167,
+      "phase": "playing",
+      "position": 1023,
+      "prepared_frames": 14336
+    },
+    {
+      "callbacks": 7,
+      "elapsed_ms": 875.638675,
+      "latency_ns": 250229167,
+      "phase": "playing",
+      "position": 1418,
+      "prepared_frames": 14336
+    },
+    {
+      "callbacks": 7,
+      "elapsed_ms": 880.790356,
+      "latency_ns": 250229167,
+      "phase": "playing",
+      "position": 1418,
+      "prepared_frames": 14336
+    },
+    {
+      "callbacks": 7,
+      "elapsed_ms": 886.00333,
+      "latency_ns": 250229167,
+      "phase": "playing",
+      "position": 1814,
+      "prepared_frames": 14336
+    },
+    {
+      "callbacks": 7,
+      "elapsed_ms": 891.092844,
+      "latency_ns": 250229167,
+      "phase": "playing",
+      "position": 2208,
+      "prepared_frames": 14336
+    },
+    {
+      "callbacks": 7,
+      "elapsed_ms": 896.15119,
+      "latency_ns": 250229167,
+      "phase": "playing",
+      "position": 2208,
+      "prepared_frames": 14336
+    },
+    {
+      "callbacks": 8,
+      "elapsed_ms": 901.2339539999999,
+      "latency_ns": 250291667,
+      "phase": "playing",
+      "position": 2608,
+      "prepared_frames": 12288
+    },
+    {
+      "callbacks": 8,
+      "elapsed_ms": 906.3129260000001,
+      "latency_ns": 250291667,
+      "phase": "playing",
+      "position": 2608,
+      "prepared_frames": 12288
+    },
+    {
+      "callbacks": 8,
+      "elapsed_ms": 911.383398,
+      "latency_ns": 250291667,
+      "phase": "playing",
+      "position": 3002,
+      "prepared_frames": 12288
+    },
+    {
+      "callbacks": 8,
+      "elapsed_ms": 916.451995,
+      "latency_ns": 250291667,
+      "phase": "playing",
+      "position": 3396,
+      "prepared_frames": 12288
+    },
+    {
+      "callbacks": 8,
+      "elapsed_ms": 921.523467,
+      "latency_ns": 250291667,
+      "phase": "playing",
+      "position": 3396,
+      "prepared_frames": 12288
+    },
+    {
+      "callbacks": 8,
+      "elapsed_ms": 926.599814,
+      "latency_ns": 250291667,
+      "phase": "playing",
+      "position": 3793,
+      "prepared_frames": 16384
+    },
+    {
+      "callbacks": 8,
+      "elapsed_ms": 932.256542,
+      "latency_ns": 250291667,
+      "phase": "playing",
+      "position": 3793,
+      "prepared_frames": 16384
+    },
+    {
+      "callbacks": 8,
+      "elapsed_ms": 937.288014,
+      "latency_ns": 250291667,
+      "phase": "playing",
+      "position": 4250,
+      "prepared_frames": 16384
+    },
+    {
+      "callbacks": 8,
+      "elapsed_ms": 942.362861,
+      "latency_ns": 250291667,
+      "phase": "playing",
+      "position": 4250,
+      "prepared_frames": 16384
+    },
+    {
+      "callbacks": 9,
+      "elapsed_ms": 947.463458,
+      "latency_ns": 250166667,
+      "phase": "playing",
+      "position": 4663,
+      "prepared_frames": 14336
+    },
+    {
+      "callbacks": 9,
+      "elapsed_ms": 952.517388,
+      "latency_ns": 250166667,
+      "phase": "playing",
+      "position": 5129,
+      "prepared_frames": 14336
+    },
+    {
+      "callbacks": 9,
+      "elapsed_ms": 957.597277,
+      "latency_ns": 250166667,
+      "phase": "playing",
+      "position": 5129,
+      "prepared_frames": 14336
+    },
+    {
+      "callbacks": 9,
+      "elapsed_ms": 962.665207,
+      "latency_ns": 250166667,
+      "phase": "playing",
+      "position": 5525,
+      "prepared_frames": 14336
+    },
+    {
+      "callbacks": 9,
+      "elapsed_ms": 967.72897,
+      "latency_ns": 250166667,
+      "phase": "playing",
+      "position": 5525,
+      "prepared_frames": 14336
+    },
+    {
+      "callbacks": 9,
+      "elapsed_ms": 972.790401,
+      "latency_ns": 250166667,
+      "phase": "playing",
+      "position": 5918,
+      "prepared_frames": 14336
+    },
+    {
+      "callbacks": 9,
+      "elapsed_ms": 977.8557890000001,
+      "latency_ns": 250166667,
+      "phase": "playing",
+      "position": 6310,
+      "prepared_frames": 14336
+    },
+    {
+      "callbacks": 9,
+      "elapsed_ms": 983.020887,
+      "latency_ns": 250166667,
+      "phase": "playing",
+      "position": 6310,
+      "prepared_frames": 14336
+    },
+    {
+      "callbacks": 10,
+      "elapsed_ms": 988.092026,
+      "latency_ns": 250270833,
+      "phase": "playing",
+      "position": 6706,
+      "prepared_frames": 12288
+    },
+    {
+      "callbacks": 10,
+      "elapsed_ms": 993.181956,
+      "latency_ns": 250270833,
+      "phase": "playing",
+      "position": 7099,
+      "prepared_frames": 12288
+    },
+    {
+      "callbacks": 10,
+      "elapsed_ms": 998.904977,
+      "latency_ns": 250270833,
+      "phase": "playing",
+      "position": 7099,
+      "prepared_frames": 12288
+    },
+    {
+      "callbacks": 10,
+      "elapsed_ms": 1004.0849919999999,
+      "latency_ns": 250270833,
+      "phase": "playing",
+      "position": 7493,
+      "prepared_frames": 12288
+    },
+    {
+      "callbacks": 10,
+      "elapsed_ms": 1010.5402290000001,
+      "latency_ns": 250270833,
+      "phase": "playing",
+      "position": 7899,
+      "prepared_frames": 12288
+    },
+    {
+      "callbacks": 10,
+      "elapsed_ms": 1015.664576,
+      "latency_ns": 250270833,
+      "phase": "playing",
+      "position": 7899,
+      "prepared_frames": 12288
+    },
+    {
+      "callbacks": 10,
+      "elapsed_ms": 1020.7608399999999,
+      "latency_ns": 250270833,
+      "phase": "playing",
+      "position": 8293,
+      "prepared_frames": 16384
+    },
+    {
+      "callbacks": 10,
+      "elapsed_ms": 1025.97098,
+      "latency_ns": 250270833,
+      "phase": "playing",
+      "position": 8293,
+      "prepared_frames": 16384
+    },
+    {
+      "callbacks": 11,
+      "elapsed_ms": 1031.053161,
+      "latency_ns": 250020833,
+      "phase": "playing",
+      "position": 8714,
+      "prepared_frames": 14336
+    },
+    {
+      "callbacks": 11,
+      "elapsed_ms": 1036.122674,
+      "latency_ns": 250020833,
+      "phase": "playing",
+      "position": 9108,
+      "prepared_frames": 14336
+    },
+    {
+      "callbacks": 11,
+      "elapsed_ms": 1041.202729,
+      "latency_ns": 250020833,
+      "phase": "playing",
+      "position": 9108,
+      "prepared_frames": 14336
+    },
+    {
+      "callbacks": 11,
+      "elapsed_ms": 1046.2859099999998,
+      "latency_ns": 250020833,
+      "phase": "playing",
+      "position": 9499,
+      "prepared_frames": 14336
+    },
+    {
+      "callbacks": 11,
+      "elapsed_ms": 1051.3603819999998,
+      "latency_ns": 250020833,
+      "phase": "playing",
+      "position": 9894,
+      "prepared_frames": 14336
+    },
+    {
+      "callbacks": 11,
+      "elapsed_ms": 1056.427729,
+      "latency_ns": 250020833,
+      "phase": "playing",
+      "position": 9894,
+      "prepared_frames": 14336
+    },
+    {
+      "callbacks": 11,
+      "elapsed_ms": 1061.503951,
+      "latency_ns": 250020833,
+      "phase": "playing",
+      "position": 10288,
+      "prepared_frames": 14336
+    },
+    {
+      "callbacks": 11,
+      "elapsed_ms": 1066.680799,
+      "latency_ns": 250020833,
+      "phase": "playing",
+      "position": 10288,
+      "prepared_frames": 14336
+    },
+    {
+      "callbacks": 12,
+      "elapsed_ms": 1071.753104,
+      "latency_ns": 250291667,
+      "phase": "playing",
+      "position": 10682,
+      "prepared_frames": 12288
+    },
+    {
+      "callbacks": 12,
+      "elapsed_ms": 1077.0843699999998,
+      "latency_ns": 250291667,
+      "phase": "playing",
+      "position": 11074,
+      "prepared_frames": 12288
+    },
+    {
+      "callbacks": 12,
+      "elapsed_ms": 1082.697348,
+      "latency_ns": 250291667,
+      "phase": "playing",
+      "position": 11074,
+      "prepared_frames": 12288
+    },
+    {
+      "callbacks": 12,
+      "elapsed_ms": 1089.1510019999998,
+      "latency_ns": 250291667,
+      "phase": "playing",
+      "position": 11074,
+      "prepared_frames": 12288
+    },
+    {
+      "callbacks": 12,
+      "elapsed_ms": 1094.357767,
+      "latency_ns": 250291667,
+      "phase": "playing",
+      "position": 11487,
+      "prepared_frames": 12288
+    },
+    {
+      "callbacks": 12,
+      "elapsed_ms": 1099.450656,
+      "latency_ns": 250291667,
+      "phase": "playing",
+      "position": 11487,
+      "prepared_frames": 12288
+    },
+    {
+      "callbacks": 12,
+      "elapsed_ms": 1104.770214,
+      "latency_ns": 250291667,
+      "phase": "playing",
+      "position": 11487,
+      "prepared_frames": 12288
+    },
+    {
+      "callbacks": 12,
+      "elapsed_ms": 1109.885061,
+      "latency_ns": 250291667,
+      "phase": "playing",
+      "position": 12571,
+      "prepared_frames": 12288
+    },
+    {
+      "callbacks": 13,
+      "elapsed_ms": 1114.976242,
+      "latency_ns": 248729167,
+      "phase": "playing",
+      "position": 12962,
+      "prepared_frames": 10240
+    },
+    {
+      "callbacks": 13,
+      "elapsed_ms": 1120.068839,
+      "latency_ns": 248729167,
+      "phase": "playing",
+      "position": 12962,
+      "prepared_frames": 10240
+    },
+    {
+      "callbacks": 13,
+      "elapsed_ms": 1125.153728,
+      "latency_ns": 248729167,
+      "phase": "playing",
+      "position": 13356,
+      "prepared_frames": 14336
+    },
+    {
+      "callbacks": 13,
+      "elapsed_ms": 1134.208701,
+      "latency_ns": 248729167,
+      "phase": "playing",
+      "position": 13785,
+      "prepared_frames": 14336
+    },
+    {
+      "callbacks": 13,
+      "elapsed_ms": 1139.300049,
+      "latency_ns": 248729167,
+      "phase": "playing",
+      "position": 13785,
+      "prepared_frames": 14336
+    },
+    {
+      "callbacks": 13,
+      "elapsed_ms": 1144.3884369999998,
+      "latency_ns": 248729167,
+      "phase": "playing",
+      "position": 14266,
+      "prepared_frames": 14336
+    },
+    {
+      "callbacks": 13,
+      "elapsed_ms": 1149.4762839999999,
+      "latency_ns": 248729167,
+      "phase": "playing",
+      "position": 14266,
+      "prepared_frames": 14336
+    },
+    {
+      "callbacks": 14,
+      "elapsed_ms": 1154.581298,
+      "latency_ns": 249979167,
+      "phase": "playing",
+      "position": 14689,
+      "prepared_frames": 12288
+    },
+    {
+      "callbacks": 14,
+      "elapsed_ms": 1159.780688,
+      "latency_ns": 249979167,
+      "phase": "playing",
+      "position": 15116,
+      "prepared_frames": 12288
+    },
+    {
+      "callbacks": 14,
+      "elapsed_ms": 1165.5737100000001,
+      "latency_ns": 249979167,
+      "phase": "playing",
+      "position": 15116,
+      "prepared_frames": 12288
+    },
+    {
+      "callbacks": 14,
+      "elapsed_ms": 1170.6671820000001,
+      "latency_ns": 249979167,
+      "phase": "playing",
+      "position": 15512,
+      "prepared_frames": 12288
+    },
+    {
+      "callbacks": 14,
+      "elapsed_ms": 1177.910136,
+      "latency_ns": 249979167,
+      "phase": "playing",
+      "position": 15512,
+      "prepared_frames": 12288
+    },
+    {
+      "callbacks": 14,
+      "elapsed_ms": 1183.009567,
+      "latency_ns": 249979167,
+      "phase": "playing",
+      "position": 15927,
+      "prepared_frames": 12288
+    },
+    {
+      "callbacks": 14,
+      "elapsed_ms": 1188.098455,
+      "latency_ns": 249979167,
+      "phase": "playing",
+      "position": 16392,
+      "prepared_frames": 16384
+    },
+    {
+      "callbacks": 14,
+      "elapsed_ms": 1193.207303,
+      "latency_ns": 249979167,
+      "phase": "playing",
+      "position": 16392,
+      "prepared_frames": 16384
+    },
+    {
+      "callbacks": 15,
+      "elapsed_ms": 1198.812364,
+      "latency_ns": 249687500,
+      "phase": "playing",
+      "position": 16800,
+      "prepared_frames": 14336
+    },
+    {
+      "callbacks": 15,
+      "elapsed_ms": 1203.9045859999999,
+      "latency_ns": 249687500,
+      "phase": "playing",
+      "position": 17220,
+      "prepared_frames": 14336
+    },
+    {
+      "callbacks": 15,
+      "elapsed_ms": 1208.9916409999998,
+      "latency_ns": 249687500,
+      "phase": "playing",
+      "position": 17220,
+      "prepared_frames": 14336
+    },
+    {
+      "callbacks": 15,
+      "elapsed_ms": 1214.083488,
+      "latency_ns": 249687500,
+      "phase": "playing",
+      "position": 17614,
+      "prepared_frames": 14336
+    },
+    {
+      "callbacks": 15,
+      "elapsed_ms": 1219.169794,
+      "latency_ns": 249687500,
+      "phase": "playing",
+      "position": 17614,
+      "prepared_frames": 14336
+    },
+    {
+      "callbacks": 15,
+      "elapsed_ms": 1224.2384319999999,
+      "latency_ns": 249687500,
+      "phase": "playing",
+      "position": 18019,
+      "prepared_frames": 14336
+    },
+    {
+      "callbacks": 15,
+      "elapsed_ms": 1229.53799,
+      "latency_ns": 249687500,
+      "phase": "playing",
+      "position": 18413,
+      "prepared_frames": 14336
+    },
+    {
+      "callbacks": 15,
+      "elapsed_ms": 1234.619754,
+      "latency_ns": 249687500,
+      "phase": "playing",
+      "position": 18413,
+      "prepared_frames": 14336
+    },
+    {
+      "callbacks": 16,
+      "elapsed_ms": 1239.701309,
+      "latency_ns": 250229167,
+      "phase": "playing",
+      "position": 18806,
+      "prepared_frames": 12288
+    },
+    {
+      "callbacks": 16,
+      "elapsed_ms": 1244.779865,
+      "latency_ns": 250229167,
+      "phase": "playing",
+      "position": 18806,
+      "prepared_frames": 12288
+    },
+    {
+      "callbacks": 16,
+      "elapsed_ms": 1249.8520449999999,
+      "latency_ns": 250229167,
+      "phase": "playing",
+      "position": 19199,
+      "prepared_frames": 12288
+    },
+    {
+      "callbacks": 16,
+      "elapsed_ms": 1256.014154,
+      "latency_ns": 250229167,
+      "phase": "playing",
+      "position": 19625,
+      "prepared_frames": 12288
+    },
+    {
+      "callbacks": 16,
+      "elapsed_ms": 1261.0912919999998,
+      "latency_ns": 250229167,
+      "phase": "playing",
+      "position": 19625,
+      "prepared_frames": 12288
+    },
+    {
+      "callbacks": 16,
+      "elapsed_ms": 1266.188265,
+      "latency_ns": 250229167,
+      "phase": "playing",
+      "position": 20029,
+      "prepared_frames": 16384
+    },
+    {
+      "callbacks": 16,
+      "elapsed_ms": 1271.3177369999999,
+      "latency_ns": 250229167,
+      "phase": "playing",
+      "position": 20424,
+      "prepared_frames": 16384
+    },
+    {
+      "callbacks": 16,
+      "elapsed_ms": 1276.388209,
+      "latency_ns": 250229167,
+      "phase": "playing",
+      "position": 20424,
+      "prepared_frames": 16384
+    },
+    {
+      "callbacks": 16,
+      "elapsed_ms": 1281.4841399999998,
+      "latency_ns": 250229167,
+      "phase": "playing",
+      "position": 20839,
+      "prepared_frames": 16384
+    },
+    {
+      "callbacks": 16,
+      "elapsed_ms": 1286.578904,
+      "latency_ns": 250229167,
+      "phase": "playing",
+      "position": 20839,
+      "prepared_frames": 16384
+    },
+    {
+      "callbacks": 17,
+      "elapsed_ms": 1291.6591259999998,
+      "latency_ns": 245895833,
+      "phase": "playing",
+      "position": 21234,
+      "prepared_frames": 14336
+    },
+    {
+      "callbacks": 17,
+      "elapsed_ms": 1296.723306,
+      "latency_ns": 245895833,
+      "phase": "playing",
+      "position": 21626,
+      "prepared_frames": 14336
+    },
+    {
+      "callbacks": 17,
+      "elapsed_ms": 1301.787319,
+      "latency_ns": 245895833,
+      "phase": "playing",
+      "position": 21626,
+      "prepared_frames": 14336
+    },
+    {
+      "callbacks": 17,
+      "elapsed_ms": 1306.8541659999999,
+      "latency_ns": 245895833,
+      "phase": "playing",
+      "position": 22024,
+      "prepared_frames": 14336
+    },
+    {
+      "callbacks": 17,
+      "elapsed_ms": 1311.9316379999998,
+      "latency_ns": 245895833,
+      "phase": "playing",
+      "position": 22417,
+      "prepared_frames": 14336
+    },
+    {
+      "callbacks": 17,
+      "elapsed_ms": 1317.018985,
+      "latency_ns": 245895833,
+      "phase": "playing",
+      "position": 22417,
+      "prepared_frames": 14336
+    },
+    {
+      "callbacks": 17,
+      "elapsed_ms": 1322.768465,
+      "latency_ns": 245895833,
+      "phase": "playing",
+      "position": 22417,
+      "prepared_frames": 14336
+    },
+    {
+      "callbacks": 17,
+      "elapsed_ms": 1327.844937,
+      "latency_ns": 245895833,
+      "phase": "playing",
+      "position": 22882,
+      "prepared_frames": 14336
+    },
+    {
+      "callbacks": 17,
+      "elapsed_ms": 1332.925825,
+      "latency_ns": 245895833,
+      "phase": "playing",
+      "position": 22882,
+      "prepared_frames": 14336
+    },
+    {
+      "callbacks": 18,
+      "elapsed_ms": 1338.243842,
+      "latency_ns": 246479167,
+      "phase": "playing",
+      "position": 23434,
+      "prepared_frames": 12288
+    },
+    {
+      "callbacks": 18,
+      "elapsed_ms": 1345.193084,
+      "latency_ns": 246479167,
+      "phase": "playing",
+      "position": 23833,
+      "prepared_frames": 12288
+    },
+    {
+      "callbacks": 18,
+      "elapsed_ms": 1350.262889,
+      "latency_ns": 246479167,
+      "phase": "playing",
+      "position": 24224,
+      "prepared_frames": 12288
+    },
+    {
+      "callbacks": 18,
+      "elapsed_ms": 1355.348611,
+      "latency_ns": 246479167,
+      "phase": "playing",
+      "position": 24224,
+      "prepared_frames": 12288
+    },
+    {
+      "callbacks": 18,
+      "elapsed_ms": 1360.442417,
+      "latency_ns": 246479167,
+      "phase": "playing",
+      "position": 24616,
+      "prepared_frames": 16384
+    },
+    {
+      "callbacks": 18,
+      "elapsed_ms": 1365.525222,
+      "latency_ns": 246479167,
+      "phase": "playing",
+      "position": 24616,
+      "prepared_frames": 16384
+    },
+    {
+      "callbacks": 19,
+      "elapsed_ms": 1370.611778,
+      "latency_ns": 250291667,
+      "phase": "playing",
+      "position": 25012,
+      "prepared_frames": 14336
+    },
+    {
+      "callbacks": 19,
+      "elapsed_ms": 1375.682166,
+      "latency_ns": 250291667,
+      "phase": "playing",
+      "position": 25408,
+      "prepared_frames": 14336
+    },
+    {
+      "callbacks": 19,
+      "elapsed_ms": 1380.769638,
+      "latency_ns": 250291667,
+      "phase": "playing",
+      "position": 25408,
+      "prepared_frames": 14336
+    },
+    {
+      "callbacks": 19,
+      "elapsed_ms": 1387.792173,
+      "latency_ns": 250291667,
+      "phase": "playing",
+      "position": 25801,
+      "prepared_frames": 14336
+    },
+    {
+      "callbacks": 19,
+      "elapsed_ms": 1392.867479,
+      "latency_ns": 250291667,
+      "phase": "playing",
+      "position": 26194,
+      "prepared_frames": 14336
+    },
+    {
+      "callbacks": 19,
+      "elapsed_ms": 1397.9322,
+      "latency_ns": 250291667,
+      "phase": "playing",
+      "position": 26194,
+      "prepared_frames": 14336
+    },
+    {
+      "callbacks": 19,
+      "elapsed_ms": 1402.996589,
+      "latency_ns": 250291667,
+      "phase": "playing",
+      "position": 26586,
+      "prepared_frames": 14336
+    },
+    {
+      "callbacks": 20,
+      "elapsed_ms": 1408.0327690000001,
+      "latency_ns": 250270833,
+      "phase": "playing",
+      "position": 26981,
+      "prepared_frames": 12288
+    },
+    {
+      "callbacks": 20,
+      "elapsed_ms": 1415.250139,
+      "latency_ns": 250270833,
+      "phase": "playing",
+      "position": 26981,
+      "prepared_frames": 12288
+    },
+    {
+      "callbacks": 20,
+      "elapsed_ms": 1420.328069,
+      "latency_ns": 250270833,
+      "phase": "playing",
+      "position": 27515,
+      "prepared_frames": 12288
+    },
+    {
+      "callbacks": 20,
+      "elapsed_ms": 1426.318843,
+      "latency_ns": 250270833,
+      "phase": "playing",
+      "position": 27515,
+      "prepared_frames": 12288
+    },
+    {
+      "callbacks": 20,
+      "elapsed_ms": 1431.546108,
+      "latency_ns": 250270833,
+      "phase": "playing",
+      "position": 28002,
+      "prepared_frames": 12288
+    },
+    {
+      "callbacks": 20,
+      "elapsed_ms": 1436.632705,
+      "latency_ns": 250270833,
+      "phase": "playing",
+      "position": 28394,
+      "prepared_frames": 16384
+    },
+    {
+      "callbacks": 20,
+      "elapsed_ms": 1441.720219,
+      "latency_ns": 250270833,
+      "phase": "playing",
+      "position": 28394,
+      "prepared_frames": 16384
+    },
+    {
+      "callbacks": 20,
+      "elapsed_ms": 1446.803233,
+      "latency_ns": 250270833,
+      "phase": "playing",
+      "position": 28787,
+      "prepared_frames": 16384
+    },
+    {
+      "callbacks": 20,
+      "elapsed_ms": 1451.8937469999998,
+      "latency_ns": 250270833,
+      "phase": "playing",
+      "position": 28787,
+      "prepared_frames": 16384
+    },
+    {
+      "callbacks": 21,
+      "elapsed_ms": 1457.5394749999998,
+      "latency_ns": 250125000,
+      "phase": "playing",
+      "position": 29182,
+      "prepared_frames": 14336
+    },
+    {
+      "callbacks": 21,
+      "elapsed_ms": 1462.642572,
+      "latency_ns": 250125000,
+      "phase": "playing",
+      "position": 29182,
+      "prepared_frames": 14336
+    },
+    {
+      "callbacks": 21,
+      "elapsed_ms": 1467.732211,
+      "latency_ns": 250125000,
+      "phase": "playing",
+      "position": 29638,
+      "prepared_frames": 14336
+    },
+    {
+      "callbacks": 21,
+      "elapsed_ms": 1472.792141,
+      "latency_ns": 250125000,
+      "phase": "playing",
+      "position": 30134,
+      "prepared_frames": 14336
+    },
+    {
+      "callbacks": 21,
+      "elapsed_ms": 1477.859571,
+      "latency_ns": 250125000,
+      "phase": "playing",
+      "position": 30134,
+      "prepared_frames": 14336
+    },
+    {
+      "callbacks": 21,
+      "elapsed_ms": 1482.9245850000002,
+      "latency_ns": 250125000,
+      "phase": "playing",
+      "position": 30525,
+      "prepared_frames": 14336
+    },
+    {
+      "callbacks": 21,
+      "elapsed_ms": 1487.99964,
+      "latency_ns": 250125000,
+      "phase": "playing",
+      "position": 30525,
+      "prepared_frames": 14336
+    },
+    {
+      "callbacks": 21,
+      "elapsed_ms": 1493.0928620000002,
+      "latency_ns": 250125000,
+      "phase": "playing",
+      "position": 30917,
+      "prepared_frames": 14336
+    },
+    {
+      "callbacks": 22,
+      "elapsed_ms": 1498.171001,
+      "latency_ns": 250270833,
+      "phase": "playing",
+      "position": 31313,
+      "prepared_frames": 12288
+    },
+    {
+      "callbacks": 22,
+      "elapsed_ms": 1503.23839,
+      "latency_ns": 250270833,
+      "phase": "playing",
+      "position": 31313,
+      "prepared_frames": 12288
+    },
+    {
+      "callbacks": 22,
+      "elapsed_ms": 1508.328778,
+      "latency_ns": 250270833,
+      "phase": "playing",
+      "position": 31707,
+      "prepared_frames": 12288
+    },
+    {
+      "callbacks": 22,
+      "elapsed_ms": 1513.4064170000001,
+      "latency_ns": 250270833,
+      "phase": "playing",
+      "position": 31707,
+      "prepared_frames": 12288
+    },
+    {
+      "callbacks": 22,
+      "elapsed_ms": 1518.478472,
+      "latency_ns": 250270833,
+      "phase": "playing",
+      "position": 32100,
+      "prepared_frames": 12288
+    },
+    {
+      "callbacks": 22,
+      "elapsed_ms": 1523.561819,
+      "latency_ns": 250270833,
+      "phase": "playing",
+      "position": 32497,
+      "prepared_frames": 16384
+    },
+    {
+      "callbacks": 22,
+      "elapsed_ms": 1529.186339,
+      "latency_ns": 250270833,
+      "phase": "playing",
+      "position": 32497,
+      "prepared_frames": 16384
+    },
+    {
+      "callbacks": 22,
+      "elapsed_ms": 1535.736785,
+      "latency_ns": 250270833,
+      "phase": "playing",
+      "position": 32900,
+      "prepared_frames": 16384
+    },
+    {
+      "callbacks": 23,
+      "elapsed_ms": 1541.220929,
+      "latency_ns": 247437500,
+      "phase": "playing",
+      "position": 33329,
+      "prepared_frames": 14336
+    },
+    {
+      "callbacks": 23,
+      "elapsed_ms": 1546.307859,
+      "latency_ns": 247437500,
+      "phase": "playing",
+      "position": 33329,
+      "prepared_frames": 14336
+    },
+    {
+      "callbacks": 23,
+      "elapsed_ms": 1551.3958730000002,
+      "latency_ns": 247437500,
+      "phase": "playing",
+      "position": 33724,
+      "prepared_frames": 14336
+    },
+    {
+      "callbacks": 23,
+      "elapsed_ms": 1556.47047,
+      "latency_ns": 247437500,
+      "phase": "playing",
+      "position": 34121,
+      "prepared_frames": 14336
+    },
+    {
+      "callbacks": 23,
+      "elapsed_ms": 1561.5392749999999,
+      "latency_ns": 247437500,
+      "phase": "playing",
+      "position": 34121,
+      "prepared_frames": 14336
+    },
+    {
+      "callbacks": 23,
+      "elapsed_ms": 1566.589288,
+      "latency_ns": 247437500,
+      "phase": "playing",
+      "position": 34518,
+      "prepared_frames": 14336
+    },
+    {
+      "callbacks": 23,
+      "elapsed_ms": 1571.6948020000002,
+      "latency_ns": 247437500,
+      "phase": "playing",
+      "position": 34518,
+      "prepared_frames": 14336
+    },
+    {
+      "callbacks": 23,
+      "elapsed_ms": 1576.955235,
+      "latency_ns": 247437500,
+      "phase": "playing",
+      "position": 34962,
+      "prepared_frames": 14336
+    },
+    {
+      "callbacks": 23,
+      "elapsed_ms": 1582.17075,
+      "latency_ns": 247437500,
+      "phase": "playing",
+      "position": 34962,
+      "prepared_frames": 14336
+    },
+    {
+      "callbacks": 24,
+      "elapsed_ms": 1587.258805,
+      "latency_ns": 250229167,
+      "phase": "playing",
+      "position": 35387,
+      "prepared_frames": 12288
+    },
+    {
+      "callbacks": 24,
+      "elapsed_ms": 1592.3444020000002,
+      "latency_ns": 250229167,
+      "phase": "playing",
+      "position": 35387,
+      "prepared_frames": 12288
+    },
+    {
+      "callbacks": 24,
+      "elapsed_ms": 1597.425541,
+      "latency_ns": 250229167,
+      "phase": "playing",
+      "position": 36037,
+      "prepared_frames": 12288
+    },
+    {
+      "callbacks": 24,
+      "elapsed_ms": 1602.498638,
+      "latency_ns": 250229167,
+      "phase": "playing",
+      "position": 36037,
+      "prepared_frames": 12288
+    },
+    {
+      "callbacks": 24,
+      "elapsed_ms": 1607.565527,
+      "latency_ns": 250229167,
+      "phase": "playing",
+      "position": 36429,
+      "prepared_frames": 16384
+    },
+    {
+      "callbacks": 24,
+      "elapsed_ms": 1612.630832,
+      "latency_ns": 250229167,
+      "phase": "playing",
+      "position": 36820,
+      "prepared_frames": 16384
+    },
+    {
+      "callbacks": 24,
+      "elapsed_ms": 1617.708387,
+      "latency_ns": 250229167,
+      "phase": "playing",
+      "position": 36820,
+      "prepared_frames": 16384
+    },
+    {
+      "callbacks": 25,
+      "elapsed_ms": 1622.7963590000002,
+      "latency_ns": 250250000,
+      "phase": "playing",
+      "position": 37263,
+      "prepared_frames": 14336
+    },
+    {
+      "callbacks": 25,
+      "elapsed_ms": 1628.791508,
+      "latency_ns": 250250000,
+      "phase": "playing",
+      "position": 37263,
+      "prepared_frames": 14336
+    },
+    {
+      "callbacks": 25,
+      "elapsed_ms": 1633.877397,
+      "latency_ns": 250250000,
+      "phase": "playing",
+      "position": 37655,
+      "prepared_frames": 14336
+    },
+    {
+      "callbacks": 25,
+      "elapsed_ms": 1638.954327,
+      "latency_ns": 250250000,
+      "phase": "playing",
+      "position": 38051,
+      "prepared_frames": 14336
+    },
+    {
+      "callbacks": 25,
+      "elapsed_ms": 1644.0046320000001,
+      "latency_ns": 250250000,
+      "phase": "playing",
+      "position": 38051,
+      "prepared_frames": 14336
+    },
+    {
+      "callbacks": 25,
+      "elapsed_ms": 1649.078354,
+      "latency_ns": 250250000,
+      "phase": "playing",
+      "position": 38446,
+      "prepared_frames": 14336
+    },
+    {
+      "callbacks": 25,
+      "elapsed_ms": 1654.1325339999999,
+      "latency_ns": 250250000,
+      "phase": "playing",
+      "position": 38837,
+      "prepared_frames": 14336
+    },
+    {
+      "callbacks": 25,
+      "elapsed_ms": 1659.208714,
+      "latency_ns": 250250000,
+      "phase": "playing",
+      "position": 38837,
+      "prepared_frames": 14336
+    },
+    {
+      "callbacks": 26,
+      "elapsed_ms": 1664.3621039999998,
+      "latency_ns": 250250000,
+      "phase": "playing",
+      "position": 39230,
+      "prepared_frames": 12288
+    },
+    {
+      "callbacks": 26,
+      "elapsed_ms": 1669.463326,
+      "latency_ns": 250250000,
+      "phase": "playing",
+      "position": 39230,
+      "prepared_frames": 12288
+    },
+    {
+      "callbacks": 26,
+      "elapsed_ms": 1674.5690479999998,
+      "latency_ns": 250250000,
+      "phase": "playing",
+      "position": 39627,
+      "prepared_frames": 12288
+    },
+    {
+      "callbacks": 26,
+      "elapsed_ms": 1679.9533150000002,
+      "latency_ns": 250250000,
+      "phase": "playing",
+      "position": 40019,
+      "prepared_frames": 12288
+    },
+    {
+      "callbacks": 26,
+      "elapsed_ms": 1685.065371,
+      "latency_ns": 250250000,
+      "phase": "playing",
+      "position": 40019,
+      "prepared_frames": 12288
+    },
+    {
+      "callbacks": 26,
+      "elapsed_ms": 1690.6555569999998,
+      "latency_ns": 250250000,
+      "phase": "playing",
+      "position": 40415,
+      "prepared_frames": 12288
+    },
+    {
+      "callbacks": 26,
+      "elapsed_ms": 1695.7395709999998,
+      "latency_ns": 250250000,
+      "phase": "playing",
+      "position": 40809,
+      "prepared_frames": 16384
+    },
+    {
+      "callbacks": 26,
+      "elapsed_ms": 1700.784251,
+      "latency_ns": 250250000,
+      "phase": "playing",
+      "position": 40809,
+      "prepared_frames": 16384
+    },
+    {
+      "callbacks": 26,
+      "elapsed_ms": 1705.848348,
+      "latency_ns": 250250000,
+      "phase": "playing",
+      "position": 41205,
+      "prepared_frames": 16384
+    },
+    {
+      "callbacks": 26,
+      "elapsed_ms": 1710.9182779999999,
+      "latency_ns": 250250000,
+      "phase": "playing",
+      "position": 41205,
+      "prepared_frames": 16384
+    },
+    {
+      "callbacks": 27,
+      "elapsed_ms": 1715.99075,
+      "latency_ns": 250270833,
+      "phase": "playing",
+      "position": 41598,
+      "prepared_frames": 14336
+    },
+    {
+      "callbacks": 27,
+      "elapsed_ms": 1721.063138,
+      "latency_ns": 250270833,
+      "phase": "playing",
+      "position": 42025,
+      "prepared_frames": 14336
+    },
+    {
+      "callbacks": 27,
+      "elapsed_ms": 1726.130527,
+      "latency_ns": 250270833,
+      "phase": "playing",
+      "position": 42025,
+      "prepared_frames": 14336
+    },
+    {
+      "callbacks": 27,
+      "elapsed_ms": 1731.226374,
+      "latency_ns": 250270833,
+      "phase": "playing",
+      "position": 42423,
+      "prepared_frames": 14336
+    },
+    {
+      "callbacks": 27,
+      "elapsed_ms": 1736.309763,
+      "latency_ns": 250270833,
+      "phase": "playing",
+      "position": 42423,
+      "prepared_frames": 14336
+    },
+    {
+      "callbacks": 27,
+      "elapsed_ms": 1741.424819,
+      "latency_ns": 250270833,
+      "phase": "playing",
+      "position": 42818,
+      "prepared_frames": 14336
+    },
+    {
+      "callbacks": 27,
+      "elapsed_ms": 1746.746793,
+      "latency_ns": 250270833,
+      "phase": "playing",
+      "position": 43216,
+      "prepared_frames": 14336
+    },
+    {
+      "callbacks": 27,
+      "elapsed_ms": 1751.8069739999999,
+      "latency_ns": 250270833,
+      "phase": "playing",
+      "position": 43216,
+      "prepared_frames": 14336
+    },
+    {
+      "callbacks": 28,
+      "elapsed_ms": 1756.887321,
+      "latency_ns": 247291667,
+      "phase": "playing",
+      "position": 43610,
+      "prepared_frames": 12288
+    },
+    {
+      "callbacks": 28,
+      "elapsed_ms": 1761.958293,
+      "latency_ns": 247291667,
+      "phase": "playing",
+      "position": 44003,
+      "prepared_frames": 12288
+    },
+    {
+      "callbacks": 28,
+      "elapsed_ms": 1766.997722,
+      "latency_ns": 247291667,
+      "phase": "playing",
+      "position": 44003,
+      "prepared_frames": 12288
+    },
+    {
+      "callbacks": 28,
+      "elapsed_ms": 1772.16307,
+      "latency_ns": 247291667,
+      "phase": "playing",
+      "position": 44394,
+      "prepared_frames": 12288
+    },
+    {
+      "callbacks": 28,
+      "elapsed_ms": 1777.249167,
+      "latency_ns": 247291667,
+      "phase": "playing",
+      "position": 44394,
+      "prepared_frames": 12288
+    },
+    {
+      "callbacks": 28,
+      "elapsed_ms": 1782.324223,
+      "latency_ns": 247291667,
+      "phase": "playing",
+      "position": 44790,
+      "prepared_frames": 16384
+    },
+    {
+      "callbacks": 28,
+      "elapsed_ms": 1787.3961949999998,
+      "latency_ns": 247291667,
+      "phase": "playing",
+      "position": 45181,
+      "prepared_frames": 16384
+    },
+    {
+      "callbacks": 28,
+      "elapsed_ms": 1792.491667,
+      "latency_ns": 247291667,
+      "phase": "playing",
+      "position": 45181,
+      "prepared_frames": 16384
+    },
+    {
+      "callbacks": 29,
+      "elapsed_ms": 1797.5641389999998,
+      "latency_ns": 250250000,
+      "phase": "playing",
+      "position": 45661,
+      "prepared_frames": 14336
+    },
+    {
+      "callbacks": 29,
+      "elapsed_ms": 1802.653694,
+      "latency_ns": 250250000,
+      "phase": "playing",
+      "position": 45661,
+      "prepared_frames": 14336
+    },
+    {
+      "callbacks": 29,
+      "elapsed_ms": 1807.7400830000001,
+      "latency_ns": 250250000,
+      "phase": "playing",
+      "position": 46201,
+      "prepared_frames": 14336
+    },
+    {
+      "callbacks": 29,
+      "elapsed_ms": 1816.238342,
+      "latency_ns": 250250000,
+      "phase": "playing",
+      "position": 46596,
+      "prepared_frames": 14336
+    },
+    {
+      "callbacks": 29,
+      "elapsed_ms": 1821.315231,
+      "latency_ns": 250250000,
+      "phase": "playing",
+      "position": 46596,
+      "prepared_frames": 14336
+    },
+    {
+      "callbacks": 29,
+      "elapsed_ms": 1826.407412,
+      "latency_ns": 250250000,
+      "phase": "playing",
+      "position": 47028,
+      "prepared_frames": 14336
+    },
+    {
+      "callbacks": 29,
+      "elapsed_ms": 1831.482759,
+      "latency_ns": 250250000,
+      "phase": "playing",
+      "position": 47028,
+      "prepared_frames": 14336
+    },
+    {
+      "callbacks": 30,
+      "elapsed_ms": 1836.5863140000001,
+      "latency_ns": 250291667,
+      "phase": "playing",
+      "position": 47423,
+      "prepared_frames": 12288
+    },
+    {
+      "callbacks": 30,
+      "elapsed_ms": 1841.741287,
+      "latency_ns": 250291667,
+      "phase": "playing",
+      "position": 47816,
+      "prepared_frames": 12288
+    },
+    {
+      "callbacks": 30,
+      "elapsed_ms": 1846.797467,
+      "latency_ns": 250291667,
+      "phase": "playing",
+      "position": 47816,
+      "prepared_frames": 12288
+    },
+    {
+      "callbacks": 30,
+      "elapsed_ms": 1852.111608,
+      "latency_ns": 250291667,
+      "phase": "playing",
+      "position": 48210,
+      "prepared_frames": 12288
+    },
+    {
+      "callbacks": 30,
+      "elapsed_ms": 1857.3581649999999,
+      "latency_ns": 250291667,
+      "phase": "playing",
+      "position": 48607,
+      "prepared_frames": 12288
+    },
+    {
+      "callbacks": 30,
+      "elapsed_ms": 1862.451971,
+      "latency_ns": 250291667,
+      "phase": "playing",
+      "position": 48607,
+      "prepared_frames": 12288
+    },
+    {
+      "callbacks": 30,
+      "elapsed_ms": 1867.6604029999999,
+      "latency_ns": 250291667,
+      "phase": "playing",
+      "position": 48999,
+      "prepared_frames": 12288
+    },
+    {
+      "callbacks": 30,
+      "elapsed_ms": 1872.725291,
+      "latency_ns": 250291667,
+      "phase": "playing",
+      "position": 48999,
+      "prepared_frames": 12288
+    },
+    {
+      "callbacks": 30,
+      "elapsed_ms": 1877.7913050000002,
+      "latency_ns": 250291667,
+      "phase": "playing",
+      "position": 49414,
+      "prepared_frames": 12288
+    },
+    {
+      "callbacks": 31,
+      "elapsed_ms": 1882.858277,
+      "latency_ns": 249562500,
+      "phase": "playing",
+      "position": 49807,
+      "prepared_frames": 14336
+    },
+    {
+      "callbacks": 31,
+      "elapsed_ms": 1906.437117,
+      "latency_ns": 249562500,
+      "phase": "playing",
+      "position": 50593,
+      "prepared_frames": 14336
+    },
+    {
+      "callbacks": 31,
+      "elapsed_ms": 1911.513756,
+      "latency_ns": 249562500,
+      "phase": "playing",
+      "position": 50593,
+      "prepared_frames": 14336
+    },
+    {
+      "callbacks": 31,
+      "elapsed_ms": 1916.5895189999999,
+      "latency_ns": 249562500,
+      "phase": "playing",
+      "position": 50593,
+      "prepared_frames": 14336
+    },
+    {
+      "callbacks": 31,
+      "elapsed_ms": 1921.6684910000001,
+      "latency_ns": 249562500,
+      "phase": "playing",
+      "position": 50593,
+      "prepared_frames": 14336
+    },
+    {
+      "callbacks": 31,
+      "elapsed_ms": 1926.860589,
+      "latency_ns": 249562500,
+      "phase": "playing",
+      "position": 50593,
+      "prepared_frames": 14336
+    },
+    {
+      "callbacks": 31,
+      "elapsed_ms": 1931.940561,
+      "latency_ns": 249562500,
+      "phase": "playing",
+      "position": 50593,
+      "prepared_frames": 14336
+    },
+    {
+      "callbacks": 31,
+      "elapsed_ms": 1937.0273249999998,
+      "latency_ns": 249562500,
+      "phase": "playing",
+      "position": 50593,
+      "prepared_frames": 14336
+    },
+    {
+      "callbacks": 31,
+      "elapsed_ms": 1944.4503229999998,
+      "latency_ns": 249562500,
+      "phase": "playing",
+      "position": 50593,
+      "prepared_frames": 14336
+    },
+    {
+      "callbacks": 31,
+      "elapsed_ms": 1949.544253,
+      "latency_ns": 249562500,
+      "phase": "playing",
+      "position": 50593,
+      "prepared_frames": 14336
+    },
+    {
+      "callbacks": 31,
+      "elapsed_ms": 1954.89977,
+      "latency_ns": 249562500,
+      "phase": "playing",
+      "position": 50593,
+      "prepared_frames": 14336
+    },
+    {
+      "callbacks": 31,
+      "elapsed_ms": 1960.0807009999999,
+      "latency_ns": 249562500,
+      "phase": "playing",
+      "position": 50593,
+      "prepared_frames": 14336
+    },
+    {
+      "callbacks": 31,
+      "elapsed_ms": 1965.1350060000002,
+      "latency_ns": 249562500,
+      "phase": "playing",
+      "position": 50593,
+      "prepared_frames": 14336
+    },
+    {
+      "callbacks": 31,
+      "elapsed_ms": 1970.214311,
+      "latency_ns": 249562500,
+      "phase": "playing",
+      "position": 50593,
+      "prepared_frames": 14336
+    },
+    {
+      "callbacks": 31,
+      "elapsed_ms": 1975.2823670000002,
+      "latency_ns": 249562500,
+      "phase": "playing",
+      "position": 50593,
+      "prepared_frames": 14336
+    },
+    {
+      "callbacks": 31,
+      "elapsed_ms": 1980.360505,
+      "latency_ns": 249562500,
+      "phase": "playing",
+      "position": 50593,
+      "prepared_frames": 14336
+    },
+    {
+      "callbacks": 31,
+      "elapsed_ms": 1985.428811,
+      "latency_ns": 249562500,
+      "phase": "playing",
+      "position": 50593,
+      "prepared_frames": 14336
+    },
+    {
+      "callbacks": 31,
+      "elapsed_ms": 1990.4976570000001,
+      "latency_ns": 249562500,
+      "phase": "playing",
+      "position": 50593,
+      "prepared_frames": 14336
+    },
+    {
+      "callbacks": 31,
+      "elapsed_ms": 1995.567504,
+      "latency_ns": 249562500,
+      "phase": "playing",
+      "position": 50593,
+      "prepared_frames": 14336
+    },
+    {
+      "callbacks": 31,
+      "elapsed_ms": 2000.6361840000002,
+      "latency_ns": 249562500,
+      "phase": "playing",
+      "position": 50593,
+      "prepared_frames": 14336
+    },
+    {
+      "callbacks": 31,
+      "elapsed_ms": 2005.7066149999998,
+      "latency_ns": 249562500,
+      "phase": "playing",
+      "position": 50593,
+      "prepared_frames": 14336
+    },
+    {
+      "callbacks": 31,
+      "elapsed_ms": 2010.7434199999998,
+      "latency_ns": 249562500,
+      "phase": "playing",
+      "position": 50593,
+      "prepared_frames": 14336
+    },
+    {
+      "callbacks": 31,
+      "elapsed_ms": 2015.860767,
+      "latency_ns": 249562500,
+      "phase": "playing",
+      "position": 50593,
+      "prepared_frames": 14336
+    },
+    {
+      "callbacks": 31,
+      "elapsed_ms": 2020.9489469999999,
+      "latency_ns": 249562500,
+      "phase": "playing",
+      "position": 50593,
+      "prepared_frames": 14336
+    },
+    {
+      "callbacks": 31,
+      "elapsed_ms": 2026.011252,
+      "latency_ns": 249562500,
+      "phase": "playing",
+      "position": 50593,
+      "prepared_frames": 14336
+    },
+    {
+      "callbacks": 31,
+      "elapsed_ms": 2031.0984329999999,
+      "latency_ns": 249562500,
+      "phase": "playing",
+      "position": 50593,
+      "prepared_frames": 14336
+    },
+    {
+      "callbacks": 31,
+      "elapsed_ms": 2036.153363,
+      "latency_ns": 249562500,
+      "phase": "playing",
+      "position": 50593,
+      "prepared_frames": 14336
+    },
+    {
+      "callbacks": 31,
+      "elapsed_ms": 2041.1981680000001,
+      "latency_ns": 249562500,
+      "phase": "playing",
+      "position": 50593,
+      "prepared_frames": 14336
+    },
+    {
+      "callbacks": 31,
+      "elapsed_ms": 2046.27889,
+      "latency_ns": 249562500,
+      "phase": "playing",
+      "position": 50593,
+      "prepared_frames": 14336
+    },
+    {
+      "callbacks": 31,
+      "elapsed_ms": 2051.365862,
+      "latency_ns": 249562500,
+      "phase": "playing",
+      "position": 50593,
+      "prepared_frames": 14336
+    },
+    {
+      "callbacks": 31,
+      "elapsed_ms": 2056.442709,
+      "latency_ns": 249562500,
+      "phase": "playing",
+      "position": 50593,
+      "prepared_frames": 14336
+    },
+    {
+      "callbacks": 31,
+      "elapsed_ms": 2061.522514,
+      "latency_ns": 249562500,
+      "phase": "playing",
+      "position": 50593,
+      "prepared_frames": 14336
+    },
+    {
+      "callbacks": 31,
+      "elapsed_ms": 2066.60307,
+      "latency_ns": 249562500,
+      "phase": "playing",
+      "position": 50593,
+      "prepared_frames": 14336
+    },
+    {
+      "callbacks": 31,
+      "elapsed_ms": 2071.6864579999997,
+      "latency_ns": 249562500,
+      "phase": "playing",
+      "position": 50593,
+      "prepared_frames": 14336
+    },
+    {
+      "callbacks": 31,
+      "elapsed_ms": 2076.763097,
+      "latency_ns": 249562500,
+      "phase": "playing",
+      "position": 50593,
+      "prepared_frames": 14336
+    },
+    {
+      "callbacks": 31,
+      "elapsed_ms": 2081.859902,
+      "latency_ns": 249562500,
+      "phase": "playing",
+      "position": 50593,
+      "prepared_frames": 14336
+    },
+    {
+      "callbacks": 31,
+      "elapsed_ms": 2086.959083,
+      "latency_ns": 249562500,
+      "phase": "playing",
+      "position": 50593,
+      "prepared_frames": 14336
+    },
+    {
+      "callbacks": 31,
+      "elapsed_ms": 2092.058138,
+      "latency_ns": 249562500,
+      "phase": "playing",
+      "position": 50593,
+      "prepared_frames": 14336
+    },
+    {
+      "callbacks": 31,
+      "elapsed_ms": 2097.5777820000003,
+      "latency_ns": 249562500,
+      "phase": "playing",
+      "position": 50593,
+      "prepared_frames": 14336
+    },
+    {
+      "callbacks": 31,
+      "elapsed_ms": 2102.6650459999996,
+      "latency_ns": 249562500,
+      "phase": "playing",
+      "position": 50593,
+      "prepared_frames": 14336
+    },
+    {
+      "callbacks": 31,
+      "elapsed_ms": 2107.731142,
+      "latency_ns": 249562500,
+      "phase": "playing",
+      "position": 50593,
+      "prepared_frames": 14336
+    },
+    {
+      "callbacks": 31,
+      "elapsed_ms": 2112.7931559999997,
+      "latency_ns": 249562500,
+      "phase": "playing",
+      "position": 50593,
+      "prepared_frames": 14336
+    },
+    {
+      "callbacks": 31,
+      "elapsed_ms": 2117.862086,
+      "latency_ns": 249562500,
+      "phase": "playing",
+      "position": 50593,
+      "prepared_frames": 14336
+    },
+    {
+      "callbacks": 31,
+      "elapsed_ms": 2122.933975,
+      "latency_ns": 249562500,
+      "phase": "playing",
+      "position": 50593,
+      "prepared_frames": 14336
+    },
+    {
+      "callbacks": 31,
+      "elapsed_ms": 2128.341534,
+      "latency_ns": 249562500,
+      "phase": "playing",
+      "position": 50593,
+      "prepared_frames": 14336
+    },
+    {
+      "callbacks": 31,
+      "elapsed_ms": 2133.4157139999998,
+      "latency_ns": 249562500,
+      "phase": "playing",
+      "position": 50593,
+      "prepared_frames": 14336
+    },
+    {
+      "callbacks": 31,
+      "elapsed_ms": 2138.490477,
+      "latency_ns": 249562500,
+      "phase": "playing",
+      "position": 50593,
+      "prepared_frames": 14336
+    },
+    {
+      "callbacks": 31,
+      "elapsed_ms": 2143.636367,
+      "latency_ns": 249562500,
+      "phase": "playing",
+      "position": 50593,
+      "prepared_frames": 14336
+    },
+    {
+      "callbacks": 31,
+      "elapsed_ms": 2149.253845,
+      "latency_ns": 249562500,
+      "phase": "playing",
+      "position": 50593,
+      "prepared_frames": 14336
+    },
+    {
+      "callbacks": 31,
+      "elapsed_ms": 2154.337442,
+      "latency_ns": 249562500,
+      "phase": "playing",
+      "position": 50593,
+      "prepared_frames": 14336
+    },
+    {
+      "callbacks": 31,
+      "elapsed_ms": 2159.4215390000004,
+      "latency_ns": 249562500,
+      "phase": "playing",
+      "position": 50593,
+      "prepared_frames": 14336
+    },
+    {
+      "callbacks": 31,
+      "elapsed_ms": 2164.892223,
+      "latency_ns": 249562500,
+      "phase": "playing",
+      "position": 50593,
+      "prepared_frames": 14336
+    },
+    {
+      "callbacks": 31,
+      "elapsed_ms": 2170.7328700000003,
+      "latency_ns": 249562500,
+      "phase": "playing",
+      "position": 50593,
+      "prepared_frames": 14336
+    },
+    {
+      "callbacks": 31,
+      "elapsed_ms": 2175.908635,
+      "latency_ns": 249562500,
+      "phase": "playing",
+      "position": 50593,
+      "prepared_frames": 14336
+    },
+    {
+      "callbacks": 31,
+      "elapsed_ms": 2180.990774,
+      "latency_ns": 249562500,
+      "phase": "playing",
+      "position": 50593,
+      "prepared_frames": 14336
+    },
+    {
+      "callbacks": 31,
+      "elapsed_ms": 2186.612418,
+      "latency_ns": 249562500,
+      "phase": "playing",
+      "position": 50593,
+      "prepared_frames": 14336
+    },
+    {
+      "callbacks": 31,
+      "elapsed_ms": 2195.320305,
+      "latency_ns": 249562500,
+      "phase": "failed",
+      "position": 63488,
+      "prepared_frames": 14336
+    },
+    {
+      "callbacks": 31,
+      "elapsed_ms": 2200.4167350000002,
+      "latency_ns": 249562500,
+      "phase": "failed",
+      "position": 63488,
+      "prepared_frames": 14336
+    },
+    {
+      "callbacks": 31,
+      "elapsed_ms": 2206.3610909999998,
+      "latency_ns": 249562500,
+      "phase": "failed",
+      "position": 63488,
+      "prepared_frames": 14336
+    },
+    {
+      "callbacks": 31,
+      "elapsed_ms": 2211.440772,
+      "latency_ns": 249562500,
+      "phase": "failed",
+      "position": 63488,
+      "prepared_frames": 14336
+    },
+    {
+      "callbacks": 31,
+      "elapsed_ms": 2216.527494,
+      "latency_ns": 249562500,
+      "phase": "failed",
+      "position": 63488,
+      "prepared_frames": 14336
+    },
+    {
+      "callbacks": 31,
+      "elapsed_ms": 2221.618799,
+      "latency_ns": 249562500,
+      "phase": "failed",
+      "position": 63488,
+      "prepared_frames": 14336
+    },
+    {
+      "callbacks": 31,
+      "elapsed_ms": 2226.696438,
+      "latency_ns": 249562500,
+      "phase": "failed",
+      "position": 63488,
+      "prepared_frames": 14336
+    },
+    {
+      "callbacks": 31,
+      "elapsed_ms": 2232.314374,
+      "latency_ns": 249562500,
+      "phase": "failed",
+      "position": 63488,
+      "prepared_frames": 14336
+    },
+    {
+      "callbacks": 31,
+      "elapsed_ms": 2237.398929,
+      "latency_ns": 249562500,
+      "phase": "failed",
+      "position": 63488,
+      "prepared_frames": 14336
+    },
+    {
+      "callbacks": 31,
+      "elapsed_ms": 2242.49611,
+      "latency_ns": 249562500,
+      "phase": "failed",
+      "position": 63488,
+      "prepared_frames": 14336
+    }
+  ],
+  "source": "/home/michael/Projects/editbay/artifacts/worktrees/r2-sound-worker/artifacts/streaming/fixtures/quiet-45s.mov",
+  "source_fingerprint": {
+    "bytes": 1152891,
+    "sha256": "9be5d3f2de23d3e1e02af73be1fc2d184b71fef8aad179cbdbb980b61239fced"
+  },
+  "source_unchanged": true,
+  "worker_reaped": true
+}
