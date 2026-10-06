@@ -20,7 +20,7 @@ pub use ffi::LosslessMovWriter;
 
 pub use pcm::{
     NativePcmCache, PcmBlock, PcmBudget, PcmPreparation, PcmPreparationLog, PcmProgress,
-    PcmProvider, PcmResult, PcmStats,
+    PcmProvider, PcmResult, PcmStats, presentation as pcm_presentation,
 };
 pub use pictures::{
     DecodedPicture, PictureBudget, PictureCache, PictureCacheStats, PictureProvider, PictureResult,

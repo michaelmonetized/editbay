@@ -140,6 +140,121 @@ fn exact_sample_centers_rate_conversion_reverse_and_final_sample() {
 }
 
 #[test]
+fn source_preparation_encloses_every_active_center_across_nested_reverse_and_cut_paths() {
+    for mode in [
+        "forward",
+        "reverse",
+        "segmented",
+        "nested",
+        "disabled",
+        "freeze",
+    ] {
+        let mut p = project();
+        match mode {
+            "reverse" => p.compositions[0].tracks[0].clips[0].time_map = map(48, 96000, 0),
+            "segmented" => {
+                p.sources[0].streams[0].start_tick = -12000;
+                p.sources[0].streams[0].duration_ticks = Some(108000);
+                p.compositions[0].tracks[0].clips[0].time_map.points = vec![
+                    TimePoint {
+                        frame: 0,
+                        source_tick: -12000,
+                    },
+                    TimePoint {
+                        frame: 13,
+                        source_tick: 72000,
+                    },
+                    TimePoint {
+                        frame: 29,
+                        source_tick: 12345,
+                    },
+                    TimePoint {
+                        frame: 48,
+                        source_tick: 96000,
+                    },
+                ];
+                p.compositions[0].nodes[0].range = FrameRange { start: 3, end: 43 };
+            }
+            "nested" => {
+                let mut child = p.compositions[0].clone();
+                child.id = id(31);
+                child.frame_rate = FrameRate::new(60, 1).unwrap();
+                child.duration = 120;
+                child.tracks[0].id = id(42);
+                child.tracks[0].clips[0].id = id(43);
+                child.tracks[0].clips[0].range.end = 120;
+                child.tracks[0].clips[0].time_map = map(120, 96000, 0);
+                child.nodes[0] = TimedNode {
+                    id: id(53),
+                    range: FrameRange { start: 7, end: 110 },
+                    operation: NodeOperation::Source { clip: id(43) },
+                    animation: vec![],
+                };
+                child.audio = Some(id(53));
+                p.compositions[0].tracks[0].clips[0].source = ClipSource::Composition {
+                    composition: id(31),
+                };
+                p.compositions[0].tracks[0].clips[0].time_map = map(48, 119, 2);
+                p.compositions.push(child);
+            }
+            "disabled" => p.compositions[0].tracks[0].enabled = false,
+            "freeze" => p.compositions[0].tracks[0].clips[0].time_map = map(48, 48000, 48000),
+            _ => {}
+        }
+        for rate in [44100, 48000] {
+            let compiled = sound(p.clone(), rate, SoundBudget::default());
+            let duration = compiled.duration_samples();
+            for (first, end) in [
+                (0, duration / 3),
+                (duration / 3, 2 * duration / 3),
+                (duration - 4096, duration),
+            ] {
+                let extents = compiled
+                    .source_extents(first, end - first, || false)
+                    .unwrap();
+                if matches!(mode, "disabled" | "freeze") {
+                    assert!(extents.is_empty());
+                }
+                for start in (first..end).step_by(4096) {
+                    let block = compiled
+                        .prepare(start, (end - start).min(4096) as u32)
+                        .unwrap();
+                    for source in block.sources() {
+                        for sample in source.samples.iter().flatten() {
+                            let bound = extents
+                                .iter()
+                                .find(|bound| {
+                                    bound.source == source.source && bound.stream == source.stream
+                                })
+                                .expect("active source must be prepared");
+                            assert!(
+                                !sample
+                                    .center
+                                    .compare_tick(bound.first_tick)
+                                    .unwrap()
+                                    .is_lt(),
+                                "{mode} {rate} lower"
+                            );
+                            assert!(
+                                !sample.center.compare_tick(bound.last_tick).unwrap().is_gt(),
+                                "{mode} {rate} upper"
+                            );
+                        }
+                    }
+                }
+            }
+            assert!(compiled.source_extents(0, 0, || false).is_err());
+            assert!(compiled.source_extents(0, duration + 1, || false).is_err());
+            assert!(compiled.source_extents(u64::MAX, 2, || false).is_err());
+            assert!(compiled.source_extents(0, duration, || true).is_err());
+        }
+    }
+    let compiled = sound(project(), 48000, SoundBudget::default());
+    let bound = compiled.source_extents(24000, 24000, || false).unwrap()[0];
+    assert_eq!((bound.first_tick, bound.last_tick), (24000, 48000));
+}
+
+#[test]
 fn device_rate_uses_only_reachable_channels_and_rejects_implicit_mixing() {
     let mut p = project();
     let mut unrelated = p.sources[0].clone();

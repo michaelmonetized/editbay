@@ -28,7 +28,7 @@ pub use evaluation::{EvaluatedNode, FramePlan, SourceRequest};
 pub use prepared::{EvaluationSnapshot, PreparedFrame, PreparedNode};
 pub use sound::{
     SoundBlockPlan, SoundBudget, SoundIndexStats, SoundPreparationStats, SoundProfile, SoundSample,
-    SoundSnapshot, SoundSourcePlan,
+    SoundSnapshot, SoundSourceExtent, SoundSourcePlan,
 };
 pub use storage::{
     MAX_DOCUMENT_BYTES, PreparedCheckpoint, RecoveryCatalog, RecoveryFailure, RecoveryRecord,

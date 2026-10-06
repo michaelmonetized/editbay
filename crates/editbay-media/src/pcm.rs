@@ -666,10 +666,7 @@ impl NativePcmCache {
 
 /// Resolve captured sound presentation on its original sample grid.
 /// `profile` and `sample_rate` declare exact time. Returns start and exclusive end.
-pub(crate) fn presentation(
-    profile: &editbay_core::SourceStream,
-    sample_rate: u32,
-) -> Result<(i64, i64)> {
+pub fn presentation(profile: &editbay_core::SourceStream, sample_rate: u32) -> Result<(i64, i64)> {
     let rate = FrameRate::new(sample_rate, 1)?;
     let start = profile
         .time_base
@@ -723,6 +720,9 @@ impl Output {
 
 /// Original-channel PCM routes shared by sound preview and delivery workers.
 pub trait PcmProvider {
+    /// Inspect this provider's fixed source, storage and output limits.
+    /// Takes no arguments; returns the captured PCM budget without allocation.
+    fn budget(&self) -> PcmBudget;
     /// Inspect the cancellation owner of underlying decode and transport work.
     /// Takes no arguments; returns the token shared by a bound sound renderer.
     fn cancellation(&self) -> &Cancellation;
@@ -734,6 +734,16 @@ pub trait PcmProvider {
     /// Inspect the immutable source interpretation owner.
     /// Takes no arguments; returns the exact retained evaluation snapshot.
     fn snapshot(&self) -> &Arc<EvaluationSnapshot>;
+    /// Advance canonical source history by at most one bounded native step.
+    /// `source`, `stream`, `first` and `frames` select eventual PCM. Returns
+    /// source progress without allocating or publishing an output sample block.
+    fn prepare_interval(
+        &mut self,
+        source: Uuid,
+        stream: u32,
+        first: i64,
+        frames: u32,
+    ) -> Result<PcmPreparation>;
     /// Read an exact absolute original-rate sample interval.
     /// `source`/`stream` select captured media; `first`/`frames` select samples.
     /// Returns immutable, lifetime-charged PCM with declared edge padding.
@@ -756,11 +766,23 @@ pub trait PcmProvider {
     fn clear(&mut self);
 }
 impl PcmProvider for NativePcmCache {
+    fn budget(&self) -> PcmBudget {
+        self.budget
+    }
     fn cancellation(&self) -> &Cancellation {
         &self.cancel
     }
     fn snapshot(&self) -> &Arc<EvaluationSnapshot> {
         &self.snapshot
+    }
+    fn prepare_interval(
+        &mut self,
+        source: Uuid,
+        stream: u32,
+        first: i64,
+        frames: u32,
+    ) -> Result<PcmPreparation> {
+        NativePcmCache::prepare_interval(self, source, stream, first, frames)
     }
     fn interval(
         &mut self,
@@ -788,6 +810,9 @@ impl PcmProvider for NativePcmCache {
     }
 }
 impl<P: PcmProvider + ?Sized> PcmProvider for Box<P> {
+    fn budget(&self) -> PcmBudget {
+        (**self).budget()
+    }
     fn cancellation(&self) -> &Cancellation {
         (**self).cancellation()
     }
@@ -796,6 +821,15 @@ impl<P: PcmProvider + ?Sized> PcmProvider for Box<P> {
     }
     fn snapshot(&self) -> &Arc<EvaluationSnapshot> {
         (**self).snapshot()
+    }
+    fn prepare_interval(
+        &mut self,
+        source: Uuid,
+        stream: u32,
+        first: i64,
+        frames: u32,
+    ) -> Result<PcmPreparation> {
+        (**self).prepare_interval(source, stream, first, frames)
     }
     fn interval(
         &mut self,

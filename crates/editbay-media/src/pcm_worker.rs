@@ -73,6 +73,9 @@ enum Operation {
     Interval {
         interval: Interval,
     },
+    Prepare {
+        interval: Interval,
+    },
     Check,
     Verify,
 }
@@ -89,6 +92,9 @@ struct Response {
 enum Reply {
     Ready,
     Preparing {
+        progress: PcmPreparation,
+    },
+    Prepared {
         progress: PcmPreparation,
     },
     Pcm {
@@ -483,6 +489,9 @@ impl PcmWorker {
     }
 }
 impl PcmProvider for PcmWorker {
+    fn budget(&self) -> PcmBudget {
+        self.budget.pcm
+    }
     fn cancellation(&self) -> &Cancellation {
         &self.cancel
     }
@@ -491,6 +500,42 @@ impl PcmProvider for PcmWorker {
     }
     fn snapshot(&self) -> &Arc<EvaluationSnapshot> {
         &self.snapshot
+    }
+    fn prepare_interval(
+        &mut self,
+        source: Uuid,
+        stream: u32,
+        first: i64,
+        frames: u32,
+    ) -> Result<PcmPreparation> {
+        let interval = Interval {
+            source,
+            stream,
+            first,
+            frames,
+        };
+        let selected = select(&self.snapshot, interval, self.budget.pcm)?;
+        let (response, descriptor) = self.rpc(Operation::Prepare { interval })?;
+        let Reply::Prepared { progress } = response.result else {
+            return self.protocol_error("unexpected bounded PCM preparation response");
+        };
+        let valid = progress.source == source
+            && progress.stream == stream
+            && progress.first == first
+            && progress.frames == frames
+            && progress.sample_rate == selected.rate
+            && progress.required_frames == selected.required_frames
+            && progress.decoded_frames <= selected.required_frames
+            && progress.ready == (progress.decoded_frames == selected.required_frames);
+        if descriptor.is_some() || !valid {
+            return self.protocol_error("invalid bounded PCM preparation response");
+        }
+        self.preparation.publish(PcmProgress {
+            version: self.owner.version,
+            request: response.serial,
+            preparation: progress,
+        });
+        Ok(progress)
     }
     fn interval(
         &mut self,
@@ -715,6 +760,16 @@ fn serve_socket(mut output: std::os::unix::net::UnixStream) -> Result<()> {
                     .as_mut()
                     .ok_or_else(|| Error::Invalid("bind the PCM worker first".into()))?;
                 match operation {
+                    Operation::Prepare { interval } => {
+                        select(cache.snapshot(), interval, budget)?;
+                        let progress = cache.prepare_interval(
+                            interval.source,
+                            interval.stream,
+                            interval.first,
+                            interval.frames,
+                        )?;
+                        Ok(Reply::Prepared { progress })
+                    }
                     Operation::Interval { interval } => {
                         let selected = select(cache.snapshot(), interval, budget)?;
                         let progress = cache.prepare_interval(

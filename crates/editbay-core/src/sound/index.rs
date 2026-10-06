@@ -132,6 +132,90 @@ impl Builder {
         normalize(&mut output);
         Ok(output)
     }
+
+    /// Enclose source time reached by bounded parent intervals through a clip.
+    /// `spans` owns inclusive parent-frame bounds, `clip` supplies exact knots,
+    /// and `cancelled` interrupts planning. Returns enclosing integer source
+    /// ticks; reverse segments retain both endpoints and freezes contribute silence.
+    pub fn image(
+        &mut self,
+        spans: Vec<Span>,
+        clip: &Clip,
+        cancelled: &mut impl FnMut() -> bool,
+    ) -> Result<Vec<Span>> {
+        let parent = Span::range(clip.range)?;
+        let mut output = Vec::new();
+        for points in clip.time_map.points.windows(2) {
+            self.charge()?;
+            if cancelled() {
+                return Err(invalid("sound source planning cancelled"));
+            }
+            let a = points[0];
+            let b = points[1];
+            if a.source_tick == b.source_tick {
+                continue;
+            }
+            let segment = Span {
+                start: parent
+                    .start
+                    .checked_add(
+                        i64::try_from(a.frame)
+                            .map_err(|_| invalid("source planning frame overflow"))?,
+                    )
+                    .ok_or_else(|| invalid("source planning range overflow"))?,
+                end: parent
+                    .start
+                    .checked_add(
+                        i64::try_from(b.frame)
+                            .map_err(|_| invalid("source planning frame overflow"))?,
+                    )
+                    .ok_or_else(|| invalid("source planning range overflow"))?,
+            };
+            for span in &spans {
+                self.charge()?;
+                if cancelled() {
+                    return Err(invalid("sound source planning cancelled"));
+                }
+                let Some(span) = span
+                    .intersection(segment)
+                    .and_then(|span| span.intersection(parent))
+                else {
+                    continue;
+                };
+                let mapped = |frame: i64| -> Result<SourcePosition> {
+                    clip.time_map.position_validated(SourcePosition::new(
+                        frame
+                            .checked_sub(parent.start)
+                            .ok_or_else(|| invalid("source planning local time overflow"))?,
+                        1,
+                    )?)
+                };
+                let first = mapped(span.start)?;
+                let last = mapped(span.end)?;
+                let floor = |position: SourcePosition| -> Result<i64> {
+                    i64::try_from(
+                        i128::from(position.numerator).div_euclid(i128::from(position.denominator)),
+                    )
+                    .map_err(|_| invalid("source planning floor overflow"))
+                };
+                let ceil = |position: SourcePosition| -> Result<i64> {
+                    let n = i128::from(position.numerator);
+                    let d = i128::from(position.denominator);
+                    i64::try_from(n.div_euclid(d) + i128::from(n.rem_euclid(d) != 0))
+                        .map_err(|_| invalid("source planning ceiling overflow"))
+                };
+                self.push(
+                    &mut output,
+                    Span {
+                        start: floor(first)?.min(floor(last)?),
+                        end: ceil(first)?.max(ceil(last)?),
+                    },
+                )?;
+            }
+        }
+        normalize(&mut output);
+        Ok(output)
+    }
 }
 
 fn normalize(spans: &mut Vec<Span>) {
