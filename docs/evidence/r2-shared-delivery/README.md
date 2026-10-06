@@ -51,6 +51,8 @@ Six of eight view requests were accepted while export was active. These are smal
 native workflow samples, not sustained-playback percentiles or physical input
 latency. The pre-existing **50 ms input / 2000 ms cancellation** bounds are unchanged.
 Compressed JSONL files retain the observations and focus receipts.
+High-frequency delivery observations are retained in matching `.json.gz` files;
+their readable `.json` summaries point to those complete traces.
 
 Separate actual process trials pass active cancellation **6.317 ms**, worker death
 **1.600 ms**, SIGSTOP fallback **172.906 ms** including its deliberate 50 ms stall,
