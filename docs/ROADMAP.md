@@ -250,7 +250,9 @@ The retained camera planning timing miss and long-edit sound indexing continue
 in [issue #32](https://github.com/michaelmonetized/editbay/issues/32).
 
 Issue #32 now separates retained sound paths from active block work and uses
-checked exact rational stepping for constant paths. [Longer-cut sound evidence](evidence/r2-sound-index/README.md)
+checked exact rational stepping for constant paths in
+[PR #35](https://github.com/michaelmonetized/editbay/pull/35).
+[Longer-cut sound evidence](evidence/r2-sound-index/README.md)
 passes real 128/256-cut PCM/device, native edit/history/recovery and whole-master
 comparisons under the unchanged sound/input gates. The native camera picture
 viewer still falls behind its sound clock; unnecessary GPU composition continues

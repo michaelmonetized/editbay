@@ -1,6 +1,7 @@
 # Bounded sound planning for longer cuts
 
-Issue [#32](https://github.com/michaelmonetized/editbay/issues/32) follows device
+Issue [#32](https://github.com/michaelmonetized/editbay/issues/32) is published in
+[PR #35](https://github.com/michaelmonetized/editbay/pull/35), following device
 containment [PR #33](https://github.com/michaelmonetized/editbay/pull/33).
 The sound runtime is **7dd6a8c**; the complete app/CLI/lab build and software tests
 are **345f9d9**. Final native driver **064c85d** only waits for the replacement
