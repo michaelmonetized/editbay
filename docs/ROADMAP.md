@@ -244,7 +244,10 @@ full R2 acceptance remain open. Timeline authoring continues next.
 Issue #30 isolates native device discovery, playback and teardown in a packaged
 Rust child, supervised independently of the editor. It retains the same bounded
 sound renderer and exact clock, with validated status, cancellation and visible
-backend failure/retry. See [device containment](SOUND_DEVICE_WORKER.md).
+backend failure/retry. [PR #33](https://github.com/michaelmonetized/editbay/pull/33)
+publishes [device containment](SOUND_DEVICE_WORKER.md) and its scoped evidence.
+The retained camera planning timing miss and long-edit sound indexing continue
+in [issue #32](https://github.com/michaelmonetized/editbay/issues/32).
 
 ## R3 — finish a paying edit
 

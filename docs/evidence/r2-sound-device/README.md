@@ -1,6 +1,7 @@
 # Sound-device containment qualification
 
-Issue [#30](https://github.com/michaelmonetized/editbay/issues/30) follows linked
+Issue [#30](https://github.com/michaelmonetized/editbay/issues/30) is published in
+[PR #33](https://github.com/michaelmonetized/editbay/pull/33), stacked on linked
 native editing [PR #31](https://github.com/michaelmonetized/editbay/pull/31).
 Production runtime source is **f8eecdf**; the final lab driver is **31f4e41**.
 The latter changes only native qualification seeking and complete retirement
