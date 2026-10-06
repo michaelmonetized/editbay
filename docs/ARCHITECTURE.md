@@ -93,7 +93,13 @@ session/revision/view changes. Source-sequence authoring validates off-thread an
 commits one normal undo group under captured ownership. See
 [native preview contracts](NATIVE_PREVIEW.md).
 `SoundSnapshot` compiles source, gain, mix and nested paths once, then resolves
-bounded intervals at exact rational sample centers. The retained native PCM cache
+bounded intervals at exact rational sample centers. A bounded interval index
+retains compiled sound paths. A block selects
+conservative root-time spans in original mix order and evaluates only their
+sample offsets. Constant-rate, unanimated paths use checked exact rational
+stepping after full endpoint evaluation; all other paths retain full temporal
+evaluation. Storage and active-block budgets remain separate; see
+[longer-cut sound planning](SOUND_INDEX.md). The retained native PCM cache
 preserves original rates/channel identities, decoded sample origins and float
 headroom. Container seeking uses the original native time base even when ingest
 normalizes document audio to sample units. Cache/live outputs and decoder scratch

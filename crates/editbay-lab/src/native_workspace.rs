@@ -2531,16 +2531,238 @@ fn native_device_failures(trace: &mut Trace, directory: &Path) -> Result<Value> 
 
 fn reset_sound_start(trace: &mut Trace) -> Result<()> {
     trace.read()?;
-    let current = trace
+    let after = trace
         .records
         .iter()
         .rev()
         .find(|record| record["kind"] == "preview")
-        .and_then(|record| record["details"]["requested_frame"].as_u64())
-        .ok_or("Missing current preview frame")?;
+        .and_then(|record| record["unix_us"].as_u64())
+        .ok_or("Missing current preview state")?;
+    let current = trace.wait("current preview frame after revision change", |record| {
+        record["kind"] == "preview"
+            && record["unix_us"].as_u64().is_some_and(|time| time >= after)
+            && record["details"]["requested_frame"].as_u64().is_some()
+    })?["details"]["requested_frame"]
+        .as_u64()
+        .ok_or("Missing prepared preview frame")?;
     if current == 0 {
         set_frame(trace, 1)?;
     }
     set_frame(trace, 0)?;
     Ok(())
+}
+/// Exercise an existing longer cut in the actual native editor.
+/// `binary`, saved `project` and new `directory` select the app and private outputs.
+/// Returns exact edit/history, seek, device, save/recovery and master receipts.
+pub fn long_timeline(binary: &Path, project: &Path, directory: &Path) -> Result<Value> {
+    let binary = binary.canonicalize()?;
+    let original = project.canonicalize()?;
+    let original_hash = hash(&original)?;
+    let seed = load(&original)?;
+    let (sequence, composition, clips) = seed
+        .sequences
+        .iter()
+        .find_map(|sequence| {
+            let composition = sequence.composition?;
+            let clips = editbay_core::timeline_clips(&seed, composition).ok()?;
+            (clips.len() > 64).then_some((sequence.id, composition, clips))
+        })
+        .ok_or("Native long-cut trial requires more than 64 linked edits")?;
+    let duration = seed
+        .compositions
+        .iter()
+        .find(|c| c.id == composition)
+        .ok_or("Long cut absent")?
+        .duration;
+    fs::create_dir(directory)?;
+    let directory = directory.canonicalize()?;
+    let catalog = directory.join("catalog");
+    fs::create_dir(&catalog)?;
+    let copy = directory.join("Long.editbay");
+    save_new(&seed, &copy)?;
+    let destination = directory.join("Long.mov");
+    let (mut app, mut trace) = start(
+        &binary,
+        &directory.join("state"),
+        &catalog,
+        &directory.join("native.jsonl"),
+        Some(&copy),
+    )?;
+    picture(&mut trace, 0, 0)?;
+    click_control(&mut trace, "source-media")?;
+    thread::sleep(Duration::from_millis(350));
+    let initial = timeline_record(&mut trace, seed.revision)?;
+    if initial["record"] != composition.to_string()
+        || initial["clips"] != serde_json::to_value(&clips)?
+    {
+        return Err("Native long-cut selection differs from the saved document".into());
+    }
+    click_control(&mut trace, "timeline-view-record")?;
+    trace.wait("selected long cut", |r| {
+        r["kind"] == "preview" && r["details"]["sequence"] == sequence.to_string()
+    })?;
+    let mut seeks = Vec::new();
+    for frame in [duration - 1, 1, duration / 2, 2] {
+        let draw = set_frame(&mut trace, frame)?;
+        if draw["details"]["sequence"] != sequence.to_string() {
+            return Err("Long-cut seek changed sequence".into());
+        }
+        seeks.push(draw);
+    }
+    click_control(&mut trace, &format!("timeline-clip:{}", clips[0].id))?;
+    let mut revision = seed.revision;
+    let mut inputs = Vec::new();
+    let mut edits = Vec::new();
+    for action in ["remove", "undo", "redo", "undo"] {
+        let sent = if action == "remove" {
+            click_control(&mut trace, "timeline-remove")?
+        } else {
+            let sent = now();
+            key(44, true, action == "redo")?;
+            sent
+        };
+        revision += 1;
+        let committed = trace.wait("long-cut edit commit", |r| has_tab(r, &seed.name, revision))?;
+        let latency =
+            (committed["unix_us"].as_u64().ok_or("Commit time absent")? - sent) as f64 / 1000.;
+        inputs.push(latency);
+        let state = timeline_record(&mut trace, revision)?;
+        let expected = clips.len() - usize::from(action != "undo");
+        if state["clips"].as_array().map(Vec::len) != Some(expected) {
+            return Err("Long-cut history lost linked groups".into());
+        }
+        if action == "undo" && state["clips"] != initial["clips"] {
+            return Err("Long-cut undo changed identities".into());
+        }
+        edits.push(json!({"action":action,"input_ms":latency,"timeline":state}));
+    }
+    reset_sound_start(&mut trace)?;
+    let playing = play_sound(&mut trace)?;
+    let finished = sound_record(
+        &mut trace,
+        "long-cut final sample",
+        playing["unix_us"].as_u64().ok_or("Play time absent")?,
+        |d| {
+            d["sound_active"] == false
+                && d["sound_retiring"] == 0
+                && d["sound"]["phase"] == "finished"
+        },
+    )?;
+    if finished["details"]["sequence"] != sequence.to_string()
+        || finished["details"]["sound"]["position_samples"]
+            != finished["details"]["sound"]["end_sample"]
+    {
+        return Err("Native long cut did not reach its exact end".into());
+    }
+    key(31, true, false)?;
+    trace.wait("saved long cut", |r| {
+        has_tab(r, &seed.name, revision) && r["details"]["tabs"][0]["dirty"] == false
+    })?;
+    let saved = load(&copy)?;
+    let checkpoint =
+        editbay_core::checkpoint(&saved, Some(&copy), directory.join("Verified recovery"))?;
+    let recovered = editbay_core::recover_copy(checkpoint, directory.join("Recovered.editbay"))?;
+    if recovered.compositions != seed.compositions
+        || saved.compositions != seed.compositions
+        || saved.assets != seed.assets
+        || saved.sources != seed.sources
+        || hash(&original)? != original_hash
+    {
+        return Err("Long-cut native persistence changed content".into());
+    }
+    let after = now();
+    choose_master(&mut trace, &destination)?;
+    let deadline = Instant::now() + Duration::from_secs(180);
+    let completed = loop {
+        trace.read()?;
+        if let Some(job) = trace
+            .records
+            .iter()
+            .rev()
+            .filter(|r| {
+                r["kind"] == "delivery" && r["unix_us"].as_u64().is_some_and(|time| time >= after)
+            })
+            .find_map(|r| {
+                r["details"]["jobs"]
+                    .as_array()?
+                    .last()
+                    .filter(|job| job["running"] == false)
+            })
+        {
+            if job["receipt"].is_null() {
+                return Err(format!("Long-cut export failed: {}", job["error"]).into());
+            }
+            break job.clone();
+        }
+        if Instant::now() >= deadline {
+            return Err("Long-cut export exceeded its deadline".into());
+        }
+        thread::sleep(Duration::from_millis(5));
+    };
+    set_frame(&mut trace, duration / 2)?;
+    trace.focus()?;
+    command(
+        "grim",
+        &[
+            "-g",
+            "80,80 1440x900",
+            directory.join("long-native.png").to_str().unwrap(),
+        ],
+    )?;
+    app.kill()?;
+    let (mut reopened, mut reopened_trace) = start(
+        &binary,
+        &directory.join("reopened-state"),
+        &catalog,
+        &directory.join("reopened.jsonl"),
+        Some(&directory.join("Recovered.editbay")),
+    )?;
+    picture(&mut reopened_trace, 0, 0)?;
+    click_control(&mut reopened_trace, "source-media")?;
+    thread::sleep(Duration::from_millis(350));
+    let restored = timeline_record(&mut reopened_trace, recovered.revision)?;
+    if restored["clips"] != initial["clips"] {
+        return Err("Reopened long cut changed identities".into());
+    }
+    click_control(&mut reopened_trace, "timeline-view-record")?;
+    reopened_trace.wait("selected recovered long cut", |r| {
+        r["kind"] == "preview" && r["details"]["sequence"] == sequence.to_string()
+    })?;
+    let restored_picture = set_frame(&mut reopened_trace, duration - 1)?;
+    let address = window(|w| w["pid"] == reopened.0.id() && w["class"] == "editbay")?["address"]
+        .as_str()
+        .ok_or("Reopened window absent")?
+        .to_owned();
+    dispatch(&format!(
+        "hl.dsp.window.resize({{x=800,y=600,relative=false,window=\"address:{address}\"}})"
+    ))?;
+    dispatch(&format!(
+        "hl.dsp.window.move({{x=80,y=80,relative=false,window=\"address:{address}\"}})"
+    ))?;
+    thread::sleep(Duration::from_millis(350));
+    click_control(&mut reopened_trace, "edit-controls")?;
+    let compact_picture = set_frame(&mut reopened_trace, duration / 2)?;
+    if restored_picture["details"]["sequence"] != sequence.to_string()
+        || compact_picture["details"]["sequence"] != sequence.to_string()
+    {
+        return Err("Recovered long-cut viewer changed sequence".into());
+    }
+    command(
+        "grim",
+        &[
+            "-g",
+            "80,80 800x600",
+            directory.join("long-800x600.png").to_str().unwrap(),
+        ],
+    )?;
+    reopened.kill()?;
+    let independent = crate::shared_delivery::inspect(
+        &destination,
+        &serde_json::from_value(completed["receipt"].clone())?,
+    )?;
+    let latency = metrics(&mut inputs);
+    let receipt = json!({"kind":"native_long_cut","qualified":latency["p95_ms"].as_f64().is_some_and(|ms|ms<=50.),"application_sha256":hash(&binary)?,"original_project_sha256":original_hash,"composition":composition,"clips":clips.len(),"revision":revision,"input_latency":latency,"edits":edits,"seeks":seeks,"playing":playing,"finished":finished,"saved_recovered_equal":true,"source_project_unchanged":true,"reopened_timeline":restored,"reopened_picture":restored_picture,"compact_picture":compact_picture,"completed":completed,"independent":independent,"limits":["Native long-cut functionality and software-injected inputs; sustained frame-drop and hardware drift gates remain separate","No physical audibility or independent-user acceptance claim"]});
+    File::create_new(directory.join("qualification.json"))?
+        .write_all(&serde_json::to_vec_pretty(&receipt)?)?;
+    Ok(receipt)
 }

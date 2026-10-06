@@ -47,8 +47,9 @@ background, timed source/over picture nodes and timed source/mix sound nodes.
 The normal project validator checks types, source bounds, reciprocal links,
 identity uniqueness and graph cycles. Sound compilation plus a maximum block
 preflight rejects edits exceeding current compiled-path/preparation budgets.
-Those existing bounded limits still constrain long cuts; timeline indexing and
-long-job qualification remain open.
+[Sound interval indexing](SOUND_INDEX.md) now separates compiled history from
+active block work. The canonical cut still uses one mix node with at most 256
+inputs; broader authoring and long-job qualification remain open.
 
 The document requires positive composition duration. Removing the last group
 leaves a one-frame empty canvas, clearly labelled Empty cut; append starts at

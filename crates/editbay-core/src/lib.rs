@@ -27,7 +27,8 @@ pub use document::{FrameRate, PROJECT_SCHEMA, Project, Sequence};
 pub use evaluation::{EvaluatedNode, FramePlan, SourceRequest};
 pub use prepared::{EvaluationSnapshot, PreparedFrame, PreparedNode};
 pub use sound::{
-    SoundBlockPlan, SoundBudget, SoundProfile, SoundSample, SoundSnapshot, SoundSourcePlan,
+    SoundBlockPlan, SoundBudget, SoundIndexStats, SoundPreparationStats, SoundProfile, SoundSample,
+    SoundSnapshot, SoundSourcePlan,
 };
 pub use storage::{
     MAX_DOCUMENT_BYTES, PreparedCheckpoint, RecoveryCatalog, RecoveryFailure, RecoveryRecord,

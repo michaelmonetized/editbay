@@ -1,11 +1,18 @@
 # Rust restart: implementation status
 
-Validated locally on 2026-10-05, Linux ARM64, Rust/Cargo 1.98.0.
+Validated locally on 2026-10-06, Linux ARM64, Rust/Cargo 1.98.0.
 This is the native local workspace, project/recovery foundation and native
 engine/inference feasibility tools. The local R1 workspace gates pass; complete
 editorial and complete-job release gates remain open.
 
 ## Implemented
+
+- Indexed sound planning separates bounded compiled history from active block
+  work. Conservative nested/reverse intervals select possible paths; exact
+  sample-span cropping and checked rational stepping reduce preparation without
+  changing source samples, gain or mix order. Animated and piecewise paths retain
+  full evaluation. See [longer-cut sound contracts](SOUND_INDEX.md); issue #32
+  qualifies native longer edits, persistence, playback and shared masters.
 
 - Linked timeline commands and native source/record editing controls: create,
   append/insert, split, source trim, move and ripple removal retain exact nested
