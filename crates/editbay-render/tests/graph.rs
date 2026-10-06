@@ -625,6 +625,7 @@ fn real_source_pixels_cached_hits_interpretation_orientation_and_replacement_are
 #[test]
 fn unsupported_mask_and_budgeted_nesting_fail_without_fake_output() {
     let mut project = solid_project();
+    project.compositions[0].nodes[0].operation = NodeOperation::Solid { rgba: [0.; 4] };
     project.compositions[0].nodes.extend([
         node(
             3,
@@ -659,7 +660,7 @@ fn unsupported_mask_and_budgeted_nesting_fail_without_fake_output() {
     assert_eq!(worker.stats().dispatches, 0);
     let mut project = solid_project();
     project.compositions[0].nodes[0].operation = NodeOperation::Solid {
-        rgba: [5000., 0., 0., 1.],
+        rgba: [5000., 0., 0., 0.],
     };
     worker
         .rebind(snapshot(project), Cancellation::new().unwrap())
@@ -809,4 +810,215 @@ fn source_pixel_aspect_is_applied_and_native_rotation_cannot_be_hidden_by_metada
             .render(id(100), SourcePosition::new(0, 1).unwrap(), false)
             .is_err()
     );
+}
+
+#[test]
+fn inactive_over_history_reuses_active_pixels_and_keeps_each_pin_charged() {
+    for (precision, tolerance, bytes_per_pixel) in [
+        (FloatPrecision::Half, 0.001, 8),
+        (FloatPrecision::Full, 0.00002, 16),
+    ] {
+        let mut project = solid_project();
+        project.color.precision = precision;
+        let composition = &mut project.compositions[0];
+        composition.duration = 128;
+        composition.nodes[0].operation = NodeOperation::Solid { rgba: [0.; 4] };
+        composition.nodes[0].range.end = 128;
+        let mut background = id(1);
+        for index in 0..128 {
+            let mut solid = node(
+                1000 + index,
+                NodeOperation::Solid {
+                    rgba: [0.2 + index as f64 / 512., 0.4, 0.8, 0.5],
+                },
+            );
+            solid.range = FrameRange {
+                start: index as u64,
+                end: index as u64 + 1,
+            };
+            let mut over = node(
+                2000 + index,
+                NodeOperation::Over {
+                    foreground: solid.id,
+                    background,
+                    mask: None,
+                },
+            );
+            over.range.end = 128;
+            background = over.id;
+            composition.nodes.extend([solid, over]);
+        }
+        composition.picture = Some(background);
+        let mut worker = renderer(project);
+        let mut pins = Vec::new();
+        for (position, before, active) in [
+            (0, false, 0),
+            (64, false, 64),
+            (64, true, 63),
+            (127, false, 127),
+        ] {
+            let frame = worker
+                .render(id(100), SourcePosition::new(position, 1).unwrap(), before)
+                .unwrap();
+            close(
+                &worker.readback(&frame).unwrap(),
+                &repeated([0.1 + active as f32 / 1024., 0.2, 0.4, 0.5]),
+                tolerance,
+            );
+            pins.push(frame);
+        }
+        worker.finish().unwrap();
+        let payload = 8 * 6 * bytes_per_pixel;
+        assert_eq!(worker.stats().dispatches, 5);
+        assert_eq!(worker.stats().entries, 5);
+        assert_eq!(worker.stats().cache_bytes, payload * 5);
+        assert_eq!(worker.stats().live_texture_bytes, payload * 5);
+        assert_eq!(worker.stats().simplified_nodes, 4 * 129);
+        worker.clear().unwrap();
+        assert_eq!(worker.stats().entries, 0);
+        assert_eq!(worker.stats().live_texture_bytes, payload * 4);
+        assert!(worker.validate_result(&pins[0]).is_err());
+        pins.pop();
+        assert_eq!(worker.stats().live_texture_bytes, payload * 3);
+        drop(pins);
+        assert_eq!(worker.stats().live_texture_bytes, 0);
+    }
+}
+
+#[test]
+fn nested_transparent_images_propagate_through_validated_operations_and_profiles() {
+    for precision in [FloatPrecision::Half, FloatPrecision::Full] {
+        let mut project = solid_project();
+        project.color.precision = precision;
+        project.compositions[0].width = 4;
+        project.compositions[0].height = 4;
+        project.compositions[0].nodes[0].operation = NodeOperation::Solid {
+            rgba: [3., -2., 1., 0.],
+        };
+        let mut parent = scene(
+            vec![
+                node(3, NodeOperation::Source { clip: id(40) }),
+                node(
+                    4,
+                    NodeOperation::Transform {
+                        image: id(3),
+                        translation: [0.5, -2.],
+                        scale: [-0.5, 2.],
+                        rotation: 45.,
+                        opacity: 0.7,
+                    },
+                ),
+                node(5, NodeOperation::Scalar { value: 0.5 }),
+                node(
+                    6,
+                    NodeOperation::Opacity {
+                        image: id(4),
+                        value: id(5),
+                    },
+                ),
+                node(
+                    7,
+                    NodeOperation::Solid {
+                        rgba: [0.2, 0.4, 0.8, 0.5],
+                    },
+                ),
+                node(
+                    8,
+                    NodeOperation::Over {
+                        foreground: id(6),
+                        background: id(7),
+                        mask: None,
+                    },
+                ),
+                node(9, NodeOperation::Scalar { value: 1. }),
+                node(
+                    10,
+                    NodeOperation::Opacity {
+                        image: id(8),
+                        value: id(9),
+                    },
+                ),
+            ],
+            10,
+        );
+        parent.id = id(101);
+        parent.tracks = vec![Track {
+            id: id(41),
+            name: "Nested transparent".into(),
+            kind: TrackKind::Video,
+            enabled: true,
+            clips: vec![Clip {
+                id: id(40),
+                name: "Different geometry".into(),
+                range: FrameRange { start: 0, end: 48 },
+                source: ClipSource::Composition {
+                    composition: id(100),
+                },
+                time_map: TimeMap {
+                    points: vec![
+                        TimePoint {
+                            frame: 0,
+                            source_tick: 0,
+                        },
+                        TimePoint {
+                            frame: 48,
+                            source_tick: 48,
+                        },
+                    ],
+                },
+                linked: None,
+            }],
+        }];
+        project.compositions.push(parent);
+        let mut worker = renderer(project.clone());
+        let frame = worker
+            .render(id(101), SourcePosition::new(1, 1).unwrap(), false)
+            .unwrap();
+        close(
+            &worker.readback(&frame).unwrap(),
+            &repeated([0.1, 0.2, 0.4, 0.5]),
+            0.001,
+        );
+        worker.finish().unwrap();
+        assert_eq!(worker.stats().dispatches, 3);
+        assert_eq!(worker.stats().simplified_nodes, 6);
+        project.compositions[1].picture = Some(id(6));
+        project.color.output_gamut = WorkingGamut::Bt2020;
+        project.color.output_transfer = OutputTransfer::Srgb;
+        worker
+            .rebind(snapshot(project.clone()), Cancellation::new().unwrap())
+            .unwrap();
+        let blank = worker
+            .render(id(101), SourcePosition::new(1, 1).unwrap(), false)
+            .unwrap();
+        let output = worker.convert(&blank, ImageBoundary::Output).unwrap();
+        assert_eq!(
+            output.image().interpretation(),
+            (precision, WorkingGamut::Bt2020, OutputTransfer::Srgb)
+        );
+        close(&worker.readback(&output).unwrap(), &repeated([0.; 4]), 0.);
+        project.color.output_transfer = OutputTransfer::Pq;
+        worker
+            .rebind(snapshot(project.clone()), Cancellation::new().unwrap())
+            .unwrap();
+        let blank = worker
+            .render(id(101), SourcePosition::new(1, 1).unwrap(), false)
+            .unwrap();
+        assert!(worker.convert(&blank, ImageBoundary::Output).is_err());
+        project.compositions[1].nodes[1].operation = NodeOperation::Transform {
+            image: id(3),
+            translation: [0., 0.],
+            scale: [1e-310, 1.],
+            rotation: 0.,
+            opacity: 1.,
+        };
+        worker
+            .rebind(snapshot(project), Cancellation::new().unwrap())
+            .unwrap();
+        assert!(
+            worker
+                .render(id(101), SourcePosition::new(1, 1).unwrap(), false)
+                .is_err()
+        );
+    }
 }

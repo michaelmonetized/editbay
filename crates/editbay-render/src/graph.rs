@@ -84,6 +84,7 @@ pub struct ResidentImage {
     precision: FloatPrecision,
     gamut: WorkingGamut,
     transfer: OutputTransfer,
+    transparent: bool,
     _allocation: Allocation,
 }
 impl ResidentImage {
@@ -139,6 +140,7 @@ pub struct GraphStats {
     pub evictions: u64,
     pub uploads: u64,
     pub dispatches: u64,
+    pub simplified_nodes: u64,
     pub readbacks: u64,
     pub pictures: PictureCacheStats,
 }
@@ -185,6 +187,7 @@ pub struct GraphRenderer<P: PictureProvider = PictureCache> {
     evictions: u64,
     uploads: u64,
     dispatches: u64,
+    simplified_nodes: u64,
     readbacks: u64,
     worker: Uuid,
     generation: u64,
@@ -347,6 +350,7 @@ impl<P: PictureProvider> GraphRenderer<P> {
             evictions: 0,
             uploads: 0,
             dispatches: 0,
+            simplified_nodes: 0,
             readbacks: 0,
             worker: Uuid::new_v4(),
             generation: 0,
@@ -496,6 +500,7 @@ impl<P: PictureProvider> GraphRenderer<P> {
                                         OutputTransfer::Linear,
                                         wgpu::TextureFormat::Rgba8Unorm,
                                         "native RGBA8 upload".into(),
+                                        false,
                                     )?;
                                     if self.pending.load(Ordering::Acquire)
                                         >= self.budget.pending_submissions
@@ -602,7 +607,28 @@ impl<P: PictureProvider> GraphRenderer<P> {
                     }
                     _ => return Err("unsupported picture operation".into()),
                 }
-                let image = if let Some(hit) = self.cached(&key) {
+                let reused = match p.operation {
+                    Kernel::Over if images[0].transparent => Some(images[1].clone()),
+                    Kernel::Over if images[1].transparent => Some(images[0].clone()),
+                    Kernel::Opacity if p.opacity == 1. => Some(images[0].clone()),
+                    _ => None,
+                }
+                .filter(|image| {
+                    image.dimensions() == [frame.width, frame.height]
+                        && image.interpretation()
+                            == (
+                                frame.color.precision,
+                                frame.color.working_gamut,
+                                OutputTransfer::Linear,
+                            )
+                });
+                let image = if let Some(image) = reused {
+                    self.simplified_nodes = self.simplified_nodes.saturating_add(1);
+                    image
+                } else if p.transparent(&images) {
+                    self.simplified_nodes = self.simplified_nodes.saturating_add(1);
+                    self.blank(&frame)?
+                } else if let Some(hit) = self.cached(&key) {
                     hit
                 } else {
                     self.evaluate(
@@ -805,6 +831,7 @@ impl<P: PictureProvider> GraphRenderer<P> {
             evictions: self.evictions,
             uploads: self.uploads,
             dispatches: self.dispatches,
+            simplified_nodes: self.simplified_nodes,
             readbacks: self.readbacks,
             pictures: self.pictures.stats(),
         }
@@ -916,6 +943,7 @@ impl<P: PictureProvider> GraphRenderer<P> {
         transfer: OutputTransfer,
         format: wgpu::TextureFormat,
         key: String,
+        transparent: bool,
     ) -> Result<Arc<ResidentImage>> {
         let bytes = width as usize * height as usize * pixel_bytes(format) as usize;
         if width == 0
@@ -974,6 +1002,7 @@ impl<P: PictureProvider> GraphRenderer<P> {
             precision,
             gamut,
             transfer,
+            transparent,
             _allocation: allocation,
         }))
     }
@@ -1022,6 +1051,7 @@ impl<P: PictureProvider> GraphRenderer<P> {
                 OutputTransfer::Linear,
                 format(precision),
                 "bound neutral input".into(),
+                false,
             )?;
             images.push(dummy);
         }
@@ -1033,6 +1063,7 @@ impl<P: PictureProvider> GraphRenderer<P> {
             transfer,
             format(precision),
             key.clone(),
+            p.transparent(&images),
         )?;
         let bytes = p.bytes()?;
         let uniform = self
@@ -1220,6 +1251,20 @@ impl Default for Parameters {
     }
 }
 impl Parameters {
+    /// Recognize zero premultiplied output from trusted inputs and parameters.
+    /// `images` retains immutable renderer-owned proofs; returns true only when
+    /// every output channel is zero, without inspecting or assuming source pixels.
+    fn transparent(&self, images: &[Arc<ResidentImage>]) -> bool {
+        match self.operation {
+            Kernel::Solid => self.solid[3] == 0.,
+            Kernel::Source => false,
+            Kernel::Over => images.len() == 2 && images.iter().all(|image| image.transparent),
+            Kernel::Transform | Kernel::Opacity | Kernel::Nested | Kernel::Boundary => {
+                images.first().is_some_and(|image| image.transparent)
+            }
+        }
+    }
+
     fn bytes(&self) -> Result<Vec<u8>> {
         let mode = [
             self.operation as u8 as f32,
