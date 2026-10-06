@@ -75,8 +75,10 @@ driver requalification is still pending. Full R2/R8 stay open.
 
 Validated locally on 2026-10-06, Linux ARM64, Rust/Cargo 1.98.0.
 This is the native local workspace, project/recovery foundation and native
-engine/inference feasibility tools. The local R1 workspace gates pass; complete
-editorial and complete-job release gates remain open.
+engine/inference feasibility tools. Earlier local R1 workspace qualification is
+retained; the recovery-publication change is being requalified in #58, including
+its recorded timeout and corrected test-driver failure. Complete editorial and
+complete-job release gates remain open.
 
 ## Implemented
 
