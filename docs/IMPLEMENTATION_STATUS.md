@@ -1,5 +1,17 @@
 # Rust restart: implementation status
 
+Issue [#51](https://github.com/michaelmonetized/editbay/issues/51) / draft
+[PR #52](https://github.com/michaelmonetized/editbay/pull/52) adds bounded exact
+[sound coefficient reuse](SOUND_KERNELS.md) and preparation timing. Frozen
+`0c840ce` passes camera/six-channel sinc p95 at 10.702 / 15.396 ms, four whole
+masters and twelve ranges retain exact pre-change PCM/pixels, and 18 process
+faults plus native playback/edit/recovery/export workflows pass. Earlier timing
+and native driver failures remain in [the evidence](evidence/r2-sound-kernels/README.md).
+Its 180-second pilot fails after 97.648 seconds with an empty queue and bounded
+clock drift. Active-stage telemetry follows that failure; sustained qualification
+and [canonical PCM preparation](https://github.com/michaelmonetized/editbay/issues/53)
+remain open along with the full roadmap.
+
 Issue [#49](https://github.com/michaelmonetized/editbay/issues/49) /
 [PR #50](https://github.com/michaelmonetized/editbay/pull/50) adds exact native/CLI
 [range delivery](RANGE_DELIVERY.md). Twelve independent camera/six-channel slices,
