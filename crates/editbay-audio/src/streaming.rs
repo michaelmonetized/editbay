@@ -1,5 +1,6 @@
 use crate::{
-    ClockObservation, DeviceProfile, MonitorRoute, SoundRenderBudget, SoundRenderer,
+    ClockObservation, ClockRejection, DeviceProfile, MonitorRoute, SoundRenderBudget,
+    SoundRenderer,
     monitor::MonitorMatrix,
     sample_clock::{ClockContinuity, SampleClock},
     transport::{self, Control, Reader, State, Writer},
@@ -63,6 +64,7 @@ pub struct StreamingStatus {
     pub callbacks: u64,
     pub reported_latency_ns: u64,
     pub clock_observation: Option<ClockObservation>,
+    pub clock_rejection: Option<ClockRejection>,
     pub prepared_frames: u64,
     pub prepared_capacity_frames: u32,
     pub clipped_monitor_samples: u64,
@@ -210,6 +212,9 @@ impl LocalPlayback {
                     self.error = Some(error.into());
                     self.cancel.cancel();
                 }
+                if self.phase == PlaybackPhase::Failed {
+                    self.clock_observation = ready.clock.observation();
+                }
                 (
                     Some(ready.clock.position(elapsed_ns(ready.origin))),
                     Some(ready.end),
@@ -236,6 +241,11 @@ impl LocalPlayback {
             callbacks,
             reported_latency_ns: latency,
             clock_observation: self.clock_observation,
+            clock_rejection: self.ready.as_ref().and_then(|ready| {
+                (self.phase == PlaybackPhase::Failed)
+                    .then(|| ready.clock.rejection())
+                    .flatten()
+            }),
             prepared_frames: prepared,
             prepared_capacity_frames: CAPACITY,
             clipped_monitor_samples: clipped,
@@ -550,6 +560,8 @@ impl Callback {
         }
         if self.cancel.is_cancelled() {
             self.control.stop(State::Cancelled);
+            output.fill(T::from_sample(0.));
+            return;
         }
         let callback_ns = elapsed_ns(self.origin);
         if self
@@ -589,6 +601,13 @@ impl Callback {
             .continuity
             .observe(self.cursor, backend_ns, latency, rate)
         {
+            self.clock.reject(ClockRejection {
+                buffer_start_frames: self.cursor,
+                callback_elapsed_ns: callback_ns,
+                backend_elapsed_ns: backend_ns,
+                reported_latency_ns: latency,
+                signed_drift_ns: self.continuity.error_ns,
+            });
             self.control.stop(State::BackendDiscontinuity);
             self.cancel.cancel();
             output.fill(T::from_sample(0.));
@@ -759,6 +778,43 @@ mod tests {
         assert_eq!(callback.control.prepared(), 2);
         assert_eq!(callback.clock.observation().unwrap(), observed);
         assert!(callback.cancel.is_cancelled());
+    }
+
+    #[test]
+    fn rejected_clock_retains_the_failed_callback_without_advancing_sound() {
+        let (mut callback, _writer) = callback_fixture();
+        let mut output = [0f32; 4];
+        callback.fill(&mut output, 2, 48000, timestamp(0, 30_000_000));
+        callback.fill(
+            &mut output,
+            2,
+            48000,
+            timestamp(1_000_000_000, 1_030_000_000),
+        );
+        assert_eq!(callback.control.state(), State::Ended);
+        let accepted = callback.clock.observation().unwrap();
+        callback.fill(
+            &mut output,
+            2,
+            48000,
+            timestamp(1_100_000_000, 1_130_000_000),
+        );
+        assert_eq!(output, [0.; 4]);
+        assert_eq!(callback.control.state(), State::BackendDiscontinuity);
+        assert_eq!(callback.clock.observation(), Some(accepted));
+        let rejected = callback.clock.rejection().unwrap();
+        assert_eq!(rejected.buffer_start_frames, accepted.submitted_frames);
+        assert_eq!(rejected.backend_elapsed_ns, 1_100_000_000);
+        assert_eq!(rejected.reported_latency_ns, 30_000_000);
+        assert_eq!(rejected.signed_drift_ns, -99_958_334);
+        callback.fill(
+            &mut output,
+            2,
+            48000,
+            timestamp(1_200_000_000, 1_230_000_000),
+        );
+        assert_eq!(callback.clock.rejection(), Some(rejected));
+        assert_eq!(callback.clock.observation(), Some(accepted));
     }
 
     #[test]

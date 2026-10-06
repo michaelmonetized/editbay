@@ -7,7 +7,8 @@ seconds. A dependency upgrade is a candidate fix, not sustained acceptance.
 
 ## Device buffers and faults
 
-The workspace pins CPAL 0.18.2. Its ALSA fixed-buffer request sets the period to
+The workspace pins a local CPAL 0.18.2 copy with one documented ALSA snapshot fix;
+see `vendor/cpal/EDITBAY.md`. Its ALSA fixed-buffer request sets the period to
 approximately the requested frame count, subject to hardware negotiation. The
 previous 0.15.3 implementation requested a period of one quarter that count;
 `Fixed(2048)` produced 512-frame callbacks in the recorded device workload.
@@ -34,6 +35,19 @@ slices. Device discovery, stream setup, source rendering, serialization and
 filesystem operations remain outside it. This does not certify allocation or
 locking inside the platform backend or external sound server.
 
+The ALSA adapter obtains delay from the same status container as its timestamp.
+The earlier separate availability/delay query remains a readiness check. Pairing
+its older delay with a later status time could include a preemption gap twice.
+A negative snapshot delay is now an xrun. This follows the
+[ALSA status contract](https://www.alsa-project.org/alsa-doc/alsa-lib/group___p_c_m___status.html);
+it does not establish the cause of any previous recorded failure.
+
+The first rejected continuity check has its own fixed atomic receipt: submitted
+buffer start, host/backend time, reported latency and signed drift. It never
+advances accepted samples. Later callbacks silence immediately after cancellation,
+and cannot replace that first rejection. Private device replies reject nonterminal,
+changed, undersized-drift or incorrectly positioned rejection records.
+
 ## Scheduling evidence
 
 CPAL's upstream `realtime-dbus` support may request real-time scheduling during
@@ -58,6 +72,15 @@ remain: exact sample endpoint, maximum 20 ms backend and host clock error, at mo
 hashes and complete owned-child retirement. Read both `qualified` and
 `two_hour_run_complete`; process exit alone does not pass the gate.
 
-Candidate native-device measurements and full workspace checks are in progress.
+The unpatched upstream candidate `faf9930` passes six-second camera and six-channel
+runs at 2048 requested/reported/observed callback frames. Maximum sampled host drift
+is 0.067475/0.072669 ms. Its three-minute trial stops after 91.471896 seconds with
+backend continuity failure while 14336 source frames remain prepared; all children
+retire and original hashes remain unchanged. Accepted backend/host maxima are
+1.667293/2.660514 ms; the rejected callback was not captured in that candidate.
+The actual 300 ms owned-device STOP/CONT test passes its visible-failure gate.
+This trial ran amid substantial host memory pressure and is retained as a failure.
+
+The snapshot fix, rejection receipt and full workspace checks are in progress.
 Physical audibility, speaker/display timing, other hardware, client approval and
 independent-user acceptance remain separate open gates.

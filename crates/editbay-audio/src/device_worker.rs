@@ -83,6 +83,7 @@ fn preparing(version: DocumentVersion, route: MonitorRoute) -> StreamingStatus {
         callbacks: 0,
         reported_latency_ns: 0,
         clock_observation: None,
+        clock_rejection: None,
         prepared_frames: 0,
         prepared_capacity_frames: CAPACITY,
         clipped_monitor_samples: 0,
@@ -359,6 +360,21 @@ fn validate(
         || (previous.phase == PlaybackPhase::Playing && status.phase == PlaybackPhase::Preparing)
     {
         return Err("Malformed sound device status".into());
+    }
+    if status.clock_rejection.is_some_and(|rejected| {
+        status.phase != PlaybackPhase::Failed
+            || rejected.signed_drift_ns.unsigned_abs() <= 20_000_000
+            || rejected.backend_elapsed_ns < 1_000_000_000
+            || status.clock_observation.is_none_or(|accepted| {
+                rejected.buffer_start_frames != accepted.submitted_frames
+                    || rejected.callback_elapsed_ns < accepted.callback_elapsed_ns
+                    || rejected.backend_elapsed_ns < accepted.backend_elapsed_ns
+            })
+    }) || previous
+        .clock_rejection
+        .is_some_and(|prior| status.clock_rejection != Some(prior))
+    {
+        return Err("Malformed or replaced rejected callback clock".into());
     }
     if let Some(device) = &status.device {
         if status.phase == PlaybackPhase::Preparing
@@ -682,6 +698,48 @@ mod tests {
         ] {
             reply.status.clock_observation = Some(altered);
             assert!(validate(&reply, owner, 8, &previous, &bounds).is_err());
+        }
+    }
+
+    #[test]
+    fn rejected_backend_clocks_are_terminal_immutable_and_after_accepted_sound() {
+        let (owner, previous, bounds) = playing();
+        let accepted = previous.clock_observation.unwrap();
+        let rejection = crate::ClockRejection {
+            buffer_start_frames: accepted.submitted_frames,
+            callback_elapsed_ns: accepted.callback_elapsed_ns + 100_000_000,
+            backend_elapsed_ns: accepted.backend_elapsed_ns.max(1_000_000_000) + 100_000_000,
+            reported_latency_ns: accepted.reported_latency_ns,
+            signed_drift_ns: -100_000_000,
+        };
+        let mut reply = Response {
+            owner,
+            serial: 8,
+            status: previous.clone(),
+        };
+        reply.status.clock_rejection = Some(rejection);
+        assert!(validate(&reply, owner, 8, &previous, &bounds).is_err());
+        reply.status.phase = PlaybackPhase::Failed;
+        reply.status.error = Some("Sound backend timing lost continuity".into());
+        assert!(validate(&reply, owner, 8, &previous, &bounds).is_ok());
+        let terminal = reply.status.clone();
+        for changed in [
+            None,
+            Some(crate::ClockRejection {
+                signed_drift_ns: 0,
+                ..rejection
+            }),
+            Some(crate::ClockRejection {
+                buffer_start_frames: 0,
+                ..rejection
+            }),
+            Some(crate::ClockRejection {
+                signed_drift_ns: -101_000_000,
+                ..rejection
+            }),
+        ] {
+            reply.status.clock_rejection = changed;
+            assert!(validate(&reply, owner, 8, &terminal, &bounds).is_err());
         }
     }
 
