@@ -12,10 +12,10 @@ to enclosing integer frames at each level. Both endpoints are retained to cover
 reverse endpoint ownership and fractional sample centers. Disabled tracks and
 freeze-only paths have no active interval.
 
-These ranges are conservative. They may retain extra work near boundaries, but
-cannot replace the exact per-sample calculation. The existing evaluator still
-checks every selected sample's ranges, direction, gain, nested timing and final
-source position. Profile validation still covers every compiled path, including
+These ranges are conservative and may retain extra work near boundaries. Selected
+paths preserve exact ranges, direction, gain, nested timing and final source
+positions through full evaluation or the checked linear shortcut described below.
+Profile validation still covers every compiled path, including
 inactive paths: indexing never permits an undeclared channel conversion.
 
 A balanced interval tree stores each subtree's maximum end. A block query prunes
@@ -84,8 +84,8 @@ seek across the cut, remove/undo/redo/undo with unchanged linked identities,
 play to the exact final sample, save/recover/reopen, export the whole master and
 view the recovered cut at 800x600. `timeline-compare` independently compares
 every delivered picture and original-channel sample to source-master slices.
-The fixture's 256-edit cap respects the
-current canonical cut's single mix-node input limit; it is not the index's path
+The fixture's 256-edit cap respects the current canonical cut's single mix-node
+input limit; it is not the index's path
 capacity.
 
 The predeclared block-planning p95 remains 5 ms for 4,096 frames. Compilation's
