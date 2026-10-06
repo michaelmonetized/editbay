@@ -16,9 +16,26 @@ fn input(trace: &mut Trace, field: &str, value: u64) -> Result<()> {
             && r["unix_us"].as_u64().is_some_and(|time| time >= after)
             && r["details"]["text_input_focused"] == true
     })?;
-    key(30, true, false)?;
-    command("wtype", &["-s", "40", &value.to_string(), "-s", "80"])?;
-    key(28, false, false)?;
+    command(
+        "wtype",
+        &[
+            "-s",
+            "40",
+            "-M",
+            "ctrl",
+            "-k",
+            "a",
+            "-m",
+            "ctrl",
+            "-s",
+            "40",
+            &value.to_string(),
+            "-s",
+            "80",
+            "-k",
+            "Return",
+        ],
+    )?;
     Ok(())
 }
 

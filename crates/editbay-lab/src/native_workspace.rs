@@ -588,9 +588,19 @@ fn control(trace: &mut Trace, name: &str) -> Result<[i64; 2]> {
 
 fn click_control(trace: &mut Trace, name: &str) -> Result<u64> {
     trace.focus()?;
-    let [x, y] = control(trace, name)?;
-    dispatch(&format!("hl.dsp.cursor.move({{x={x},y={y}}})"))?;
-    thread::sleep(Duration::from_millis(125));
+    let deadline = Instant::now() + Duration::from_secs(10);
+    loop {
+        let position = control(trace, name)?;
+        let [x, y] = position;
+        dispatch(&format!("hl.dsp.cursor.move({{x={x},y={y}}})"))?;
+        thread::sleep(Duration::from_millis(125));
+        if control(trace, name)? == position {
+            break;
+        }
+        if Instant::now() >= deadline {
+            return Err(format!("Native control did not settle: {name}").into());
+        }
+    }
     let sent = now();
     command("ydotool", &["click", "-D", "8", "0xC0"])?;
     Ok(sent)

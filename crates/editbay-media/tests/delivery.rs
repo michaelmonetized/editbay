@@ -53,7 +53,7 @@ fn native_lossless_mov_preserves_every_pixel_sample_channel_and_exact_clock() {
             profile.first_frame = first_frame;
             let grid = |frame: u64| {
                 let numerator = frame * u64::from(rate) * 1001;
-                numerator / 30000 + u64::from(numerator % 30000 != 0)
+                numerator / 30000 + u64::from(!numerator.is_multiple_of(30000))
             };
             let origin = grid(first_frame);
             let total = grid(first_frame + profile.frames) - origin;
