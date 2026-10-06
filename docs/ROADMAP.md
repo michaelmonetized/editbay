@@ -106,7 +106,8 @@ an exact nested clock, reciprocal picture/sound links and one atomic undo group.
 Delayed sound, source origins and partial-frame tails retain natural timing;
 saved and recovered graphs share the isolated PCM renderer. This is the timing
 dependency of EB-023, not a device-playback or drift qualification. See
-[native source authoring](NATIVE_PREVIEW.md).
+[native source authoring](NATIVE_PREVIEW.md) and its
+[native/PCM evidence](evidence/r2-natural-sound/README.md).
 
 ## Milestone map
 
