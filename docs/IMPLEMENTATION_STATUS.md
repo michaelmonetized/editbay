@@ -1,5 +1,12 @@
 # Rust restart: implementation status
 
+Issue [#47](https://github.com/michaelmonetized/editbay/issues/47) / draft
+[PR #48](https://github.com/michaelmonetized/editbay/pull/48) pins the updated
+[native sound backend](SOUND_BACKEND.md), bounds actual callback geometry and
+retains rejected clock evidence. The first upstream candidate fails its sustained
+pilot; [raw evidence](evidence/r2-sound-backend/README.md) remains explicit.
+The ALSA snapshot correction is under qualification. Full R2/R8 stay open.
+
 Validated locally on 2026-10-06, Linux ARM64, Rust/Cargo 1.98.0.
 This is the native local workspace, project/recovery foundation and native
 engine/inference feasibility tools. The local R1 workspace gates pass; complete

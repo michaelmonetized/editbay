@@ -451,7 +451,7 @@ fn run(request: &Request, sender: &SyncSender<Event>) -> Result<()> {
         continuity: ClockContinuity::default(),
         end,
     };
-    let mut config: cpal::StreamConfig = supported.clone().into();
+    let mut config: cpal::StreamConfig = supported.into();
     if let cpal::SupportedBufferSize::Range { min, max } = supported.buffer_size() {
         if min > max {
             return Err("Sound device reports an invalid callback range".into());
@@ -834,7 +834,7 @@ mod tests {
             )
         };
         let chosen = video_output_config(
-            default.clone(),
+            default,
             [
                 range(6, 48000, SampleFormat::F32),
                 range(2, 48000, SampleFormat::I16),
@@ -846,7 +846,7 @@ mod tests {
         assert_eq!(chosen.channels(), 2);
         assert_eq!(chosen.sample_format(), SampleFormat::F32);
         let fallback = video_output_config(
-            default.clone(),
+            default,
             [range(2, 44100, SampleFormat::F32)].into_iter(),
         );
         assert_eq!(fallback.sample_rate(), 44100);
