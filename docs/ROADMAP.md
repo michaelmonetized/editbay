@@ -249,6 +249,10 @@ trim, move, ripple removal, native controls and version-owned CLI commands.
 It uses existing reusable picture/sound compositions without flattening sources.
 See [timeline contracts](TIMELINE_AUTHORING.md). This is partial EB-030/031;
 the full editing and production-job acceptance gates below remain open.
+[Native/media evidence](evidence/r3-timeline/README.md) now passes camera and
+six-channel forward/reversed cuts, exact independent picture/PCM, saved/recovered
+file equality and ten edit inputs with p95 <=24.354 ms. Device failure isolation
+continues in [#30](https://github.com/michaelmonetized/editbay/issues/30).
 
 - **EB-030:** Source/record monitors, in/out, three-point edits, track targeting,
   sync locks, linked sound, precision trim/roll/slip/slide, snapping, ripple,

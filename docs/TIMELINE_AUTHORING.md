@@ -95,7 +95,14 @@ the concatenated picture/PCM hashes. This specific independent comparison requir
 integer sample boundaries at 48 kHz and a contiguous cut of one source master;
 core fractional timing checks are separate mathematical evidence.
 
-Qualification receipts are pending. This document does not claim full EB-030,
-R3, client acceptance or release readiness. Precision roll/slip/slide, overwrite,
+[Final native and media receipts](evidence/r3-timeline/README.md) qualify camera
+and six-channel cuts, exact independent picture/PCM slices, reversed source
+order and saved/recovered file equality. Full EB-030, R3, client acceptance and
+release readiness remain open. Precision roll/slip/slide, overwrite,
 mixed-rate conform, routing, multiple editable tracks, dedicated simultaneous
 source/record monitors, range export and long-job acceptance continue afterward.
+
+`timeline-reorder CLI PROJECT COMPOSITION UNCUT_MASTER NEW_DIRECTORY` moves a
+saved two-clip cut into reverse source order through actual CLI requests. Every
+request is replayed with its now-stale version and must leave saved bytes unchanged.
+It then exports and compares all picture/PCM bytes to independent source slices.

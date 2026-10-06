@@ -178,3 +178,14 @@ retain 50/2000 ms gates. Existing destinations, changed sources, malformed/stale
 work and abrupt controller death are exercised; no unpublished files survive.
 This closes one declared SDR full-sequence master. Broader profiles/ranges/queues,
 long workloads, hardware/drift and R3–R11 workflow/adoption gates stay open.
+
+The first linked timeline layer has [native and independent media evidence](evidence/r3-timeline/README.md).
+Camera and delayed six-channel edits preserve exact source/record boundaries,
+linked identities, undo/redo, native save/recovery/reopen and exported picture/PCM
+bytes. Reversed source order and six stale CLI replays pass. Ten actual native
+edit inputs have p95 <=24.354 ms, below the existing 50 ms gate. Saved/recovered
+cuts produce identical whole masters. This qualifies the declared one-pair,
+matching-profile subset, not full EB-030/031 or the paying-edit gate. Broader
+editing/interchange, production client acceptance, sustained hardware workloads
+and R4–R11/adoption gates remain open. The reproduced host portal failure is
+retained; supervised sound-device isolation continues as issue #30.

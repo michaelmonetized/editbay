@@ -1,0 +1,34 @@
+Catchpoint 1 (syscall 'prlimit64' [261])
+[Thread debugging using libthread_db enabled]
+Using host libthread_db library "/usr/lib/libthread_db.so.1".
+[New Thread 0xffffedc3e5e0 (LWP 3442903)]
+[New Thread 0xffffecc2e5e0 (LWP 3442904)]
+[Thread 0xffffedc3e5e0 (LWP 3442903) exited]
+[Thread 0xffffecc2e5e0 (LWP 3442904) exited]
+[New Thread 0xffffebc1e5e0 (LWP 3442906)]
+[Switching to Thread 0xffffebc1e5e0 (LWP 3442906)]
+
+Thread 4 "editbay-streami" hit Catchpoint 1 (call to syscall prlimit64), 0x0000fffff5e16558 in setrlimit64 () from /usr/lib/libc.so.6
+#0  0x0000fffff5e16558 in setrlimit64 () at /usr/lib/libc.so.6
+#1  0x0000ffffeb7240a0 in pipewire.module_init () at /usr/lib/pipewire-0.3/libpipewire-module-rt.so
+#2  0x0000ffffeb90549c in pw_context_load_module () at /usr/lib/libpipewire-0.3.so.0
+#3  0x0000ffffeb8c1408 in ??? () at /usr/lib/libpipewire-0.3.so.0
+#4  0x0000ffffeb8c1aec in pw_conf_section_for_each () at /usr/lib/libpipewire-0.3.so.0
+#5  0x0000ffffeb8c2d20 in pw_context_parse_conf_section () at /usr/lib/libpipewire-0.3.so.0
+#6  0x0000ffffeb8c6bac in pw_context_new () at /usr/lib/libpipewire-0.3.so.0
+#7  0x0000ffffeb9ddcdc in _snd_pcm_pipewire_open () at /usr/lib/alsa-lib/libasound_module_pcm_pipewire.so
+#8  0x0000fffff7ea9b84 in ??? () at /usr/lib/libasound.so.2
+#9  0x0000fffff7eaa26c in ??? () at /usr/lib/libasound.so.2
+#10 0x0000fffff7eac600 in snd_pcm_open () at /usr/lib/libasound.so.2
+#11 0x0000aaaaaab3ad74 in <alsa::pcm::PCM>::new ()
+#12 0x0000aaaaaab60248 in <cpal::host::alsa::Device>::default_config ()
+#13 0x0000aaaaaab83370 in std::sys::backtrace::__rust_begin_short_backtrace::<<editbay_audio::streaming::StreamingPlayback>::start::{closure#1}, ()> ()
+#14 0x0000aaaaaab89644 in <std::thread::lifecycle::spawn_unchecked<<editbay_audio::streaming::StreamingPlayback>::start::{closure#1}, ()>::{closure#1} as core::ops::function::FnOnce<()>>::call_once::{shim:vtable#0} ()
+#15 0x0000aaaaab061e7c in <std::sys::thread::unix::Thread>::new::thread_start ()
+#16 0x0000fffff5db8978 in ??? () at /usr/lib/libc.so.6
+#17 0x0000fffff5e1e75c in ??? () at /usr/lib/libc.so.6
+x0             0x0                 0
+x1             0xf                 15
+x2             0xffffebc1b430      281474637083696
+x3             0x0                 0
+0xffffebc1b430:	0xffffffffffffffff	0xffffffffffffffff
