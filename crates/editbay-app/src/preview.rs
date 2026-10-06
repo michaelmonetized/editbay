@@ -1474,9 +1474,17 @@ impl PreviewPane {
                     if let Err(error) = result { self.cached.error = Some(error); }
                 }
             }
-            ui.weak(self.cached.label());
-            if let Some(error) = &self.cached.error { ui.colored_label(ui.visuals().error_fg_color, error); }
         });
+        let cache_label = self.cached.label();
+        if !cache_label.is_empty() {
+            ui.weak(cache_label);
+        }
+        if let Some(error) = &self.cached.error {
+            ui.add(
+                egui::Label::new(egui::RichText::new(error).color(ui.visuals().error_fg_color))
+                    .wrap(),
+            );
+        }
         if self.sound.is_some() || self.starting.is_some() || !self.sound_retiring.is_empty() {
             ui.ctx().request_repaint_after(Duration::from_millis(16));
         }

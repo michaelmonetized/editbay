@@ -2979,6 +2979,16 @@ pub fn long_timeline(
     )?;
     app.kill()?;
     let memory = memory.map(cached::Memory::finish).transpose()?;
+    if prepare {
+        if fs::read_dir(directory.join("state/picture-cache"))?.count() != 0 {
+            return Err("Preparation left named cache files after app retirement".into());
+        }
+        for asset in &seed.assets {
+            if hash(&asset.path)? != asset.sha256 {
+                return Err("Native preparation changed source bytes".into());
+            }
+        }
+    }
     let (mut reopened, mut reopened_trace) = start(
         &binary,
         &directory.join("reopened-state"),

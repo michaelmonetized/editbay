@@ -67,7 +67,12 @@ impl Memory {
             }
             thread::sleep(Duration::from_millis(10));
         }
-        if receipt["truncated"] != false || receipt["samples"].as_u64().is_none_or(|n| n == 0) {
+        if receipt["truncated"] != false
+            || receipt["samples"].as_u64().is_none_or(|n| n == 0)
+            || receipt["peak_combined_rss_kib"]
+                .as_u64()
+                .is_none_or(|n| n == 0)
+        {
             return Err("Native memory evidence is incomplete".into());
         }
         Ok(receipt)
