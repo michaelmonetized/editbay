@@ -2803,6 +2803,9 @@ pub fn long_timeline(
         &directory.join("native.jsonl"),
         Some(&copy),
     )?;
+    let memory = prepare
+        .then(|| cached::Memory::start(app.0.id()))
+        .transpose()?;
     picture(&mut trace, 0, 0)?;
     click_control(&mut trace, "source-media")?;
     thread::sleep(Duration::from_millis(350));
@@ -2975,6 +2978,7 @@ pub fn long_timeline(
         ],
     )?;
     app.kill()?;
+    let memory = memory.map(cached::Memory::finish).transpose()?;
     let (mut reopened, mut reopened_trace) = start(
         &binary,
         &directory.join("reopened-state"),
@@ -3039,8 +3043,13 @@ pub fn long_timeline(
             .is_some_and(|d| d["every_frame_completed_by_observed_end"] == true)
             && seek_latency
                 .as_ref()
-                .is_some_and(|d| d["p95_ms"].as_f64().is_some_and(|ms| ms <= 250.)));
-    let receipt = json!({"kind":"native_long_cut","qualified":input_gate_passed && playback_completed && cache_gate_passed,"input_gate_passed":input_gate_passed,"playback_completed":playback_completed,"application_sha256":hash(&binary)?,"original_project_sha256":original_hash,"composition":composition,"clips":clips.len(),"revision":revision,"input_latency":latency,"edits":edits,"seeks":seeks,"seek_latency":seek_latency,"cache_gate_passed":cache_gate_passed,"cache_faults":cache_faults,"prepared_before_seeks":prepared_before_seeks,"prepared_before_play":prepared_before_play,"stale_retirement":stale_retirement,"display":display,"playing":playing,"finished":finished,"saved_recovered_equal":true,"source_project_unchanged":true,"reopened_timeline":restored,"reopened_picture":restored_picture,"compact_picture":compact_picture,"completed":completed,"independent":independent,"limits":["Native long-cut functionality and software-injected inputs; sustained frame-drop and hardware drift gates remain separate","No physical audibility or independent-user acceptance claim"]});
+                .is_some_and(|d| d["p95_ms"].as_f64().is_some_and(|ms| ms <= 250.))
+            && memory.as_ref().is_some_and(|m| {
+                m["peak_combined_rss_kib"]
+                    .as_u64()
+                    .is_some_and(|kib| kib <= 4 * 1024 * 1024)
+            }));
+    let receipt = json!({"kind":"native_long_cut","qualified":input_gate_passed && playback_completed && cache_gate_passed,"input_gate_passed":input_gate_passed,"playback_completed":playback_completed,"application_sha256":hash(&binary)?,"original_project_sha256":original_hash,"composition":composition,"clips":clips.len(),"revision":revision,"input_latency":latency,"edits":edits,"seeks":seeks,"seek_latency":seek_latency,"cache_gate_passed":cache_gate_passed,"cache_faults":cache_faults,"prepared_before_seeks":prepared_before_seeks,"prepared_before_play":prepared_before_play,"stale_retirement":stale_retirement,"display":display,"memory":memory,"playing":playing,"finished":finished,"saved_recovered_equal":true,"source_project_unchanged":true,"reopened_timeline":restored,"reopened_picture":restored_picture,"compact_picture":compact_picture,"completed":completed,"independent":independent,"limits":["Native long-cut functionality and software-injected inputs; sustained frame-drop and hardware drift gates remain separate","No physical audibility or independent-user acceptance claim"]});
     File::create_new(directory.join("qualification.json"))?
         .write_all(&serde_json::to_vec_pretty(&receipt)?)?;
     Ok(receipt)

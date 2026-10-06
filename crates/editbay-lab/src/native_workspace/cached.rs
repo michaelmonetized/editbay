@@ -1,4 +1,87 @@
 use super::*;
+use std::sync::{
+    Arc,
+    atomic::{AtomicBool, Ordering},
+};
+
+pub(super) struct Memory {
+    stop: Arc<AtomicBool>,
+    thread: Option<thread::JoinHandle<Value>>,
+}
+impl Memory {
+    pub(super) fn start(root: u32) -> Result<Self> {
+        let stop = Arc::new(AtomicBool::new(false));
+        let token = stop.clone();
+        let thread = thread::Builder::new().name("editbay-cache-memory".into()).spawn(move || {
+            let mut observed = std::collections::BTreeSet::new();
+            let mut peak = 0;
+            let mut samples = 0;
+            let mut truncated = false;
+            while !token.load(Ordering::Acquire) {
+                let mut pending = vec![root];
+                let mut visited = std::collections::BTreeSet::new();
+                let mut combined = 0u64;
+                while let Some(pid) = pending.pop() {
+                    if !visited.insert(pid) { continue; }
+                    if visited.len() > 512 { truncated = true; break; }
+                    if let Ok(status) = fs::read_to_string(format!("/proc/{pid}/status")) {
+                        observed.insert(pid);
+                        combined += status.lines().find_map(|line| line.strip_prefix("VmRSS:")?.split_whitespace().next()?.parse::<u64>().ok()).unwrap_or(0);
+                    }
+                    if let Ok(tasks) = fs::read_dir(format!("/proc/{pid}/task")) {
+                        for task in tasks.flatten() {
+                            if let Ok(children) = fs::read_to_string(task.path().join("children")) {
+                                pending.extend(children.split_whitespace().filter_map(|pid|pid.parse::<u32>().ok()));
+                            }
+                        }
+                    }
+                }
+                if observed.len() > 512 { truncated = true; break; }
+                samples += 1;
+                peak = peak.max(combined);
+                thread::park_timeout(Duration::from_millis(50));
+            }
+            json!({"sample_interval_ms":50,"samples":samples,"peak_combined_rss_kib":peak,"processes":observed,
+                "truncated":truncated,"limits":"Sampled app/descendant RSS may double count shared pages; unmapped disk page cache and driver/device allocations excluded"})
+        })?;
+        Ok(Self {
+            stop,
+            thread: Some(thread),
+        })
+    }
+    pub(super) fn finish(mut self) -> Result<Value> {
+        self.stop.store(true, Ordering::Release);
+        let thread = self.thread.take().ok_or("Memory sampler is absent")?;
+        thread.thread().unpark();
+        let receipt = thread.join().map_err(|_| "Memory sampler panicked")?;
+        let deadline = Instant::now() + Duration::from_secs(2);
+        while receipt["processes"]
+            .as_array()
+            .ok_or("Observed process set absent")?
+            .iter()
+            .filter_map(Value::as_u64)
+            .any(|pid| Path::new(&format!("/proc/{pid}")).exists())
+        {
+            if Instant::now() >= deadline {
+                return Err("Native cache trial retained an observed process".into());
+            }
+            thread::sleep(Duration::from_millis(10));
+        }
+        if receipt["truncated"] != false || receipt["samples"].as_u64().is_none_or(|n| n == 0) {
+            return Err("Native memory evidence is incomplete".into());
+        }
+        Ok(receipt)
+    }
+}
+impl Drop for Memory {
+    fn drop(&mut self) {
+        self.stop.store(true, Ordering::Release);
+        if let Some(thread) = self.thread.take() {
+            thread.thread().unpark();
+            let _ = thread.join();
+        }
+    }
+}
 
 fn state(
     trace: &mut Trace,

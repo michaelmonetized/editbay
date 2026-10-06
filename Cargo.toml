@@ -39,6 +39,9 @@ egui-winit = { path = "vendor/egui-winit" }
 debug = 0
 incremental = false
 
+[profile.dev.package.sha2]
+opt-level = 3
+
 [workspace.lints.rust]
 unsafe_code = "forbid"
 
