@@ -380,9 +380,7 @@ impl Task {
                         graph.poll().map_err(|e| e.to_string())?;
                     }
                 };
-                if let Err(error) = run()
-                    && !token.is_cancelled()
-                {
+                if let Err(error) = run() {
                     publish(Event::Failed(error));
                 }
             })
