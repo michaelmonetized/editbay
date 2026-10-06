@@ -1,0 +1,51 @@
+   Compiling editbay-audio v0.1.0 (/home/michael/Projects/editbay/artifacts/worktrees/r2-sound-worker/crates/editbay-audio)
+    Finished `test` profile [unoptimized] target(s) in 17.66s
+     Running unittests src/lib.rs (/home/michael/Projects/editbay/artifacts/worktrees/r2-sound-engine/target/native-build/debug/deps/editbay_audio-87b017dc3800f420)
+
+running 31 tests
+test device_worker::tests::callback_observations_accept_skipped_polls_but_reject_overlapping_or_huge_buffers ... ok
+test device_worker::tests::rejected_backend_clocks_are_terminal_immutable_and_after_accepted_sound ... ok
+test device_worker::tests::exact_boundaries_survive_device_rate_changes_and_large_positions ... ok
+test device_worker::tests::latest_status_retains_terminal_failure_without_a_reader ... ok
+test monitor::tests::monitor_reports_clipping_and_rejects_undeclared_routes_or_malformed_blocks ... ok
+test device_worker::tests::permits_exact_completion_and_bounded_device_failures ... ok
+test preparation::tests::malformed_or_regressing_preparation_metrics_are_rejected ... ok
+test monitor::tests::mono_stereo_and_explicit_surround_monitor_routes_preserve_channel_positions ... ok
+test device_worker::tests::protocol_rejects_unknown_fields_and_untyped_operations ... ok
+test preparation::tests::unfinished_stages_remain_observable_until_completion ... ok
+test device_worker::tests::supervisor_panic_becomes_visible_without_waiting_for_ui_retirement ... ok
+test sample_clock::tests::backend_startup_epoch_is_explicit_and_later_resets_fail ... ok
+test sample_clock::tests::jitter_failure_caps_and_invalid_publications_never_advance_missing_sound ... ok
+test device_worker::tests::rejects_foreign_stale_unbounded_and_regressing_status ... FAILED
+test sample_clock::tests::backend_continuity_accepts_queue_variation_but_rejects_missing_time ... ok
+test sound::kernels::tests::small_budgets_fall_back_without_retaining_any_storage ... ok
+test sound::tests::fractional_kernel_phase_survives_large_absolute_source_origins ... ok
+test streaming::tests::rejected_clock_retains_the_failed_callback_without_advancing_sound ... ok
+test streaming::tests::video_output_preserves_device_channels_and_format_with_honest_rate_fallback ... ok
+test tests::clock_interpolates_buffers_with_latency_and_stops_at_submitted_sound ... ok
+test streaming::tests::backend_callback_delivers_exact_source_then_rejects_a_reset ... ok
+test transport::tests::backend_faults_during_tail_drain_override_end_but_not_earlier_failure ... ok
+test transport::tests::invalid_stale_underrun_and_cancellation_never_resume_queued_sound ... ok
+test transport::tests::wraparound_partial_end_and_absolute_clock_preserve_every_channel ... ok
+test streaming::tests::malformed_backend_buffers_and_negative_latency_preserve_queued_source ... ok
+test sample_clock::tests::contended_observations_never_mix_callback_publications ... ok
+test sample_clock::tests::partial_tail_finishes_when_latency_spans_multiple_buffers ... ok
+test sound::kernels::tests::exact_phase_keys_ignore_absolute_origin_but_preserve_cutoff_and_phase ... ok
+test sample_clock::tests::two_hour_integer_clock_has_no_accumulated_rounding_or_submission_overrun ... ok
+test preparation::tests::preparation_snapshots_never_mix_concurrent_block_fields ... ok
+test transport::tests::concurrent_bounded_delivery_survives_many_wraps_without_loss ... ok
+
+failures:
+
+---- device_worker::tests::rejects_foreign_stale_unbounded_and_regressing_status stdout ----
+
+thread 'device_worker::tests::rejects_foreign_stale_unbounded_and_regressing_status' (2607141) panicked at crates/editbay-audio/src/device_worker.rs:664:57:
+called `Result::unwrap()` on an `Err` value: Error("unknown variant `decode`, expected one of `idle`, `plan`, `render`, `finish`", line: 0, column: 0)
+
+
+failures:
+    device_worker::tests::rejects_foreign_stale_unbounded_and_regressing_status
+
+test result: FAILED. 30 passed; 1 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.01s
+
+error: test failed, to rerun pass `-p editbay-audio --lib`

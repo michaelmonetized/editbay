@@ -8,7 +8,9 @@ masters and twelve ranges retain exact pre-change PCM/pixels, and 18 process
 faults plus native playback/edit/recovery/export workflows pass. Earlier timing
 and native driver failures remain in [the evidence](evidence/r2-sound-kernels/README.md).
 Its 180-second pilot fails after 97.648 seconds with an empty queue and bounded
-clock drift. Active-stage telemetry follows that failure; sustained qualification
+clock drift. Frozen `71f07e4` adds active-stage telemetry and passes a fresh
+180-second pilot with backend drift <=1.156 ms, plus 18 device fault trials and
+final workspace checks. Its two-hour baseline is pending. Sustained qualification
 and [canonical PCM preparation](https://github.com/michaelmonetized/editbay/issues/53)
 remain open along with the full roadmap.
 

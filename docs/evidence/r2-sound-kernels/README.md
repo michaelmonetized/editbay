@@ -61,6 +61,31 @@ cache candidate's 28.007 / 112.906 ms. `slice` retains 19.311 / 48.034 ms;
 `channel` retains 30.884 / 49.393 ms. Every six-channel intermediate candidate
 fails the unchanged 40 ms gate. They are not substituted for the passing mixer.
 
-Active-stage telemetry is being qualified after the pilot failure. A two-hour
-success has not been obtained. Physical audibility, DAC/speaker drift, other
+## Active-stage telemetry: `71f07e4`
+
+`active` retains the unchanged mixer and adds coherent in-flight stage clocks.
+Its actual stalled-codec trial observes 300.696 ms of unfinished block work,
+including 295.747 ms in rendering, while the completed-block fields remain
+coherent. All 18 fault trials qualify, preserve sources and reap children;
+maximum retirement is 613.351 ms. Unknown stages, impossible elapsed fields and
+regression are rejected. The initial unit-test harness incorrectly unwrapped an
+intentionally invalid enum; the corrected test checks its deserialization error.
+Both test logs remain named separately.
+
+The fresh 180-second quiet AAC pilot **passes**, completing in 180.567333 seconds
+with exact final sample position, unchanged sources/project and all owned
+processes reaped. Maximum backend/host drift is **1.155779 / 0.537542 ms**;
+peak combined RSS is **135920 KiB**. The slowest completed preparation block
+takes **38.346 ms** (planning 4.593 ms, rendering 32.831 ms, finishing 0.916 ms).
+The largest interval between block starts is **92.024 ms**. No owned workspace
+compilation overlaps this pilot. Telemetry is diagnostic; this successful repeat
+does not establish the cause of the earlier underrun.
+
+The final frozen revision passes **240 default / 241 all-feature tests + 7 doc
+tests**, formatting and all-target/all-feature Clippy with warnings denied.
+The two-hour baseline started on 2026-10-06 at 12:25:59 UTC with this frozen
+binary; its command and concurrent-work policy are in `active/two-hours.zsh`.
+Its running artifacts remain under `artifacts/sound-kernels/active/two-hours` and
+`two-hour-receipts` until a terminal receipt is available. A two-hour success has
+not been obtained. Physical audibility, DAC/speaker drift, other
 hardware, full R2/R8 and all remaining roadmap/release/adoption gates remain open.
