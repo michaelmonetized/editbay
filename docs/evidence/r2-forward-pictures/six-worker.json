@@ -1,0 +1,504 @@
+{
+  "active_cancel": {
+    "after_cancel_ms": 5.009521,
+    "budget_ms": 2000.0,
+    "cancelled": true,
+    "cleanup": {
+      "cache_bytes": 0,
+      "cache_entries": 0,
+      "child": {
+        "cache_bytes": 0,
+        "decoders": 0,
+        "entries": 0,
+        "evictions": 0,
+        "forward_decodes": 0,
+        "hits": 0,
+        "live_bytes": 0,
+        "misses": 0,
+        "seeks": 0,
+        "sequential_decodes": 0,
+        "skipped_pictures": 0,
+        "sources": 0
+      },
+      "mapped_bytes": 0,
+      "mapped_handles": 0,
+      "mapping_hits": 0,
+      "received_planes": 0,
+      "spawns": 1
+    },
+    "delay_ms": 10,
+    "joined": true,
+    "pass": true,
+    "phase": "outstanding first-binding/uncached picture IPC request; child native phase is not separately instrumented",
+    "reaped": true
+  },
+  "after_hits": {
+    "cache_bytes": 5760000,
+    "cache_entries": 25,
+    "child": {
+      "cache_bytes": 5760000,
+      "decoders": 1,
+      "entries": 25,
+      "evictions": 0,
+      "forward_decodes": 19,
+      "hits": 1002,
+      "live_bytes": 5760000,
+      "misses": 25,
+      "seeks": 0,
+      "sequential_decodes": 6,
+      "skipped_pictures": 19,
+      "sources": 1
+    },
+    "mapped_bytes": 5760000,
+    "mapped_handles": 25,
+    "mapping_hits": 1002,
+    "received_planes": 1027,
+    "spawns": 1
+  },
+  "already_decoded_ipc_handoff": {
+    "count": 1000,
+    "max_ms": 3.934058,
+    "p50_ms": 0.040166999999999994,
+    "p95_ms": 0.406669
+  },
+  "before_clear": {
+    "cache_bytes": 5760000,
+    "cache_entries": 25,
+    "child": {
+      "cache_bytes": 5760000,
+      "decoders": 1,
+      "entries": 25,
+      "evictions": 0,
+      "forward_decodes": 19,
+      "hits": 1002,
+      "live_bytes": 5760000,
+      "misses": 25,
+      "seeks": 0,
+      "sequential_decodes": 6,
+      "skipped_pictures": 19,
+      "sources": 1
+    },
+    "mapped_bytes": 5760000,
+    "mapped_handles": 25,
+    "mapping_hits": 1002,
+    "received_planes": 1027,
+    "spawns": 1
+  },
+  "before_hits": {
+    "cache_bytes": 5760000,
+    "cache_entries": 25,
+    "child": {
+      "cache_bytes": 5760000,
+      "decoders": 1,
+      "entries": 25,
+      "evictions": 0,
+      "forward_decodes": 19,
+      "hits": 2,
+      "live_bytes": 5760000,
+      "misses": 25,
+      "seeks": 0,
+      "sequential_decodes": 6,
+      "skipped_pictures": 19,
+      "sources": 1
+    },
+    "mapped_bytes": 5760000,
+    "mapped_handles": 25,
+    "mapping_hits": 2,
+    "received_planes": 27,
+    "spawns": 1
+  },
+  "budget": {
+    "live_handles": 256,
+    "pictures": {
+      "cache_bytes": 268435456,
+      "cache_entries": 128,
+      "decoder_handles": 4,
+      "live_bytes": 402653184,
+      "maximum_picture_bytes": 67108864,
+      "source_handles": 16
+    }
+  },
+  "child_memory": [
+    {
+      "descriptors": 32,
+      "pid": 1507156,
+      "status": [
+        "VmHWM:\t   42368 kB",
+        "VmRSS:\t   42368 kB"
+      ]
+    },
+    {
+      "descriptors": 51,
+      "pid": 1507304,
+      "status": [
+        "VmHWM:\t   43936 kB",
+        "VmRSS:\t   43936 kB"
+      ]
+    }
+  ],
+  "cleanup": {
+    "cache_bytes": 0,
+    "cache_entries": 0,
+    "child": {
+      "cache_bytes": 0,
+      "decoders": 0,
+      "entries": 0,
+      "evictions": 0,
+      "forward_decodes": 0,
+      "hits": 0,
+      "live_bytes": 0,
+      "misses": 0,
+      "seeks": 0,
+      "sequential_decodes": 0,
+      "skipped_pictures": 0,
+      "sources": 0
+    },
+    "mapped_bytes": 0,
+    "mapped_handles": 0,
+    "mapping_hits": 1004,
+    "received_planes": 1073,
+    "spawns": 3
+  },
+  "codec_runtime": "n9.0.1",
+  "fingerprint": {
+    "bytes": 214558,
+    "sha256": "a6ce0012de62432f8d30e3b7e65532f37651ed0a8650ea4c62c54bd8f141e9b2"
+  },
+  "first_sequential_includes_restart_and_binding_ms": 28.690162,
+  "forward_gaps": {
+    "before_clear": {
+      "cache_bytes": 0,
+      "cache_entries": 0,
+      "child": {
+        "cache_bytes": 0,
+        "decoders": 1,
+        "entries": 0,
+        "evictions": 0,
+        "forward_decodes": 5,
+        "hits": 0,
+        "live_bytes": 230400,
+        "misses": 10,
+        "seeks": 4,
+        "sequential_decodes": 1,
+        "skipped_pictures": 20,
+        "sources": 1
+      },
+      "mapped_bytes": 0,
+      "mapped_handles": 0,
+      "mapping_hits": 0,
+      "received_planes": 10,
+      "spawns": 1
+    },
+    "checks": [
+      {
+        "elapsed_ms": 6.677736,
+        "ordinal": 0,
+        "rgba_sha256": "8a98e209acc769a6e49027353e62493610a6d52327a7a37bb166449a2beb3010",
+        "route": "next",
+        "tick": 0
+      },
+      {
+        "elapsed_ms": 4.688645,
+        "ordinal": 3,
+        "rgba_sha256": "2a9078bc0b63078ddcba992a88aa139ab757409f58fcecc374c4a5b66b1a1fa1",
+        "route": "forward",
+        "tick": 3003
+      },
+      {
+        "elapsed_ms": 7.074363,
+        "ordinal": 12,
+        "rgba_sha256": "83e467383ffec5f82441d0fd645a20c62b2a054b00c07c25e2d9f751bba42b3e",
+        "route": "forward",
+        "tick": 12012
+      },
+      {
+        "elapsed_ms": 9.131413,
+        "ordinal": 22,
+        "rgba_sha256": "b5de2f9fabe59429f4afed2bd023ceb638241cb2ea3dbcc71d8783a284bdccd6",
+        "route": "seek",
+        "tick": 22022
+      },
+      {
+        "elapsed_ms": 0.701795,
+        "ordinal": 24,
+        "rgba_sha256": "a58b5876c8bd517481c70ef2927a27dff7c38e1ed58523b54d9b2e8c444098a3",
+        "route": "forward",
+        "tick": 24024
+      },
+      {
+        "elapsed_ms": 20.561669000000002,
+        "ordinal": 23,
+        "rgba_sha256": "22152db52e9c97d6c85fca1a109cbae8e7bde7915c4d5bf0afad47f6e21eae61",
+        "route": "seek",
+        "tick": 23023
+      },
+      {
+        "elapsed_ms": 1.24738,
+        "ordinal": 26,
+        "rgba_sha256": "3a67af1458c2d50806e1ea1ebfa79bea2e9df17101fa6d4fbb0f38af0ccc2682",
+        "route": "forward",
+        "tick": 26026
+      },
+      {
+        "elapsed_ms": 2.227509,
+        "ordinal": 0,
+        "rgba_sha256": "8a98e209acc769a6e49027353e62493610a6d52327a7a37bb166449a2beb3010",
+        "route": "seek",
+        "tick": 0
+      },
+      {
+        "elapsed_ms": 3.486265,
+        "ordinal": 8,
+        "rgba_sha256": "8b8548511f5d1a948c82792e76835f6685627e9897637da74e7264c8b5ac1093",
+        "route": "forward",
+        "tick": 8008
+      },
+      {
+        "elapsed_ms": 13.806016000000001,
+        "ordinal": 43,
+        "rgba_sha256": "293ea300cc563a11be7567b3d32cd0cbab181cb074ad317e630ea1e2de551ea9",
+        "route": "seek",
+        "tick": 43043
+      }
+    ],
+    "child_memory": {
+      "descriptors": 7,
+      "pid": 1507375,
+      "status": [
+        "VmHWM:\t   44768 kB",
+        "VmRSS:\t   44768 kB"
+      ]
+    },
+    "cleanup": {
+      "cache_bytes": 0,
+      "cache_entries": 0,
+      "child": {
+        "cache_bytes": 0,
+        "decoders": 0,
+        "entries": 0,
+        "evictions": 0,
+        "forward_decodes": 0,
+        "hits": 0,
+        "live_bytes": 0,
+        "misses": 0,
+        "seeks": 0,
+        "sequential_decodes": 0,
+        "skipped_pictures": 0,
+        "sources": 0
+      },
+      "mapped_bytes": 0,
+      "mapped_handles": 0,
+      "mapping_hits": 0,
+      "received_planes": 10,
+      "spawns": 1
+    },
+    "timings": {
+      "count": 10,
+      "max_ms": 20.561669000000002,
+      "p50_ms": 6.677736,
+      "p95_ms": 20.561669000000002
+    },
+    "worker_reaped": true
+  },
+  "full_r2_gate_pass": false,
+  "geometry": [
+    320,
+    180
+  ],
+  "includes_gpu_or_native_surface": false,
+  "independent_pixels": [
+    {
+      "cache_hit": false,
+      "ordinal": 0,
+      "rgba_sha256": "8a98e209acc769a6e49027353e62493610a6d52327a7a37bb166449a2beb3010",
+      "tick": 0
+    },
+    {
+      "cache_hit": false,
+      "ordinal": 1,
+      "rgba_sha256": "ac6d36e8a3f74e5c18615eda6f178ef247d3a1a80e46bf3d00b73c66272ce9c5",
+      "tick": 1001
+    },
+    {
+      "cache_hit": false,
+      "ordinal": 3,
+      "rgba_sha256": "2a9078bc0b63078ddcba992a88aa139ab757409f58fcecc374c4a5b66b1a1fa1",
+      "tick": 3003
+    },
+    {
+      "cache_hit": false,
+      "ordinal": 5,
+      "rgba_sha256": "076ff13a03f9bfce070c6b0a0e5ed1b087f0a9834383fa6e70a9296671d9cd25",
+      "tick": 5005
+    },
+    {
+      "cache_hit": false,
+      "ordinal": 7,
+      "rgba_sha256": "a9c6b6aa6c80db8a3b71b814348492c523a1add69b6c4b9ac407b15a82a30471",
+      "tick": 7007
+    },
+    {
+      "cache_hit": false,
+      "ordinal": 8,
+      "rgba_sha256": "8b8548511f5d1a948c82792e76835f6685627e9897637da74e7264c8b5ac1093",
+      "tick": 8008
+    },
+    {
+      "cache_hit": false,
+      "ordinal": 10,
+      "rgba_sha256": "7273114a72b93c38c07ec49e7e6a105a27dfbd1794a82fb36dffc9e45c29720f",
+      "tick": 10010
+    },
+    {
+      "cache_hit": false,
+      "ordinal": 12,
+      "rgba_sha256": "83e467383ffec5f82441d0fd645a20c62b2a054b00c07c25e2d9f751bba42b3e",
+      "tick": 12012
+    },
+    {
+      "cache_hit": false,
+      "ordinal": 14,
+      "rgba_sha256": "97bf308113bd9578d719b2efb9c8c275156f66ac4af16a4c94a90305a7c98427",
+      "tick": 14014
+    },
+    {
+      "cache_hit": false,
+      "ordinal": 16,
+      "rgba_sha256": "50563994c3c072ec963b86244587980a27ba49f16672305af7b70f27510dcda0",
+      "tick": 16016
+    },
+    {
+      "cache_hit": false,
+      "ordinal": 17,
+      "rgba_sha256": "496bcd7c525ed5997967a2b93ad9c1690c2ec638694d6d6bd16bdc3bf5c3f385",
+      "tick": 17017
+    },
+    {
+      "cache_hit": false,
+      "ordinal": 19,
+      "rgba_sha256": "669bf16b544586ccbda4a5d8e1f53f0d6d27b28c8fe4999137c6210000ed840c",
+      "tick": 19019
+    },
+    {
+      "cache_hit": false,
+      "ordinal": 21,
+      "rgba_sha256": "ef24f99cacf916bacc67f92b6b4d1ab5e64a62ffbac2dc37f68ac0c989f4fc27",
+      "tick": 21021
+    },
+    {
+      "cache_hit": false,
+      "ordinal": 23,
+      "rgba_sha256": "22152db52e9c97d6c85fca1a109cbae8e7bde7915c4d5bf0afad47f6e21eae61",
+      "tick": 23023
+    },
+    {
+      "cache_hit": false,
+      "ordinal": 25,
+      "rgba_sha256": "1ae366087743f3a3362d4fb664d116b6e8fe16063aec2d16ab22ba26144881a0",
+      "tick": 25025
+    },
+    {
+      "cache_hit": false,
+      "ordinal": 26,
+      "rgba_sha256": "3a67af1458c2d50806e1ea1ebfa79bea2e9df17101fa6d4fbb0f38af0ccc2682",
+      "tick": 26026
+    },
+    {
+      "cache_hit": false,
+      "ordinal": 28,
+      "rgba_sha256": "30747c00ca7fcc941c538a1aab1c2190ada139f6cc88cdc106e9609c7b8ef5ca",
+      "tick": 28028
+    },
+    {
+      "cache_hit": false,
+      "ordinal": 30,
+      "rgba_sha256": "9f567b2512c258c72e6955bbb630dea81ad69462c00701b1d6461f45dcf50026",
+      "tick": 30030
+    },
+    {
+      "cache_hit": false,
+      "ordinal": 32,
+      "rgba_sha256": "37712a02cd3297fc7f69d0cc54992806973fbf50eb49b5586ba795e88160a047",
+      "tick": 32032
+    },
+    {
+      "cache_hit": false,
+      "ordinal": 34,
+      "rgba_sha256": "5cd2a0661f78d95c52af9ac13a61961b6660ea326ef477d41c25a5f92af5c1b5",
+      "tick": 34034
+    },
+    {
+      "cache_hit": false,
+      "ordinal": 35,
+      "rgba_sha256": "ccdafbe4f403b5671559e7b1e3ef87faca0a9561a577ed3b242d282626cccadd",
+      "tick": 35035
+    },
+    {
+      "cache_hit": false,
+      "ordinal": 37,
+      "rgba_sha256": "22971fe707ca23fb2d2dcb267430a93f09d4abbd91dc9fed488e03251e77bb7f",
+      "tick": 37037
+    },
+    {
+      "cache_hit": false,
+      "ordinal": 39,
+      "rgba_sha256": "913242a4e2997faa2d0a291aef5005ccc2416017fe906d31545824ecb10e24af",
+      "tick": 39039
+    },
+    {
+      "cache_hit": false,
+      "ordinal": 41,
+      "rgba_sha256": "9c84fa8a2fb5fa6b1b58fe936a686e4917ed691c60333ed6610091d1d16d554e",
+      "tick": 41041
+    },
+    {
+      "cache_hit": false,
+      "ordinal": 43,
+      "rgba_sha256": "293ea300cc563a11be7567b3d32cd0cbab181cb074ad317e630ea1e2de551ea9",
+      "tick": 43043
+    }
+  ],
+  "ipc_budget_pass": true,
+  "ipc_p95_budget_ms": 10.0,
+  "kind": "isolated_retained_sealed_picture_handoff",
+  "parent_memory": [
+    "VmHWM:\t   48272 kB",
+    "VmRSS:\t   46480 kB"
+  ],
+  "reverse_after_eof_equal": true,
+  "rgba_bytes": 230400,
+  "schema": 1,
+  "selected_stream": 0,
+  "source": "artifacts/natural-sound/fixtures/qualified-six-channel.mov",
+  "source_index_pictures": 44,
+  "source_misses": {
+    "count": 25,
+    "max_ms": 4.626311,
+    "p50_ms": 0.943296,
+    "p95_ms": 2.751428
+  },
+  "startup_bind_ms": 59.507248,
+  "steady_sequential_pictures": {
+    "count": 43,
+    "max_ms": 1.554965,
+    "p50_ms": 0.37175100000000005,
+    "p95_ms": 1.089504
+  },
+  "stopped_cancel": {
+    "after_cancel_ms": 105.300773,
+    "budget_ms": 2000.0,
+    "pass": true,
+    "phase": "SIGSTOP fault injection on the owned codec; EOF grace then kill/reap",
+    "reaped": true
+  },
+  "worker_death": {
+    "error_latency_ms": 2.2382169999999997,
+    "failed_visibly": true,
+    "matching_content_shared": true,
+    "old_receipt_rejected": true,
+    "reaped": true,
+    "retry_ms": 49.784749000000005
+  },
+  "worker_executable": "/home/michael/Projects/editbay/artifacts/worktrees/r2-sound-worker/artifacts/forward-pictures/qualified-bin/editbay",
+  "worker_limits": "Limit                     Soft Limit           Hard Limit           Units     \nMax cpu time              900                  unlimited            seconds   \nMax file size             unlimited            unlimited            bytes     \nMax data size             unlimited            unlimited            bytes     \nMax stack size            16777216             unlimited            bytes     \nMax core file size        unlimited            unlimited            bytes     \nMax resident set          unlimited            unlimited            bytes     \nMax processes             31077                31077                processes \nMax open files            512                  524288               files     \nMax locked memory         8388608              8388608              bytes     \nMax address space         3221225472           unlimited            bytes     \nMax file locks            unlimited            unlimited            locks     \nMax pending signals       31077                31077                signals   \nMax msgqueue size         819200               819200               bytes     \nMax nice priority         0                    0                    \nMax realtime priority     0                    0                    \nMax realtime timeout      unlimited            unlimited            us        \n"
+}

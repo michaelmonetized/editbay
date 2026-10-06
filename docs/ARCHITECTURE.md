@@ -295,3 +295,10 @@ the requested canonical blank only when every output channel is proven zero.
 Private receipt ownership, consumer/submission allocation charges and full
 reachable-node validation remain unchanged. Preview and delivery use this same
 path. See [picture identities](ACTIVE_PICTURES.md).
+
+The shared raw-picture provider advances at most eight skipped indexed pictures
+without restarting its decoder. It validates each intermediate timestamp without
+RGBA conversion/allocation, then returns the exact requested picture. Backward
+and larger jumps retain seek; failure discards decoder state and unpublished
+payloads. [Forward-decode contracts](FORWARD_PICTURES.md) distinguish decode-route
+counters from accepted-picture and actual display-completion observations.

@@ -7,6 +7,13 @@ editorial and complete-job release gates remain open.
 
 ## Implemented
 
+- Short forward picture jumps preserve the native decoder across at most eight
+  skipped indexed frames, without intermediate RGBA conversion/allocation.
+  Exact timestamps, source ownership and pin/cancellation budgets remain enforced.
+  [Forward-decode evidence](evidence/r2-forward-pictures/README.md) includes actual
+  app/CLI workers, full source playback and identical masters; native input/seek
+  misses and incomplete display-drop observations remain open.
+
 - The shared GPU renderer reuses validated transparent compositing identities and
   unity opacity. Immutable aliases preserve texture/pin charges, exact profiles,
   supported-operation validation and private publication ownership. Native

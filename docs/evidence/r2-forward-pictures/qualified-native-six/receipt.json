@@ -1,0 +1,402 @@
+{
+  "application_sha256": "399235f3b11dd490434ee1a9d2c786d675bcfb76d1a6cb7aa2759e842d30520d",
+  "at_sound_end": {
+    "details": {
+      "adapter": "AdapterInfo { name: \"Apple M1 Pro (G13S C0)\", vendor: 65541, device: 0, device_type: IntegratedGpu, device_pci_bus_id: \"\", driver: \"Honeykrisp\", driver_info: \"Mesa 26.2.3-arch1.1\", backend: Vulkan, subgroup_min_size: 32, subgroup_max_size: 32, transient_saves_memory: Some(false), limit_bucket: None }",
+      "creating": false,
+      "displayed_frame": 78,
+      "displayed_serial": 80,
+      "error": null,
+      "gpu_draw_completed_us": 15294,
+      "owner": {
+        "project_id": "4f509bef-6fd0-4773-ae1d-2191d9bcb1d4",
+        "revision": 3
+      },
+      "preparation_us": 334,
+      "rejected_results": 0,
+      "request_accepted_unix_us": 1791266253227091,
+      "requested_frame": 78,
+      "resume_sound": null,
+      "retiring": 0,
+      "sequence": "977a02ce-42c6-44a8-b101-9803dab0caec",
+      "serial": 80,
+      "skipped_frames": 0,
+      "sound": {
+        "callbacks": 607,
+        "clipped_monitor_samples": 15585,
+        "device": {
+          "channels": 2,
+          "name": "default",
+          "sample_format": "F32",
+          "sample_rate": 44100
+        },
+        "device_worker_pid": 1508882,
+        "end_sample": 145308,
+        "error": null,
+        "phase": "finished",
+        "position_samples": 145308,
+        "prepared_capacity_frames": 16384,
+        "prepared_frames": 0,
+        "reported_latency_ns": 0,
+        "route": "Stereo",
+        "start_sample": 0,
+        "version": {
+          "project_id": "4f509bef-6fd0-4773-ae1d-2191d9bcb1d4",
+          "revision": 3
+        },
+        "worker_pid": 1508910
+      },
+      "sound_active": false,
+      "sound_retiring": 0,
+      "stats": {
+        "cache_bytes": 41472000,
+        "dispatches": 90,
+        "entries": 90,
+        "evictions": 0,
+        "hits": 70,
+        "live_texture_bytes": 41472000,
+        "misses": 134,
+        "pending_submissions": 0,
+        "pictures": {
+          "cache_bytes": 10137600,
+          "decoders": 1,
+          "entries": 44,
+          "evictions": 0,
+          "forward_decodes": 0,
+          "hits": 1,
+          "live_bytes": 10137600,
+          "misses": 44,
+          "seeks": 0,
+          "sequential_decodes": 44,
+          "skipped_pictures": 0,
+          "sources": 1
+        },
+        "readbacks": 0,
+        "simplified_nodes": 0,
+        "source_picture_us": 91346,
+        "temporal_preparation_us": 5130,
+        "uploads": 44
+      },
+      "stopped": false,
+      "surface": "Bgra8Unorm",
+      "tab": "7fa27cba-729f-485e-a16f-dfa4815d23a1",
+      "work": {
+        "convert_us": 3,
+        "finish_us": 12,
+        "present_us": 43,
+        "queued_us": 93,
+        "render_us": 182
+      },
+      "worker_pid": 1508730
+    },
+    "dropped_before": 0,
+    "kind": "preview",
+    "pid": 1508533,
+    "unix_us": 1791266253355313
+  },
+  "duration_frames": 79,
+  "duration_seconds": 3.294958333333333,
+  "exact_sound_end": true,
+  "first": {
+    "details": {
+      "adapter": "AdapterInfo { name: \"Apple M1 Pro (G13S C0)\", vendor: 65541, device: 0, device_type: IntegratedGpu, device_pci_bus_id: \"\", driver: \"Honeykrisp\", driver_info: \"Mesa 26.2.3-arch1.1\", backend: Vulkan, subgroup_min_size: 32, subgroup_max_size: 32, transient_saves_memory: Some(false), limit_bucket: None }",
+      "creating": false,
+      "displayed_frame": 0,
+      "displayed_serial": 1,
+      "error": null,
+      "gpu_draw_completed_us": 138465,
+      "owner": {
+        "project_id": "4f509bef-6fd0-4773-ae1d-2191d9bcb1d4",
+        "revision": 3
+      },
+      "preparation_us": 124388,
+      "rejected_results": 0,
+      "request_accepted_unix_us": 1791266249131059,
+      "requested_frame": 0,
+      "resume_sound": null,
+      "retiring": 0,
+      "sequence": "977a02ce-42c6-44a8-b101-9803dab0caec",
+      "serial": 1,
+      "skipped_frames": 0,
+      "sound": null,
+      "sound_active": false,
+      "sound_retiring": 0,
+      "stats": {
+        "cache_bytes": 921600,
+        "dispatches": 2,
+        "entries": 2,
+        "evictions": 0,
+        "hits": 0,
+        "live_texture_bytes": 921600,
+        "misses": 3,
+        "pending_submissions": 0,
+        "pictures": {
+          "cache_bytes": 230400,
+          "decoders": 1,
+          "entries": 1,
+          "evictions": 0,
+          "forward_decodes": 0,
+          "hits": 0,
+          "live_bytes": 230400,
+          "misses": 1,
+          "seeks": 0,
+          "sequential_decodes": 1,
+          "skipped_pictures": 0,
+          "sources": 1
+        },
+        "readbacks": 0,
+        "simplified_nodes": 0,
+        "source_picture_us": 42075,
+        "temporal_preparation_us": 22,
+        "uploads": 1
+      },
+      "stopped": false,
+      "surface": "Bgra8Unorm",
+      "tab": "7fa27cba-729f-485e-a16f-dfa4815d23a1",
+      "work": {
+        "convert_us": 442,
+        "finish_us": 130,
+        "present_us": 11,
+        "queued_us": 79229,
+        "render_us": 44574
+      },
+      "worker_pid": 1508730
+    },
+    "dropped_before": 0,
+    "kind": "preview",
+    "pid": 1508533,
+    "unix_us": 1791266249278535
+  },
+  "frame_rate": {
+    "denominator": 1001,
+    "numerator": 24000
+  },
+  "full_R2_qualified": false,
+  "kind": "native_continuous_sequence",
+  "last": {
+    "details": {
+      "adapter": "AdapterInfo { name: \"Apple M1 Pro (G13S C0)\", vendor: 65541, device: 0, device_type: IntegratedGpu, device_pci_bus_id: \"\", driver: \"Honeykrisp\", driver_info: \"Mesa 26.2.3-arch1.1\", backend: Vulkan, subgroup_min_size: 32, subgroup_max_size: 32, transient_saves_memory: Some(false), limit_bucket: None }",
+      "creating": false,
+      "displayed_frame": 78,
+      "displayed_serial": 80,
+      "error": null,
+      "gpu_draw_completed_us": 15294,
+      "owner": {
+        "project_id": "4f509bef-6fd0-4773-ae1d-2191d9bcb1d4",
+        "revision": 3
+      },
+      "preparation_us": 334,
+      "rejected_results": 0,
+      "request_accepted_unix_us": 1791266253227091,
+      "requested_frame": 78,
+      "resume_sound": null,
+      "retiring": 0,
+      "sequence": "977a02ce-42c6-44a8-b101-9803dab0caec",
+      "serial": 80,
+      "skipped_frames": 0,
+      "sound": {
+        "callbacks": 607,
+        "clipped_monitor_samples": 15585,
+        "device": {
+          "channels": 2,
+          "name": "default",
+          "sample_format": "F32",
+          "sample_rate": 44100
+        },
+        "device_worker_pid": 1508882,
+        "end_sample": 145308,
+        "error": null,
+        "phase": "finished",
+        "position_samples": 145308,
+        "prepared_capacity_frames": 16384,
+        "prepared_frames": 0,
+        "reported_latency_ns": 0,
+        "route": "Stereo",
+        "start_sample": 0,
+        "version": {
+          "project_id": "4f509bef-6fd0-4773-ae1d-2191d9bcb1d4",
+          "revision": 3
+        },
+        "worker_pid": 1508910
+      },
+      "sound_active": false,
+      "sound_retiring": 0,
+      "stats": {
+        "cache_bytes": 41472000,
+        "dispatches": 90,
+        "entries": 90,
+        "evictions": 0,
+        "hits": 70,
+        "live_texture_bytes": 41472000,
+        "misses": 134,
+        "pending_submissions": 0,
+        "pictures": {
+          "cache_bytes": 10137600,
+          "decoders": 1,
+          "entries": 44,
+          "evictions": 0,
+          "forward_decodes": 0,
+          "hits": 1,
+          "live_bytes": 10137600,
+          "misses": 44,
+          "seeks": 0,
+          "sequential_decodes": 44,
+          "skipped_pictures": 0,
+          "sources": 1
+        },
+        "readbacks": 0,
+        "simplified_nodes": 0,
+        "source_picture_us": 91346,
+        "temporal_preparation_us": 5130,
+        "uploads": 44
+      },
+      "stopped": false,
+      "surface": "Bgra8Unorm",
+      "tab": "7fa27cba-729f-485e-a16f-dfa4815d23a1",
+      "work": {
+        "convert_us": 3,
+        "finish_us": 12,
+        "present_us": 43,
+        "queued_us": 93,
+        "render_us": 182
+      },
+      "worker_pid": 1508730
+    },
+    "dropped_before": 0,
+    "kind": "preview",
+    "pid": 1508533,
+    "unix_us": 1791266253355313
+  },
+  "limits": [
+    "Sampled process RSS can count shared pages more than once and excludes unreported GPU allocations",
+    "Short native software observations; no physical audibility, two-hour drift, client or hardware-matrix qualification"
+  ],
+  "memory_sample_interval_ms": 50,
+  "observed_peak_combined_rss_kib": 237712,
+  "original_project_sha256": "3bc50751d9ae88ccb7d816fe950be156669e442d5f64f1aabd1a1f6fd81e333a",
+  "owned_processes_reaped": true,
+  "playing": {
+    "details": {
+      "adapter": "AdapterInfo { name: \"Apple M1 Pro (G13S C0)\", vendor: 65541, device: 0, device_type: IntegratedGpu, device_pci_bus_id: \"\", driver: \"Honeykrisp\", driver_info: \"Mesa 26.2.3-arch1.1\", backend: Vulkan, subgroup_min_size: 32, subgroup_max_size: 32, transient_saves_memory: Some(false), limit_bucket: None }",
+      "creating": false,
+      "displayed_frame": 0,
+      "displayed_serial": 2,
+      "error": null,
+      "gpu_draw_completed_us": 22747,
+      "owner": {
+        "project_id": "4f509bef-6fd0-4773-ae1d-2191d9bcb1d4",
+        "revision": 3
+      },
+      "preparation_us": 6532,
+      "rejected_results": 0,
+      "request_accepted_unix_us": 1791266249991265,
+      "requested_frame": 1,
+      "resume_sound": null,
+      "retiring": 0,
+      "sequence": "977a02ce-42c6-44a8-b101-9803dab0caec",
+      "serial": 3,
+      "skipped_frames": 0,
+      "sound": {
+        "callbacks": 8,
+        "clipped_monitor_samples": 1355,
+        "device": {
+          "channels": 2,
+          "name": "default",
+          "sample_format": "F32",
+          "sample_rate": 44100
+        },
+        "device_worker_pid": 1508882,
+        "end_sample": 145308,
+        "error": null,
+        "phase": "playing",
+        "position_samples": 2004,
+        "prepared_capacity_frames": 16384,
+        "prepared_frames": 14225,
+        "reported_latency_ns": 0,
+        "route": "Stereo",
+        "start_sample": 0,
+        "version": {
+          "project_id": "4f509bef-6fd0-4773-ae1d-2191d9bcb1d4",
+          "revision": 3
+        },
+        "worker_pid": 1508910
+      },
+      "sound_active": true,
+      "sound_retiring": 0,
+      "stats": {
+        "cache_bytes": 921600,
+        "dispatches": 2,
+        "entries": 2,
+        "evictions": 0,
+        "hits": 2,
+        "live_texture_bytes": 921600,
+        "misses": 3,
+        "pending_submissions": 0,
+        "pictures": {
+          "cache_bytes": 230400,
+          "decoders": 1,
+          "entries": 1,
+          "evictions": 0,
+          "forward_decodes": 0,
+          "hits": 1,
+          "live_bytes": 230400,
+          "misses": 1,
+          "seeks": 0,
+          "sequential_decodes": 1,
+          "skipped_pictures": 0,
+          "sources": 1
+        },
+        "readbacks": 0,
+        "simplified_nodes": 0,
+        "source_picture_us": 43326,
+        "temporal_preparation_us": 46,
+        "uploads": 1
+      },
+      "stopped": false,
+      "surface": "Bgra8Unorm",
+      "tab": "7fa27cba-729f-485e-a16f-dfa4815d23a1",
+      "work": {
+        "convert_us": 3,
+        "finish_us": 42,
+        "present_us": 24,
+        "queued_us": 1912,
+        "render_us": 4548
+      },
+      "worker_pid": 1508730
+    },
+    "dropped_before": 0,
+    "kind": "preview",
+    "pid": 1508533,
+    "unix_us": 1791266249991349
+  },
+  "process_memory": [
+    {
+      "high_water_kib": 106896,
+      "last_rss_kib": 53392,
+      "pid": 1508533
+    },
+    {
+      "high_water_kib": 45824,
+      "last_rss_kib": 21568,
+      "pid": 1508730
+    },
+    {
+      "high_water_kib": 41152,
+      "last_rss_kib": 22976,
+      "pid": 1508882
+    },
+    {
+      "high_water_kib": 48192,
+      "last_rss_kib": 29472,
+      "pid": 1508910
+    }
+  ],
+  "request_to_gpu_completion": {
+    "count": 79,
+    "max_ms": 28.296,
+    "p50_ms": 17.613,
+    "p95_ms": 26.851
+  },
+  "source_project_preserved": true,
+  "displayed_observation_count": 79
+}
