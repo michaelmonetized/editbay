@@ -510,6 +510,26 @@ pub struct PreviewPane {
 }
 
 impl PreviewPane {
+    /// Resolve the composition selected by this tab's actual viewer.
+    /// `tab` and `project` identify current content. Returns its composition ID,
+    /// falling back to the first authored sequence before the viewer is drawn.
+    pub fn selected_composition(&self, tab: Uuid, project: &Project) -> Option<Uuid> {
+        self.selections
+            .get(&tab)
+            .and_then(|selection| {
+                project
+                    .sequences
+                    .iter()
+                    .find(|sequence| sequence.id == selection.sequence)
+                    .and_then(|sequence| sequence.composition)
+            })
+            .or_else(|| {
+                project
+                    .sequences
+                    .iter()
+                    .find_map(|sequence| sequence.composition)
+            })
+    }
     /// Reset opt-in layout observations for the current native pass.
     /// Takes no arguments. Returns no value and performs no filesystem IO.
     pub fn begin_frame(&mut self) {

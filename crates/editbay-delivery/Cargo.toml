@@ -1,27 +1,24 @@
 [package]
-name = "editbay-cli"
+name = "editbay-delivery"
 version.workspace = true
 edition.workspace = true
 rust-version.workspace = true
 license.workspace = true
-description = "Native EditBay project and recovery commands"
-
-[[bin]]
-name = "editbay"
-path = "src/main.rs"
+description = "Supervised delivery of the shared EditBay picture and sound graph"
 
 [dependencies]
 editbay-core = { path = "../editbay-core" }
 editbay-media = { path = "../editbay-media" }
-editbay-delivery = { path = "../editbay-delivery" }
-tokio = { workspace = true, features = ["signal", "sync"] }
+editbay-render = { path = "../editbay-render" }
+editbay-audio = { path = "../editbay-audio" }
 serde.workspace = true
 serde_json.workspace = true
 sha2.workspace = true
+uuid.workspace = true
+rustix.workspace = true
 
 [dev-dependencies]
 tempfile.workspace = true
-uuid.workspace = true
 
 [lints]
 workspace = true

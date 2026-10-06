@@ -1185,6 +1185,7 @@ version = "0.1.0"
 dependencies = [
  "editbay-audio",
  "editbay-core",
+ "editbay-delivery",
  "editbay-media",
  "editbay-render",
  "eframe",
@@ -1232,11 +1233,13 @@ name = "editbay-cli"
 version = "0.1.0"
 dependencies = [
  "editbay-core",
+ "editbay-delivery",
  "editbay-media",
  "serde",
  "serde_json",
  "sha2",
  "tempfile",
+ "tokio",
  "uuid",
 ]
 
@@ -1255,15 +1258,33 @@ dependencies = [
 ]
 
 [[package]]
+name = "editbay-delivery"
+version = "0.1.0"
+dependencies = [
+ "editbay-audio",
+ "editbay-core",
+ "editbay-media",
+ "editbay-render",
+ "rustix 1.1.5",
+ "serde",
+ "serde_json",
+ "sha2",
+ "tempfile",
+ "uuid",
+]
+
+[[package]]
 name = "editbay-lab"
 version = "0.1.0"
 dependencies = [
  "editbay-ai",
  "editbay-audio",
  "editbay-core",
+ "editbay-delivery",
  "editbay-media",
  "editbay-reference",
  "editbay-render",
+ "rustix 1.1.5",
  "serde",
  "serde_json",
  "sha2",

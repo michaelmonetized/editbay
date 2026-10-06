@@ -254,6 +254,270 @@ fn now() -> u64 {
         .as_micros() as u64
 }
 
+fn choose_master(trace: &mut Trace, destination: &Path) -> Result<()> {
+    click_control(trace, "export-sequence")?;
+    let chooser = window(|window| {
+        matches!(
+            window["class"].as_str(),
+            Some("org.omarchy.synchro" | "com.thisisgm.flea.picker")
+        ) && window["mapped"] == true
+            && window["title"]
+                .as_str()
+                .is_some_and(|title| title.starts_with("Export lossless 8-bit master"))
+    })?;
+    let address = chooser["address"]
+        .as_str()
+        .ok_or("Missing export chooser identity")?;
+    dispatch(&format!("hl.dsp.focus({{window=\"address:{address}\"}})"))?;
+    focused(chooser["pid"].as_u64().ok_or("Missing chooser PID")?)?;
+    let folder = destination.parent().ok_or("Export folder missing")?;
+    let name = destination
+        .file_name()
+        .and_then(|name| name.to_str())
+        .ok_or("Export name must be UTF-8")?;
+    let x = chooser["at"][0].as_i64().ok_or("Chooser x missing")?;
+    let y = chooser["at"][1].as_i64().ok_or("Chooser y missing")?;
+    if chooser["class"] == "com.thisisgm.flea.picker" {
+        let pid = chooser["pid"].as_u64().unwrap().to_string();
+        flea_folder(&pid, folder)?;
+        let state: Value = serde_json::from_str(&command(
+            "qs",
+            &["ipc", "--pid", &pid, "call", "fleapicker", "saveState"],
+        )?)?;
+        flea_point(
+            &pid,
+            state["field"]
+                .as_str()
+                .ok_or("Export filename field missing")?,
+        )?;
+        key(30, true, false)?;
+        command("wtype", &["-s", "40", name, "-s", "80"])?;
+        key(28, false, false)?;
+    } else {
+        key(38, true, false)?;
+        key(30, true, false)?;
+        command(
+            "wtype",
+            &[
+                "-s",
+                "40",
+                folder.to_str().ok_or("Export path must be UTF-8")?,
+                "-s",
+                "80",
+            ],
+        )?;
+        key(28, false, false)?;
+        thread::sleep(Duration::from_millis(200));
+        let width = chooser["size"][0].as_i64().ok_or("Chooser width missing")?;
+        let height = chooser["size"][1]
+            .as_i64()
+            .ok_or("Chooser height missing")?;
+        click(x + 300, y + height - 51)?;
+        key(30, true, false)?;
+        command("wtype", &["-s", "40", name, "-s", "80"])?;
+        click(x + width - 40, y + height - 18)?;
+    }
+    Ok(())
+}
+
+fn export_job(trace: &mut Trace, after: u64, predicate: impl Fn(&Value) -> bool) -> Result<Value> {
+    let record = trace.wait("native export state", |record| {
+        record["kind"] == "delivery"
+            && record["unix_us"].as_u64().is_some_and(|time| time >= after)
+            && record["details"]["jobs"]
+                .as_array()
+                .and_then(|jobs| jobs.last())
+                .is_some_and(&predicate)
+    })?;
+    Ok(record["details"]["jobs"]
+        .as_array()
+        .unwrap()
+        .last()
+        .unwrap()
+        .clone())
+}
+
+/// Qualify native export choice, cancellation, failure, retry and captured ownership.
+/// `binary` is the real app, `project` is a saved sequence and `directory` is new
+/// evidence storage. Returns actual window/process/file receipts and measured gates.
+pub fn delivery(binary: &Path, project: &Path, directory: &Path) -> Result<Value> {
+    let binary = binary.canonicalize()?;
+    let original = project.canonicalize()?;
+    let original_hash = hash(&original)?;
+    let seed = load(&original)?;
+    fs::create_dir(directory)?;
+    let directory = directory.canonicalize()?;
+    let catalog = directory.join("catalog");
+    fs::create_dir(&catalog)?;
+    let copy = directory.join("Export.editbay");
+    save_new(&seed, &copy)?;
+    let destination = directory.join("Master.mov");
+    let (mut app, mut trace) = start(
+        &binary,
+        &directory.join("state"),
+        &catalog,
+        &directory.join("native.jsonl"),
+        Some(&copy),
+    )?;
+    picture(&mut trace, 0, 0)?;
+    let mut retired = Vec::new();
+    let mut edits = Vec::new();
+    let mut previous = None;
+    for mode in ["cancel", "kill", "edit"] {
+        let after = now();
+        if let Some(id) = previous.as_ref() {
+            click_control(&mut trace, &format!("retry-export:{id}"))?;
+        } else {
+            choose_master(&mut trace, &destination)?;
+        }
+        let running = export_job(&mut trace, after, |job| {
+            job["running"] == true && job["worker_pid"].as_u64().is_some()
+        })?;
+        let pid = running["worker_pid"]
+            .as_u64()
+            .ok_or("Export child absent")?;
+        let id = running["id"]
+            .as_str()
+            .ok_or("Export job absent")?
+            .to_owned();
+        command("kill", &["-STOP", &pid.to_string()])?;
+        let cancelled_at = match mode {
+            "cancel" => click_control(&mut trace, &format!("cancel-export:{id}"))?,
+            "kill" => {
+                let sent = now();
+                command("kill", &["-KILL", &pid.to_string()])?;
+                sent
+            }
+            _ => {
+                let revision = seed.revision + 1;
+                let edited = rename(&mut trace, "Revised export", revision, &mut edits)?;
+                edited["unix_us"].as_u64().ok_or("Edit timestamp absent")?
+            }
+        };
+        let done = export_job(&mut trace, cancelled_at, |job| {
+            job["id"] == id && job["running"] == false && job["error"].as_str().is_some()
+        })?;
+        let ms = (now() - cancelled_at) as f64 / 1000.;
+        if ms > 2000. || Path::new(&format!("/proc/{pid}")).exists() || destination.exists() {
+            return Err(format!("Native {mode} failed retirement/publication gate").into());
+        }
+        retired.push(json!({"mode":mode,"retirement_ms":ms,"worker_reaped":true,"outcome":done}));
+        previous = Some(id);
+    }
+    let after = click_control(&mut trace, &format!("retry-export:{}", previous.unwrap()))?;
+    export_job(&mut trace, after, |job| {
+        job["running"] == true && job["worker_pid"].as_u64().is_some()
+    })?;
+    let mut view_inputs = Vec::new();
+    let mut viewed = Vec::new();
+    for frame in [1, 0, 1, 0] {
+        let sent = click_control(
+            &mut trace,
+            if frame == 0 {
+                "previous-frame"
+            } else {
+                "next-frame"
+            },
+        )?;
+        let drawn = picture(&mut trace, frame, sent)?;
+        let accepted = drawn["details"]["request_accepted_unix_us"]
+            .as_u64()
+            .ok_or("Viewer request time absent")?;
+        view_inputs.push((accepted - sent) as f64 / 1000.);
+        let active = trace
+            .records
+            .iter()
+            .rev()
+            .find(|record| {
+                record["kind"] == "delivery"
+                    && record["unix_us"]
+                        .as_u64()
+                        .is_some_and(|time| time <= accepted)
+            })
+            .is_some_and(|record| record["details"]["busy"] == true);
+        viewed.push(json!({"frame":frame,"export_active_at_acceptance":active,"draw":drawn}));
+    }
+    let deadline = Instant::now() + Duration::from_secs(180);
+    let completed = loop {
+        trace.read()?;
+        if let Some(job) = trace
+            .records
+            .iter()
+            .rev()
+            .filter(|record| {
+                record["kind"] == "delivery"
+                    && record["unix_us"].as_u64().is_some_and(|time| time >= after)
+            })
+            .find_map(|record| {
+                record["details"]["jobs"]
+                    .as_array()?
+                    .last()
+                    .filter(|job| job["running"] == false)
+            })
+        {
+            if job["receipt"].is_null() {
+                return Err(format!("Native export failed: {}", job["error"]).into());
+            }
+            break job.clone();
+        }
+        if Instant::now() >= deadline {
+            return Err("Native export exceeded qualification deadline".into());
+        }
+        thread::sleep(Duration::from_millis(5));
+    };
+    if completed["receipt"]["version"]["revision"] != seed.revision + 1
+        || hash(&destination)? != completed["receipt"]["file_sha256"]
+    {
+        return Err("Native retry exported the wrong document or file".into());
+    }
+    let saved_at = now();
+    key(31, true, false)?;
+    trace.wait("saved exported revision", |record| {
+        has_tab(record, "Revised export", seed.revision + 1)
+            && record["details"]["tabs"][0]["dirty"] == false
+    })?;
+    let preview = picture(&mut trace, 0, saved_at)?;
+    trace.focus()?;
+    thread::sleep(Duration::from_millis(100));
+    command(
+        "grim",
+        &[
+            "-g",
+            "80,80 1440x900",
+            directory.join("exported-native.png").to_str().unwrap(),
+        ],
+    )?;
+    let reloaded = load(&copy)?;
+    if reloaded.compositions != seed.compositions
+        || reloaded.sources != seed.sources
+        || hash(&original)? != original_hash
+    {
+        return Err("Native export changed original media/project content".into());
+    }
+    app.kill()?;
+    let independent = crate::shared_delivery::inspect(
+        &destination,
+        &serde_json::from_value(completed["receipt"].clone())?,
+    )?;
+    let latency = metrics(&mut edits);
+    let viewing = metrics(&mut view_inputs);
+    let qualified = latency["p95_ms"].as_f64().is_some_and(|ms| ms <= 50.)
+        && viewing["p95_ms"].as_f64().is_some_and(|ms| ms <= 50.)
+        && viewed
+            .iter()
+            .any(|sample| sample["export_active_at_acceptance"] == true);
+    let receipt = json!({"kind":"native_delivery_qualification","qualified":qualified,"application_sha256":hash(&binary)?,
+        "original_project_sha256":original_hash,"completed":completed,"retirement":retired,"edit_input_latency":latency,
+        "destination":destination,"source_project_unchanged":true,"saved_revision":reloaded.revision,"preview":preview,"independent":independent,"view_input_latency":viewing,"view_samples":viewed,
+        "limits":["Software-injected native input and actual native chooser/window","No client acceptance or independent-user claim"]});
+    File::create_new(directory.join("qualification.json"))?
+        .write_all(&serde_json::to_vec_pretty(&receipt)?)?;
+    if !qualified {
+        return Err("Native export input latency gate missed".into());
+    }
+    Ok(receipt)
+}
+
 fn control(trace: &mut Trace, name: &str) -> Result<[i64; 2]> {
     let record = trace.wait(name, |record| {
         record["kind"] == "preview"

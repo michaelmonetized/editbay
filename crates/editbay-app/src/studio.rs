@@ -2,6 +2,7 @@ use crate::{
     brand::{Asset, BankVersion, Category},
     brand_ui::{Action as BankAction, BankPane, Task as BankTask},
     catalog::{CatalogEvent, CatalogScan, DocumentEntry, ProjectFolder},
+    delivery_ui::DeliveryPane,
     diagnostics::Diagnostics,
     media_ui::MediaPane,
     preferences::{PreferenceStore, Preferences, Startup},
@@ -24,6 +25,10 @@ use uuid::Uuid;
 
 enum DialogAction {
     Open,
+    Delivery {
+        owner: DocumentOwner,
+        request: editbay_delivery::DeliveryRequest,
+    },
     ImportMedia {
         owner: DocumentOwner,
     },
@@ -82,6 +87,7 @@ pub struct Studio {
     bank: BankPane,
     media: MediaPane,
     preview: PreviewPane,
+    delivery: DeliveryPane,
     preferences_applied: bool,
     explicit_paths: bool,
     restoring: bool,
@@ -169,6 +175,7 @@ impl Studio {
             bank: BankPane::default(),
             media: MediaPane::default(),
             preview: PreviewPane::default(),
+            delivery: DeliveryPane::default(),
             preferences_applied: false,
             explicit_paths,
             restoring: false,
@@ -221,6 +228,7 @@ impl Studio {
         let previous = self.workspace.activation_generation;
         self.workspace.poll(Instant::now());
         self.media.poll(&mut self.workspace, ctx);
+        self.delivery.poll(&self.workspace, ctx);
         if self.workspace.activation_generation != previous && self.workspace.active.is_some() {
             self.welcome = false;
         }
@@ -280,6 +288,13 @@ impl Studio {
                                 self.workspace.open(result.paths);
                                 Ok(())
                             }
+                            DialogAction::Delivery { owner, request } => self.delivery.start(
+                                &mut self.workspace,
+                                owner,
+                                request,
+                                path.clone(),
+                                ctx,
+                            ),
                             DialogAction::ImportMedia { owner } => {
                                 if self.workspace.owns(owner) {
                                     std::env::current_exe().map_err(|e| e.to_string()).and_then(
@@ -473,6 +488,12 @@ impl Studio {
             return;
         }
         let original = match &action {
+            DialogAction::Delivery { owner, .. } => self
+                .workspace
+                .tabs
+                .iter()
+                .find(|tab| tab.id == owner.tab)
+                .and_then(|tab| tab.path.as_ref()),
             DialogAction::Save { tab, .. } => self
                 .workspace
                 .tabs
@@ -495,6 +516,11 @@ impl Studio {
             .unwrap_or_else(|| self.home.clone());
         let name = if matches!(action, DialogAction::BrandExport { .. }) {
             name.to_owned()
+        } else if matches!(action, DialogAction::Delivery { .. }) {
+            PathBuf::from(file_name(name))
+                .with_extension("mov")
+                .to_string_lossy()
+                .into_owned()
         } else {
             file_name(name)
         };
@@ -513,6 +539,17 @@ impl Studio {
             .spawn(move || {
                 let paths = runtime.block_on(async {
                     let dialog = template.set_directory(folder);
+                    if matches!(action, DialogAction::Delivery { .. }) {
+                        return dialog
+                            .set_title("Export lossless 8-bit master")
+                            .add_filter("QuickTime master", &["mov"])
+                            .set_file_name(name)
+                            .save_file()
+                            .await
+                            .into_iter()
+                            .map(|file| file.path().to_path_buf())
+                            .collect();
+                    }
                     if matches!(
                         action,
                         DialogAction::CatalogRoot | DialogAction::BrandFolder { .. }
@@ -799,6 +836,18 @@ impl Studio {
                 }
                 if self.media.busy() && ui.button("Cancel import").clicked() {
                     self.media.cancel();
+                }
+                let selected = self.workspace.edit_snapshot(id).ok().and_then(|(owner, editor)| {
+                    self.preview.selected_composition(id, editor.project()).map(|composition|
+                        (owner, composition, editor.project().name.clone()))
+                });
+                let export = ui.add_enabled(self.dialog.is_none() && !self.delivery.busy() && selected.is_some(),
+                    egui::Button::new("Export…")).on_hover_text("Full sequence · lossless 8-bit PNG picture · 48 kHz float PCM · original channels · new MOV file");
+                self.preview.observe_control("export-sequence", &export, ui);
+                if export.clicked() && let Some((owner, composition, name)) = selected {
+                    self.choose(DialogAction::Delivery { owner, request: editbay_delivery::DeliveryRequest {
+                        composition, sample_rate:48000,
+                    } }, &name, &ctx);
                 }
             }
             if !compact {
@@ -1873,6 +1922,7 @@ impl eframe::App for Studio {
         self.tick(ctx);
         if ctx.input(|input| input.viewport().close_requested()) {
             self.quit = true;
+            self.delivery.cancel();
             if self.bank.dirty() {
                 ctx.send_viewport_cmd(egui::ViewportCommand::CancelClose);
                 self.quit = false;
@@ -1885,6 +1935,7 @@ impl eframe::App for Studio {
                 || self.preferences.busy()
                 || self.workspace.busy()
                 || self.bank.busy()
+                || self.delivery.busy()
             {
                 ctx.send_viewport_cmd(egui::ViewportCommand::CancelClose);
             }
@@ -1895,6 +1946,7 @@ impl eframe::App for Studio {
             && !self.preferences.busy()
             && !self.workspace.busy()
             && !self.bank.busy()
+            && !self.delivery.busy()
         {
             ctx.send_viewport_cmd(egui::ViewportCommand::Close);
         }
@@ -1910,6 +1962,12 @@ impl eframe::App for Studio {
             .show(ui, |ui| {
                 ui.set_min_size(ui.available_size());
                 self.toolbar(ui);
+                if let Err(error) = self
+                    .delivery
+                    .show(ui, &mut self.workspace, &mut self.preview)
+                {
+                    self.message = Some(error);
+                }
                 ui.add_space(12.);
                 if self.welcome {
                     self.welcome(ui);
@@ -1919,7 +1977,7 @@ impl eframe::App for Studio {
             });
         self.modals(&ctx);
         if let Some(diagnostics) = &mut self.diagnostics {
-            diagnostics.observe(&self.workspace, &self.media, &self.preview);
+            diagnostics.observe(&self.workspace, &self.media, &self.preview, &self.delivery);
             diagnostics.record("frame", serde_json::json!({"cpu_us":self.frame_started.elapsed().as_micros() as u64,"catalog_running":self.scan.is_some(),"workspace_busy":self.workspace.busy(),"bank_busy":self.bank.busy(),"welcome":self.welcome,"recovered":self.recovered,"recovery_preview":self.recovery_preview.is_some(),"recoveries_valid":self.workspace.recoveries.valid.len(),"dialog_pending":self.dialog.is_some(),"new_project_name":self.create_name,"rename_name":self.rename.as_ref().map(|(_,_,name)|name),"desktop_font_ready":self.theme.font_path.is_some()}));
         }
     }

@@ -3,6 +3,7 @@
 pub mod brand;
 pub mod brand_ui;
 pub mod catalog;
+pub mod delivery_ui;
 pub mod diagnostics;
 pub mod media_ui;
 pub mod preferences;

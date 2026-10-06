@@ -23,6 +23,7 @@ pub struct Tab {
     pub recovery_revision: Option<u64>,
     pub recovery_error: Option<String>,
     generation: u64,
+    exports: Vec<editbay_delivery::DeliveryControl>,
     last_edit: Instant,
     recovery_since: Instant,
     retry_after: Instant,
@@ -36,6 +37,12 @@ pub struct DocumentOwner {
 }
 
 impl Tab {
+    fn cancel_exports(&mut self) {
+        for export in self.exports.drain(..) {
+            export.cancel();
+        }
+    }
+
     /// Determine whether this document still needs a manual save.
     /// Takes no arguments; returns true for untitled or changed documents,
     /// independently of whether a recovery snapshot already exists.
@@ -92,6 +99,26 @@ pub struct Workspace {
 }
 
 impl Workspace {
+    /// Bind export cancellation to this exact document before mutation.
+    /// `owner` must still be current; `control` shares its atomic publication
+    /// barrier. Returns an error without registration for stale or excess jobs.
+    pub fn guard_export(
+        &mut self,
+        owner: DocumentOwner,
+        control: editbay_delivery::DeliveryControl,
+    ) -> Result<(), String> {
+        if !self.owns(owner) {
+            return Err("Export document ownership changed".into());
+        }
+        let tab = self.tab_mut(owner.tab)?;
+        tab.exports.retain(|job| job.cancellable());
+        if tab.exports.len() >= 8 {
+            return Err("Document export job limit reached".into());
+        }
+        tab.exports.push(control);
+        Ok(())
+    }
+
     /// Capture a document for a background authoring operation.
     /// `id` selects its independent session. Returns ownership and a cheap
     /// immutable editor clone; save/replacement/edit/close invalidates ownership.
@@ -145,6 +172,7 @@ impl Workspace {
         }
         let tab = self.tab_mut(owner.tab)?;
         let was_dirty = tab.dirty();
+        tab.cancel_exports();
         tab.editor = editor;
         tab.last_edit = Instant::now();
         if !was_dirty {
@@ -204,6 +232,7 @@ impl Workspace {
             recovery_revision: None,
             recovery_error: None,
             generation: 0,
+            exports: Vec::new(),
             last_edit: now,
             recovery_since: now,
             retry_after: now,
@@ -243,11 +272,13 @@ impl Workspace {
     ) -> Result<(), String> {
         let tab = self.tab_mut(id)?;
         let was_dirty = tab.dirty();
-        let receipt = tab
-            .editor
+        let mut editor = tab.editor.clone();
+        let receipt = editor
             .apply(expected, label, commands)
             .map_err(|e| e.to_string())?;
         if receipt.changed {
+            tab.cancel_exports();
+            tab.editor = editor;
             tab.last_edit = Instant::now();
             if !was_dirty {
                 tab.recovery_since = tab.last_edit;
@@ -263,12 +294,15 @@ impl Workspace {
         let tab = self.tab_mut(id)?;
         let was_dirty = tab.dirty();
         let expected = DocumentVersion::of(tab.editor.project());
+        let mut editor = tab.editor.clone();
         if redo {
-            tab.editor.redo(expected)
+            editor.redo(expected)
         } else {
-            tab.editor.undo(expected)
+            editor.undo(expected)
         }
         .map_err(|e| e.to_string())?;
+        tab.cancel_exports();
+        tab.editor = editor;
         tab.last_edit = Instant::now();
         if !was_dirty {
             tab.recovery_since = tab.last_edit;
@@ -329,7 +363,9 @@ impl Workspace {
                 })
             },
         )?;
-        self.tab_mut(id)?.generation = generation;
+        let tab = self.tab_mut(id)?;
+        tab.cancel_exports();
+        tab.generation = generation;
         Ok(job)
     }
 
@@ -435,6 +471,7 @@ impl Workspace {
         if tab.dirty() && !discard {
             return Err("Save or discard this project's changes before closing".into());
         }
+        self.tab_mut(id)?.cancel_exports();
         self.tabs.retain(|tab| tab.id != id);
         if self.active == Some(id) {
             self.active = self.tabs.last().map(|tab| tab.id);

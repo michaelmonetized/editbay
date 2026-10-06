@@ -11,6 +11,7 @@ name = "editbay-studio"
 path = "src/main.rs"
 
 [dependencies]
+editbay-delivery = { path = "../editbay-delivery" }
 editbay-core = { path = "../editbay-core" }
 editbay-media = { path = "../editbay-media" }
 editbay-render = { path = "../editbay-render" }

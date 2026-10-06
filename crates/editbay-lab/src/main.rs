@@ -12,6 +12,8 @@ use std::{
 };
 use tempfile::NamedTempFile;
 
+mod delivery_interrupts;
+mod delivery_protocol;
 mod gpu_graph;
 mod inventory;
 mod media_ingest;
@@ -20,6 +22,7 @@ mod natural_sound;
 mod pcm_worker;
 mod picture_cache;
 mod picture_worker;
+mod shared_delivery;
 mod sound_blocks;
 mod streaming_sound;
 mod temporal;
@@ -798,6 +801,25 @@ fn number(value: &OsString) -> Result<usize> {
 fn run(args: Vec<OsString>) -> Result<()> {
     let command = args.first().and_then(|v| v.to_str()).unwrap_or("--help");
     let receipt = match (command, args.len()) {
+        ("delivery-protocol", 3) => delivery_protocol::run(
+            Path::new(&args[1]),
+            args[2].to_str().ok_or("Composition must be UTF-8")?,
+        )?,
+        ("delivery-interrupts", 5) => delivery_interrupts::run(
+            Path::new(&args[1]),
+            Path::new(&args[2]),
+            args[3].to_str().ok_or("Composition must be UTF-8")?,
+            Path::new(&args[4]),
+        )?,
+        ("shared-delivery", 4 | 5) => shared_delivery::run(
+            Path::new(&args[1]),
+            args[2].to_str().ok_or("Composition must be UTF-8")?,
+            Path::new(&args[3]),
+            args.get(4)
+                .map(|mode| mode.to_str().ok_or("Mode must be UTF-8"))
+                .transpose()?
+                .unwrap_or("full"),
+        )?,
         ("probe", 3) => probe(Path::new(&args[1]), number(&args[2])?)?,
         ("media-ingest", 2) => media_ingest::run(Path::new(&args[1]))?,
         ("picture-cache", 2) => picture_cache::run(Path::new(&args[1]))?,
@@ -870,6 +892,11 @@ fn run(args: Vec<OsString>) -> Result<()> {
                 args[0] == "native-playback",
             )?
         }
+        ("native-delivery", 4) => native_workspace::delivery(
+            Path::new(&args[1]),
+            Path::new(&args[2]),
+            Path::new(&args[3]),
+        )?,
         ("native-media", 4) => native_workspace::media(
             Path::new(&args[1]),
             Path::new(&args[2]),
@@ -940,6 +967,12 @@ fn run(args: Vec<OsString>) -> Result<()> {
             );
             println!("  native-preview APP_BINARY SOURCE NEW_EVIDENCE_DIRECTORY [full|half]");
             println!("  native-playback APP_BINARY SOURCE NEW_EVIDENCE_DIRECTORY [full|half]");
+            println!("  native-delivery APP_BINARY PROJECT NEW_EVIDENCE_DIRECTORY");
+            println!("  delivery-protocol PROJECT COMPOSITION");
+            println!("  delivery-interrupts CLI_BINARY PROJECT COMPOSITION NEW_EVIDENCE_DIRECTORY");
+            println!(
+                "  shared-delivery PROJECT COMPOSITION NEW_MOV [full|cancel|kill|stall|collision|cancel-verify]"
+            );
             println!("  natural-sound SOURCE [WORKER_BINARY]");
             println!("  stream-sound SOURCE [full|cancel|kill|underrun]");
             #[cfg(feature = "torch-reference")]
@@ -960,6 +993,15 @@ fn run(args: Vec<OsString>) -> Result<()> {
 }
 
 fn main() -> ExitCode {
+    if std::env::args_os().nth(1).as_deref() == Some(std::ffi::OsStr::new("--delivery-worker")) {
+        return match editbay_delivery::serve() {
+            Ok(()) => ExitCode::SUCCESS,
+            Err(error) => {
+                eprintln!("editbay delivery worker: {error}");
+                ExitCode::FAILURE
+            }
+        };
+    }
     if std::env::args_os().nth(1).as_deref() == Some(std::ffi::OsStr::new("--pcm-worker")) {
         return match editbay_media::pcm_worker::serve() {
             Ok(()) => ExitCode::SUCCESS,

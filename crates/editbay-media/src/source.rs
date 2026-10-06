@@ -8,7 +8,10 @@ use sha2::{Digest, Sha256};
 use std::{
     collections::{BTreeMap, HashSet},
     fs::{File, OpenOptions},
-    os::unix::fs::{FileExt, MetadataExt, OpenOptionsExt},
+    os::{
+        fd::AsRawFd,
+        unix::fs::{FileExt, MetadataExt, OpenOptionsExt},
+    },
     path::{Path, PathBuf},
 };
 use uuid::Uuid;
@@ -80,6 +83,7 @@ pub struct SourceFile {
     path: PathBuf,
     fingerprint: SourceFingerprint,
     stamp: FileStamp,
+    private: bool,
 }
 
 impl SourceFile {
@@ -103,6 +107,34 @@ impl SourceFile {
                 bytes: stamp.bytes,
             },
             stamp,
+            private: false,
+        };
+        result.check_identity()?;
+        Ok(result)
+    }
+
+    /// Own and checksum an unpublished anonymous regular file.
+    /// `file` must have no directory links; `cancel` interrupts hashing. Returns
+    /// a retained descriptor whose identity is checked without a replaceable path.
+    pub fn private(file: &File, cancel: &Cancellation) -> Result<Self> {
+        cancel.check()?;
+        let file = file.try_clone()?;
+        if file.metadata()?.nlink() != 0 {
+            return Err(Error::Invalid(
+                "private media must have no directory links".into(),
+            ));
+        }
+        let stamp = FileStamp::of(&file)?;
+        let sha256 = hash(&file, cancel)?;
+        let result = Self {
+            path: PathBuf::from(format!("/proc/self/fd/{}", file.as_raw_fd())),
+            file,
+            stamp,
+            private: true,
+            fingerprint: SourceFingerprint {
+                sha256,
+                bytes: stamp.bytes,
+            },
         };
         result.check_identity()?;
         Ok(result)
@@ -125,6 +157,14 @@ impl SourceFile {
     }
 
     fn check_identity(&self) -> Result<()> {
+        if self.private {
+            return if self.file.metadata()?.nlink() == 0 && FileStamp::of(&self.file)? == self.stamp
+            {
+                Ok(())
+            } else {
+                Err(Error::SourceChanged("private delivery descriptor".into()))
+            };
+        }
         let current = OpenOptions::new()
             .read(true)
             .custom_flags(libc::O_NOFOLLOW | libc::O_NONBLOCK)

@@ -101,11 +101,20 @@ impl<T: DeserializeOwned + Send + 'static> Process<T> {
         request: &impl Serialize,
         cancel: &Cancellation,
     ) -> Result<(T, Option<OwnedFd>)> {
+        self.exchange_file(request, cancel, None)
+    }
+
+    pub(crate) fn exchange_file(
+        &mut self,
+        request: &impl Serialize,
+        cancel: &Cancellation,
+        descriptor: Option<&OwnedFd>,
+    ) -> Result<(T, Option<OwnedFd>)> {
         if cancel.is_cancelled() {
             return Err(Error::Cancelled);
         }
         let bytes = serde_json::to_vec(request).map_err(|e| Error::Invalid(e.to_string()))?;
-        planes::send(&mut self.socket, &bytes, None).map_err(|e| self.error(e))?;
+        planes::send(&mut self.socket, &bytes, descriptor).map_err(|e| self.error(e))?;
         let started = Instant::now();
         loop {
             if cancel.is_cancelled() {
