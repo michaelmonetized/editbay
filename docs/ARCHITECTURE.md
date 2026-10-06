@@ -284,3 +284,14 @@ The UI reads one retained snapshot; the callback performs no IPC or locking.
 Reply, preparation, callback-progress and cancellation deadlines turn backend
 failure into visible, retryable playback failure. See
 [SOUND_DEVICE_WORKER.md](SOUND_DEVICE_WORKER.md) for exact bounds and clock limits.
+
+### Proven transparent pictures
+
+Immutable resident GPU images retain a private proof of zero premultiplied RGBA.
+Validated supported operations propagate that proof; media uploads begin unknown.
+An Over with an empty input, or unity scalar opacity, can reuse the matching
+resident input without another dispatch or allocation. Different geometry uses
+the requested canonical blank only when every output channel is proven zero.
+Private receipt ownership, consumer/submission allocation charges and full
+reachable-node validation remain unchanged. Preview and delivery use this same
+path. See [picture identities](ACTIVE_PICTURES.md).

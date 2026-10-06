@@ -1,0 +1,906 @@
+{
+  "application_sha256": "908378fac5ee103797f003b27bbc5b1bd2d4fcfaaae9a8b4f14faa32c7ce480c",
+  "clips": 128,
+  "compact_picture": {
+    "details": {
+      "adapter": "AdapterInfo { name: \"Apple M1 Pro (G13S C0)\", vendor: 65541, device: 0, device_type: IntegratedGpu, device_pci_bus_id: \"\", driver: \"Honeykrisp\", driver_info: \"Mesa 26.2.3-arch1.1\", backend: Vulkan, subgroup_min_size: 32, subgroup_max_size: 32, transient_saves_memory: Some(false), limit_bucket: None }",
+      "creating": false,
+      "displayed_frame": 64,
+      "displayed_serial": 6,
+      "error": null,
+      "gpu_draw_completed_us": 544124,
+      "owner": {
+        "project_id": "574b6686-46f2-4aac-b623-17474c2ca4d2",
+        "revision": 137
+      },
+      "preparation_us": 538321,
+      "rejected_results": 1,
+      "request_accepted_unix_us": 1791264493813421,
+      "requested_frame": 64,
+      "resume_sound": null,
+      "retiring": 0,
+      "sequence": "f9ee43b7-4208-4013-aec0-7d614c5683de",
+      "serial": 6,
+      "skipped_frames": 0,
+      "sound": null,
+      "sound_active": false,
+      "sound_retiring": 0,
+      "stats": {
+        "cache_bytes": 235929600,
+        "dispatches": 16,
+        "entries": 16,
+        "evictions": 0,
+        "hits": 639,
+        "live_texture_bytes": 235929600,
+        "misses": 21,
+        "pending_submissions": 0,
+        "pictures": {
+          "cache_bytes": 18432000,
+          "decoders": 1,
+          "entries": 5,
+          "evictions": 0,
+          "hits": 0,
+          "live_bytes": 18432000,
+          "misses": 5,
+          "seeks": 4,
+          "sequential_decodes": 1,
+          "sources": 1
+        },
+        "readbacks": 0,
+        "simplified_nodes": 645,
+        "source_picture_us": 763189,
+        "temporal_preparation_us": 4369,
+        "uploads": 5
+      },
+      "stopped": false,
+      "surface": "Bgra8Unorm",
+      "tab": "a4e44d89-8b2b-4e75-bdf9-a394adb9398b",
+      "work": {
+        "convert_us": 84,
+        "finish_us": 4750,
+        "present_us": 5,
+        "queued_us": 210736,
+        "render_us": 322743
+      },
+      "worker_pid": 1104983
+    },
+    "dropped_before": 0,
+    "kind": "preview",
+    "pid": 1104328,
+    "unix_us": 1791264494364001
+  },
+  "completed": {
+    "cancellation": null,
+    "destination": "/home/michael/Projects/editbay/artifacts/worktrees/r2-sound-worker/artifacts/active-pictures/source-timing-native-camera/Long.mov",
+    "error": null,
+    "id": "79c8885d-b6fc-46e2-bc26-7605897da16b",
+    "owner": {
+      "project_id": "44c766fe-d29f-468b-adea-de29a4b05f25",
+      "revision": 137
+    },
+    "progress": {
+      "phase": "publishing",
+      "pictures": 128,
+      "samples": 256000,
+      "total_pictures": 128,
+      "total_samples": 256000
+    },
+    "receipt": {
+      "adapter": "AdapterInfo { name: \"Apple M1 Pro (G13S C0)\", vendor: 65541, device: 0, device_type: IntegratedGpu, device_pci_bus_id: \"\", driver: \"Honeykrisp\", driver_info: \"Mesa 26.2.3-arch1.1\", backend: Vulkan, subgroup_min_size: 32, subgroup_max_size: 32, transient_saves_memory: Some(false), limit_bucket: None }",
+      "clipped_picture_values": 0,
+      "file_bytes": 124454694,
+      "file_sha256": "2b998a7824cf19b7c88aeb5ee07388819521ccd9f3ff9842605e7fe437404a72",
+      "pcm_sha256": "8c3bd7056c0ef73826960a1c41d0ea177738dd9bc8fce7df9a199f8cec7dd9d5",
+      "pixel_sha256": "ffa518029481a764fbe711c2e9690f7d19a4fd5c79673b0a87fe2f23cdf11956",
+      "profile": {
+        "channels": [
+          "FC"
+        ],
+        "frame_rate": {
+          "denominator": 1,
+          "numerator": 24
+        },
+        "frames": 128,
+        "height": 720,
+        "sample_rate": 48000,
+        "width": 1280
+      },
+      "version": {
+        "project_id": "44c766fe-d29f-468b-adea-de29a4b05f25",
+        "revision": 137
+      }
+    },
+    "request": {
+      "composition": "1df0adc3-dca7-47d0-ac3a-b8dc1bb93496",
+      "sample_rate": 48000
+    },
+    "running": false,
+    "tab": "3661bb25-ee61-4810-b46e-88f953927085",
+    "worker_pid": 1096767
+  },
+  "composition": "1df0adc3-dca7-47d0-ac3a-b8dc1bb93496",
+  "edits": [
+    {
+      "action": "remove",
+      "input_ms": 50.865,
+      "timeline": {
+        "at": 0,
+        "busy": false,
+        "clip": null,
+        "error": null,
+        "record": "1df0adc3-dca7-47d0-ac3a-b8dc1bb93496",
+        "source_range": {
+          "end": 314,
+          "start": 0
+        },
+        "version": {
+          "project_id": "44c766fe-d29f-468b-adea-de29a4b05f25",
+          "revision": 134
+        },
+        "clip_count": 127
+      }
+    },
+    {
+      "action": "undo",
+      "input_ms": 34.168,
+      "timeline": {
+        "at": 0,
+        "busy": false,
+        "clip": null,
+        "error": null,
+        "record": "1df0adc3-dca7-47d0-ac3a-b8dc1bb93496",
+        "source_range": {
+          "end": 314,
+          "start": 0
+        },
+        "version": {
+          "project_id": "44c766fe-d29f-468b-adea-de29a4b05f25",
+          "revision": 135
+        },
+        "clip_count": 128
+      }
+    },
+    {
+      "action": "redo",
+      "input_ms": 44.429,
+      "timeline": {
+        "at": 0,
+        "busy": false,
+        "clip": null,
+        "error": null,
+        "record": "1df0adc3-dca7-47d0-ac3a-b8dc1bb93496",
+        "source_range": {
+          "end": 314,
+          "start": 0
+        },
+        "version": {
+          "project_id": "44c766fe-d29f-468b-adea-de29a4b05f25",
+          "revision": 136
+        },
+        "clip_count": 127
+      }
+    },
+    {
+      "action": "undo",
+      "input_ms": 29.113,
+      "timeline": {
+        "at": 0,
+        "busy": false,
+        "clip": null,
+        "error": null,
+        "record": "1df0adc3-dca7-47d0-ac3a-b8dc1bb93496",
+        "source_range": {
+          "end": 314,
+          "start": 0
+        },
+        "version": {
+          "project_id": "44c766fe-d29f-468b-adea-de29a4b05f25",
+          "revision": 137
+        },
+        "clip_count": 128
+      }
+    }
+  ],
+  "finished": {
+    "details": {
+      "adapter": "AdapterInfo { name: \"Apple M1 Pro (G13S C0)\", vendor: 65541, device: 0, device_type: IntegratedGpu, device_pci_bus_id: \"\", driver: \"Honeykrisp\", driver_info: \"Mesa 26.2.3-arch1.1\", backend: Vulkan, subgroup_min_size: 32, subgroup_max_size: 32, transient_saves_memory: Some(false), limit_bucket: None }",
+      "creating": false,
+      "displayed_frame": 127,
+      "displayed_serial": 139,
+      "error": null,
+      "gpu_draw_completed_us": 131755,
+      "owner": {
+        "project_id": "44c766fe-d29f-468b-adea-de29a4b05f25",
+        "revision": 137
+      },
+      "preparation_us": 121406,
+      "rejected_results": 2,
+      "request_accepted_unix_us": 1791264445615942,
+      "requested_frame": 127,
+      "resume_sound": null,
+      "retiring": 0,
+      "sequence": "f9ee43b7-4208-4013-aec0-7d614c5683de",
+      "serial": 139,
+      "skipped_frames": 99,
+      "sound": {
+        "callbacks": 986,
+        "clipped_monitor_samples": 0,
+        "device": {
+          "channels": 2,
+          "name": "default",
+          "sample_format": "F32",
+          "sample_rate": 44100
+        },
+        "device_worker_pid": 1094915,
+        "end_sample": 235200,
+        "error": null,
+        "phase": "finished",
+        "position_samples": 235200,
+        "prepared_capacity_frames": 16384,
+        "prepared_frames": 0,
+        "reported_latency_ns": 0,
+        "route": "Stereo",
+        "start_sample": 0,
+        "version": {
+          "project_id": "44c766fe-d29f-468b-adea-de29a4b05f25",
+          "revision": 137
+        },
+        "worker_pid": 1094924
+      },
+      "sound_active": false,
+      "sound_retiring": 0,
+      "stats": {
+        "cache_bytes": 530841600,
+        "dispatches": 88,
+        "entries": 36,
+        "evictions": 52,
+        "hits": 4104,
+        "live_texture_bytes": 530841600,
+        "misses": 117,
+        "pending_submissions": 0,
+        "pictures": {
+          "cache_bytes": 106905600,
+          "decoders": 1,
+          "entries": 29,
+          "evictions": 0,
+          "hits": 3,
+          "live_bytes": 106905600,
+          "misses": 29,
+          "seeks": 28,
+          "sequential_decodes": 1,
+          "sources": 1
+        },
+        "readbacks": 0,
+        "simplified_nodes": 4128,
+        "source_picture_us": 5211194,
+        "temporal_preparation_us": 30481,
+        "uploads": 29
+      },
+      "stopped": false,
+      "surface": "Bgra8Unorm",
+      "tab": "3661bb25-ee61-4810-b46e-88f953927085",
+      "work": {
+        "convert_us": 118,
+        "finish_us": 3912,
+        "present_us": 6,
+        "queued_us": 69799,
+        "render_us": 47569
+      },
+      "worker_pid": 1094356
+    },
+    "dropped_before": 0,
+    "kind": "preview",
+    "pid": 1092682,
+    "unix_us": 1791264445889173
+  },
+  "independent": {
+    "metadata": {
+      "format": {
+        "bit_rate": "186682052",
+        "duration": "5.333333",
+        "filename": "/home/michael/Projects/editbay/artifacts/worktrees/r2-sound-worker/artifacts/active-pictures/source-timing-native-camera/Long.mov",
+        "format_long_name": "QuickTime / MOV",
+        "format_name": "mov,mp4,m4a,3gp,3g2,mj2",
+        "nb_programs": 0,
+        "nb_stream_groups": 0,
+        "nb_streams": 2,
+        "probe_score": 100,
+        "size": "124454694",
+        "start_time": "0.000000",
+        "tags": {
+          "compatible_brands": "qt  ",
+          "encoder": "Lavf63.1.101",
+          "major_brand": "qt  ",
+          "minor_version": "512"
+        }
+      },
+      "streams": [
+        {
+          "avg_frame_rate": "24/1",
+          "bit_rate": "185141817",
+          "codec_long_name": "PNG (Portable Network Graphics) image",
+          "codec_name": "png",
+          "codec_tag": "0x20676e70",
+          "codec_tag_string": "png ",
+          "codec_type": "video",
+          "coded_height": 720,
+          "coded_width": 1280,
+          "color_primaries": "bt709",
+          "color_range": "pc",
+          "color_space": "gbr",
+          "color_transfer": "iec61966-2-1",
+          "disposition": {
+            "attached_pic": 0,
+            "captions": 0,
+            "clean_effects": 0,
+            "comment": 0,
+            "default": 1,
+            "dependent": 0,
+            "descriptions": 0,
+            "dub": 0,
+            "forced": 0,
+            "hearing_impaired": 0,
+            "karaoke": 0,
+            "lyrics": 0,
+            "metadata": 0,
+            "multilayer": 0,
+            "non_diegetic": 0,
+            "original": 0,
+            "still_image": 0,
+            "timed_thumbnails": 0,
+            "visual_impaired": 0
+          },
+          "duration": "5.333333",
+          "duration_ts": 128,
+          "has_b_frames": 0,
+          "height": 720,
+          "id": "0x1",
+          "index": 0,
+          "level": -99,
+          "nb_frames": "128",
+          "pix_fmt": "rgba",
+          "r_frame_rate": "24/1",
+          "start_pts": 0,
+          "start_time": "0.000000",
+          "tags": {
+            "handler_name": "VideoHandler",
+            "vendor_id": "FFMP"
+          },
+          "time_base": "1/24",
+          "width": 1280
+        },
+        {
+          "avg_frame_rate": "0/0",
+          "bit_rate": "1536000",
+          "bits_per_sample": 32,
+          "channel_layout": "mono",
+          "channels": 1,
+          "codec_long_name": "PCM 32-bit floating point little-endian",
+          "codec_name": "pcm_f32le",
+          "codec_tag": "0x32336c66",
+          "codec_tag_string": "fl32",
+          "codec_type": "audio",
+          "disposition": {
+            "attached_pic": 0,
+            "captions": 0,
+            "clean_effects": 0,
+            "comment": 0,
+            "default": 1,
+            "dependent": 0,
+            "descriptions": 0,
+            "dub": 0,
+            "forced": 0,
+            "hearing_impaired": 0,
+            "karaoke": 0,
+            "lyrics": 0,
+            "metadata": 0,
+            "multilayer": 0,
+            "non_diegetic": 0,
+            "original": 0,
+            "still_image": 0,
+            "timed_thumbnails": 0,
+            "visual_impaired": 0
+          },
+          "duration": "5.333333",
+          "duration_ts": 256000,
+          "id": "0x2",
+          "index": 1,
+          "initial_padding": 0,
+          "nb_frames": "256000",
+          "r_frame_rate": "0/0",
+          "sample_fmt": "flt",
+          "sample_rate": "48000",
+          "start_pts": 0,
+          "start_time": "0.000000",
+          "tags": {
+            "handler_name": "SoundHandler",
+            "vendor_id": "[0][0][0][0]"
+          },
+          "time_base": "1/48000"
+        }
+      ]
+    },
+    "streams": [
+      {
+        "bytes": 471859200,
+        "exact": true,
+        "kind": "picture",
+        "sha256": "ffa518029481a764fbe711c2e9690f7d19a4fd5c79673b0a87fe2f23cdf11956",
+        "transparent_last_picture_pixels": 0
+      },
+      {
+        "bytes": 1024000,
+        "exact": true,
+        "kind": "sound",
+        "sha256": "8c3bd7056c0ef73826960a1c41d0ea177738dd9bc8fce7df9a199f8cec7dd9d5",
+        "transparent_last_picture_pixels": null
+      }
+    ]
+  },
+  "input_latency": {
+    "count": 4,
+    "max_ms": 50.865,
+    "p50_ms": 44.429,
+    "p95_ms": 50.865
+  },
+  "kind": "native_long_cut",
+  "limits": [
+    "Native long-cut functionality and software-injected inputs; sustained frame-drop and hardware drift gates remain separate",
+    "No physical audibility or independent-user acceptance claim"
+  ],
+  "original_project_sha256": "d74a1a6b3458c5d7a6dcd7f9c61d7dc165c8af454beded21f7c72408b12dfe34",
+  "playing": {
+    "details": {
+      "adapter": "AdapterInfo { name: \"Apple M1 Pro (G13S C0)\", vendor: 65541, device: 0, device_type: IntegratedGpu, device_pci_bus_id: \"\", driver: \"Honeykrisp\", driver_info: \"Mesa 26.2.3-arch1.1\", backend: Vulkan, subgroup_min_size: 32, subgroup_max_size: 32, transient_saves_memory: Some(false), limit_bucket: None }",
+      "creating": false,
+      "displayed_frame": 0,
+      "displayed_serial": 14,
+      "error": null,
+      "gpu_draw_completed_us": 47794,
+      "owner": {
+        "project_id": "44c766fe-d29f-468b-adea-de29a4b05f25",
+        "revision": 137
+      },
+      "preparation_us": 1170,
+      "rejected_results": 2,
+      "request_accepted_unix_us": 1791264440347630,
+      "requested_frame": 1,
+      "resume_sound": null,
+      "retiring": 0,
+      "sequence": "f9ee43b7-4208-4013-aec0-7d614c5683de",
+      "serial": 15,
+      "skipped_frames": 0,
+      "sound": {
+        "callbacks": 8,
+        "clipped_monitor_samples": 0,
+        "device": {
+          "channels": 2,
+          "name": "default",
+          "sample_format": "F32",
+          "sample_rate": 44100
+        },
+        "device_worker_pid": 1094915,
+        "end_sample": 235200,
+        "error": null,
+        "phase": "playing",
+        "position_samples": 2049,
+        "prepared_capacity_frames": 16384,
+        "prepared_frames": 14225,
+        "reported_latency_ns": 0,
+        "route": "Stereo",
+        "start_sample": 0,
+        "version": {
+          "project_id": "44c766fe-d29f-468b-adea-de29a4b05f25",
+          "revision": 137
+        },
+        "worker_pid": 1094924
+      },
+      "sound_active": true,
+      "sound_retiring": 0,
+      "stats": {
+        "cache_bytes": 103219200,
+        "dispatches": 7,
+        "entries": 7,
+        "evictions": 0,
+        "hits": 517,
+        "live_texture_bytes": 103219200,
+        "misses": 9,
+        "pending_submissions": 0,
+        "pictures": {
+          "cache_bytes": 7372800,
+          "decoders": 1,
+          "entries": 2,
+          "evictions": 0,
+          "hits": 2,
+          "live_bytes": 7372800,
+          "misses": 2,
+          "seeks": 1,
+          "sequential_decodes": 1,
+          "sources": 1
+        },
+        "readbacks": 0,
+        "simplified_nodes": 516,
+        "source_picture_us": 246103,
+        "temporal_preparation_us": 2333,
+        "uploads": 2
+      },
+      "stopped": false,
+      "surface": "Bgra8Unorm",
+      "tab": "3661bb25-ee61-4810-b46e-88f953927085",
+      "work": {
+        "convert_us": 3,
+        "finish_us": 9,
+        "present_us": 23,
+        "queued_us": 9,
+        "render_us": 1124
+      },
+      "worker_pid": 1094356
+    },
+    "dropped_before": 0,
+    "kind": "preview",
+    "pid": 1092682,
+    "unix_us": 1791264440347705
+  },
+  "qualified": false,
+  "reopened_picture": {
+    "details": {
+      "adapter": "AdapterInfo { name: \"Apple M1 Pro (G13S C0)\", vendor: 65541, device: 0, device_type: IntegratedGpu, device_pci_bus_id: \"\", driver: \"Honeykrisp\", driver_info: \"Mesa 26.2.3-arch1.1\", backend: Vulkan, subgroup_min_size: 32, subgroup_max_size: 32, transient_saves_memory: Some(false), limit_bucket: None }",
+      "creating": false,
+      "displayed_frame": 127,
+      "displayed_serial": 3,
+      "error": null,
+      "gpu_draw_completed_us": 43563,
+      "owner": {
+        "project_id": "574b6686-46f2-4aac-b623-17474c2ca4d2",
+        "revision": 137
+      },
+      "preparation_us": 35539,
+      "rejected_results": 0,
+      "request_accepted_unix_us": 1791264492560024,
+      "requested_frame": 127,
+      "resume_sound": null,
+      "retiring": 0,
+      "sequence": "f9ee43b7-4208-4013-aec0-7d614c5683de",
+      "serial": 3,
+      "skipped_frames": 0,
+      "sound": null,
+      "sound_active": false,
+      "sound_retiring": 0,
+      "stats": {
+        "cache_bytes": 103219200,
+        "dispatches": 7,
+        "entries": 7,
+        "evictions": 0,
+        "hits": 255,
+        "live_texture_bytes": 103219200,
+        "misses": 9,
+        "pending_submissions": 0,
+        "pictures": {
+          "cache_bytes": 7372800,
+          "decoders": 1,
+          "entries": 2,
+          "evictions": 0,
+          "hits": 0,
+          "live_bytes": 7372800,
+          "misses": 2,
+          "seeks": 1,
+          "sequential_decodes": 1,
+          "sources": 1
+        },
+        "readbacks": 0,
+        "simplified_nodes": 258,
+        "source_picture_us": 115659,
+        "temporal_preparation_us": 2712,
+        "uploads": 2
+      },
+      "stopped": false,
+      "surface": "Bgra8Unorm",
+      "tab": "a4e44d89-8b2b-4e75-bdf9-a394adb9398b",
+      "work": {
+        "convert_us": 229,
+        "finish_us": 4704,
+        "present_us": 4,
+        "queued_us": 17,
+        "render_us": 30583
+      },
+      "worker_pid": 1104983
+    },
+    "dropped_before": 0,
+    "kind": "preview",
+    "pid": 1104328,
+    "unix_us": 1791264492613260
+  },
+  "reopened_timeline": {
+    "at": 0,
+    "busy": false,
+    "clip": null,
+    "error": null,
+    "record": "1df0adc3-dca7-47d0-ac3a-b8dc1bb93496",
+    "source_range": {
+      "end": 314,
+      "start": 0
+    },
+    "version": {
+      "project_id": "574b6686-46f2-4aac-b623-17474c2ca4d2",
+      "revision": 137
+    },
+    "clip_count": 128
+  },
+  "revision": 137,
+  "saved_recovered_equal": true,
+  "seeks": [
+    {
+      "details": {
+        "adapter": "AdapterInfo { name: \"Apple M1 Pro (G13S C0)\", vendor: 65541, device: 0, device_type: IntegratedGpu, device_pci_bus_id: \"\", driver: \"Honeykrisp\", driver_info: \"Mesa 26.2.3-arch1.1\", backend: Vulkan, subgroup_min_size: 32, subgroup_max_size: 32, transient_saves_memory: Some(false), limit_bucket: None }",
+        "creating": false,
+        "displayed_frame": 127,
+        "displayed_serial": 5,
+        "error": null,
+        "gpu_draw_completed_us": 305830,
+        "owner": {
+          "project_id": "44c766fe-d29f-468b-adea-de29a4b05f25",
+          "revision": 133
+        },
+        "preparation_us": 299111,
+        "rejected_results": 1,
+        "request_accepted_unix_us": 1791264434822537,
+        "requested_frame": 127,
+        "resume_sound": null,
+        "retiring": 0,
+        "sequence": "f9ee43b7-4208-4013-aec0-7d614c5683de",
+        "serial": 5,
+        "skipped_frames": 0,
+        "sound": null,
+        "sound_active": false,
+        "sound_retiring": 0,
+        "stats": {
+          "cache_bytes": 147456000,
+          "dispatches": 10,
+          "entries": 10,
+          "evictions": 0,
+          "hits": 383,
+          "live_texture_bytes": 147456000,
+          "misses": 13,
+          "pending_submissions": 0,
+          "pictures": {
+            "cache_bytes": 11059200,
+            "decoders": 1,
+            "entries": 3,
+            "evictions": 0,
+            "hits": 0,
+            "live_bytes": 11059200,
+            "misses": 3,
+            "seeks": 2,
+            "sequential_decodes": 1,
+            "sources": 1
+          },
+          "readbacks": 0,
+          "simplified_nodes": 387,
+          "source_picture_us": 357698,
+          "temporal_preparation_us": 3011,
+          "uploads": 3
+        },
+        "stopped": false,
+        "surface": "Bgra8Unorm",
+        "tab": "3661bb25-ee61-4810-b46e-88f953927085",
+        "work": {
+          "convert_us": 102,
+          "finish_us": 5795,
+          "present_us": 3,
+          "queued_us": 231499,
+          "render_us": 61706
+        },
+        "worker_pid": 1093146
+      },
+      "dropped_before": 0,
+      "kind": "preview",
+      "pid": 1092682,
+      "unix_us": 1791264435133300
+    },
+    {
+      "details": {
+        "adapter": "AdapterInfo { name: \"Apple M1 Pro (G13S C0)\", vendor: 65541, device: 0, device_type: IntegratedGpu, device_pci_bus_id: \"\", driver: \"Honeykrisp\", driver_info: \"Mesa 26.2.3-arch1.1\", backend: Vulkan, subgroup_min_size: 32, subgroup_max_size: 32, transient_saves_memory: Some(false), limit_bucket: None }",
+        "creating": false,
+        "displayed_frame": 1,
+        "displayed_serial": 6,
+        "error": null,
+        "gpu_draw_completed_us": 15606,
+        "owner": {
+          "project_id": "44c766fe-d29f-468b-adea-de29a4b05f25",
+          "revision": 133
+        },
+        "preparation_us": 2785,
+        "rejected_results": 1,
+        "request_accepted_unix_us": 1791264435628971,
+        "requested_frame": 1,
+        "resume_sound": null,
+        "retiring": 0,
+        "sequence": "f9ee43b7-4208-4013-aec0-7d614c5683de",
+        "serial": 6,
+        "skipped_frames": 0,
+        "sound": null,
+        "sound_active": false,
+        "sound_retiring": 0,
+        "stats": {
+          "cache_bytes": 147456000,
+          "dispatches": 10,
+          "entries": 10,
+          "evictions": 0,
+          "hits": 514,
+          "live_texture_bytes": 147456000,
+          "misses": 13,
+          "pending_submissions": 0,
+          "pictures": {
+            "cache_bytes": 11059200,
+            "decoders": 1,
+            "entries": 3,
+            "evictions": 0,
+            "hits": 1,
+            "live_bytes": 11059200,
+            "misses": 3,
+            "seeks": 2,
+            "sequential_decodes": 1,
+            "sources": 1
+          },
+          "readbacks": 0,
+          "simplified_nodes": 516,
+          "source_picture_us": 358665,
+          "temporal_preparation_us": 4048,
+          "uploads": 3
+        },
+        "stopped": false,
+        "surface": "Bgra8Unorm",
+        "tab": "3661bb25-ee61-4810-b46e-88f953927085",
+        "work": {
+          "convert_us": 1,
+          "finish_us": 46,
+          "present_us": 28,
+          "queued_us": 13,
+          "render_us": 2695
+        },
+        "worker_pid": 1093146
+      },
+      "dropped_before": 0,
+      "kind": "preview",
+      "pid": 1092682,
+      "unix_us": 1791264435651183
+    },
+    {
+      "details": {
+        "adapter": "AdapterInfo { name: \"Apple M1 Pro (G13S C0)\", vendor: 65541, device: 0, device_type: IntegratedGpu, device_pci_bus_id: \"\", driver: \"Honeykrisp\", driver_info: \"Mesa 26.2.3-arch1.1\", backend: Vulkan, subgroup_min_size: 32, subgroup_max_size: 32, transient_saves_memory: Some(false), limit_bucket: None }",
+        "creating": false,
+        "displayed_frame": 64,
+        "displayed_serial": 8,
+        "error": null,
+        "gpu_draw_completed_us": 632349,
+        "owner": {
+          "project_id": "44c766fe-d29f-468b-adea-de29a4b05f25",
+          "revision": 133
+        },
+        "preparation_us": 623849,
+        "rejected_results": 2,
+        "request_accepted_unix_us": 1791264436218898,
+        "requested_frame": 64,
+        "resume_sound": null,
+        "retiring": 0,
+        "sequence": "f9ee43b7-4208-4013-aec0-7d614c5683de",
+        "serial": 8,
+        "skipped_frames": 0,
+        "sound": null,
+        "sound_active": false,
+        "sound_retiring": 0,
+        "stats": {
+          "cache_bytes": 235929600,
+          "dispatches": 16,
+          "entries": 16,
+          "evictions": 0,
+          "hits": 770,
+          "live_texture_bytes": 235929600,
+          "misses": 21,
+          "pending_submissions": 0,
+          "pictures": {
+            "cache_bytes": 18432000,
+            "decoders": 1,
+            "entries": 5,
+            "evictions": 0,
+            "hits": 1,
+            "live_bytes": 18432000,
+            "misses": 5,
+            "seeks": 4,
+            "sequential_decodes": 1,
+            "sources": 1
+          },
+          "readbacks": 0,
+          "simplified_nodes": 774,
+          "source_picture_us": 887070,
+          "temporal_preparation_us": 6380,
+          "uploads": 5
+        },
+        "stopped": false,
+        "surface": "Bgra8Unorm",
+        "tab": "3661bb25-ee61-4810-b46e-88f953927085",
+        "work": {
+          "convert_us": 95,
+          "finish_us": 3368,
+          "present_us": 4,
+          "queued_us": 268564,
+          "render_us": 351816
+        },
+        "worker_pid": 1093146
+      },
+      "dropped_before": 0,
+      "kind": "preview",
+      "pid": 1092682,
+      "unix_us": 1791264436857501
+    },
+    {
+      "details": {
+        "adapter": "AdapterInfo { name: \"Apple M1 Pro (G13S C0)\", vendor: 65541, device: 0, device_type: IntegratedGpu, device_pci_bus_id: \"\", driver: \"Honeykrisp\", driver_info: \"Mesa 26.2.3-arch1.1\", backend: Vulkan, subgroup_min_size: 32, subgroup_max_size: 32, transient_saves_memory: Some(false), limit_bucket: None }",
+        "creating": false,
+        "displayed_frame": 2,
+        "displayed_serial": 9,
+        "error": null,
+        "gpu_draw_completed_us": 278877,
+        "owner": {
+          "project_id": "44c766fe-d29f-468b-adea-de29a4b05f25",
+          "revision": 133
+        },
+        "preparation_us": 271200,
+        "rejected_results": 2,
+        "request_accepted_unix_us": 1791264437409642,
+        "requested_frame": 2,
+        "resume_sound": null,
+        "retiring": 0,
+        "sequence": "f9ee43b7-4208-4013-aec0-7d614c5683de",
+        "serial": 9,
+        "skipped_frames": 0,
+        "sound": null,
+        "sound_active": false,
+        "sound_retiring": 0,
+        "stats": {
+          "cache_bytes": 280166400,
+          "dispatches": 19,
+          "entries": 19,
+          "evictions": 0,
+          "hits": 898,
+          "live_texture_bytes": 280166400,
+          "misses": 25,
+          "pending_submissions": 0,
+          "pictures": {
+            "cache_bytes": 22118400,
+            "decoders": 1,
+            "entries": 6,
+            "evictions": 0,
+            "hits": 1,
+            "live_bytes": 22118400,
+            "misses": 6,
+            "seeks": 5,
+            "sequential_decodes": 1,
+            "sources": 1
+          },
+          "readbacks": 0,
+          "simplified_nodes": 903,
+          "source_picture_us": 1151714,
+          "temporal_preparation_us": 6938,
+          "uploads": 6
+        },
+        "stopped": false,
+        "surface": "Bgra8Unorm",
+        "tab": "3661bb25-ee61-4810-b46e-88f953927085",
+        "work": {
+          "convert_us": 216,
+          "finish_us": 3193,
+          "present_us": 9,
+          "queued_us": 121,
+          "render_us": 267659
+        },
+        "worker_pid": 1093146
+      },
+      "dropped_before": 0,
+      "kind": "preview",
+      "pid": 1092682,
+      "unix_us": 1791264437692607
+    }
+  ],
+  "source_project_unchanged": true
+}

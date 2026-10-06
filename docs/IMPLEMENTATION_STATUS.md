@@ -7,6 +7,13 @@ editorial and complete-job release gates remain open.
 
 ## Implemented
 
+- The shared GPU renderer reuses validated transparent compositing identities and
+  unity opacity. Immutable aliases preserve texture/pin charges, exact profiles,
+  supported-operation validation and private publication ownership. Native
+  diagnostics separate queue, render, source retrieval, preparation and GPU
+  completion time. See [picture identities](ACTIVE_PICTURES.md). Source decode
+  and sustained playback remain measured open limits.
+
 - Indexed sound planning separates bounded compiled history from active block
   work. Conservative nested/reverse intervals select possible paths; exact
   sample-span cropping and checked rational stepping reduce preparation without

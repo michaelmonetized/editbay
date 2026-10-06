@@ -49,6 +49,14 @@ separately. Passing software checks cannot close those gates.
 
 ## Evidence and current disposition
 
+The shared GPU renderer now reuses validated transparent compositing inputs.
+[Picture-identity evidence](evidence/r2-active-pictures/README.md) proves fixed
+FP16/FP32 pixels and bounded allocation ownership, plus native whole-master
+equivalence. The camera viewer still skips pictures and exceeds some existing
+seek timings; one input candidate also misses 50 ms. These failures remain
+recorded. No R2 frame, seek, memory, drift or hardware gate is relaxed or closed
+by the reduction in GPU dispatches.
+
 Evidence summaries live under `docs/evidence/`; large outputs and private media
 stay outside Git. A receipt includes the exact command, timestamps, exit status,
 metrics and hashes. PRs identify the completed issue(s), parent PR and open gates.

@@ -258,6 +258,13 @@ comparisons under the unchanged sound/input gates. The native camera picture
 viewer still falls behind its sound clock; unnecessary GPU composition continues
 in [issue #34](https://github.com/michaelmonetized/editbay/issues/34). Full R2 remains open.
 
+Issue #34 now reuses proven transparent picture inputs through the shared Rust
+renderer. [Picture evidence](evidence/r2-active-pictures/README.md) retains exact
+pixels, allocation ownership, native masters and every timing miss. Source
+retrieval dominates the remaining camera cost; bounded forward decoder advancement
+continues in [issue #36](https://github.com/michaelmonetized/editbay/issues/36).
+This scoped GPU reduction does not close sustained picture, seek or full R2 gates.
+
 ## R3 — finish a paying edit
 
 Issue [#29](https://github.com/michaelmonetized/editbay/issues/29) implements the
