@@ -90,6 +90,13 @@ source and recovered six-channel compact screenshots were inspected.
 
 `qualification.status` says the scripted trials completed, not that every gate
 passed. `gates.json` retains the input/seek/measurement limits and full R2 as open.
+The wrapper itself exits **1** after its completion record: it was edited while
+running to add host-memory observations, and its resumed parse failed. The exact
+error and disposition are retained in `wrapper-error.log` / `wrapper-status.json`.
+Every planned native/worker output and final timestamp already existed; frozen
+binary/source hashes and receipts were reverified without repeating measurements.
+The saved command script separately passes `zsh -n`. The manually timestamped
+memory sample is a during-trial observation, not an asserted pretrial sample.
 No physical audibility, two-hour drift, other GPU family, client approval or
 independent-user acceptance is inferred.
 
