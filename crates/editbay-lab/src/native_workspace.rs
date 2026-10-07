@@ -1987,37 +1987,46 @@ pub fn media(binary: &Path, source: &Path, directory: &Path) -> Result<Value> {
     Ok(receipt)
 }
 
-fn flea_state(pid: &str) -> Result<Value> {
-    Ok(serde_json::from_str(&command(
-        "timeout",
-        &[
-            "2",
-            "qs",
-            "ipc",
-            "--pid",
-            pid,
-            "call",
-            "fleapicker",
-            "snapshot",
-        ],
-    )?)?)
+/// Read the actual picker once within its remaining readiness deadline.
+/// `pid` owns the picker; `remaining` bounds the query. Returns no observation
+/// only when the real IPC probe times out, preserving the overall five-second gate.
+fn flea_state(pid: &str, remaining: Duration) -> Result<Option<Value>> {
+    let output = Command::new("timeout")
+        .arg(remaining.as_secs_f64().min(2.).to_string())
+        .args(["qs", "ipc", "--pid", pid, "call", "fleapicker", "snapshot"])
+        .output()?;
+    if output.status.code() == Some(124) {
+        return Ok(None);
+    }
+    if !output.status.success() {
+        return Err(format!(
+            "Owned Flea snapshot failed: {}",
+            String::from_utf8_lossy(&output.stderr)
+        )
+        .into());
+    }
+    Ok(Some(serde_json::from_slice(&output.stdout)?))
 }
 
 #[track_caller]
 fn flea_wait(pid: &str, predicate: impl Fn(&Value) -> bool) -> Result<Value> {
     let caller = std::panic::Location::caller();
     let deadline = Instant::now() + Duration::from_secs(5);
+    let mut last = None;
     loop {
-        let state = flea_state(pid)?;
-        if predicate(&state) {
-            return Ok(state);
-        }
-        if Instant::now() >= deadline {
-            let observed = json!({"path":state["path"],"state":state["state"],"cursor":state["cursor"],"held":state["held"],"listFocus":state["listFocus"],"railFocus":state["railFocus"],"backendUnavailable":state["backendUnavailable"],"message":state["message"]});
+        let remaining = deadline.saturating_duration_since(Instant::now());
+        if remaining.is_zero() {
+            let observed = last.map(|state: Value| json!({"path":state["path"],"state":state["state"],"cursor":state["cursor"],"held":state["held"],"listFocus":state["listFocus"],"railFocus":state["railFocus"],"backendUnavailable":state["backendUnavailable"],"message":state["message"]}));
             return Err(format!(
-                "Owned Flea picker did not acknowledge native input at {caller}: {observed}"
+                "Owned Flea picker did not acknowledge native input at {caller}: {observed:?}"
             )
             .into());
+        }
+        if let Some(state) = flea_state(pid, remaining)? {
+            if predicate(&state) {
+                return Ok(state);
+            }
+            last = Some(state);
         }
         thread::sleep(Duration::from_millis(20));
     }
