@@ -84,6 +84,7 @@ fn preparing(version: DocumentVersion, route: MonitorRoute) -> StreamingStatus {
         reported_latency_ns: 0,
         clock_observation: None,
         clock_rejection: None,
+        native_output: None,
         prepared_frames: 0,
         prepared_capacity_frames: CAPACITY,
         clipped_monitor_samples: 0,

@@ -26,6 +26,53 @@ use std::{
     time::{Duration, Instant},
 };
 use uuid::Uuid;
+#[allow(unsafe_code)]
+mod native;
+mod native_trace;
+pub use native_trace::NativeOutputStats;
+
+enum OutputStream {
+    Native(native::Stream),
+    Cpal(cpal::Stream),
+}
+impl OutputStream {
+    /// Activate an already negotiated native output without changing ownership.
+    /// Takes no arguments and returns its actual backend result.
+    fn play(&self) -> Result<()> {
+        match self {
+            Self::Native(stream) => stream.active(true),
+            Self::Cpal(stream) => stream.play().map_err(|e| e.to_string()),
+        }
+    }
+    /// Pause an owned backend before retiring its callback state.
+    /// Takes no arguments and returns its native shutdown result.
+    fn pause(&self) -> Result<()> {
+        match self {
+            Self::Native(stream) => stream.active(false),
+            Self::Cpal(stream) => stream.pause().map_err(|e| e.to_string()),
+        }
+    }
+    /// Observe bounded callback geometry from the selected backend.
+    /// Takes no arguments and returns frames or a visible backend error.
+    fn frames(&self) -> Result<Option<u32>> {
+        match self {
+            Self::Native(stream) => Ok(Some(stream.frames())),
+            Self::Cpal(stream) => match stream.buffer_size() {
+                Ok(frames) => Ok(Some(frames)),
+                Err(error) if error.kind() == cpal::ErrorKind::UnsupportedOperation => Ok(None),
+                Err(error) => Err(error.to_string()),
+            },
+        }
+    }
+    /// Inspect a native backend failure off its real-time data thread.
+    /// Takes no arguments and returns the current result.
+    fn check(&self) -> Result<()> {
+        match self {
+            Self::Native(stream) => stream.check(),
+            Self::Cpal(_) => Ok(()),
+        }
+    }
+}
 
 const BLOCK: u32 = 4096;
 pub(crate) const CAPACITY: u32 = 16384;
@@ -66,6 +113,7 @@ pub struct StreamingStatus {
     pub reported_latency_ns: u64,
     pub clock_observation: Option<ClockObservation>,
     pub clock_rejection: Option<ClockRejection>,
+    pub native_output: Option<NativeOutputStats>,
     pub prepared_frames: u64,
     pub prepared_capacity_frames: u32,
     pub clipped_monitor_samples: u64,
@@ -83,6 +131,7 @@ struct Ready {
     device: DeviceProfile,
     worker_pid: Option<u32>,
     clipped: Arc<AtomicU64>,
+    native_trace: Option<Arc<native_trace::NativeTrace>>,
 }
 
 enum Event {
@@ -272,6 +321,10 @@ impl LocalPlayback {
                     .then(|| ready.clock.rejection())
                     .flatten()
             }),
+            native_output: self
+                .ready
+                .as_ref()
+                .and_then(|ready| ready.native_trace.as_ref()?.observation()),
             prepared_frames: prepared,
             prepared_capacity_frames: CAPACITY,
             clipped_monitor_samples: clipped,
@@ -503,6 +556,12 @@ fn run(request: &Request, sender: &SyncSender<Event>) -> Result<()> {
             .prepare_sources_step(&mut source_preparation)
             .map_err(|e| e.to_string())?;
     }
+    renderer
+        .pcm_provider_mut()
+        .realtime(BLOCK, profile.sample_rate)
+        .map_err(|e| e.to_string())?;
+    let _priority = editbay_media::realtime::Priority::acquire(BLOCK, profile.sample_rate)
+        .map_err(|e| e.to_string())?;
     let (control, writer, reader) =
         transport::transport(first, end, usize::from(profile.channels), CAPACITY)?;
     let clock = Arc::new(SampleClock::new(profile.sample_rate, first, end)?);
@@ -552,20 +611,32 @@ fn run(request: &Request, sender: &SyncSender<Event>) -> Result<()> {
         config.buffer_size = cpal::BufferSize::Fixed(frames);
         profile.requested_callback_frames = Some(frames);
     }
-    let stream = match supported.sample_format() {
-        cpal::SampleFormat::F32 => build::<f32>(&device, &config, callback),
-        cpal::SampleFormat::F64 => build::<f64>(&device, &config, callback),
-        cpal::SampleFormat::I16 => build::<i16>(&device, &config, callback),
-        cpal::SampleFormat::I32 => build::<i32>(&device, &config, callback),
-        cpal::SampleFormat::U16 => build::<u16>(&device, &config, callback),
-        other => Err(format!("Unsupported device sample format {other:?}")),
-    }?;
-    profile.reported_callback_frames = match stream.buffer_size() {
-        Ok(frames) if (1..=CAPACITY).contains(&frames) => Some(frames),
-        Ok(_) => return Err("Sound device reports an over-budget callback buffer".into()),
-        Err(error) if error.kind() == cpal::ErrorKind::UnsupportedOperation => None,
-        Err(error) => return Err(error.to_string()),
-    };
+    let stream =
+        if profile.host == "PipeWire" && supported.sample_format() == cpal::SampleFormat::F32 {
+            profile.name = "default_output · native realtime".into();
+            OutputStream::Native(native::Stream::new(
+                profile.sample_rate,
+                profile.channels,
+                profile.requested_callback_frames.unwrap_or(2048),
+                callback,
+            )?)
+        } else {
+            OutputStream::Cpal(match supported.sample_format() {
+                cpal::SampleFormat::F32 => build::<f32>(&device, &config, callback),
+                cpal::SampleFormat::F64 => build::<f64>(&device, &config, callback),
+                cpal::SampleFormat::I16 => build::<i16>(&device, &config, callback),
+                cpal::SampleFormat::I32 => build::<i32>(&device, &config, callback),
+                cpal::SampleFormat::U16 => build::<u16>(&device, &config, callback),
+                other => Err(format!("Unsupported device sample format {other:?}")),
+            }?)
+        };
+    profile.reported_callback_frames = stream.frames()?;
+    if profile
+        .reported_callback_frames
+        .is_some_and(|frames| !(1..=CAPACITY).contains(&frames))
+    {
+        return Err("Sound device reports an over-budget callback buffer".into());
+    }
     sender
         .try_send(Event::Ready(Ready {
             clock: clock.clone(),
@@ -576,12 +647,17 @@ fn run(request: &Request, sender: &SyncSender<Event>) -> Result<()> {
             device: profile,
             worker_pid,
             clipped,
+            native_trace: match &stream {
+                OutputStream::Native(stream) => Some(stream.trace()),
+                OutputStream::Cpal(_) => None,
+            },
         }))
         .map_err(|e| e.to_string())?;
     stream.play().map_err(|e| e.to_string())?;
     let mut checked = Instant::now();
     let result = (|| {
         loop {
+            stream.check()?;
             if let Some(error) = fault(control.state()) {
                 return Err(error.into());
             }

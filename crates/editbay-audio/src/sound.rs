@@ -132,6 +132,11 @@ impl SoundRenderer {
     }
 }
 impl<P: PcmProvider> SoundRenderer<P> {
+    /// Mutably inspect the privately owned provider before device startup.
+    /// Takes no arguments; returns the provider for worker scheduling setup.
+    pub fn pcm_provider_mut(&mut self) -> &mut P {
+        &mut self.pcm
+    }
     /// Inspect the source provider for supervision and resource measurements.
     /// Takes no arguments; returns the retained provider without ownership mutation.
     pub fn pcm_provider(&self) -> &P {

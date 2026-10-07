@@ -12,6 +12,7 @@ pub mod picture_worker;
 mod pictures;
 #[allow(unsafe_code)]
 mod planes;
+pub mod realtime;
 mod source;
 pub mod worker;
 

@@ -13,9 +13,13 @@ uuid.workspace = true
 editbay-core = { path = "../editbay-core" }
 editbay-media = { path = "../editbay-media" }
 
+[build-dependencies]
+cc.workspace = true
+pkg-config.workspace = true
+
 [dev-dependencies]
 serde_json.workspace = true
 tempfile.workspace = true
 
-[lints]
-workspace = true
+[lints.rust]
+unsafe_code = "deny"

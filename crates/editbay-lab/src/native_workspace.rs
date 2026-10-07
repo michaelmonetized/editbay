@@ -208,6 +208,7 @@ fn start(
         .env("EDITBAY_STATE_DIR", state)
         .env("EDITBAY_CATALOG_ROOT", catalog)
         .env("EDITBAY_DIAGNOSTICS_PATH", trace)
+        .env("EDITBAY_DIAGNOSTICS_BYTES", "134217728")
         .stderr(Stdio::from(log.try_clone()?))
         .stdout(Stdio::from(log));
     if let Some(path) = original {
