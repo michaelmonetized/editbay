@@ -1,7 +1,7 @@
 use editbay_core::{FrameRate, SourceColor, TimeBase};
 use editbay_media::{
-    Cancellation, Error, LosslessMovProfile, LosslessMovWriter, NativeAudioReader, SourceFile,
-    VideoReader,
+    Cancellation, DeliveryFormat, Error, LosslessMovProfile, LosslessMovWriter, NativeAudioReader,
+    SourceFile, VideoReader,
 };
 use std::io::{Seek, SeekFrom, Write};
 
@@ -14,6 +14,109 @@ fn profile(channels: &[&str], rate: u32) -> LosslessMovProfile {
         frames: 17,
         sample_rate: rate,
         channels: channels.iter().map(|s| (*s).into()).collect(),
+    }
+}
+
+#[test]
+fn client_encodings_preserve_fractional_clocks_channel_order_and_decoded_signal() {
+    for format in [DeliveryFormat::H264Mp4, DeliveryFormat::ProresMov] {
+        let profile = profile(&["FL", "FR"], 48000);
+        let cancel = Cancellation::new().unwrap();
+        let file = tempfile::NamedTempFile::new().unwrap();
+        let mut writer =
+            LosslessMovWriter::encoded(file.as_file(), profile.clone(), format, cancel.clone())
+                .unwrap();
+        let sound = |first: u64, count: u64| -> Vec<f32> {
+            (first..first + count)
+                .flat_map(|sample| {
+                    [
+                        0.25 * (sample as f32 * 0.025).sin(),
+                        0.125 * (sample as f32 * 0.051).cos(),
+                    ]
+                })
+                .collect()
+        };
+        let image = |frame: u64| -> Vec<u8> {
+            (0..32 * 18)
+                .flat_map(|index| {
+                    [
+                        (64 + index % 32 * 3) as u8,
+                        (64 + frame * 3) as u8,
+                        (64 + index / 32 * 4) as u8,
+                        255,
+                    ]
+                })
+                .collect()
+        };
+        let mut sample = 0;
+        for frame in 0..profile.frames {
+            writer.picture(frame, &image(frame)).unwrap();
+            let end = profile.samples_through(frame + 1).unwrap();
+            while sample < end {
+                let count = (end - sample).min(4096);
+                writer.sound(sample, &sound(sample, count)).unwrap();
+                sample += count;
+            }
+        }
+        writer.finish().unwrap();
+        file.as_file().sync_all().unwrap();
+        let source = SourceFile::open(file.path(), &cancel).unwrap();
+        let probe = source.probe(cancel.clone()).unwrap();
+        assert_eq!(probe.streams.len(), 2);
+        assert_eq!(
+            probe.streams[0].codec,
+            if format == DeliveryFormat::H264Mp4 {
+                "h264"
+            } else {
+                "prores"
+            }
+        );
+        assert_eq!(probe.streams[1].channels, profile.channels);
+        assert_eq!(probe.streams[1].duration_ticks, Some(sample));
+        let mut reader = VideoReader::open_stream(&source, 0, cancel.clone()).unwrap();
+        let mut frame = 0;
+        let mut error = 0f64;
+        while let Some(decoded) = reader.next_frame().unwrap() {
+            assert_eq!(decoded.source_tick, Some((frame * 1001) as i64));
+            for (actual, expected) in decoded.rgba.iter().zip(image(frame)) {
+                error += (f64::from(*actual) - f64::from(expected)).powi(2);
+            }
+            frame += 1;
+        }
+        assert_eq!(frame, profile.frames);
+        assert!(
+            (error / (frame * 32 * 18 * 4) as f64).sqrt() < 8.,
+            "{format:?}: pixel RMS"
+        );
+        let mut audio = NativeAudioReader::open_stream(&source, 1, cancel.clone()).unwrap();
+        let mut first = 0;
+        let mut error = 0f64;
+        while let Some(decoded) = audio.next_block().unwrap() {
+            assert_eq!(decoded.first_sample, Some(first as i64));
+            let frames = decoded.samples.len() as u64 / 2;
+            let valid = frames.min(sample.saturating_sub(first));
+            for (actual, expected) in decoded.samples[..valid as usize * 2]
+                .iter()
+                .zip(sound(first, valid))
+            {
+                error += (f64::from(*actual) - f64::from(expected)).powi(2);
+            }
+            first += frames;
+        }
+        assert!(
+            first >= sample
+                && first
+                    <= sample
+                        + if format == DeliveryFormat::H264Mp4 {
+                            1023
+                        } else {
+                            0
+                        }
+        );
+        assert!(
+            (error / (sample * 2) as f64).sqrt() < 0.02,
+            "{format:?}: sound RMS"
+        );
     }
 }
 

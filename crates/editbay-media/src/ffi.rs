@@ -79,7 +79,7 @@ unsafe extern "C" {
     fn eb_writer_close(writer: *mut c_void);
     fn eb_writer_frame(writer: *mut c_void, rgba: *const u8, length: usize) -> c_int;
     fn eb_writer_finish(writer: *mut c_void) -> c_int;
-    fn eb_delivery_open(
+    fn eb_delivery_open_profile(
         descriptor: c_int,
         width: c_int,
         height: c_int,
@@ -87,6 +87,7 @@ unsafe extern "C" {
         den: c_int,
         rate: c_int,
         layout: *const c_char,
+        format: c_int,
         cancel: *mut c_void,
         error: *mut c_int,
     ) -> *mut c_void;
@@ -452,6 +453,7 @@ pub struct VideoWriter(NonNull<c_void>);
 
 /// Bounded, consecutive picture and sound encoding into a caller-owned file.
 pub struct LosslessMovWriter {
+    format: crate::DeliveryFormat,
     writer: VideoWriter,
     profile: crate::LosslessMovProfile,
     cancel: Cancellation,
@@ -469,7 +471,19 @@ impl LosslessMovWriter {
         profile: crate::LosslessMovProfile,
         cancel: Cancellation,
     ) -> Result<Self> {
-        profile.validate()?;
+        Self::encoded(file, profile, crate::DeliveryFormat::LosslessMov, cancel)
+    }
+
+    /// Open a private file with a declared client codec and exact media clocks.
+    /// `file`, `profile`, `format` and `cancel` retain checked ownership. Returns
+    /// a bounded writer; H.264 flattens alpha and AAC rejects float headroom.
+    pub fn encoded(
+        file: &File,
+        profile: crate::LosslessMovProfile,
+        format: crate::DeliveryFormat,
+        cancel: Cancellation,
+    ) -> Result<Self> {
+        format.validate(&profile)?;
         check(0, &cancel)?;
         let metadata = file.metadata()?;
         if !metadata.is_file() || metadata.len() != 0 {
@@ -481,7 +495,7 @@ impl LosslessMovWriter {
             .map_err(|_| Error::Invalid("invalid delivery channel names".into()))?;
         let mut code = 0;
         let pointer = unsafe {
-            eb_delivery_open(
+            eb_delivery_open_profile(
                 file.as_raw_fd(),
                 profile.width as i32,
                 profile.height as i32,
@@ -489,6 +503,11 @@ impl LosslessMovWriter {
                 profile.frame_rate.denominator as i32,
                 profile.sample_rate as i32,
                 layout.as_ptr(),
+                match format {
+                    crate::DeliveryFormat::LosslessMov => 0,
+                    crate::DeliveryFormat::H264Mp4 => 1,
+                    crate::DeliveryFormat::ProresMov => 2,
+                },
                 cancel.0.pointer(),
                 &mut code,
             )
@@ -496,6 +515,7 @@ impl LosslessMovWriter {
         let pointer = NonNull::new(pointer)
             .ok_or_else(|| check(code, &cancel).err().unwrap_or_else(|| error(code)))?;
         Ok(Self {
+            format,
             writer: VideoWriter(pointer),
             profile,
             cancel,
@@ -542,6 +562,8 @@ impl LosslessMovWriter {
             || frames > 4096
             || first.checked_add(frames).is_none_or(|end| end > limit)
             || samples.iter().any(|v| !v.is_finite())
+            || (self.format == crate::DeliveryFormat::H264Mp4
+                && samples.iter().any(|v| v.abs() > 1.))
         {
             return Err(Error::Invalid(
                 "invalid, stale or unbounded delivery sound".into(),

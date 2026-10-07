@@ -59,6 +59,7 @@ pub fn run_range(
     let project = Arc::new(project);
     let control = DeliveryControl::new()?;
     let request = DeliveryRequest {
+        format: editbay_delivery::DeliveryFormat::default(),
         composition: composition.parse()?,
         sample_rate: 48000,
         range,

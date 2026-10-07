@@ -88,6 +88,7 @@ fn master(
         &std::env::current_exe()?,
         project,
         DeliveryRequest {
+            format: editbay_delivery::DeliveryFormat::default(),
             composition,
             sample_rate,
             range,

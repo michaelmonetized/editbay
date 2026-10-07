@@ -215,6 +215,7 @@ pub struct GraphRenderer<P: PictureProvider = PictureCache> {
     worker: Uuid,
     generation: u64,
     pub adapter: wgpu::AdapterInfo,
+    fonts: crate::text::FontCache,
 }
 impl GraphRenderer {
     /// Create a headless native GPU worker over one immutable document.
@@ -391,6 +392,7 @@ impl<P: PictureProvider> GraphRenderer<P> {
             worker: Uuid::new_v4(),
             generation: 0,
             adapter: info,
+            fonts: crate::text::FontCache::default(),
         })
     }
 
@@ -497,6 +499,91 @@ impl<P: PictureProvider> GraphRenderer<P> {
                 let mut p = Parameters::default();
                 let mut images = Vec::new();
                 match &*node.operation {
+                    NodeOperation::Text {
+                        text,
+                        font,
+                        size,
+                        position,
+                        rgba,
+                    } => {
+                        if let Some(hit) = self.cached(&key) {
+                            values.insert(node.id, Value::Image(hit));
+                            continue;
+                        }
+                        let asset = self
+                            .snapshot
+                            .project()
+                            .assets
+                            .iter()
+                            .find(|a| a.id == *font)
+                            .ok_or("Title font is absent")?
+                            .clone();
+                        let upload = self.allocate(
+                            frame.width,
+                            frame.height,
+                            frame.color.precision,
+                            frame.color.working_gamut,
+                            OutputTransfer::Linear,
+                            wgpu::TextureFormat::Rgba8Unorm,
+                            "title coverage upload".into(),
+                            false,
+                        )?;
+                        let pixels = crate::text::rasterize(
+                            &mut self.fonts,
+                            &asset,
+                            text,
+                            *size,
+                            *position,
+                            frame.width,
+                            frame.height,
+                        )?;
+                        if self.pending.load(Ordering::Acquire) >= self.budget.pending_submissions {
+                            self.wait(true)?;
+                        }
+                        self.queue.write_texture(
+                            upload.texture.as_image_copy(),
+                            &pixels,
+                            wgpu::TexelCopyBufferLayout {
+                                offset: 0,
+                                bytes_per_row: Some(frame.width * 4),
+                                rows_per_image: Some(frame.height),
+                            },
+                            upload.texture.size(),
+                        );
+                        let commands = self.device.create_command_encoder(&Default::default());
+                        self.submit(commands, vec![upload.clone()])?;
+                        self.uploads = self.uploads.saturating_add(1);
+                        p.operation = Kernel::Source;
+                        p.alpha = AlphaMode::Straight;
+                        p.opacity = scalar(rgba[3])?;
+                        p.gamut = [
+                            [scalar(rgba[0])?, 0., 0., 0.],
+                            [0., scalar(rgba[1])?, 0., 0.],
+                            [0., 0., scalar(rgba[2])?, 0.],
+                        ];
+                        images.push(upload);
+                    }
+                    NodeOperation::Color {
+                        image,
+                        exposure,
+                        contrast,
+                        saturation,
+                    } => {
+                        p.operation = Kernel::Color;
+                        p.solid = [
+                            scalar(exposure.exp2())?,
+                            scalar(*contrast)?,
+                            scalar(*saturation)?,
+                            0.,
+                        ];
+                        let weights = match frame.color.working_gamut {
+                            WorkingGamut::Bt709 => [0.2126, 0.7152, 0.0722],
+                            WorkingGamut::Bt2020 => [0.2627, 0.6780, 0.0593],
+                            WorkingGamut::DisplayP3 => [0.2290, 0.6917, 0.0793],
+                        };
+                        p.gamut[0][..3].copy_from_slice(&weights);
+                        images.push(values[image].image()?);
+                    }
                     NodeOperation::Source { .. } => {
                         match node.source.as_ref() {
                             Some(request @ SourceRequest::Media { source, stream, .. }) => {
@@ -912,6 +999,20 @@ impl<P: PictureProvider> GraphRenderer<P> {
     /// Takes no arguments. Returns success after full file checksum checks.
     pub fn verify_sources(&mut self) -> Result<()> {
         self.pictures.verify_sources()?;
+        for asset in self
+            .snapshot
+            .project()
+            .assets
+            .iter()
+            .filter(|asset| asset.kind == editbay_core::AssetKind::Font)
+        {
+            let file = editbay_media::SourceFile::open(&asset.path, &self.cancel)?;
+            if file.fingerprint().sha256 != asset.sha256 || file.fingerprint().bytes != asset.bytes
+            {
+                return Err("Retained title font changed before publication".into());
+            }
+            file.verify(&self.cancel)?;
+        }
         Ok(())
     }
     /// Poll native completion and detect an idle source worker failure.
@@ -962,6 +1063,7 @@ impl<P: PictureProvider> GraphRenderer<P> {
             .ok_or("render generation exhausted")?;
         self.wait(false)?;
         self.entries.clear();
+        self.fonts.clear();
         self.bytes = 0;
         self.pictures.clear()?;
         self.generation = next;
@@ -1340,9 +1442,10 @@ fn inputs(op: &NodeOperation) -> Result<Vec<Uuid>> {
     Ok(match op {
         NodeOperation::Source { .. }
         | NodeOperation::Solid { .. }
+        | NodeOperation::Text { .. }
         | NodeOperation::Polygon { .. }
         | NodeOperation::Scalar { .. } => vec![],
-        NodeOperation::Transform { image, .. } => vec![*image],
+        NodeOperation::Transform { image, .. } | NodeOperation::Color { image, .. } => vec![*image],
         NodeOperation::Mask { geometry, .. } => vec![*geometry],
         NodeOperation::Over {
             foreground,
@@ -1372,6 +1475,7 @@ enum Kernel {
     Boundary = 6,
     Mask = 7,
     MaskedOver = 8,
+    Color = 9,
 }
 struct Parameters {
     operation: Kernel,
@@ -1414,9 +1518,11 @@ impl Parameters {
                     && images[1].transparent
                     && (images[0].transparent || images[2].transparent)
             }
-            Kernel::Transform | Kernel::Opacity | Kernel::Nested | Kernel::Boundary => {
-                images.first().is_some_and(|image| image.transparent)
-            }
+            Kernel::Transform
+            | Kernel::Opacity
+            | Kernel::Nested
+            | Kernel::Boundary
+            | Kernel::Color => images.first().is_some_and(|image| image.transparent),
         }
     }
 

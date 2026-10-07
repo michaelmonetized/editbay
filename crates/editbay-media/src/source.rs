@@ -480,6 +480,14 @@ impl SourceFile {
                         "editbay.timing".into(),
                         "decoded native sample boundaries".into(),
                     );
+                    if u128::from(reader.time_base.numerator) * reader.info.sample_rate as u128
+                        > u128::from(reader.time_base.denominator)
+                    {
+                        metadata.insert(
+                            "editbay.timestamp_quantization".into(),
+                            "Continuous decoded samples within one container tick plus one sample for two rounded boundaries; larger discontinuities rejected".into(),
+                        );
+                    }
                     (
                         TimeBase {
                             numerator: 1,

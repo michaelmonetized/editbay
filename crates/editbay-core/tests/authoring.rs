@@ -157,14 +157,29 @@ fn vfr_sequence_keeps_natural_integer_boundaries_and_explicit_partial_tail() {
         );
     }
     assert_eq!(editor.project().sources, project.sources);
-    assert!(
-        sequence_from_video(
-            &project,
-            project.sources[0].id,
-            2,
-            FrameRate::new(24, 1).unwrap()
-        )
-        .is_err()
+    let fractional = sequence_from_video(
+        &project,
+        project.sources[0].id,
+        2,
+        FrameRate::new(24, 1).unwrap(),
+    )
+    .unwrap();
+    let DocumentCommand::SetComposition { composition } = &fractional[0] else {
+        panic!("Missing picture composition");
+    };
+    let map = &composition.tracks[0].clips[0].time_map;
+    assert_eq!(map.source_denominator, 3);
+    assert_eq!(
+        map.position(1).unwrap(),
+        SourcePosition::new(425, 3).unwrap()
+    );
+    assert_eq!(
+        map.position(2).unwrap(),
+        SourcePosition::new(550, 3).unwrap()
+    );
+    assert_eq!(
+        map.position(4).unwrap(),
+        SourcePosition::new(255, 1).unwrap()
     );
 }
 

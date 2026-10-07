@@ -3,7 +3,9 @@
 //! One typed media/composition document is shared by UI, CLI, automation and recovery.
 
 mod authoring;
-pub use authoring::{sequence_from_video, sequence_from_video_with_audio};
+pub use authoring::{
+    conform_sequence, sequence_from_audio, sequence_from_video, sequence_from_video_with_audio,
+};
 mod command;
 mod composition;
 mod document;
@@ -32,12 +34,13 @@ pub use sound::{
 };
 pub use storage::{
     MAX_DOCUMENT_BYTES, PreparedCheckpoint, RecoveryCatalog, RecoveryFailure, RecoveryRecord,
-    checkpoint, load, load_bounded, prepare_checkpoint, recover_copy, recovery_catalog, save,
-    save_if_unchanged, save_new,
+    archive_project, checkpoint, load, load_bounded, prepare_checkpoint, recover_copy,
+    recovery_catalog, save, save_if_unchanged, save_new,
 };
 pub use time::{SourcePosition, TimeBase, TimeMap, TimePoint};
 pub use timeline::{
-    SourceSelection, TimelineAction, TimelineChange, TimelineClip, timeline_clips, timeline_edit,
+    SourceSelection, TimelineAction, TimelineChange, TimelineClip, TimelineControls,
+    timeline_clips, timeline_edit,
 };
 
 #[derive(Debug, thiserror::Error)]

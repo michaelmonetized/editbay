@@ -416,6 +416,19 @@ impl AnimationChannel {
 #[cfg_attr(feature = "json-schema", derive(schemars::JsonSchema))]
 #[serde(tag = "kind", rename_all = "snake_case", deny_unknown_fields)]
 pub enum NodeOperation {
+    Text {
+        text: String,
+        font: Uuid,
+        size: f64,
+        position: [f64; 2],
+        rgba: [f64; 4],
+    },
+    Color {
+        image: Uuid,
+        exposure: f64,
+        contrast: f64,
+        saturation: f64,
+    },
     Source {
         clip: Uuid,
     },
@@ -783,8 +796,12 @@ pub(crate) fn validate_model(project: &Project, identities: &mut HashSet<Uuid>) 
                     }
                 };
                 if clip.time_map.points.iter().any(|point| {
-                    point.source_tick < minimum
-                        || maximum.is_some_and(|maximum| point.source_tick > maximum)
+                    i128::from(point.source_tick)
+                        < i128::from(minimum) * i128::from(clip.time_map.source_denominator)
+                        || maximum.is_some_and(|maximum| {
+                            i128::from(point.source_tick)
+                                > i128::from(maximum) * i128::from(clip.time_map.source_denominator)
+                        })
                 }) {
                     return Err(Error::Invalid(
                         "clip time map extends beyond the source".into(),
@@ -792,7 +809,11 @@ pub(crate) fn validate_model(project: &Project, identities: &mut HashSet<Uuid>) 
                 }
                 if maximum.is_some_and(|maximum| {
                     clip.time_map.points.windows(2).any(|points| {
-                        points[0].source_tick == maximum && points[1].source_tick == maximum
+                        i128::from(points[0].source_tick)
+                            == i128::from(maximum) * i128::from(clip.time_map.source_denominator)
+                            && i128::from(points[1].source_tick)
+                                == i128::from(maximum)
+                                    * i128::from(clip.time_map.source_denominator)
                     })
                 }) {
                     return Err(Error::Invalid(
@@ -867,6 +888,7 @@ impl NodeOperation {
                 inputs
             }
             Self::Mask { geometry, .. } => vec![(*geometry, SocketType::Geometry)],
+            Self::Color { image, .. } => vec![(*image, SocketType::Image)],
             Self::Gain { audio, .. } => vec![(*audio, SocketType::Audio)],
             Self::Mix { inputs } => inputs.iter().map(|id| (*id, SocketType::Audio)).collect(),
             Self::Opacity { image, value } => {
@@ -885,7 +907,9 @@ impl NodeOperation {
                 TrackKind::Video => SocketType::Image,
                 TrackKind::Audio => SocketType::Audio,
             },
-            Self::Solid { .. }
+            Self::Text { .. }
+            | Self::Color { .. }
+            | Self::Solid { .. }
             | Self::Transform { .. }
             | Self::Over { .. }
             | Self::Opacity { .. } => SocketType::Image,
@@ -929,6 +953,52 @@ fn validate_graph(
         node.range.validate(composition.duration)?;
         node.operation.socket(clips)?;
         match &node.operation {
+            NodeOperation::Text {
+                text,
+                font,
+                size,
+                position,
+                rgba,
+            } => {
+                if text.is_empty()
+                    || text.len() > 1024
+                    || !text
+                        .chars()
+                        .all(|c| c.is_ascii() && (!c.is_control() || c == '\n'))
+                    || assets.get(font).is_none_or(|asset| {
+                        asset.kind != AssetKind::Font || asset.bytes > 16 * 1024 * 1024
+                    })
+                    || !size.is_finite()
+                    || !(1. ..=512.).contains(size)
+                {
+                    return Err(Error::Invalid(
+                        "title requires 1–1024 ASCII characters, a retained font and size 1–512"
+                            .into(),
+                    ));
+                }
+                for value in position.iter().chain(rgba) {
+                    finite(*value)?;
+                }
+                unit(rgba[3])?;
+            }
+            NodeOperation::Color {
+                exposure,
+                contrast,
+                saturation,
+                ..
+            } => {
+                if !exposure.is_finite()
+                    || !(-10. ..=10.).contains(exposure)
+                    || !contrast.is_finite()
+                    || !(0. ..=4.).contains(contrast)
+                    || !saturation.is_finite()
+                    || !(0. ..=4.).contains(saturation)
+                {
+                    return Err(Error::Invalid(
+                        "color requires exposure -10–10 and contrast/saturation 0–4".into(),
+                    ));
+                }
+            }
             NodeOperation::Solid { rgba } => {
                 for value in rgba {
                     finite(*value)?;

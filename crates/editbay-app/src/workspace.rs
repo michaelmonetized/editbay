@@ -413,6 +413,32 @@ impl Workspace {
         })
     }
 
+    /// Archive a captured document with all verified media on a disk worker.
+    /// `id` and `expected` own the selection; `destination` is a new folder.
+    /// Returns a worker job ID and opens the portable copy after publication.
+    pub fn archive_copy(
+        &mut self,
+        id: Uuid,
+        expected: DocumentVersion,
+        destination: PathBuf,
+    ) -> Result<Uuid, String> {
+        let (_, editor) = self.edit_snapshot(id)?;
+        let captured = editor.snapshot();
+        if DocumentVersion::of(&captured) != expected {
+            return Err("Archive dialog belongs to an older document revision".into());
+        }
+        self.spawn(Pending::Open, move || {
+            let path = editbay_core::archive_project(&captured, &destination)
+                .map_err(|e| e.to_string())?;
+            let project =
+                load_bounded(&path, editbay_core::MAX_DOCUMENT_BYTES).map_err(|e| e.to_string())?;
+            Ok(Outcome::Opened {
+                path,
+                editor: DocumentEditor::new(project).map_err(|e| e.to_string())?,
+            })
+        })
+    }
+
     /// Recover an intact snapshot into a separate new file.
     /// `snapshot` identifies a verified recovery candidate; `destination` is
     /// a new copy. Returns a job ID and opens the result only after durable success.

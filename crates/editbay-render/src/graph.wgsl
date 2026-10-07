@@ -105,5 +105,14 @@ fn evaluate(@builtin(global_invocation_id) id: vec3u) {
         if input.a > 0.0 { value = vec4f(encode(gamut(input.rgb / input.a)) * input.a, input.a); }
     }
     if p.mode.x == 7.0 { value = vec4f(coverage(at.xy)); }
+    if p.mode.x == 9.0 {
+        let input = textureLoad(first, pixel, 0);
+        if input.a > 0.0 {
+            let exposed = input.rgb / input.a * p.solid.x;
+            let contrasted = (exposed - vec3f(0.18)) * p.solid.y + vec3f(0.18);
+            let luminance = dot(p.red.xyz, contrasted);
+            value = vec4f(mix(vec3f(luminance), contrasted, p.solid.z) * input.a, input.a);
+        }
+    }
     textureStore(destination, pixel, value);
 }

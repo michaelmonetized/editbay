@@ -51,6 +51,10 @@ enum DialogAction {
         expected: DocumentVersion,
         copy: bool,
     },
+    Archive {
+        tab: Uuid,
+        expected: DocumentVersion,
+    },
     Recover {
         snapshot: PathBuf,
     },
@@ -381,6 +385,10 @@ impl Studio {
                             DialogAction::Recover { snapshot } => {
                                 self.workspace.recover(snapshot, path.clone()).map(|_| ())
                             }
+                            DialogAction::Archive { tab, expected } => self
+                                .workspace
+                                .archive_copy(tab, expected, path.clone())
+                                .map(|_| ()),
                         };
                         if let Err(error) = outcome {
                             self.message = Some(error);
@@ -499,7 +507,7 @@ impl Studio {
                 .iter()
                 .find(|tab| tab.id == owner.tab)
                 .and_then(|tab| tab.path.as_ref()),
-            DialogAction::Save { tab, .. } => self
+            DialogAction::Save { tab, .. } | DialogAction::Archive { tab, .. } => self
                 .workspace
                 .tabs
                 .iter()
@@ -521,9 +529,9 @@ impl Studio {
             .unwrap_or_else(|| self.home.clone());
         let name = if matches!(action, DialogAction::BrandExport { .. }) {
             name.to_owned()
-        } else if matches!(action, DialogAction::Delivery { .. }) {
+        } else if let DialogAction::Delivery { request, .. } = &action {
             PathBuf::from(file_name(name))
-                .with_extension("mov")
+                .with_extension(request.format.extension())
                 .to_string_lossy()
                 .into_owned()
         } else {
@@ -544,10 +552,21 @@ impl Studio {
             .spawn(move || {
                 let paths = runtime.block_on(async {
                     let dialog = template.set_directory(folder);
-                    if matches!(action, DialogAction::Delivery { .. }) {
+                    if matches!(action, DialogAction::Archive { .. }) {
+                        let stem = PathBuf::from(&name).with_extension("");
                         return dialog
-                            .set_title("Export lossless 8-bit master")
-                            .add_filter("QuickTime master", &["mov"])
+                            .set_title("New portable archive folder")
+                            .set_file_name(format!("{}-archive", stem.display()))
+                            .save_file()
+                            .await
+                            .into_iter()
+                            .map(|file| file.path().to_path_buf())
+                            .collect();
+                    }
+                    if let DialogAction::Delivery { request, .. } = &action {
+                        return dialog
+                            .set_title("Export sequence")
+                            .add_filter("Video delivery", &[request.format.extension()])
                             .set_file_name(name)
                             .save_file()
                             .await
@@ -802,6 +821,19 @@ impl Studio {
                         self.save_tab(id, true, true, &ctx);
                         ui.close();
                     }
+                    if ui.button("Archive with media…").clicked() {
+                        if let Some(tab) = self.workspace.tabs.iter().find(|tab| tab.id == id) {
+                            self.choose(
+                                DialogAction::Archive {
+                                    tab: id,
+                                    expected: DocumentVersion::of(tab.editor.project()),
+                                },
+                                &tab.editor.project().name.clone(),
+                                &ctx,
+                            );
+                        }
+                        ui.close();
+                    }
                     if ui.button("Close project").clicked() {
                         self.request_close(id, &ctx);
                         ui.close();
@@ -867,7 +899,7 @@ impl Studio {
                     });
                 let export = ui
                     .add_enabled(
-                        self.dialog.is_none() && !self.delivery.busy() && selected.is_some(),
+                        self.dialog.is_none() && selected.is_some(),
                         egui::Button::new("Export…"),
                     )
                     .on_hover_text(
@@ -1416,12 +1448,16 @@ impl Studio {
                                                 "Stream {} · {} · {description}",
                                                 stream.index, stream.codec
                                             ));
-                                            if matches!(
-                                                stream.format,
-                                                editbay_core::StreamFormat::Video { .. }
-                                            ) {
-                                                let create =
-                                                    ui.button("Create sequence from video");
+                                            {
+                                                let video = matches!(
+                                                    stream.format,
+                                                    editbay_core::StreamFormat::Video { .. }
+                                                );
+                                                let create = ui.button(if video {
+                                                    "Create sequence from video"
+                                                } else {
+                                                    "Create sound sequence"
+                                                });
                                                 self.preview.observe_control(
                                                     &format!(
                                                         "create-sequence:{}:{}",

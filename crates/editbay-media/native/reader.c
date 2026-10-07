@@ -380,8 +380,13 @@ next_frame:
         if (count < 0 || (size_t)count * 4 * reader->channels > capacity) return AVERROR(ENOBUFS);
         if (details->pts != AV_NOPTS_VALUE) {
             AVRational base = reader->input.format->streams[reader->stream]->time_base;
-            reader->next_sample = av_rescale_q(details->pts, base, (AVRational){1,reader->sample_rate}) -
+            int64_t presented = av_rescale_q(details->pts, base, (AVRational){1,reader->sample_rate}) -
                 swr_get_delay(reader->resample, reader->sample_rate);
+            int64_t resolution = av_rescale_q_rnd(1, base, (AVRational){1,reader->sample_rate}, AV_ROUND_UP);
+            int64_t tolerance = resolution > 1 ? resolution + 1 : 0;
+            __int128 difference = (__int128)presented - reader->next_sample;
+            if (reader->next_sample == AV_NOPTS_VALUE || difference < -tolerance || difference > tolerance)
+                reader->next_sample = presented;
         }
         uint8_t *planes[] = {output};
         count = swr_convert(reader->resample, planes, count, (const uint8_t **)frame->extended_data, frame->nb_samples);

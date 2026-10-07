@@ -4,6 +4,7 @@ use crate::{
 };
 use editbay_core::{
     DocumentEditor, FrameRange, Project, SourceSelection, TimelineAction, TimelineClip,
+    TimelineControls,
 };
 use eframe::egui::{self, Ui};
 use std::{
@@ -39,6 +40,16 @@ struct Task {
     result: Receiver<Result<Completed, String>>,
 }
 struct Selection {
+    title: String,
+    font: std::path::PathBuf,
+    size: f64,
+    baseline: [f64; 2],
+    title_duration: u64,
+    fade_in: u64,
+    fade_out: u64,
+    track: Option<Uuid>,
+    controls: TimelineControls,
+    slip: i64,
     source: Option<Uuid>,
     record: Option<Uuid>,
     clip: Option<Uuid>,
@@ -51,6 +62,18 @@ struct Selection {
 impl Default for Selection {
     fn default() -> Self {
         Self {
+            title: "Title".into(),
+            font: std::env::var_os("EDITBAY_TITLE_FONT")
+                .map(std::path::PathBuf::from)
+                .unwrap_or_else(|| "/usr/share/fonts/liberation/LiberationSans-Regular.ttf".into()),
+            size: 64.,
+            baseline: [80., 160.],
+            title_duration: 72,
+            fade_in: 12,
+            fade_out: 12,
+            track: None,
+            controls: TimelineControls::default(),
+            slip: 0,
             source: None,
             record: None,
             clip: None,
@@ -83,7 +106,7 @@ impl TimelinePane {
             catalog.and_then(|c| c.assemblies.iter().find(|a| Some(a.composition) == record));
         serde_json::json!({"version":catalog.map(|c|c.owner.version),"busy":self.task.is_some(),"error":self.error,
             "record":record,"clip":selection.and_then(|s|s.clip),"at":selection.map(|s|s.at),
-            "source_range":selection.map(|s|s.source_range),"clips":clips.map(|a|&a.clips)})
+            "source_range":selection.map(|s|s.source_range),"trim_range":selection.map(|s|s.trim_range),"clips":clips.map(|a|&a.clips)})
     }
     /// Publish prepared edits only to their captured tab and document version.
     /// `workspace`, `preview` and `ctx` own the native session. Returns no value;
@@ -125,6 +148,7 @@ impl TimelinePane {
                         .and_then(|a| a.clips.iter().find(|c| Some(c.id) == selected.clip));
                     if let Some(clip) = clip {
                         selected.trim_range = clip.source.range;
+                        selected.controls = clip.controls;
                     } else {
                         selected.clip = None;
                     }
@@ -142,6 +166,17 @@ impl TimelinePane {
                 match workspace.commit_edit(owner, editor) {
                     Ok(()) => {
                         let selected = self.selections.entry(owner.tab).or_default();
+                        if editbay_core::timeline_clips(&project, composition).is_err() {
+                            selected.source = Some(composition);
+                            if let Some(scene) =
+                                project.compositions.iter().find(|s| s.id == composition)
+                            {
+                                selected.source_range = FrameRange {
+                                    start: 0,
+                                    end: scene.duration,
+                                };
+                            }
+                        }
                         selected.record = Some(composition);
                         selected.clip = clip;
                         selected.at = frame;
@@ -288,7 +323,9 @@ impl TimelinePane {
         }) {
             selected.record = catalog
                 .assemblies
-                .first()
+                .iter()
+                .find(|assembly| Some(assembly.composition) == project.sequences[0].composition)
+                .or_else(|| catalog.assemblies.first())
                 .map(|assembly| assembly.composition);
             selected.clip = None;
         }
@@ -335,6 +372,21 @@ impl TimelinePane {
                         start: 0,
                         end: source.duration,
                     };
+                    if let Some(editbay_core::NodeOperation::Text {
+                        text,
+                        size,
+                        position,
+                        ..
+                    }) = source
+                        .nodes
+                        .iter()
+                        .map(|node| &node.operation)
+                        .find(|op| matches!(op, editbay_core::NodeOperation::Text { .. }))
+                    {
+                        selected.title = text.clone();
+                        selected.size = *size;
+                        selected.baseline = *position;
+                    }
                 }
                 if button(ui, preview, "timeline-view-source", "View source")
                     && let Err(error) = preview.select(
@@ -393,6 +445,62 @@ impl TimelinePane {
                     source.duration,
                 );
             });
+            ui.collapsing("Titles and fades", |ui| {
+                ui.label("Editable title · ASCII text · retained font");
+                ui.text_edit_multiline(&mut selected.title);
+                ui.horizontal_wrapped(|ui| {
+                    ui.label("Font file");
+                    let mut path = selected.font.to_string_lossy().into_owned();
+                    if ui.text_edit_singleline(&mut path).changed() {
+                        selected.font = path.into();
+                    }
+                    ui.label("Size");
+                    ui.add(egui::DragValue::new(&mut selected.size).range(1. ..=512.));
+                    ui.label("Baseline X / Y");
+                    for value in &mut selected.baseline {
+                        ui.add(egui::DragValue::new(value));
+                    }
+                    ui.label("Frames");
+                    ui.add(egui::DragValue::new(&mut selected.title_duration).range(1..=u64::MAX));
+                    if ui.button("Create title source").clicked() {
+                        action = Some(TimelineAction::Title {
+                            profile: selected.record.unwrap_or(source.id),
+                            name: selected.name.clone(),
+                            text: selected.title.clone(),
+                            font: selected.font.clone(),
+                            size: selected.size,
+                            position: selected.baseline,
+                            rgba: [1.; 4],
+                            duration: selected.title_duration,
+                        });
+                    }
+                    if source.nodes.iter().any(|node| {
+                        matches!(node.operation, editbay_core::NodeOperation::Text { .. })
+                    }) && ui.button("Update selected title").clicked()
+                    {
+                        action = Some(TimelineAction::EditTitle {
+                            composition: source.id,
+                            text: selected.title.clone(),
+                            size: selected.size,
+                            position: selected.baseline,
+                            rgba: [1.; 4],
+                        });
+                    }
+                });
+                ui.horizontal_wrapped(|ui| {
+                    ui.label("Picture and sound fade in / out frames");
+                    ui.add(egui::DragValue::new(&mut selected.fade_in).range(0..=source.duration));
+                    ui.add(egui::DragValue::new(&mut selected.fade_out).range(0..=source.duration));
+                    if ui.button("Create faded source").clicked() {
+                        action = Some(TimelineAction::Fade {
+                            source: source.id,
+                            name: format!("{} · fades", source.name),
+                            fade_in: selected.fade_in,
+                            fade_out: selected.fade_out,
+                        });
+                    }
+                });
+            });
             let source = SourceSelection {
                 composition: selected.source.unwrap(),
                 range: selected.source_range,
@@ -408,6 +516,29 @@ impl TimelinePane {
                     });
                 }
                 if let Some(composition) = selected.record {
+                    if let Some(record) = scenes.iter().find(|s| s.id == composition)
+                        && button(
+                            ui,
+                            preview,
+                            "timeline-conform",
+                            "Conform source to record profile",
+                        )
+                    {
+                        action = Some(TimelineAction::Conform {
+                            source: source.composition,
+                            width: record.width,
+                            height: record.height,
+                            frame_rate: record.frame_rate,
+                            name: format!(
+                                "{} · conformed",
+                                scenes
+                                    .iter()
+                                    .find(|s| s.id == source.composition)
+                                    .unwrap()
+                                    .name
+                            ),
+                        });
+                    }
                     egui::ComboBox::from_id_salt(("timeline-record", tab))
                         .selected_text(
                             scenes
@@ -444,6 +575,72 @@ impl TimelinePane {
                 .iter()
                 .find(|a| a.composition == composition)
                 .unwrap();
+            let scene = scenes.iter().find(|scene| scene.id == composition).unwrap();
+            if selected.track.is_none_or(|id| {
+                !scene
+                    .tracks
+                    .iter()
+                    .any(|track| track.id == id && track.kind == editbay_core::TrackKind::Video)
+            }) {
+                selected.track = Some(scene.tracks[0].id);
+            }
+            ui.horizontal_wrapped(|ui| {
+                egui::ComboBox::from_id_salt("record-track")
+                    .selected_text(
+                        scene
+                            .tracks
+                            .iter()
+                            .find(|track| Some(track.id) == selected.track)
+                            .unwrap()
+                            .name
+                            .clone(),
+                    )
+                    .show_ui(ui, |ui| {
+                        for track in scene
+                            .tracks
+                            .iter()
+                            .filter(|track| track.kind == editbay_core::TrackKind::Video)
+                        {
+                            ui.selectable_value(&mut selected.track, Some(track.id), &track.name);
+                        }
+                    });
+                if button(ui, preview, "timeline-add-track", "Add track pair") {
+                    action = Some(TimelineAction::AddTrack {
+                        composition,
+                        name: format!("Track {}", scene.tracks.len() / 2 + 1),
+                    });
+                }
+                if button(ui, preview, "timeline-place", "Place on track") {
+                    action = Some(TimelineAction::Place {
+                        composition,
+                        track: selected.track.unwrap(),
+                        at: selected.at,
+                        source,
+                        audio_only: false,
+                    });
+                }
+                if button(ui, preview, "timeline-place-sound", "Place sound only") {
+                    let index = scene
+                        .tracks
+                        .iter()
+                        .position(|track| Some(track.id) == selected.track)
+                        .unwrap();
+                    action = Some(TimelineAction::Place {
+                        composition,
+                        track: scene.tracks[index + 1].id,
+                        at: selected.at,
+                        source,
+                        audio_only: true,
+                    });
+                }
+                if button(ui, preview, "timeline-overwrite", "Overwrite V1") {
+                    action = Some(TimelineAction::Overwrite {
+                        composition,
+                        at: selected.at,
+                        source,
+                    });
+                }
+            });
             let end = assembly
                 .clips
                 .iter()
@@ -508,7 +705,13 @@ impl TimelinePane {
                         let response = ui.selectable_label(
                             selected.clip == Some(clip.id),
                             format!(
-                                "V1 {}  {}–{}  ← {}–{}  {}",
+                                "{} {}  {}–{}  ← {}–{}  {}",
+                                scene
+                                    .tracks
+                                    .iter()
+                                    .find(|track| track.id == clip.track)
+                                    .unwrap()
+                                    .name,
                                 if clip.linked.is_some() {
                                     "+ A1 🔗"
                                 } else {
@@ -530,6 +733,7 @@ impl TimelinePane {
                             selected.clip = Some(clip.id);
                             selected.trim_range = clip.source.range;
                             selected.at = clip.range.start;
+                            selected.controls = clip.controls;
                         }
                     }
                 });
@@ -589,6 +793,80 @@ impl TimelinePane {
                             composition,
                             clip: clip.id,
                             ripple: selected.ripple,
+                        });
+                    }
+                });
+                ui.horizontal_wrapped(|ui| {
+                    ui.label("Slip frames");
+                    ui.add(egui::DragValue::new(&mut selected.slip).speed(1));
+                    if button(ui, preview, "timeline-slip", "Slip source") {
+                        action = Some(TimelineAction::Slip {
+                            composition,
+                            clip: clip.id,
+                            frames: selected.slip,
+                        });
+                    }
+                    if button(ui, preview, "timeline-roll", "Roll cut to record frame") {
+                        action = Some(TimelineAction::Roll {
+                            composition,
+                            clip: clip.id,
+                            at: selected.at,
+                        });
+                    }
+                    if button(ui, preview, "timeline-slide", "Slide to record frame") {
+                        action = Some(TimelineAction::Slide {
+                            composition,
+                            clip: clip.id,
+                            at: selected.at,
+                        });
+                    }
+                });
+                ui.horizontal_wrapped(|ui| {
+                    ui.label("Sound level");
+                    ui.add(
+                        egui::DragValue::new(&mut selected.controls.gain)
+                            .speed(0.01)
+                            .range(0. ..=16.),
+                    );
+                    ui.label("Opacity");
+                    ui.add(
+                        egui::DragValue::new(&mut selected.controls.opacity)
+                            .speed(0.01)
+                            .range(0. ..=1.),
+                    );
+                    ui.label("Scale X / Y");
+                    for value in &mut selected.controls.scale {
+                        ui.add(egui::DragValue::new(value).speed(0.01));
+                    }
+                    ui.label("Position X / Y");
+                    for value in &mut selected.controls.translation {
+                        ui.add(egui::DragValue::new(value).speed(1.));
+                    }
+                    ui.label("Rotation");
+                    ui.add(egui::DragValue::new(&mut selected.controls.rotation).speed(1.));
+                    ui.label("Exposure stops");
+                    ui.add(
+                        egui::DragValue::new(&mut selected.controls.exposure)
+                            .speed(0.05)
+                            .range(-10. ..=10.),
+                    );
+                    ui.label("Contrast");
+                    ui.add(
+                        egui::DragValue::new(&mut selected.controls.contrast)
+                            .speed(0.01)
+                            .range(0. ..=4.),
+                    );
+                    ui.label("Saturation");
+                    ui.add(
+                        egui::DragValue::new(&mut selected.controls.saturation)
+                            .speed(0.01)
+                            .range(0. ..=4.),
+                    );
+                    if button(ui, preview, "timeline-controls", "Apply clip controls") {
+                        action = Some(TimelineAction::SetControls {
+                            composition,
+                            clip: clip.id,
+                            controls: selected.controls,
                         });
                     }
                 });

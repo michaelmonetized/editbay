@@ -182,7 +182,10 @@ fn run_route(path: &Path, executable: Option<&Path>) -> Result<Value> {
                     stream: stream.index,
                 },
                 linked: None,
-                time_map: TimeMap { points },
+                time_map: TimeMap {
+                    source_denominator: 1,
+                    points,
+                },
             }],
         }],
         nodes: vec![

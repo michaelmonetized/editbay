@@ -7,6 +7,7 @@ fn id(n: u128) -> Uuid {
 }
 fn map(duration: u64, start: i64, end: i64) -> TimeMap {
     TimeMap {
+        source_denominator: 1,
         points: vec![
             TimePoint {
                 frame: 0,

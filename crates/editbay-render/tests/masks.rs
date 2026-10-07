@@ -354,6 +354,7 @@ fn nested_reverse_masks_share_the_total_request_budget() {
                 },
                 linked: None,
                 time_map: TimeMap {
+                    source_denominator: 1,
                     points: vec![
                         TimePoint {
                             frame: 0,

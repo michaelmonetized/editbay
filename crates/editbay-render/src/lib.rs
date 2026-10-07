@@ -2,6 +2,7 @@
 
 mod graph;
 mod presentation;
+mod text;
 pub use graph::{
     GraphBudget, GraphRenderer, GraphStats, ImageBoundary, RenderedFrame, ResidentImage,
 };

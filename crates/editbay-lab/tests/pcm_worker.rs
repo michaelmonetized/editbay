@@ -454,6 +454,7 @@ fn shared_renderer_uses_identical_fractional_reverse_gain_and_mix_over_codec_ipc
                 source: ClipSource::Media { source, stream: 0 },
                 linked: None,
                 time_map: TimeMap {
+                    source_denominator: 1,
                     points: vec![
                         TimePoint {
                             frame: 0,

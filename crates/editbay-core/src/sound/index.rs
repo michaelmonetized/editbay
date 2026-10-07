@@ -84,6 +84,7 @@ impl Builder {
     /// exact integer knots. Returns enclosing parent-frame intervals, including
     /// both endpoints so reverse ownership and fractional sample centers survive.
     pub fn preimage(&mut self, spans: Option<Vec<Span>>, clip: &Clip) -> Result<Vec<Span>> {
+        let unbounded = spans.is_none();
         let parent = Span::range(clip.range)?;
         let mut output = Vec::new();
         for points in clip.time_map.points.windows(2) {
@@ -101,6 +102,23 @@ impl Builder {
             let spans = spans.as_deref().unwrap_or(&unrestricted);
             for span in spans {
                 self.charge()?;
+                let scaled;
+                let span = if unbounded {
+                    span
+                } else {
+                    let scale = i64::from(clip.time_map.source_denominator);
+                    scaled = Span {
+                        start: span
+                            .start
+                            .checked_mul(scale)
+                            .ok_or_else(|| invalid("sound source denominator overflow"))?,
+                        end: span
+                            .end
+                            .checked_mul(scale)
+                            .ok_or_else(|| invalid("sound source denominator overflow"))?,
+                    };
+                    &scaled
+                };
                 let Some(span) = span.intersection(source) else {
                     continue;
                 };
@@ -442,6 +460,7 @@ mod tests {
                 composition: Uuid::from_u128(2),
             },
             time_map: TimeMap {
+                source_denominator: 1,
                 points: vec![
                     TimePoint {
                         frame: 0,

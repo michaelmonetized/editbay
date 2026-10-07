@@ -81,15 +81,14 @@ pub fn sequence_from_video(
     stream.time_base.validate()?;
     let tick_numerator = u128::from(rate.denominator) * u128::from(stream.time_base.denominator);
     let tick_denominator = u128::from(rate.numerator) * u128::from(stream.time_base.numerator);
-    if !tick_numerator.is_multiple_of(tick_denominator) {
-        return Err(unsupported());
-    }
-    let step = tick_numerator / tick_denominator;
+    let divisor = gcd(tick_numerator, tick_denominator);
+    let step = tick_numerator / divisor;
+    let unit = u32::try_from(tick_denominator / divisor).map_err(|_| unsupported())?;
     if step == 0 {
         return Err(unsupported());
     }
-    let duration =
-        u64::try_from(u128::from(duration_ticks).div_ceil(step)).map_err(|_| unsupported())?;
+    let duration = u64::try_from((u128::from(duration_ticks) * u128::from(unit)).div_ceil(step))
+        .map_err(|_| unsupported())?;
     if duration == 0 || duration > i64::MAX as u64 {
         return Err(unsupported());
     }
@@ -97,13 +96,14 @@ pub fn sequence_from_video(
         .map_err(|_| unsupported())?;
     let mut points = vec![TimePoint {
         frame: 0,
-        source_tick: stream.start_tick,
+        source_tick: i64::try_from(i128::from(stream.start_tick) * i128::from(unit))
+            .map_err(|_| unsupported())?,
     }];
-    if !u128::from(duration_ticks).is_multiple_of(step) && duration > 1 {
+    if !(u128::from(duration_ticks) * u128::from(unit)).is_multiple_of(step) && duration > 1 {
         points.push(TimePoint {
             frame: duration - 1,
             source_tick: i64::try_from(
-                i128::from(stream.start_tick)
+                i128::from(stream.start_tick) * i128::from(unit)
                     + i128::try_from(u128::from(duration - 1) * step).map_err(|_| unsupported())?,
             )
             .map_err(|_| unsupported())?,
@@ -111,7 +111,8 @@ pub fn sequence_from_video(
     }
     points.push(TimePoint {
         frame: duration,
-        source_tick: end_tick,
+        source_tick: i64::try_from(i128::from(end_tick) * i128::from(unit))
+            .map_err(|_| unsupported())?,
     });
     let width = u32::try_from(
         (u128::from(*width) * u128::from(sample_aspect.numerator))
@@ -148,7 +149,10 @@ pub fn sequence_from_video(
                     source: source.id,
                     stream: stream.index,
                 },
-                time_map: TimeMap { points },
+                time_map: TimeMap {
+                    source_denominator: unit,
+                    points,
+                },
                 linked: None,
             }],
         }],
@@ -184,7 +188,7 @@ fn gcd(mut a: u128, mut b: u128) -> u128 {
     a
 }
 fn unsupported() -> Error {
-    Error::Invalid("source timing cannot be represented by this sequence profile; choose a rate with whole source ticks per frame".into())
+    Error::Invalid("source timing exceeds the exact rational sequence clock range".into())
 }
 
 /// Create linked picture and sound at their original source timing.
@@ -302,6 +306,7 @@ pub fn sequence_from_video_with_audio(
             },
             linked: Some(picture_clip_id),
             time_map: TimeMap {
+                source_denominator: 1,
                 points: vec![
                     TimePoint {
                         frame: 0,
@@ -346,6 +351,7 @@ pub fn sequence_from_video_with_audio(
                 },
                 linked: None,
                 time_map: TimeMap {
+                    source_denominator: 1,
                     points: vec![
                         TimePoint {
                             frame: 0,
@@ -386,4 +392,507 @@ fn clock_tick(stream: &crate::SourceStream, tick: i64, clock: FrameRate) -> Resu
         return Err(unsupported());
     }
     Ok(position.numerator)
+}
+
+/// Conform an existing composition without changing its elapsed media time.
+/// `project` owns `source`; `width`, `height`, `rate` and `name` define delivery.
+/// Returns nested composition and sequence commands. A partial final frame is
+/// padded with transparent picture and silence after the original media ends.
+pub fn conform_sequence(
+    project: &Project,
+    source: Uuid,
+    width: u32,
+    height: u32,
+    rate: FrameRate,
+    name: String,
+) -> Result<Vec<DocumentCommand>> {
+    project.validate()?;
+    let original = project
+        .compositions
+        .iter()
+        .find(|c| c.id == source)
+        .ok_or_else(|| Error::Invalid("conform source is absent".into()))?;
+    rate.validate()?;
+    let numerator = u128::from(original.frame_rate.numerator) * u128::from(rate.denominator);
+    let denominator = u128::from(original.frame_rate.denominator) * u128::from(rate.numerator);
+    let divisor = gcd(numerator, denominator);
+    let step = numerator / divisor;
+    let unit = u32::try_from(denominator / divisor).map_err(|_| unsupported())?;
+    let duration = u64::try_from((u128::from(original.duration) * u128::from(unit)).div_ceil(step))
+        .map_err(|_| unsupported())?;
+    let mapped_end = i64::try_from(u128::from(duration) * step).map_err(|_| unsupported())?;
+    let padded_duration = u64::try_from((mapped_end as u128).div_ceil(u128::from(unit)))
+        .map_err(|_| unsupported())?;
+    let clock_id = Uuid::new_v4();
+    let mut clock = nested_output(
+        original,
+        source,
+        clock_id,
+        original.width,
+        original.height,
+        original.frame_rate,
+        padded_duration,
+        original.duration,
+        TimeMap {
+            source_denominator: 1,
+            points: vec![
+                TimePoint {
+                    frame: 0,
+                    source_tick: 0,
+                },
+                TimePoint {
+                    frame: original.duration,
+                    source_tick: i64::try_from(original.duration).map_err(|_| unsupported())?,
+                },
+            ],
+        },
+        format!("{name} · source clock"),
+    );
+    clock.duration = padded_duration;
+    let id = Uuid::new_v4();
+    let composition = nested_output(
+        original,
+        clock_id,
+        id,
+        width,
+        height,
+        rate,
+        duration,
+        duration,
+        TimeMap {
+            source_denominator: unit,
+            points: vec![
+                TimePoint {
+                    frame: 0,
+                    source_tick: 0,
+                },
+                TimePoint {
+                    frame: duration,
+                    source_tick: mapped_end,
+                },
+            ],
+        },
+        name.clone(),
+    );
+    let commands = vec![
+        DocumentCommand::SetComposition { composition: clock },
+        DocumentCommand::SetComposition { composition },
+        DocumentCommand::SetSequence {
+            sequence: Sequence {
+                id: Uuid::new_v4(),
+                name,
+                width,
+                height,
+                frame_rate: rate,
+                composition: Some(id),
+            },
+        },
+    ];
+    let mut editor = crate::DocumentEditor::new(project.clone())?;
+    editor.apply(
+        crate::DocumentVersion::of(project),
+        "Conform source".into(),
+        &commands,
+    )?;
+    Ok(commands)
+}
+
+/// Build paired nested outputs on one exact clock.
+/// `original` supplies output sockets; `source`, geometry, ranges and `map`
+/// identify the child and timing. Returns a reusable typed composition.
+#[allow(clippy::too_many_arguments)]
+fn nested_output(
+    original: &Composition,
+    source: Uuid,
+    id: Uuid,
+    width: u32,
+    height: u32,
+    rate: FrameRate,
+    duration: u64,
+    active: u64,
+    map: TimeMap,
+    name: String,
+) -> Composition {
+    let range = FrameRange {
+        start: 0,
+        end: active,
+    };
+    let mut composition = Composition {
+        id,
+        name: name.clone(),
+        width,
+        height,
+        frame_rate: rate,
+        duration,
+        picture: None,
+        audio: None,
+        tracks: vec![],
+        nodes: vec![],
+    };
+    let picture_clip = original.picture.map(|_| Uuid::new_v4());
+    let sound_clip = original.audio.map(|_| Uuid::new_v4());
+    for (kind, clip, linked) in [
+        (TrackKind::Video, picture_clip, sound_clip),
+        (TrackKind::Audio, sound_clip, picture_clip),
+    ] {
+        let Some(clip) = clip else { continue };
+        let node = Uuid::new_v4();
+        composition.tracks.push(Track {
+            id: Uuid::new_v4(),
+            name: match kind {
+                TrackKind::Video => "Picture",
+                _ => "Sound",
+            }
+            .into(),
+            kind,
+            enabled: true,
+            clips: vec![Clip {
+                id: clip,
+                name: name.clone(),
+                range,
+                source: ClipSource::Composition {
+                    composition: source,
+                },
+                time_map: map.clone(),
+                linked,
+            }],
+        });
+        composition.nodes.push(TimedNode {
+            id: node,
+            range,
+            operation: NodeOperation::Source { clip },
+            animation: vec![],
+        });
+        match kind {
+            TrackKind::Video => composition.picture = Some(node),
+            _ => composition.audio = Some(node),
+        }
+    }
+    composition
+}
+
+/// Create an editable sound source on the project's picture profile.
+/// `project`, `source` and `stream` select retained sound; `width`, `height` and
+/// `rate` select record geometry. Returns atomic commands with exact sample time
+/// and explicit silence in the final partial picture frame.
+pub fn sequence_from_audio(
+    project: &Project,
+    source: Uuid,
+    stream: u32,
+    width: u32,
+    height: u32,
+    rate: FrameRate,
+) -> Result<Vec<DocumentCommand>> {
+    project.validate()?;
+    let media = project
+        .sources
+        .iter()
+        .find(|s| s.id == source)
+        .ok_or_else(|| Error::Invalid("sound source is absent".into()))?;
+    let audio = media
+        .streams
+        .iter()
+        .find(|s| s.index == stream)
+        .ok_or_else(|| Error::Invalid("sound stream is absent".into()))?;
+    let StreamFormat::Audio { sample_rate, .. } = audio.format else {
+        return Err(Error::Invalid("choose an imported sound stream".into()));
+    };
+    let clock = u128::from(sample_rate)
+        / gcd(sample_rate.into(), audio.time_base.denominator.into())
+        * u128::from(audio.time_base.denominator);
+    let clock = FrameRate::new(u32::try_from(clock).map_err(|_| unsupported())?, 1)?;
+    let source_end = i64::try_from(
+        i128::from(audio.start_tick)
+            + i128::from(
+                audio
+                    .duration_ticks
+                    .ok_or_else(|| Error::Invalid("sound duration is absent".into()))?,
+            ),
+    )
+    .map_err(|_| unsupported())?;
+    let duration = u64::try_from(
+        i128::from(clock_tick(audio, source_end, clock)?)
+            - i128::from(clock_tick(audio, audio.start_tick, clock)?),
+    )
+    .map_err(|_| unsupported())?;
+    let id = Uuid::new_v4();
+    let clip = Uuid::new_v4();
+    let node = Uuid::new_v4();
+    let range = FrameRange {
+        start: 0,
+        end: duration,
+    };
+    let composition = Composition {
+        id,
+        name: format!("{} · exact sound", media.name),
+        width,
+        height,
+        frame_rate: clock,
+        duration,
+        picture: None,
+        audio: Some(node),
+        tracks: vec![Track {
+            id: Uuid::new_v4(),
+            name: "Original sound".into(),
+            kind: TrackKind::Audio,
+            enabled: true,
+            clips: vec![Clip {
+                id: clip,
+                name: media.name.clone(),
+                range,
+                source: ClipSource::Media { source, stream },
+                linked: None,
+                time_map: TimeMap {
+                    source_denominator: 1,
+                    points: vec![
+                        TimePoint {
+                            frame: 0,
+                            source_tick: audio.start_tick,
+                        },
+                        TimePoint {
+                            frame: duration,
+                            source_tick: source_end,
+                        },
+                    ],
+                },
+            }],
+        }],
+        nodes: vec![TimedNode {
+            id: node,
+            range,
+            operation: NodeOperation::Source { clip },
+            animation: vec![],
+        }],
+    };
+    let mut staged = project.clone();
+    staged.compositions.push(composition.clone());
+    let mut commands = conform_sequence(&staged, id, width, height, rate, media.name.clone())?;
+    commands.insert(0, DocumentCommand::SetComposition { composition });
+    Ok(commands)
+}
+
+/// Create an editable title retaining the exact font file.
+/// `project` and `profile` supply record geometry; `name`, `text`, `font`, `size`,
+/// baseline `position`, linear `rgba` and `duration` define the title. Returns
+/// validated asset, composition and sequence commands without changing originals.
+#[allow(clippy::too_many_arguments)]
+pub(crate) fn title_sequence(
+    project: &Project,
+    profile: Uuid,
+    name: String,
+    text: String,
+    font: &std::path::Path,
+    size: f64,
+    position: [f64; 2],
+    rgba: [f64; 4],
+    duration: u64,
+) -> Result<Vec<DocumentCommand>> {
+    use sha2::{Digest, Sha256};
+    use std::io::Read;
+    let original = project
+        .compositions
+        .iter()
+        .find(|c| c.id == profile)
+        .ok_or_else(|| Error::Invalid("title profile is absent".into()))?;
+    let path = std::fs::canonicalize(font)?;
+    let mut bytes = Vec::new();
+    std::fs::File::open(&path)?
+        .take(16 * 1024 * 1024 + 1)
+        .read_to_end(&mut bytes)?;
+    if bytes.is_empty() || bytes.len() > 16 * 1024 * 1024 {
+        return Err(Error::Invalid("font exceeds its read budget".into()));
+    }
+    let sha256 = format!("{:x}", Sha256::digest(&bytes));
+    let retained = project
+        .assets
+        .iter()
+        .find(|a| a.kind == crate::AssetKind::Font && a.path == path && a.sha256 == sha256);
+    let asset = retained.map_or_else(Uuid::new_v4, |a| a.id);
+    let id = Uuid::new_v4();
+    let root = Uuid::new_v4();
+    let mut commands = Vec::new();
+    if retained.is_none() {
+        commands.push(DocumentCommand::SetAsset {
+            asset: crate::AssetReference {
+                id: asset,
+                kind: crate::AssetKind::Font,
+                path,
+                sha256,
+                bytes: bytes.len() as u64,
+                provenance: "Original title font retained without modification".into(),
+            },
+        });
+    }
+    commands.push(DocumentCommand::SetComposition {
+        composition: Composition {
+            id,
+            name: name.clone(),
+            width: original.width,
+            height: original.height,
+            frame_rate: original.frame_rate,
+            duration,
+            picture: Some(root),
+            audio: None,
+            tracks: vec![],
+            nodes: vec![TimedNode {
+                id: root,
+                range: FrameRange {
+                    start: 0,
+                    end: duration,
+                },
+                operation: NodeOperation::Text {
+                    text,
+                    font: asset,
+                    size,
+                    position,
+                    rgba,
+                },
+                animation: vec![],
+            }],
+        },
+    });
+    commands.push(DocumentCommand::SetSequence {
+        sequence: Sequence {
+            id: Uuid::new_v4(),
+            name,
+            width: original.width,
+            height: original.height,
+            frame_rate: original.frame_rate,
+            composition: Some(id),
+        },
+    });
+    let mut editor = crate::DocumentEditor::new(project.clone())?;
+    editor.apply(
+        crate::DocumentVersion::of(project),
+        "Create title".into(),
+        &commands,
+    )?;
+    Ok(commands)
+}
+
+/// Create reusable picture and sound fades that survive exact source trims.
+/// `project`, `source` and `name` select the child; `fade_in` and `fade_out` are
+/// frame lengths. Returns shared animated graph commands with original timing.
+pub(crate) fn faded_sequence(
+    project: &Project,
+    source: Uuid,
+    name: String,
+    fade_in: u64,
+    fade_out: u64,
+) -> Result<Vec<DocumentCommand>> {
+    let original = project
+        .compositions
+        .iter()
+        .find(|c| c.id == source)
+        .ok_or_else(|| Error::Invalid("fade source is absent".into()))?;
+    if fade_in
+        .checked_add(fade_out)
+        .is_none_or(|sum| sum > original.duration)
+    {
+        return Err(Error::Invalid("fades exceed source duration".into()));
+    }
+    let id = Uuid::new_v4();
+    let mut composition = nested_output(
+        original,
+        source,
+        id,
+        original.width,
+        original.height,
+        original.frame_rate,
+        original.duration,
+        original.duration,
+        TimeMap {
+            source_denominator: 1,
+            points: vec![
+                TimePoint {
+                    frame: 0,
+                    source_tick: 0,
+                },
+                TimePoint {
+                    frame: original.duration,
+                    source_tick: i64::try_from(original.duration).map_err(|_| unsupported())?,
+                },
+            ],
+        },
+        name.clone(),
+    );
+    let range = FrameRange {
+        start: 0,
+        end: original.duration,
+    };
+    for audio in [false, true] {
+        let output = if audio {
+            &mut composition.audio
+        } else {
+            &mut composition.picture
+        };
+        let Some(input) = *output else { continue };
+        let root = Uuid::new_v4();
+        let mut keys = std::collections::BTreeMap::new();
+        keys.insert(0, if fade_in > 0 { 0. } else { 1. });
+        if fade_in > 0 {
+            keys.insert(fade_in, 1.);
+        }
+        if fade_out > 0 {
+            keys.insert(original.duration - fade_out, 1.);
+        }
+        keys.insert(original.duration, if fade_out > 0 { 0. } else { 1. });
+        composition.nodes.push(TimedNode {
+            id: root,
+            range,
+            operation: if audio {
+                NodeOperation::Gain {
+                    audio: input,
+                    gain: 1.,
+                }
+            } else {
+                NodeOperation::Transform {
+                    image: input,
+                    translation: [0.; 2],
+                    scale: [1.; 2],
+                    rotation: 0.,
+                    opacity: 1.,
+                }
+            },
+            animation: vec![crate::AnimationChannel {
+                id: Uuid::new_v4(),
+                property: if audio {
+                    crate::AnimatedProperty::Gain
+                } else {
+                    crate::AnimatedProperty::Opacity
+                },
+                interpolation: crate::Interpolation::Linear,
+                keys: keys
+                    .into_iter()
+                    .map(|(frame, value)| crate::Keyframe {
+                        frame,
+                        value,
+                        in_tangent: 0.,
+                        out_tangent: 0.,
+                    })
+                    .collect(),
+            }],
+        });
+        *output = Some(root);
+    }
+    let commands = vec![
+        DocumentCommand::SetComposition { composition },
+        DocumentCommand::SetSequence {
+            sequence: Sequence {
+                id: Uuid::new_v4(),
+                name,
+                width: original.width,
+                height: original.height,
+                frame_rate: original.frame_rate,
+                composition: Some(id),
+            },
+        },
+    ];
+    let mut editor = crate::DocumentEditor::new(project.clone())?;
+    editor.apply(
+        crate::DocumentVersion::of(project),
+        "Create fades".into(),
+        &commands,
+    )?;
+    Ok(commands)
 }

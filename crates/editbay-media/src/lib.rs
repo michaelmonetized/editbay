@@ -15,7 +15,7 @@ mod planes;
 mod source;
 pub mod worker;
 
-pub use delivery::LosslessMovProfile;
+pub use delivery::{DeliveryFormat, LosslessMovProfile};
 pub use ffi::LosslessMovWriter;
 
 pub use pcm::{

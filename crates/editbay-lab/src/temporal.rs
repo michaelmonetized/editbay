@@ -248,6 +248,7 @@ fn range() -> FrameRange {
 /// `start` and `end` select source boundaries. Returns a 48-frame mapping.
 fn mapping(start: i64, end: i64) -> TimeMap {
     TimeMap {
+        source_denominator: 1,
         points: vec![
             TimePoint {
                 frame: 0,
