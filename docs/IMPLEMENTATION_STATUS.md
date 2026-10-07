@@ -1,5 +1,17 @@
 # Rust restart: implementation status
 
+The [shipping candidate](SHIPPING_CANDIDATE.md) adds complete local editing,
+finishing, checked commercial formats, a bounded native export queue and portable
+media archives in [PR #63](https://github.com/michaelmonetized/editbay/pull/63).
+The [native realtime layer](https://github.com/michaelmonetized/editbay/pull/65)
+has fresh optimized 100/100 native kill/recover/reopen qualification, input p95
+17.169 ms, and an actual two-hour playback qualification in progress. Real
+commercial, social and camera/stream jobs pass native QC, independent decoding,
+checkpoint recovery and matching moved-archive exports. Native package install,
+verified update, corrupt-update rejection and rollback preserve project/recovery
+bytes. The owner's edit review and final playback endpoint remain release decisions.
+Historical evidence and broader roadmap limits below remain explicit.
+
 Issue [#59](https://github.com/michaelmonetized/editbay/issues/59) adds native
 [PipeWire presentation timing and checked ALSA submission](PIPEWIRE_CLOCK.md).
 Actual host identity travels in validated device receipts. Backend unit tests and

@@ -10,6 +10,10 @@ description = "Native EditBay project and recovery commands"
 name = "editbay"
 path = "src/main.rs"
 
+[[bin]]
+name = "editbay-install"
+path = "src/install.rs"
+
 [dependencies]
 editbay-audio = { path = "../editbay-audio" }
 editbay-core = { path = "../editbay-core" }
@@ -20,6 +24,7 @@ serde.workspace = true
 serde_json.workspace = true
 sha2.workspace = true
 uuid.workspace = true
+fs2.workspace = true
 
 [dev-dependencies]
 tempfile.workspace = true

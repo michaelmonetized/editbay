@@ -4,13 +4,15 @@ A native Rust production suite for Omarchy: editing, motion graphics, VFX, color
 sound, and connected client/team workflows. The goal is to let professionals move
 their existing production work from macOS/Windows to Omarchy.
 
-The Rust implementation provides a **native local workspace**, **project/recovery
-CLI commands and scoped native MCP automation**, plus
-**native codec, GPU, sound-clock, export and video-inference feasibility tools**.
-The workspace includes welcome, project tabs, checked saves, automatic recovery,
-local settings and shared brand banks. Timeline/media authoring and complete-job
-release gates remain roadmap work. The local R1 workspace gates pass; see the
-[native workspace evidence](docs/evidence/r1-workspace/README.md).
+The Rust implementation provides a native editor with linked picture and sound
+tracks, exact trims, slip/roll/slide edits, profile conformance, editable titles,
+fades, picture placement, color controls and sound levels. Checked H.264/AAC MP4,
+ProRes 4444/PCM MOV and lossless MOV exports share the preview graph and a bounded
+native queue. Projects support undo, automatic recovery and portable media archives.
+The workspace includes welcome, project tabs, local settings and shared brand banks.
+The [shipping candidate](docs/SHIPPING_CANDIDATE.md) records working routes,
+qualification results and remaining release decisions. The broader suite roadmap
+continues separately.
 The application and production workers use Rust with native dependencies.
 
 ## Roadmap and decisions
@@ -44,7 +46,7 @@ The application and production workers use Rust with native dependencies.
 - [Shared brand banks](docs/SHARED_BRANDS.md): compatible manifests, exact asset
   copies, version ownership and collision rules.
 
-## Run the Rust foundation
+## Build and run
 
 Build on the local machine with Rust/Cargo:
 
@@ -68,6 +70,9 @@ cargo test --workspace --locked
 ./bin/editbay checkpoint /path/to/client/cut.editbay /path/to/recovery
 ./bin/editbay recoveries /path/to/recovery
 ./bin/editbay recover /path/to/checkpoint /path/to/Recovered.editbay
+./bin/editbay archive /path/to/client/cut.editbay /path/to/new-archive
+./bin/editbay build-job /path/to/job.json /path/to/new.editbay
+./bin/editbay export-profile /path/to/client/cut.editbay COMPOSITION_UUID /path/to/new.mp4 h264_mp4
 ./bin/editbay-mcp /path/to/client/cut.editbay /path/to/recovery
 ```
 
@@ -98,9 +103,10 @@ the actual device worker. `editbay-lab native-playback APP SOURCE NEW_DIRECTORY
 See [streaming sound contracts](docs/STREAMING_SOUND.md). Full sustained playback,
 hardware drift remain separate R2 gates.
 
-**Export…** writes the selected sequence as a verified lossless PNG/float-PCM MOV
-master on a supervised Rust worker. The native chooser, progress, cancel, visible
-errors and retry share `editbay export PROJECT COMPOSITION_ID NEW_MOV [SAMPLE_RATE]`.
+**Export…** offers H.264/AAC MP4, ProRes 4444/float-PCM MOV and lossless
+PNG/float-PCM MOV through supervised Rust workers. Every output picture and sound
+sample is checked before publication. The native chooser, queue, progress, cancel,
+visible errors and retry share the CLI delivery path.
 [Exact range export](docs/RANGE_DELIVERY.md) selects original-grid pictures and
 sound through native export options or `editbay export-range`.
 Existing destinations and source media are preserved. See
@@ -108,8 +114,9 @@ Existing destinations and source media are preserved. See
 original sound channels, anonymous publication and current limits.
 
 The native Timeline creates linked picture/sound cuts from marked source ranges.
-Append, insert, split, trim, move and ripple removal use the same graph, undo,
-save, recovery, playback and export path. `editbay timeline FILE REQUEST_JSON`
+Append, insert, overwrite, split, trim, move, slip, roll, slide and ripple removal
+use the same graph, undo, save, recovery, playback and export path. Additional track
+pairs support layered pictures and independent sound. `editbay timeline FILE REQUEST_JSON`
 and `editbay clips FILE COMPOSITION_ID` expose that exact core path. See
 [timeline authoring](docs/TIMELINE_AUTHORING.md) for supported profiles and controls.
 
