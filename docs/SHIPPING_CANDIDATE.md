@@ -130,7 +130,8 @@ Each of the three acceptance jobs passes checkpoint recovery, a moved media arch
 and matching lossless range picture/PCM hashes. Private media and original paths
 remain local. The three requested review videos are uploaded unlisted and each
 plays to its end on YouTube without a reported playback error. Review links remain
-in the owner's thread and local receipts. The owner's review decision is pending.
+in the owner's thread and local receipts. The owner accepted all three release
+jobs after reviewing these links.
 Station/client approval,
 physical speaker/display timing, other GPU families and the broader suite's
 migration, recording, loudness, team/cloud and artist workflows are not implied
