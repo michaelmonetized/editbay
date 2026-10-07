@@ -16,7 +16,7 @@ use std::{
 
 const MAX_SECONDS: u64 = 7200;
 const MAX_POLLS: u64 = 75000;
-const MAX_RECEIPT_BYTES: u64 = 128 * 1024 * 1024;
+const MAX_RECEIPT_BYTES: u64 = 256 * 1024 * 1024;
 const MAX_RSS_KIB: u64 = 4 * 1024 * 1024;
 const DRIFT_NS: i128 = 20_000_000;
 
