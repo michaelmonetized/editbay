@@ -329,6 +329,10 @@ fn pack(build: &Path, destination: &Path, version: &str) -> Result<String> {
         destination.join("share/editbay/audio/memlock-service.conf"),
         include_bytes!("../../../assets/audio/memlock-service.conf"),
     )?;
+    fs::write(
+        destination.join("share/editbay/audio/asahi-speaker-headroom.conf"),
+        include_bytes!("../../../assets/audio/asahi-speaker-headroom.conf"),
+    )?;
     let launcher = "#!/bin/sh\nset -eu\nrelease_dir=$(CDPATH= cd -- \"$(dirname -- \"$(readlink -f -- \"$0\")\")/..\" && pwd -P)\nexport LD_LIBRARY_PATH=\"$release_dir/lib${LD_LIBRARY_PATH:+:$LD_LIBRARY_PATH}\"\nexport PIPEWIRE_MODULE_DIR=\"$release_dir/lib/pipewire-0.3\"\nexport EDITBAY_TITLE_FONT=\"$release_dir/share/fonts/LiberationSans-Regular.ttf\"\nexport SPA_PLUGIN_DIR=\"$release_dir/lib/spa-0.2\"\nexport PIPEWIRE_CONFIG_DIR=\"$release_dir/share/pipewire\"\ncase ${1-} in\n  new|info|rename|apply|timeline|build-job|archive|clips|migrate|frame-plan|probe-media|ingest|decode-frame|export|export-range|export-profile|checkpoint|recoveries|recover|--help|-h|--version|-V) exec \"$release_dir/bin/editbay-cli\" \"$@\" ;;\n  *) exec \"$release_dir/bin/editbay-studio\" \"$@\" ;;\nesac\n";
     fs::write(destination.join("bin/editbay"), launcher)?;
     fs::set_permissions(
