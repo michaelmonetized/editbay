@@ -2059,26 +2059,24 @@ fn flea_point(pid: &str, point: &str) -> Result<()> {
 
 fn flea_entry(pid: &str, name: &str) -> Result<()> {
     let mut state = flea_wait(pid, |state| state["state"] == "ready")?;
-    if state["listFocus"] != true {
-        let cursor = state["cursor"]
-            .as_u64()
-            .ok_or("Missing native cursor")?
-            .to_string();
-        let point = command(
-            "qs",
-            &[
-                "ipc",
-                "--pid",
-                pid,
-                "call",
-                "fleapicker",
-                "rowCentre",
-                &cursor,
-            ],
-        )?;
-        flea_point(pid, point.trim())?;
-        flea_wait(pid, |state| state["listFocus"] == true)?;
-    }
+    let cursor = state["cursor"]
+        .as_u64()
+        .ok_or("Missing native cursor")?
+        .to_string();
+    let point = command(
+        "qs",
+        &[
+            "ipc",
+            "--pid",
+            pid,
+            "call",
+            "fleapicker",
+            "rowCentre",
+            &cursor,
+        ],
+    )?;
+    flea_point(pid, point.trim())?;
+    flea_wait(pid, |state| state["listFocus"] == true)?;
     key(102, false, false)?;
     state = flea_wait(pid, |state| state["cursor"] == 0 && state["held"] == 0)?;
     for _ in 0..4096 {
