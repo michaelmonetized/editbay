@@ -2032,14 +2032,10 @@ fn flea_wait(pid: &str, predicate: impl Fn(&Value) -> bool) -> Result<Value> {
     }
 }
 
-fn flea_point(pid: &str, point: &str) -> Result<()> {
-    let point = point
-        .split_whitespace()
-        .map(str::parse::<i64>)
-        .collect::<std::result::Result<Vec<_>, _>>()?;
-    if point.len() != 2 {
-        return Err("Invalid native Flea control geometry".into());
-    }
+/// Focus the owned picker window before submitting native keyboard events.
+/// `pid` identifies the real picker. Returns its observed window geometry after
+/// the compositor confirms that the picker owns keyboard focus.
+fn flea_focus(pid: &str) -> Result<Value> {
     let pid = pid.parse::<u64>()?;
     let native =
         window(|window| window["pid"] == pid && window["class"] == "com.thisisgm.flea.picker")?;
@@ -2051,6 +2047,18 @@ fn flea_point(pid: &str, point: &str) -> Result<()> {
     }
     dispatch(&format!("hl.dsp.focus({{window=\"address:{address}\"}})"))?;
     focused(pid)?;
+    Ok(native)
+}
+
+fn flea_point(pid: &str, point: &str) -> Result<()> {
+    let point = point
+        .split_whitespace()
+        .map(str::parse::<i64>)
+        .collect::<std::result::Result<Vec<_>, _>>()?;
+    if point.len() != 2 {
+        return Err("Invalid native Flea control geometry".into());
+    }
+    let native = flea_focus(pid)?;
     click(
         native["at"][0].as_i64().ok_or("Missing Flea x")? + point[0],
         native["at"][1].as_i64().ok_or("Missing Flea y")? + point[1],
@@ -2059,24 +2067,27 @@ fn flea_point(pid: &str, point: &str) -> Result<()> {
 
 fn flea_entry(pid: &str, name: &str) -> Result<()> {
     let mut state = flea_wait(pid, |state| state["state"] == "ready")?;
-    let cursor = state["cursor"]
-        .as_u64()
-        .ok_or("Missing native cursor")?
-        .to_string();
-    let point = command(
-        "qs",
-        &[
-            "ipc",
-            "--pid",
-            pid,
-            "call",
-            "fleapicker",
-            "rowCentre",
-            &cursor,
-        ],
-    )?;
-    flea_point(pid, point.trim())?;
-    flea_wait(pid, |state| state["listFocus"] == true)?;
+    flea_focus(pid)?;
+    if state["listFocus"] != true {
+        let cursor = state["cursor"]
+            .as_u64()
+            .ok_or("Missing native cursor")?
+            .to_string();
+        let point = command(
+            "qs",
+            &[
+                "ipc",
+                "--pid",
+                pid,
+                "call",
+                "fleapicker",
+                "rowCentre",
+                &cursor,
+            ],
+        )?;
+        flea_point(pid, point.trim())?;
+        flea_wait(pid, |state| state["listFocus"] == true)?;
+    }
     key(102, false, false)?;
     state = flea_wait(pid, |state| state["cursor"] == 0 && state["held"] == 0)?;
     for _ in 0..4096 {
