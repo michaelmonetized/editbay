@@ -35,6 +35,7 @@ impl DocumentVersion {
 pub enum DocumentCommand {
     RenameProject { name: String },
     SetSequence { sequence: Sequence },
+    SetPrimarySequence { id: Uuid },
     RemoveSequence { id: Uuid },
     SetAsset { asset: AssetReference },
     RemoveAsset { id: Uuid },
@@ -61,6 +62,7 @@ impl DocumentCommand {
         &[
             "rename_project",
             "set_sequence",
+            "set_primary_sequence",
             "remove_sequence",
             "set_asset",
             "remove_asset",
@@ -76,6 +78,15 @@ impl DocumentCommand {
         match self {
             Self::RenameProject { name } => project.name = name.clone(),
             Self::SetSequence { sequence } => set(&mut project.sequences, sequence.clone()),
+            Self::SetPrimarySequence { id } => {
+                let index = project
+                    .sequences
+                    .iter()
+                    .position(|sequence| sequence.id == *id)
+                    .ok_or_else(|| Error::Invalid("primary sequence does not exist".into()))?;
+                let sequence = project.sequences.remove(index);
+                project.sequences.insert(0, sequence);
+            }
             Self::RemoveSequence { id } => remove(&mut project.sequences, *id)?,
             Self::SetAsset { asset } => set(&mut project.assets, asset.clone()),
             Self::RemoveAsset { id } => remove(&mut project.assets, *id)?,
@@ -270,7 +281,7 @@ impl GroupChange {
         for composition in &all_compositions {
             if self.color.is_some()
                 || composition.tracks.iter().flat_map(|track| &track.clips).any(|clip| matches!(clip.source, ClipSource::Media { source, .. } if sources.contains(&source)))
-                || composition.nodes.iter().any(|node| matches!(node.operation, crate::NodeOperation::MaskAsset { asset } if assets.contains(&asset))) {
+                || composition.nodes.iter().any(|node| matches!(node.operation, crate::NodeOperation::MaskAsset { asset } | crate::NodeOperation::Text { font: asset, .. } if assets.contains(&asset))) {
                 affected.insert(composition.id);
             }
         }

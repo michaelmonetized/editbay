@@ -2,6 +2,44 @@ use crate::{Error, Result};
 use editbay_core::FrameRate;
 use serde::{Deserialize, Serialize};
 
+/// A declared client encoding, with an explicit container and alpha policy.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum DeliveryFormat {
+    #[default]
+    LosslessMov,
+    H264Mp4,
+    ProresMov,
+}
+
+impl DeliveryFormat {
+    /// Return the required filename suffix for this encoding.
+    /// Takes this format; returns a lowercase extension without a dot.
+    pub fn extension(self) -> &'static str {
+        match self {
+            Self::H264Mp4 => "mp4",
+            _ => "mov",
+        }
+    }
+
+    /// Validate codec-specific dimensions, rates and channel layouts.
+    /// `profile` declares exact output clocks; returns failure before encoding.
+    pub fn validate(self, profile: &LosslessMovProfile) -> Result<()> {
+        profile.validate()?;
+        if self == Self::H264Mp4
+            && (!profile.width.is_multiple_of(2)
+                || !profile.height.is_multiple_of(2)
+                || profile.channels.len() > 2
+                || ![44100, 48000].contains(&profile.sample_rate))
+        {
+            return Err(Error::Invalid(
+                "H.264/AAC needs even dimensions and mono/stereo sound at 44.1 or 48 kHz".into(),
+            ));
+        }
+        Ok(())
+    }
+}
+
 /// Exact bounds for a lossless SDR PNG/RGBA8 and float-PCM MOV file.
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]

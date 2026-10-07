@@ -56,6 +56,7 @@ fn fixture(path: &Path, frequency: u32) -> Project {
                 range: FrameRange { start: 0, end: 96 },
                 source: ClipSource::Media { source, stream: 0 },
                 time_map: TimeMap {
+                    source_denominator: 1,
                     points: vec![
                         TimePoint {
                             frame: 0,

@@ -4,7 +4,13 @@ use editbay_core::{
 };
 use editbay_media::{Cancellation, SourceFile, VideoReader};
 use sha2::{Digest, Sha256};
-use std::{ffi::OsString, io::Read, path::Path, process::ExitCode};
+use std::{
+    ffi::OsString,
+    io::{Read, Write},
+    path::Path,
+    process::ExitCode,
+};
+mod job;
 
 #[derive(serde::Deserialize)]
 #[serde(deny_unknown_fields)]
@@ -13,7 +19,7 @@ struct TimelineRequest {
     action: editbay_core::TimelineAction,
 }
 
-const HELP: &str = "EditBay Rust project foundation
+const HELP: &str = "EditBay native media editor
 
 Usage:
   editbay new FILE NAME
@@ -21,6 +27,8 @@ Usage:
   editbay rename FILE NAME
   editbay apply FILE COMMAND_GROUP_JSON
   editbay timeline FILE ACTION_JSON
+  editbay build-job MANIFEST_JSON NEW_PROJECT
+  editbay archive FILE NEW_DIRECTORY
   editbay clips FILE COMPOSITION_ID
   editbay migrate SOURCE NEW_FILE
   editbay frame-plan FILE COMPOSITION_ID FRAME
@@ -29,17 +37,22 @@ Usage:
   editbay decode-frame SOURCE STREAM_INDEX SOURCE_TICK
   editbay export FILE COMPOSITION_ID NEW_MOV [SAMPLE_RATE]
   editbay export-range FILE COMPOSITION_ID NEW_MOV START_FRAME END_FRAME [SAMPLE_RATE]
+  editbay export-profile FILE COMPOSITION_ID NEW_FILE lossless_mov|h264_mp4|prores_mov [SAMPLE_RATE [START_FRAME END_FRAME]]
   editbay checkpoint FILE RECOVERY_DIRECTORY
   editbay recoveries RECOVERY_DIRECTORY
   editbay recover CHECKPOINT NEW_FILE
   editbay --version
 
-The native workspace and media engine are tracked in docs/ROADMAP.md.
+The same document and commands drive the native editor and this CLI.
 New/recovered files never overwrite an existing file. Recovery keeps the original.
 ";
 
 fn print(value: impl serde::Serialize) -> Result<(), Box<dyn std::error::Error>> {
-    println!("{}", serde_json::to_string_pretty(&value)?);
+    writeln!(
+        std::io::stdout().lock(),
+        "{}",
+        serde_json::to_string_pretty(&value)?
+    )?;
     Ok(())
 }
 
@@ -61,17 +74,34 @@ fn read_bounded(path: &Path, limit: u64) -> Result<Vec<u8>, Box<dyn std::error::
 }
 
 fn export(args: &[OsString]) -> Result<(), Box<dyn std::error::Error>> {
-    let range = args[0] == "export-range";
+    let profile = args[0] == "export-profile";
+    let range = args[0] == "export-range" || (profile && args.len() == 8);
     let request = editbay_delivery::DeliveryRequest {
+        format: if profile {
+            match name(&args[4])? {
+                "lossless_mov" => editbay_delivery::DeliveryFormat::LosslessMov,
+                "h264_mp4" => editbay_delivery::DeliveryFormat::H264Mp4,
+                "prores_mov" => editbay_delivery::DeliveryFormat::ProresMov,
+                _ => return Err("Unknown export profile".into()),
+            }
+        } else {
+            editbay_delivery::DeliveryFormat::default()
+        },
         composition: name(&args[2])?.parse()?,
-        sample_rate: match args.get(if range { 6 } else { 4 }) {
+        sample_rate: match args.get(if profile {
+            5
+        } else if range {
+            6
+        } else {
+            4
+        }) {
             Some(rate) => name(rate)?.parse()?,
             None => 48000,
         },
         range: if range {
             Some(editbay_core::FrameRange {
-                start: name(&args[4])?.parse()?,
-                end: name(&args[5])?.parse()?,
+                start: name(&args[if profile { 6 } else { 4 }])?.parse()?,
+                end: name(&args[if profile { 7 } else { 5 }])?.parse()?,
             })
         } else {
             None
@@ -114,7 +144,8 @@ fn export(args: &[OsString]) -> Result<(), Box<dyn std::error::Error>> {
             if phase != Some(progress.phase)
                 || last.elapsed() >= std::time::Duration::from_millis(500)
             {
-                eprintln!(
+                let _ = writeln!(
+                    std::io::stderr().lock(),
                     "{:?}: {}/{} pictures, {}/{} samples",
                     progress.phase,
                     progress.pictures,
@@ -140,11 +171,12 @@ fn run(args: &[OsString]) -> Result<(), Box<dyn std::error::Error>> {
         .and_then(|arg| arg.to_str())
         .unwrap_or("--help");
     match (command, args.len()) {
+        ("build-job", 3) => print(job::build(Path::new(&args[1]), Path::new(&args[2]))?)?,
+        ("archive", 3) => print(
+            serde_json::json!({"project": editbay_core::archive_project(&load(Path::new(&args[1]))?, Path::new(&args[2]))?}),
+        )?,
         ("--help" | "-h", 0 | 1) => print!("{HELP}"),
-        ("--version", 1) => println!(
-            "editbay {} (Rust project foundation)",
-            env!("CARGO_PKG_VERSION")
-        ),
+        ("--version", 1) => println!("editbay {}", env!("CARGO_PKG_VERSION")),
         ("new", 3) => {
             let project = Project::new(name(&args[2])?)?;
             save_new(&project, Path::new(&args[1]))?;
@@ -173,6 +205,7 @@ fn run(args: &[OsString]) -> Result<(), Box<dyn std::error::Error>> {
         }
         ("export", 4 | 5) => export(args)?,
         ("export-range", 6 | 7) => export(args)?,
+        ("export-profile", 5 | 6 | 8) => export(args)?,
         ("rename", 3) => {
             let path = Path::new(&args[1]);
             let expected = load(path)?;

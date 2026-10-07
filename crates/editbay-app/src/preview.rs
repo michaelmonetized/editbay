@@ -864,20 +864,41 @@ impl PreviewPane {
                         .first()
                         .ok_or("Project needs a sequence profile")?
                         .frame_rate;
-                    let commands = match audio {
-                        Some(audio) => editbay_core::sequence_from_video_with_audio(
+                    let profile = &editor.project().sequences[0];
+                    let sound_only = editor
+                        .project()
+                        .sources
+                        .iter()
+                        .find(|s| s.id == source)
+                        .and_then(|s| s.streams.iter().find(|s| s.index == stream))
+                        .is_some_and(|s| {
+                            matches!(s.format, editbay_core::StreamFormat::Audio { .. })
+                        });
+                    let commands = if sound_only {
+                        editbay_core::sequence_from_audio(
                             editor.project(),
                             source,
                             stream,
-                            audio,
+                            profile.width,
+                            profile.height,
                             rate,
-                        ),
-                        None => editbay_core::sequence_from_video(
-                            editor.project(),
-                            source,
-                            stream,
-                            rate,
-                        ),
+                        )
+                    } else {
+                        match audio {
+                            Some(audio) => editbay_core::sequence_from_video_with_audio(
+                                editor.project(),
+                                source,
+                                stream,
+                                audio,
+                                rate,
+                            ),
+                            None => editbay_core::sequence_from_video(
+                                editor.project(),
+                                source,
+                                stream,
+                                rate,
+                            ),
+                        }
                     }
                     .map_err(|e| e.to_string())?;
                     let sequence = commands

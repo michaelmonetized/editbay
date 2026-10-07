@@ -2,7 +2,9 @@ use crate::{
     preview::PreviewPane,
     workspace::{DocumentOwner, Workspace},
 };
-use editbay_delivery::{DeliveryControl, DeliveryRequest, Phase, Progress, Receipt};
+use editbay_delivery::{
+    DeliveryControl, DeliveryFormat, DeliveryRequest, Phase, Progress, Receipt,
+};
 use eframe::egui;
 use std::{
     path::PathBuf,
@@ -13,6 +15,7 @@ use std::{
 use uuid::Uuid;
 
 struct Job {
+    project: Option<Arc<editbay_core::Project>>,
     id: Uuid,
     owner: DocumentOwner,
     request: DeliveryRequest,
@@ -29,6 +32,7 @@ struct Job {
 }
 
 struct ExportChoice {
+    format: DeliveryFormat,
     owner: DocumentOwner,
     composition: Uuid,
     name: String,
@@ -41,6 +45,7 @@ struct ExportChoice {
 impl ExportChoice {
     fn request(&self) -> Result<DeliveryRequest, String> {
         let request = DeliveryRequest {
+            format: self.format,
             composition: self.composition,
             sample_rate: 48000,
             range: if self.full {
@@ -62,13 +67,55 @@ impl ExportChoice {
     }
 }
 
+impl Job {
+    /// Start one queued immutable revision in an isolated production worker.
+    /// `ctx` schedules repainting; returns after spawning its controller thread.
+    fn launch(&mut self, ctx: &egui::Context) -> Result<(), String> {
+        let project = self.project.take().ok_or("Queued project is absent")?;
+        let retained = self.updates.clone();
+        let cancel = self.control.clone();
+        let request = self.request;
+        let path = self.destination.clone();
+        let wake = ctx.clone();
+        let (sender, result) = mpsc::sync_channel(1);
+        self.result = result;
+        self.thread = Some(
+            std::thread::Builder::new()
+                .name("editbay-delivery-controller".into())
+                .spawn(move || {
+                    let run = || -> Result<Receipt, String> {
+                        let executable = std::env::current_exe().map_err(|e| e.to_string())?;
+                        editbay_delivery::deliver(
+                            &executable,
+                            project,
+                            request,
+                            &path,
+                            &cancel,
+                            |progress, pid| {
+                                if let Ok(mut retained) = retained.lock() {
+                                    *retained = Some((progress.clone(), pid));
+                                }
+                                wake.request_repaint();
+                            },
+                        )
+                        .map_err(|e| e.to_string())
+                    };
+                    let _ = sender.send(run());
+                    wake.request_repaint();
+                })
+                .map_err(|e| e.to_string())?,
+        );
+        Ok(())
+    }
+}
+
 impl Drop for Job {
     fn drop(&mut self) {
         self.control.cancel();
     }
 }
 
-/// Bounded export history with one active native job and nonblocking retirement.
+/// Bounded export queue with one native worker and nonblocking retirement.
 #[derive(Default)]
 pub struct DeliveryPane {
     jobs: Vec<Job>,
@@ -89,6 +136,7 @@ impl DeliveryPane {
     /// Returns immediately; destination choice follows a validated frame range.
     pub fn choose(&mut self, owner: DocumentOwner, composition: Uuid, name: String, duration: u64) {
         self.choice = Some(ExportChoice {
+            format: DeliveryFormat::default(),
             owner,
             composition,
             name,
@@ -114,7 +162,29 @@ impl DeliveryPane {
         let modal = egui::Modal::new(egui::Id::new("export-options")).show(ctx, |ui| {
             ui.set_min_width(360.);
             ui.heading("Export sequence");
-            ui.label("Lossless MOV · 48 kHz sound · original channels");
+            let formats = egui::ComboBox::from_id_salt("export-format")
+                .selected_text(format_name(choice.format))
+                .show_ui(ui, |ui| {
+                    for format in [
+                        DeliveryFormat::H264Mp4,
+                        DeliveryFormat::ProresMov,
+                        DeliveryFormat::LosslessMov,
+                    ] {
+                        let option =
+                            ui.selectable_value(&mut choice.format, format, format_name(format));
+                        preview.observe_control(&format!("export-format:{format:?}"), &option, ui);
+                    }
+                });
+            preview.observe_control("export-format", &formats.response, ui);
+            ui.weak(match choice.format {
+                DeliveryFormat::H264Mp4 => "48 kHz AAC · mono/stereo · transparency over black",
+                DeliveryFormat::ProresMov => {
+                    "ProRes 4444 · 48 kHz float PCM · original channels and alpha"
+                }
+                DeliveryFormat::LosslessMov => {
+                    "PNG RGBA · 48 kHz float PCM · original channels and alpha"
+                }
+            });
             ui.add_space(8.);
             let whole = ui.radio_value(&mut choice.full, true, "Full sequence");
             preview.observe_control("export-full", &whole, ui);
@@ -178,7 +248,9 @@ impl DeliveryPane {
     /// Inspect whether rendering, verification or worker retirement is active.
     /// Takes no arguments; returns true until its owning thread has been reaped.
     pub fn busy(&self) -> bool {
-        self.jobs.iter().any(|job| job.thread.is_some())
+        self.jobs
+            .iter()
+            .any(|job| job.thread.is_some() || job.project.is_some())
     }
 
     /// Request cancellation for all owned jobs without waiting on their workers.
@@ -200,8 +272,21 @@ impl DeliveryPane {
         destination: PathBuf,
         ctx: &egui::Context,
     ) -> Result<(), String> {
-        if self.busy() {
-            return Err("Wait for the active export to finish or cancel it".into());
+        if self.jobs.len() == 8 {
+            if let Some(index) = self
+                .jobs
+                .iter()
+                .position(|job| job.thread.is_none() && job.project.is_none())
+            {
+                self.jobs.remove(index);
+            } else {
+                return Err("The export queue is full; finish or cancel a queued job".into());
+            }
+        }
+        if self.jobs.iter().any(|job| {
+            (job.thread.is_some() || job.project.is_some()) && job.destination == destination
+        }) {
+            return Err("That destination already has a queued export".into());
         }
         if !workspace.owns(owner) {
             return Err(
@@ -215,48 +300,15 @@ impl DeliveryPane {
         let control = DeliveryControl::new().map_err(|e| e.to_string())?;
         workspace.guard_export(owner, control.clone())?;
         let updates = Arc::new(Mutex::new(None));
-        let retained = updates.clone();
-        let cancel = control.clone();
-        let path = destination.clone();
-        let wake = ctx.clone();
-        let (sender, result) = mpsc::sync_channel(1);
-        let thread = std::thread::Builder::new()
-            .name("editbay-delivery-controller".into())
-            .spawn(move || {
-                let run = || -> Result<Receipt, String> {
-                    let executable = std::env::current_exe().map_err(|e| e.to_string())?;
-                    editbay_delivery::deliver(
-                        &executable,
-                        project.snapshot(),
-                        request,
-                        &path,
-                        &cancel,
-                        |progress, pid| {
-                            if let Ok(mut retained) = retained.lock() {
-                                *retained = Some((progress.clone(), pid));
-                            }
-                            wake.request_repaint();
-                        },
-                    )
-                    .map_err(|e| e.to_string())
-                };
-                let _ = sender.send(run());
-                wake.request_repaint();
-            })
-            .map_err(|e| {
-                control.cancel();
-                e.to_string()
-            })?;
-        if self.jobs.len() == 8 {
-            self.jobs.remove(0);
-        }
+        let (_, result) = mpsc::sync_channel(1);
         self.jobs.push(Job {
+            project: Some(project.snapshot()),
             id: Uuid::new_v4(),
             owner,
             request,
             destination,
             control,
-            thread: Some(thread),
+            thread: None,
             updates,
             result,
             progress: None,
@@ -266,6 +318,7 @@ impl DeliveryPane {
             cancellation: None,
         });
         self.history_open = true;
+        self.poll(workspace, ctx);
         Ok(())
     }
 
@@ -274,6 +327,16 @@ impl DeliveryPane {
     /// Returns after joining only already-finished threads.
     pub fn poll(&mut self, workspace: &Workspace, ctx: &egui::Context) {
         for job in &mut self.jobs {
+            if job.project.is_some()
+                && (!workspace.owns(job.owner)
+                    || job.cancellation.is_some()
+                    || !job.control.cancellable())
+            {
+                job.control.cancel();
+                job.project = None;
+                job.cancellation
+                    .get_or_insert("Project changed or closed; queued export cancelled".into());
+            }
             if job.thread.is_none() {
                 continue;
             }
@@ -295,6 +358,13 @@ impl DeliveryPane {
                 }
             }
         }
+        if !self.jobs.iter().any(|job| job.thread.is_some())
+            && let Some(job) = self.jobs.iter_mut().find(|job| job.project.is_some())
+            && let Err(error) = job.launch(ctx)
+        {
+            job.project = None;
+            job.error = Some(error);
+        }
         if self.busy() {
             ctx.request_repaint_after(Duration::from_millis(16));
         }
@@ -315,8 +385,12 @@ impl DeliveryPane {
         let busy = self.busy();
         let mut retry = None;
         let mut open = self.history_open;
+        let mut hide = false;
         egui::Window::new("Exports").open(&mut open).default_pos(egui::pos2(600.,140.)).default_width(440.).resizable(true).show(ui.ctx(), |ui| {
-            egui::ScrollArea::vertical().id_salt("export-history").max_height(200.).show(ui, |ui| {
+            let close = ui.button("Close");
+            preview.observe_control("close-exports", &close, ui);
+            hide = close.clicked();
+            egui::ScrollArea::vertical().id_salt("export-history").max_height(400.).show(ui, |ui| {
             for (index, job) in self.jobs.iter_mut().enumerate().rev() {
                 ui.group(|ui| {
                     ui.label(job.destination.file_name().unwrap_or_default().to_string_lossy());
@@ -324,6 +398,13 @@ impl DeliveryPane {
                         ui.label(format!("Revision {} exported and verified · frames {}–{} · {} Hz · {} channels", receipt.version.revision, receipt.profile.first_frame, receipt.profile.first_frame + receipt.profile.frames, receipt.profile.sample_rate, receipt.profile.channels.len()));
                         ui.weak(job.destination.to_string_lossy());
                         if receipt.clipped_picture_values > 0 { ui.colored_label(ui.visuals().warn_fg_color, "Picture values outside the 8-bit output range were clipped"); }
+                    } else if job.project.is_some() {
+                        ui.label("Queued · captured project revision");
+                        let cancel = ui.button("Cancel queued export");
+                        preview.observe_control(&format!("cancel-export:{}", job.id), &cancel, ui);
+                        if cancel.clicked() {
+                            job.control.cancel(); job.project = None; job.cancellation = Some("Queued export cancelled".into());
+                        }
                     } else if job.thread.is_some() {
                         let label = if job.cancellation.is_some() { "Cancelling…" } else {
                             match job.progress.as_ref().map(|p|p.phase) {
@@ -362,7 +443,7 @@ impl DeliveryPane {
             }
             });
         });
-        self.history_open = open;
+        self.history_open = open && !hide;
         if let Some(index) = retry {
             let job = &self.jobs[index];
             let (owner, _) = workspace.edit_snapshot(job.owner.tab)?;
@@ -383,7 +464,15 @@ impl DeliveryPane {
         serde_json::json!({"busy":self.busy(),"choice":self.choice.as_ref().map(|choice|serde_json::json!({
             "owner":choice.owner.version,"composition":choice.composition,"full":choice.full,"start":choice.start,"end":choice.end,"duration":choice.duration})),"jobs":self.jobs.iter().map(|job|serde_json::json!({
             "id":job.id,"owner":job.owner.version,"tab":job.owner.tab,"request":job.request,"destination":job.destination,
-            "running":job.thread.is_some(),"progress":job.progress,"worker_pid":job.pid,
+            "queued":job.project.is_some(),"running":job.thread.is_some(),"progress":job.progress,"worker_pid":job.pid,
             "receipt":job.receipt,"error":job.error,"cancellation":job.cancellation})).collect::<Vec<_>>()})
+    }
+}
+
+fn format_name(format: DeliveryFormat) -> &'static str {
+    match format {
+        DeliveryFormat::H264Mp4 => "H.264 / AAC MP4",
+        DeliveryFormat::ProresMov => "ProRes 4444 MOV",
+        DeliveryFormat::LosslessMov => "Lossless MOV",
     }
 }

@@ -124,7 +124,9 @@ impl Project {
                 })
                 .collect();
             for node in &composition.nodes {
-                if let NodeOperation::MaskAsset { asset } = node.operation {
+                if let NodeOperation::MaskAsset { asset }
+                | NodeOperation::Text { font: asset, .. } = node.operation
+                {
                     masks.insert(asset);
                 }
             }

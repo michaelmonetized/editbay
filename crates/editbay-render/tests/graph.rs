@@ -292,6 +292,7 @@ fn nested_fraction_reverse_step_and_empty_ranges_match_exact_shared_evaluation()
                 composition: id(100),
             },
             time_map: TimeMap {
+                source_denominator: 1,
                 points: vec![
                     TimePoint {
                         frame: 0,
@@ -516,6 +517,7 @@ fn media_project(path: &Path) -> Project {
                 stream: 0,
             },
             time_map: TimeMap {
+                source_denominator: 1,
                 points: vec![
                     TimePoint {
                         frame: 0,
@@ -954,6 +956,7 @@ fn nested_transparent_images_propagate_through_validated_operations_and_profiles
                     composition: id(100),
                 },
                 time_map: TimeMap {
+                    source_denominator: 1,
                     points: vec![
                         TimePoint {
                             frame: 0,
@@ -1020,4 +1023,106 @@ fn nested_transparent_images_propagate_through_validated_operations_and_profiles
                 .is_err()
         );
     }
+}
+
+#[test]
+fn linear_color_controls_match_independent_values_and_preserve_alpha() {
+    let mut project = solid_project();
+    project.compositions[0] = scene(
+        vec![
+            node(
+                1,
+                NodeOperation::Solid {
+                    rgba: [0.4, 0.2, 0.1, 0.5],
+                },
+            ),
+            node(
+                2,
+                NodeOperation::Color {
+                    image: id(1),
+                    exposure: 1.,
+                    contrast: 1.5,
+                    saturation: 0.,
+                },
+            ),
+        ],
+        2,
+    );
+    let mut worker = renderer(project);
+    let frame = worker
+        .render(id(100), SourcePosition::new(1, 1).unwrap(), false)
+        .unwrap();
+    let pixels = worker.readback(&frame).unwrap();
+    let expected = ((0.8 - 0.18) * 1.5 + 0.18) * 0.2126
+        + ((0.4 - 0.18) * 1.5 + 0.18) * 0.7152
+        + ((0.2 - 0.18) * 1.5 + 0.18) * 0.0722;
+    for pixel in pixels.as_chunks::<4>().0.iter() {
+        assert!((pixel[0] - expected * 0.5).abs() < 0.00002);
+        assert_eq!(pixel[0], pixel[1]);
+        assert_eq!(pixel[1], pixel[2]);
+        assert_eq!(pixel[3], 0.5);
+    }
+}
+
+#[test]
+fn retained_editable_title_renders_and_a_changed_font_fails() {
+    use sha2::{Digest, Sha256};
+    let directory = tempfile::tempdir().unwrap();
+    let path = directory.path().join("font.ttf");
+    let bytes = include_bytes!("../../../assets/liberation/LiberationSans-Regular.ttf");
+    std::fs::write(&path, bytes).unwrap();
+    let mut project = solid_project();
+    project.assets.push(AssetReference {
+        id: id(800),
+        kind: AssetKind::Font,
+        path: path.clone(),
+        sha256: format!("{:x}", Sha256::digest(bytes)),
+        bytes: bytes.len() as u64,
+        provenance: "Liberation font test fixture".into(),
+    });
+    project.compositions[0] = scene(
+        vec![node(
+            1,
+            NodeOperation::Text {
+                text: "EditBay".into(),
+                font: id(800),
+                size: 20.,
+                position: [4., 28.],
+                rgba: [1., 0.3, 0.1, 0.8],
+            },
+        )],
+        1,
+    );
+    project.compositions[0].width = 160;
+    project.compositions[0].height = 48;
+    let mut worker = renderer(project.clone());
+    let frame = worker
+        .render(id(100), SourcePosition::new(1, 1).unwrap(), false)
+        .unwrap();
+    let pixels = worker.readback(&frame).unwrap();
+    assert!(
+        pixels
+            .as_chunks::<4>()
+            .0
+            .iter()
+            .filter(|pixel| pixel[3] > 0.1)
+            .count()
+            > 200
+    );
+    for pixel in pixels
+        .as_chunks::<4>()
+        .0
+        .iter()
+        .filter(|pixel| pixel[3] > 0.1)
+    {
+        assert!((pixel[0] - pixel[3]).abs() < 0.00002);
+        assert!((pixel[1] - pixel[3] * 0.3).abs() < 0.00002);
+    }
+    std::fs::write(&path, b"changed font").unwrap();
+    let mut fresh = renderer(project);
+    assert!(
+        fresh
+            .render(id(100), SourcePosition::new(1, 1).unwrap(), false)
+            .is_err()
+    );
 }

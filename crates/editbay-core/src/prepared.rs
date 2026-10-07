@@ -323,7 +323,9 @@ impl EvaluationSnapshot {
                 }) => hash(&(&self.scenes[composition].fingerprint, position, reverse))?,
                 None => String::new(),
             };
-            let asset_key = if let NodeOperation::MaskAsset { asset } = *operation {
+            let asset_key = if let NodeOperation::MaskAsset { asset }
+            | NodeOperation::Text { font: asset, .. } = *operation
+            {
                 let asset = &self.project.assets[self.assets[&asset]];
                 Some((&asset.sha256, asset.bytes))
             } else {

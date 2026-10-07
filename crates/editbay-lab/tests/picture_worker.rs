@@ -391,7 +391,10 @@ fn isolated_and_in_process_sources_use_identical_gpu_temporal_color_and_output_e
                     stream: 0,
                 },
                 linked: None,
-                time_map: TimeMap { points },
+                time_map: TimeMap {
+                    source_denominator: 1,
+                    points,
+                },
             }],
         }],
         nodes: vec![TimedNode {

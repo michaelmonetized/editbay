@@ -56,6 +56,70 @@ fn fixture(path: &Path) {
 }
 
 #[test]
+fn coarse_container_timestamps_preserve_all_pcm_but_real_gaps_fail() {
+    let directory = tempdir().unwrap();
+    for gap in [false, true] {
+        let path = directory
+            .path()
+            .join(if gap { "gap.mkv" } else { "continuous.mkv" });
+        let mut encoder = Command::new("ffmpeg");
+        encoder.args([
+            "-v",
+            "error",
+            "-f",
+            "lavfi",
+            "-i",
+            "sine=sample_rate=48000:duration=3",
+            "-c:a",
+            "aac",
+        ]);
+        if gap {
+            encoder.args(["-af", "asetpts=PTS+if(gte(T\\,1)\\,0.1/TB\\,0)"]);
+        }
+        assert!(encoder.arg(&path).status().unwrap().success());
+        let cancel = Cancellation::new().unwrap();
+        let source = SourceFile::open(&path, &cancel).unwrap();
+        let imported = source.ingest("OBS audio".into(), &[0], cancel.clone(), |_, _| {});
+        if gap {
+            assert!(
+                matches!(imported, Err(Error::Invalid(message)) if message.contains("gap or overlap"))
+            );
+            continue;
+        }
+        let imported = imported.unwrap();
+        assert!(
+            imported.source.streams[0]
+                .metadata
+                .contains_key("editbay.timestamp_quantization")
+        );
+        let reference = directory.path().join("reference.f32");
+        assert!(
+            Command::new("ffmpeg")
+                .args(["-v", "error", "-i"])
+                .arg(&path)
+                .args(["-f", "f32le", "-c:a", "pcm_f32le"])
+                .arg(&reference)
+                .status()
+                .unwrap()
+                .success()
+        );
+        let mut reader = NativeAudioReader::open_stream(&source, 0, cancel).unwrap();
+        let mut samples = Vec::new();
+        let mut end = None;
+        while let Some(block) = reader.next_block().unwrap() {
+            if let Some(end) = end {
+                assert_eq!(block.first_sample, Some(end));
+            }
+            end = Some(block.first_sample.unwrap() + block.samples.len() as i64);
+            for sample in block.samples {
+                samples.extend_from_slice(&sample.to_le_bytes());
+            }
+        }
+        assert_eq!(samples, std::fs::read(reference).unwrap());
+    }
+}
+
+#[test]
 fn explicit_streams_preserve_vfr_timecode_and_six_original_channels() {
     let directory = tempdir().unwrap();
     let path = directory.path().join("multistream source.mkv");

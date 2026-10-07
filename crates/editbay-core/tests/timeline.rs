@@ -66,6 +66,7 @@ fn project() -> Project {
                     stream: 0,
                 },
                 time_map: TimeMap {
+                    source_denominator: 1,
                     points: vec![
                         TimePoint {
                             frame: 0,
@@ -485,4 +486,196 @@ fn fractional_output_sample_centers_and_silent_gaps_keep_exact_time() {
         .unwrap();
         assert_eq!(sample.unwrap().center, expected);
     }
+}
+
+#[test]
+fn conformance_preserves_elapsed_sound_time_and_pads_the_tail() {
+    let p = project();
+    let commands = conform_sequence(
+        &p,
+        id(30),
+        20,
+        30,
+        FrameRate::new(30000, 1001).unwrap(),
+        "Portrait".into(),
+    )
+    .unwrap();
+    let mut editor = DocumentEditor::new(p.clone()).unwrap();
+    editor
+        .apply(DocumentVersion::of(&p), "Conform".into(), &commands)
+        .unwrap();
+    let conformed = editor
+        .project()
+        .sequences
+        .last()
+        .unwrap()
+        .composition
+        .unwrap();
+    let scene = editor
+        .project()
+        .compositions
+        .iter()
+        .find(|c| c.id == conformed)
+        .unwrap();
+    assert_eq!(scene.duration, 60);
+    assert_eq!((scene.width, scene.height), (20, 30));
+    let map = &scene.tracks[0].clips[0].time_map;
+    assert_eq!(
+        map.position_at(SourcePosition::new(1, 1).unwrap()).unwrap(),
+        SourcePosition::new(1001, 1250).unwrap()
+    );
+    let snapshot = SoundSnapshot::at_output_rate(
+        Arc::new(EvaluationSnapshot::new(editor.snapshot()).unwrap()),
+        conformed,
+        48000,
+        SoundBudget::default(),
+    )
+    .unwrap();
+    let block = snapshot.prepare(95990, 96).unwrap();
+    let source = block.sources().first().unwrap();
+    for (offset, sample) in source.samples.iter().enumerate() {
+        if let Some(sample) = sample {
+            assert_eq!(
+                sample.center,
+                SourcePosition::new(191981 + 2 * offset as i64, 2).unwrap()
+            );
+            assert!(offset < 10);
+        } else {
+            assert!(offset >= 10);
+        }
+    }
+    assert_eq!(snapshot.duration_samples(), 96096);
+    assert_eq!(block.sources()[0].samples.iter().flatten().count(), 10);
+    editor.undo(DocumentVersion::of(editor.project())).unwrap();
+    assert_eq!(editor.project().compositions, p.compositions);
+}
+
+#[test]
+fn precision_and_layer_edits_keep_outer_boundaries_and_controls() {
+    let (mut editor, record, first) = assembly();
+    apply(
+        &mut editor,
+        TimelineAction::Insert {
+            composition: record,
+            at: 12,
+            source: selection(16, 28),
+        },
+    );
+    apply(
+        &mut editor,
+        TimelineAction::Insert {
+            composition: record,
+            at: 24,
+            source: selection(28, 40),
+        },
+    );
+    apply(
+        &mut editor,
+        TimelineAction::Roll {
+            composition: record,
+            clip: first,
+            at: 14,
+        },
+    );
+    let clips = timeline_clips(editor.project(), record).unwrap();
+    let middle = clips[1].id;
+    apply(
+        &mut editor,
+        TimelineAction::Slide {
+            composition: record,
+            clip: middle,
+            at: 15,
+        },
+    );
+    apply(
+        &mut editor,
+        TimelineAction::Slip {
+            composition: record,
+            clip: middle,
+            frames: -2,
+        },
+    );
+    let controls = TimelineControls {
+        translation: [3., -2.],
+        scale: [1.2, 1.2],
+        gain: 0.4,
+        opacity: 0.7,
+        ..Default::default()
+    };
+    apply(
+        &mut editor,
+        TimelineAction::SetControls {
+            composition: record,
+            clip: middle,
+            controls,
+        },
+    );
+    let before = timeline_clips(editor.project(), record).unwrap();
+    assert_eq!(before[1].controls, controls);
+    assert_eq!(before[0].range.start, 0);
+    assert_eq!(before[2].range.end, 36);
+    apply(
+        &mut editor,
+        TimelineAction::Split {
+            composition: record,
+            clip: middle,
+            at: 20,
+        },
+    );
+    let split = timeline_clips(editor.project(), record).unwrap();
+    assert_eq!(split[1].controls, controls);
+    assert_eq!(split[2].controls, controls);
+    apply(
+        &mut editor,
+        TimelineAction::AddTrack {
+            composition: record,
+            name: "Overlay".into(),
+        },
+    );
+    let scene = editor
+        .project()
+        .compositions
+        .iter()
+        .find(|c| c.id == record)
+        .unwrap();
+    let overlay = scene.tracks[2].id;
+    let sound = scene.tracks[3].id;
+    apply(
+        &mut editor,
+        TimelineAction::Place {
+            composition: record,
+            track: overlay,
+            at: 5,
+            source: selection(0, 8),
+            audio_only: false,
+        },
+    );
+    apply(
+        &mut editor,
+        TimelineAction::Place {
+            composition: record,
+            track: sound,
+            at: 15,
+            source: selection(0, 8),
+            audio_only: true,
+        },
+    );
+    let final_clips = timeline_clips(editor.project(), record).unwrap();
+    assert!(final_clips.iter().any(|c| c.track == sound && c.audio_only));
+    assert_eq!(final_clips.len(), 6);
+    let version = DocumentVersion::of(editor.project());
+    assert!(
+        timeline_edit(
+            editor.project(),
+            &TimelineAction::Place {
+                composition: record,
+                track: overlay,
+                at: 6,
+                source: selection(0, 8),
+                audio_only: false
+            }
+        )
+        .is_err()
+    );
+    assert_eq!(DocumentVersion::of(editor.project()), version);
 }

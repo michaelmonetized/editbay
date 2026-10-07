@@ -22,6 +22,7 @@ rustix = { version = "1.1.5", features = ["fs"] }
 wgpu = "=30.0.1"
 pollster = "0.4"
 half = "2.7"
+fontdue = "=0.9.4"
 cpal = { version = "=0.18.2", features = ["realtime-dbus", "pipewire"] }
 cc = "1"
 pkg-config = "0.3"
@@ -49,6 +50,9 @@ opt-level = 2
 
 [profile.dev.package.editbay-audio]
 opt-level = 2
+
+[profile.dev.package.fontdue]
+opt-level = 3
 
 [workspace.lints.rust]
 unsafe_code = "forbid"

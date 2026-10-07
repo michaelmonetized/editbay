@@ -966,6 +966,11 @@ fn run(args: Vec<OsString>) -> Result<()> {
             Path::new(&args[2]),
             Path::new(&args[3]),
         )?,
+        ("native-queue", 4) => native_workspace::queue::run(
+            Path::new(&args[1]),
+            Path::new(&args[2]),
+            Path::new(&args[3]),
+        )?,
         ("native-masks", 4) => native_workspace::masks::run(
             Path::new(&args[1]),
             Path::new(&args[2]),

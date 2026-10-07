@@ -10,6 +10,7 @@ fn range() -> FrameRange {
 }
 fn map(start: i64, end: i64) -> TimeMap {
     TimeMap {
+        source_denominator: 1,
         points: vec![
             TimePoint {
                 frame: 0,
@@ -297,6 +298,7 @@ fn rational_retimes_cancel_large_factors_and_preserve_unsigned_endpoints() {
         -1
     );
     let forward = TimeMap {
+        source_denominator: 1,
         points: vec![
             TimePoint {
                 frame: 0,
@@ -314,6 +316,7 @@ fn rational_retimes_cancel_large_factors_and_preserve_unsigned_endpoints() {
         SourcePosition::new(-1, 1).unwrap()
     );
     let reverse = TimeMap {
+        source_denominator: 1,
         points: vec![
             TimePoint {
                 frame: 0,
@@ -354,6 +357,7 @@ fn rational_retimes_cancel_large_factors_and_preserve_unsigned_endpoints() {
             .is_err()
     );
     let extremes = TimeMap {
+        source_denominator: 1,
         points: vec![
             TimePoint {
                 frame: 0,
@@ -508,6 +512,7 @@ fn reverse_nested_end_owns_the_last_picture_sample_and_preceding_step() {
 fn freeze_and_range_boundaries_choose_the_correct_source_side() {
     let mut project = model();
     project.compositions[0].tracks[0].clips[0].time_map = TimeMap {
+        source_denominator: 1,
         points: vec![
             TimePoint {
                 frame: 0,
@@ -902,6 +907,7 @@ fn graph_cycles_socket_errors_global_duplicate_ids_and_invalid_links_fail_atomic
 #[test]
 fn exact_retimes_vfr_and_samples_keep_their_distinct_boundaries() {
     let forward = TimeMap {
+        source_denominator: 1,
         points: vec![
             TimePoint {
                 frame: 0,
@@ -1014,6 +1020,7 @@ fn exact_retimes_vfr_and_samples_keep_their_distinct_boundaries() {
         215784
     );
     let extremes = TimeMap {
+        source_denominator: 1,
         points: vec![
             TimePoint {
                 frame: 0,

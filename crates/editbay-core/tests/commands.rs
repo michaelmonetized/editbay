@@ -5,6 +5,41 @@ fn rename(name: &str) -> DocumentCommand {
 }
 
 #[test]
+fn primary_sequence_retains_sources_and_undo_restores_their_order() {
+    let mut project = Project::new("Sequences").unwrap();
+    let mut second = project.sequences[0].clone();
+    second.id = uuid::Uuid::new_v4();
+    second.name = "Record".into();
+    project.sequences.push(second.clone());
+    let original = project.sequences.clone();
+    let mut editor = DocumentEditor::new(project).unwrap();
+    editor
+        .apply(
+            DocumentVersion::of(editor.project()),
+            "Primary record".into(),
+            &[DocumentCommand::SetPrimarySequence { id: second.id }],
+        )
+        .unwrap();
+    assert_eq!(editor.project().sequences[0], second);
+    assert_eq!(editor.project().sequences.len(), original.len());
+    editor.undo(DocumentVersion::of(editor.project())).unwrap();
+    assert_eq!(editor.project().sequences, original);
+    editor.redo(DocumentVersion::of(editor.project())).unwrap();
+    assert_eq!(editor.project().sequences[0].id, second.id);
+    assert!(
+        editor
+            .apply(
+                DocumentVersion::of(editor.project()),
+                "Absent sequence".into(),
+                &[DocumentCommand::SetPrimarySequence {
+                    id: uuid::Uuid::new_v4()
+                }]
+            )
+            .is_err()
+    );
+}
+
+#[test]
 fn groups_are_atomic_and_undo_redo_never_reuse_an_old_revision() {
     let original = Project::new("Original").unwrap();
     let mut editor = DocumentEditor::new(original.clone()).unwrap();

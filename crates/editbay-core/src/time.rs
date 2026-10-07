@@ -138,7 +138,24 @@ pub struct TimePoint {
 #[cfg_attr(feature = "json-schema", derive(schemars::JsonSchema))]
 #[serde(deny_unknown_fields)]
 pub struct TimeMap {
+    #[serde(
+        default = "integer_source_unit",
+        skip_serializing_if = "is_integer_source_unit"
+    )]
+    pub source_denominator: u32,
     pub points: Vec<TimePoint>,
+}
+
+/// Keep legacy maps in whole source ticks.
+/// Takes no arguments and returns the default denominator, one.
+fn integer_source_unit() -> u32 {
+    1
+}
+
+/// Preserve legacy serialized maps when no fractional source units are needed.
+/// `value` is a source denominator; returns true for whole source ticks.
+fn is_integer_source_unit(value: &u32) -> bool {
+    *value == 1
 }
 
 impl TimeMap {
@@ -159,6 +176,7 @@ impl TimeMap {
     /// the boundary definition, duplicate points or unrepresentable interpolation.
     pub fn validate(&self, duration: u64) -> Result<()> {
         if duration == 0
+            || self.source_denominator == 0
             || self.points.len() < 2
             || self.points.len() > 65_536
             || self.points[0].frame != 0
@@ -222,7 +240,8 @@ impl TimeMap {
         let b = self.points[index + 1];
         Ok(
             (i128::from(b.source_tick) - i128::from(a.source_tick)) as f64
-                / (b.frame - a.frame) as f64,
+                / (b.frame - a.frame) as f64
+                / f64::from(self.source_denominator),
         )
     }
 
@@ -282,6 +301,22 @@ impl TimeMap {
     /// `numerator` and `denominator` specify nonnegative local frames.
     /// Returns reduced source ticks using cancellation before multiplication.
     fn position_fraction(&self, numerator: u128, denominator: u64) -> Result<SourcePosition> {
+        let raw = self.position_numerators(numerator, denominator)?;
+        let factor = divisor(
+            raw.numerator.unsigned_abs().into(),
+            self.source_denominator.into(),
+        );
+        SourcePosition::from_fraction(
+            i128::from(raw.numerator) / factor as i128,
+            raw.denominator
+                .checked_mul(u64::from(self.source_denominator) / factor as u64)
+                .ok_or_else(overflow)?,
+        )
+    }
+
+    /// Interpolate stored numerators before applying the source unit.
+    /// `numerator` and `denominator` select local frames; returns exact raw units.
+    fn position_numerators(&self, numerator: u128, denominator: u64) -> Result<SourcePosition> {
         let index = self.segment(numerator, denominator, false)?;
         let a = self.points[index];
         let b = self.points[index + 1];

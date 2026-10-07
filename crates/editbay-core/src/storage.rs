@@ -13,6 +13,7 @@ use uuid::Uuid;
 
 const RECOVERY_SCHEMA: u32 = 1;
 pub const MAX_DOCUMENT_BYTES: u64 = 64 * 1024 * 1024;
+const ARCHIVE_MEDIA: &str = ".editbay-media";
 
 #[derive(Debug, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
@@ -64,6 +65,7 @@ pub fn load(path: impl AsRef<Path>) -> Result<Project> {
 /// `path` selects the read-only source and `bytes` limits its serialized size.
 /// Returns the shared typed document, or a visible limit/validation error.
 pub fn load_bounded(path: impl AsRef<Path>, bytes: u64) -> Result<Project> {
+    let path = path.as_ref();
     let mut data = Vec::new();
     File::open(path)?
         .take(bytes.saturating_add(1))
@@ -73,7 +75,21 @@ pub fn load_bounded(path: impl AsRef<Path>, bytes: u64) -> Result<Project> {
             "project exceeds its {bytes}-byte read budget"
         )));
     }
-    let project: Project = serde_json::from_slice(&data)?;
+    let mut project: Project = serde_json::from_slice(&data)?;
+    let root = fs::canonicalize(parent(path))?;
+    for asset in &mut project.assets {
+        if asset.path.starts_with(ARCHIVE_MEDIA) {
+            if asset.path.components().count() != 2
+                || !asset
+                    .path
+                    .components()
+                    .all(|part| matches!(part, std::path::Component::Normal(_)))
+            {
+                return Err(Error::Invalid("archive asset path is unsafe".into()));
+            }
+            asset.path = root.join(&asset.path);
+        }
+    }
     project.migrate()
 }
 
@@ -111,9 +127,85 @@ fn write_project(
     expected: Option<&Project>,
 ) -> Result<()> {
     project.validate()?;
-    let mut bytes = serialize_bounded(project, true)?;
+    let root = absolute_destination(path)?.parent().unwrap().to_owned();
+    let mut stored = project.clone();
+    for asset in &mut stored.assets {
+        if let Ok(relative) = asset.path.strip_prefix(&root)
+            && relative.starts_with(ARCHIVE_MEDIA)
+            && relative.components().count() == 2
+        {
+            asset.path = relative.to_owned();
+        }
+    }
+    let mut bytes = serialize_bounded(&stored, true)?;
     bytes.push(b'\n');
     atomic_write(path, &bytes, new_only, expected)
+}
+
+/// Copy an editable project and every retained asset into a portable directory.
+/// `project` is a captured revision; `destination` must be a new directory.
+/// Returns its project path after every copied byte matches the document's hash.
+/// Originals are read only, and the project is published last after media sync.
+pub fn archive_project(project: &Project, destination: impl AsRef<Path>) -> Result<PathBuf> {
+    project.validate()?;
+    let destination = destination.as_ref();
+    create_parents(destination)?;
+    fs::create_dir(destination).map_err(|error| {
+        if error.kind() == std::io::ErrorKind::AlreadyExists {
+            Error::Exists(destination.to_owned())
+        } else {
+            error.into()
+        }
+    })?;
+    let root = fs::canonicalize(destination)?;
+    let media = root.join(ARCHIVE_MEDIA);
+    fs::create_dir(&media)?;
+    let mut archived = project.clone();
+    let mut total = 0u64;
+    for asset in &mut archived.assets {
+        total = total
+            .checked_add(asset.bytes)
+            .filter(|bytes| *bytes <= 128 * 1024 * 1024 * 1024)
+            .ok_or_else(|| Error::Invalid("archive exceeds its 128 GiB media limit".into()))?;
+        let target = media.join(&asset.sha256);
+        if !target.exists() {
+            let mut source = File::open(&asset.path)?;
+            if !source.metadata()?.is_file() || source.metadata()?.len() != asset.bytes {
+                return Err(Error::Invalid(format!(
+                    "asset size changed: {}",
+                    asset.path.display()
+                )));
+            }
+            let mut copied = private_options().open(&target)?;
+            let mut digest = Sha256::new();
+            let mut bytes = 0u64;
+            let mut buffer = [0u8; 65536];
+            loop {
+                let count = source.read(&mut buffer)?;
+                if count == 0 {
+                    break;
+                }
+                bytes = bytes
+                    .checked_add(count as u64)
+                    .filter(|bytes| *bytes <= asset.bytes)
+                    .ok_or(Error::Integrity)?;
+                digest.update(&buffer[..count]);
+                copied.write_all(&buffer[..count])?;
+            }
+            if bytes != asset.bytes || format!("{:x}", digest.finalize()) != asset.sha256 {
+                return Err(Error::Integrity);
+            }
+            copied.sync_all()?;
+        } else if fs::metadata(&target)?.len() != asset.bytes {
+            return Err(Error::Integrity);
+        }
+        asset.path = target;
+    }
+    File::open(&media)?.sync_all()?;
+    let path = root.join("Project.editbay");
+    save_new(&archived, &path)?;
+    File::open(parent(&root))?.sync_all()?;
+    Ok(path)
 }
 
 fn parent(path: &Path) -> &Path {

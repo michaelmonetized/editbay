@@ -8,6 +8,7 @@ pub use job::{DeliveryControl, deliver};
 pub use worker::serve;
 
 use editbay_core::{DocumentVersion, FrameRange};
+pub use editbay_media::DeliveryFormat;
 use editbay_media::LosslessMovProfile;
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
@@ -18,6 +19,8 @@ pub type Result<T> = std::result::Result<T, Box<dyn std::error::Error>>;
 #[derive(Clone, Copy, Debug, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct DeliveryRequest {
+    #[serde(default)]
+    pub format: DeliveryFormat,
     pub composition: Uuid,
     pub sample_rate: u32,
     pub range: Option<FrameRange>,
@@ -69,14 +72,58 @@ pub struct Progress {
 #[derive(Clone, Debug, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct Receipt {
+    pub format: DeliveryFormat,
     pub version: DocumentVersion,
     pub profile: LosslessMovProfile,
     pub pixel_sha256: String,
     pub pcm_sha256: String,
+    pub decoded_pixel_sha256: String,
+    pub decoded_pcm_sha256: String,
+    pub picture_quality: SignalComparison,
+    pub sound_quality: SignalComparison,
     pub file_sha256: String,
     pub file_bytes: u64,
     pub clipped_picture_values: u64,
     pub adapter: String,
+}
+
+/// Measured decoded error against the shared graph, without hiding codec loss.
+#[derive(Clone, Debug, Default, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct SignalComparison {
+    pub samples: u64,
+    pub squared_error: f64,
+    pub reference_energy: f64,
+    pub maximum_absolute_error: f64,
+}
+
+impl SignalComparison {
+    /// Accumulate one decoded value against its matching graph value.
+    /// `reference` and `decoded` use normalized signal units. Returns an error
+    /// for nonfinite input or overflow; every channel contributes independently.
+    pub fn observe(&mut self, reference: f64, decoded: f64) -> Result<()> {
+        if !reference.is_finite() || !decoded.is_finite() {
+            return Err("Decoded delivery contains a nonfinite value".into());
+        }
+        self.samples = self
+            .samples
+            .checked_add(1)
+            .ok_or("QC sample count overflow")?;
+        let error = (reference - decoded).abs();
+        self.squared_error += error * error;
+        self.reference_energy += reference * reference;
+        self.maximum_absolute_error = self.maximum_absolute_error.max(error);
+        if !self.squared_error.is_finite() || !self.reference_energy.is_finite() {
+            return Err("Delivery QC accumulation overflow".into());
+        }
+        Ok(())
+    }
+
+    /// Return the measured root mean squared signal error.
+    /// Takes this receipt; returns none until at least one sample was compared.
+    pub fn rms_error(&self) -> Option<f64> {
+        (self.samples > 0).then(|| (self.squared_error / self.samples as f64).sqrt())
+    }
 }
 
 #[cfg(test)]
@@ -86,6 +133,7 @@ mod tests {
     #[test]
     fn range_requests_reject_empty_reversed_foreign_and_overflowed_intervals() {
         let mut request = DeliveryRequest {
+            format: DeliveryFormat::default(),
             composition: Uuid::new_v4(),
             sample_rate: 48000,
             range: None,

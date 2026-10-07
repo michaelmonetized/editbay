@@ -121,7 +121,7 @@ pub fn deliver(
         sample_rate: request.sample_rate,
         channels: sound.profile().channels.clone(),
     };
-    expected.validate()?;
+    request.format.validate(&expected)?;
     let preparation = SoundRenderer::new(
         Arc::new(sound),
         PcmBudget::default(),
@@ -137,9 +137,13 @@ pub fn deliver(
     if destination
         .extension()
         .and_then(|s| s.to_str())
-        .is_none_or(|s| !s.eq_ignore_ascii_case("mov"))
+        .is_none_or(|s| !s.eq_ignore_ascii_case(request.format.extension()))
     {
-        return Err("The lossless PNG/float PCM profile needs a .mov destination".into());
+        return Err(format!(
+            "This export profile needs a .{} destination",
+            request.format.extension()
+        )
+        .into());
     }
     match std::fs::symlink_metadata(destination) {
         Ok(_) => return Err("Delivery destination already exists".into()),
@@ -174,6 +178,7 @@ pub fn deliver(
         pid,
     );
     let mut serial = 0;
+    let format = request.format;
     let mut previous = None;
     let mut operation = Operation::Begin {
         project: Box::new((*project).clone()),
@@ -208,7 +213,7 @@ pub fn deliver(
                 previous = Some(status.clone());
                 if status.phase == Phase::Complete {
                     let receipt = receipt.ok_or("Complete delivery has no verification receipt")?;
-                    if receipt.version != owner.version {
+                    if receipt.version != owner.version || receipt.format != format {
                         return Err("Delivery receipt belongs to another document".into());
                     }
                     progress(
@@ -341,6 +346,8 @@ fn validate_reply(
             || [
                 &receipt.pixel_sha256,
                 &receipt.pcm_sha256,
+                &receipt.decoded_pixel_sha256,
+                &receipt.decoded_pcm_sha256,
                 &receipt.file_sha256,
             ]
             .iter()
@@ -583,10 +590,15 @@ mod tests {
             ..prior.clone()
         };
         let receipt = Receipt {
+            format: crate::DeliveryFormat::default(),
             version: owner.version,
             profile: profile.clone(),
             pixel_sha256: "a".repeat(64),
             pcm_sha256: "b".repeat(64),
+            decoded_pixel_sha256: "a".repeat(64),
+            decoded_pcm_sha256: "b".repeat(64),
+            picture_quality: crate::SignalComparison::default(),
+            sound_quality: crate::SignalComparison::default(),
             file_sha256: "c".repeat(64),
             file_bytes: 4096,
             clipped_picture_values: 0,
@@ -732,6 +744,7 @@ mod tests {
         let directory = tempfile::tempdir().unwrap();
         let project = Arc::new(Project::new("Cancelled export").unwrap());
         let request = DeliveryRequest {
+            format: crate::DeliveryFormat::default(),
             composition: Uuid::new_v4(),
             sample_rate: 48000,
             range: None,

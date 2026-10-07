@@ -3,6 +3,7 @@ mod checkpoints;
 mod completions;
 pub mod masks;
 pub mod prepared;
+pub mod queue;
 pub mod ranges;
 
 use crate::{Result, hash, metrics};
@@ -275,7 +276,7 @@ fn choose_destination(destination: &Path) -> Result<()> {
         ) && window["mapped"] == true
             && window["title"]
                 .as_str()
-                .is_some_and(|title| title.starts_with("Export lossless 8-bit master"))
+                .is_some_and(|title| title.starts_with("Export sequence"))
     })?;
     let address = chooser["address"]
         .as_str()
@@ -591,7 +592,17 @@ fn click_control(trace: &mut Trace, name: &str) -> Result<u64> {
     trace.focus()?;
     let deadline = Instant::now() + Duration::from_secs(10);
     loop {
-        let position = control(trace, name)?;
+        let position = match control(trace, name) {
+            Ok(position) => position,
+            Err(error)
+                if error.to_string().contains("not currently visible")
+                    && Instant::now() < deadline =>
+            {
+                thread::sleep(Duration::from_millis(5));
+                continue;
+            }
+            Err(error) => return Err(error),
+        };
         let [x, y] = position;
         dispatch(&format!("hl.dsp.cursor.move({{x={x},y={y}}})"))?;
         thread::sleep(Duration::from_millis(125));
@@ -2762,10 +2773,52 @@ fn timeline_record(trace: &mut Trace, revision: u64) -> Result<Value> {
 }
 fn set_timeline_input(trace: &mut Trace, name: &str, value: u64) -> Result<()> {
     click_control(trace, name)?;
-    click_control(trace, name)?;
-    key(30, true, false)?;
-    command("wtype", &["-s", "40", &value.to_string(), "-s", "80"])?;
-    key(28, false, false)?;
+    let after = click_control(trace, name)?;
+    trace.wait("timeline field keyboard focus", |record| {
+        record["kind"] == "frame"
+            && record["unix_us"].as_u64().is_some_and(|time| time >= after)
+            && record["details"]["text_input_focused"] == true
+    })?;
+    command(
+        "wtype",
+        &[
+            "-s",
+            "40",
+            "-M",
+            "ctrl",
+            "-k",
+            "a",
+            "-m",
+            "ctrl",
+            "-s",
+            "40",
+            &value.to_string(),
+            "-s",
+            "80",
+            "-k",
+            "Return",
+            "-s",
+            "40",
+            "-k",
+            "Escape",
+        ],
+    )?;
+    trace.wait("timeline field value", |record| {
+        if record["kind"] != "timeline"
+            || !record["unix_us"].as_u64().is_some_and(|time| time >= after)
+        {
+            return false;
+        }
+        let details = &record["details"];
+        match name {
+            "timeline-source-in" => details["source_range"]["start"] == value,
+            "timeline-source-out" => details["source_range"]["end"] == value,
+            "timeline-trim-in" => details["trim_range"]["start"] == value,
+            "timeline-trim-out" => details["trim_range"]["end"] == value,
+            "timeline-record-at" => details["at"] == value,
+            _ => false,
+        }
+    })?;
     Ok(())
 }
 

@@ -1,4 +1,4 @@
-use crate::{DeliveryRequest, Phase, Progress, Receipt, Result};
+use crate::{DeliveryFormat, DeliveryRequest, Phase, Progress, Receipt, Result, SignalComparison};
 use editbay_audio::{SoundPreparation, SoundRenderBudget, SoundRenderer};
 use editbay_core::{
     DocumentVersion, EvaluationSnapshot, OutputTransfer, Project, SoundBudget, SoundSnapshot,
@@ -36,6 +36,10 @@ pub(crate) struct Session {
     source: Option<SourceFile>,
     clipped: u64,
     receipt: Option<Receipt>,
+    decoded_pixels: Option<String>,
+    picture_quality: SignalComparison,
+    sound_quality: SignalComparison,
+    decoded_padding: u64,
 }
 
 impl Session {
@@ -74,7 +78,7 @@ impl Session {
             sample_rate: request.sample_rate,
             channels: plan.profile().channels.clone(),
         };
-        profile.validate()?;
+        request.format.validate(&profile)?;
         let first_sample = profile.sample_origin()?;
         let total_samples = profile.samples_through(profile.frames)?;
         let cancel = Cancellation::new()?;
@@ -96,9 +100,10 @@ impl Session {
         } else {
             Phase::Preparing
         };
-        let writer = Some(LosslessMovWriter::new(
+        let writer = Some(LosslessMovWriter::encoded(
             &file,
             profile.clone(),
+            request.format,
             cancel.clone(),
         )?);
         Ok(Self {
@@ -125,6 +130,10 @@ impl Session {
             source: None,
             clipped: 0,
             receipt: None,
+            decoded_pixels: None,
+            picture_quality: SignalComparison::default(),
+            sound_quality: SignalComparison::default(),
+            decoded_padding: 0,
         })
     }
 
@@ -134,7 +143,7 @@ impl Session {
             prepared_samples: self.source_preparation.progress().prepared_samples,
             total_preparation_samples: self.source_preparation.progress().total_samples,
             pictures: self.pictures,
-            samples: self.samples,
+            samples: self.samples.min(self.total_samples),
             total_pictures: self.profile.frames,
             total_samples: self.total_samples,
         }
@@ -178,7 +187,8 @@ impl Session {
             false,
         )?;
         let output = self.picture.convert(&working, ImageBoundary::Output)?;
-        let (rgba, clipped) = rgba8(&self.picture.readback(&output)?)?;
+        let (mut rgba, clipped) = rgba8(&self.picture.readback(&output)?)?;
+        flatten(&mut rgba, self.request.format);
         self.clipped += clipped;
         let writer = self.writer.as_mut().ok_or("Delivery encoder is absent")?;
         writer.picture(self.pictures, &rgba)?;
@@ -189,6 +199,17 @@ impl Session {
             let plan = self.plan.prepare(self.first_sample + self.samples, count)?;
             let sound = self.sound.render(&plan)?;
             self.sound.validate_result(&sound)?;
+            if self.request.format == DeliveryFormat::H264Mp4
+                && sound
+                    .sound()
+                    .samples()
+                    .iter()
+                    .any(|sample| sample.abs() > 1.)
+            {
+                return Err(
+                    "AAC delivery exceeds full scale; lower the sound mix before exporting".into(),
+                );
+            }
             writer.sound(self.samples, sound.sound().samples())?;
             for sample in sound.sound().samples() {
                 self.expected_pcm.update(sample.to_le_bytes());
@@ -211,22 +232,27 @@ impl Session {
             }
             let video = &probe.streams[0];
             let audio = &probe.streams[1];
-            if video.codec != "png"
+            let (video_codec, audio_codec, matrix, range) = match self.request.format {
+                DeliveryFormat::LosslessMov => ("png", "pcm_f32le", 0, 2),
+                DeliveryFormat::H264Mp4 => ("h264", "aac", 1, 1),
+                DeliveryFormat::ProresMov => ("prores", "pcm_f32le", 1, 1),
+            };
+            if video.codec != video_codec
                 || video.width != Some(self.profile.width)
                 || video.height != Some(self.profile.height)
                 || video.color
                     != (SourceColor {
                         primaries: 1,
                         transfer: 13,
-                        matrix: 0,
-                        range: 2,
+                        matrix,
+                        range,
                     })
                 || video.time_base
                     != Some(TimeBase {
                         numerator: 1,
                         denominator: self.profile.frame_rate.numerator,
                     })
-                || audio.codec != "pcm_f32le"
+                || audio.codec != audio_codec
                 || audio.sample_rate != Some(self.profile.sample_rate)
                 || audio.channels != self.profile.channels
                 || audio.time_base
@@ -261,13 +287,51 @@ impl Session {
                 return Err("Delivered pictures have the wrong time or count".into());
             }
             self.decoded.update(&frame.rgba);
+            if self.request.format != DeliveryFormat::LosslessMov {
+                let working = self.picture.render(
+                    self.request.composition,
+                    SourcePosition {
+                        numerator: i64::try_from(self.profile.first_frame + self.pictures)?,
+                        denominator: 1,
+                    },
+                    false,
+                )?;
+                let output = self.picture.convert(&working, ImageBoundary::Output)?;
+                let (mut reference, _) = rgba8(&self.picture.readback(&output)?)?;
+                flatten(&mut reference, self.request.format);
+                if reference.len() != frame.rgba.len() {
+                    return Err("Decoded delivery picture has the wrong geometry".into());
+                }
+                for (expected, actual) in reference.iter().zip(&frame.rgba) {
+                    self.picture_quality
+                        .observe(f64::from(*expected) / 255., f64::from(*actual) / 255.)?;
+                }
+            }
             self.pictures += 1;
         } else {
             if self.pictures != self.profile.frames
-                || self.decoded.clone().finalize() != self.expected_pixels.clone().finalize()
+                || (self.request.format == DeliveryFormat::LosslessMov
+                    && self.decoded.clone().finalize() != self.expected_pixels.clone().finalize())
             {
                 return Err("Decoded delivery pictures differ from shared graph output".into());
             }
+            if self.request.format != DeliveryFormat::LosslessMov {
+                let limit = if self.request.format == DeliveryFormat::H264Mp4 {
+                    0.035
+                } else {
+                    0.015
+                };
+                if self
+                    .picture_quality
+                    .rms_error()
+                    .is_none_or(|error| error > limit)
+                {
+                    return Err(
+                        "Compressed delivery exceeds its declared picture quality tolerance".into(),
+                    );
+                }
+            }
+            self.decoded_pixels = Some(format!("{:x}", self.decoded.clone().finalize()));
             self.video = None;
             self.audio = Some(NativeAudioReader::open_stream(
                 self.source.as_ref().ok_or("Delivery source is absent")?,
@@ -289,28 +353,77 @@ impl Session {
             if block.first_sample != Some(i64::try_from(self.samples)?) {
                 return Err("Delivered sound is discontinuous".into());
             }
-            self.samples += (block.samples.len() / self.profile.channels.len()) as u64;
-            if self.samples > self.total_samples {
-                return Err("Delivery contains excess sound".into());
+            let channels = self.profile.channels.len();
+            let frames = (block.samples.len() / channels) as u64;
+            let valid = frames.min(self.total_samples.saturating_sub(self.samples));
+            let padding = frames - valid;
+            self.decoded_padding += padding;
+            if self.decoded_padding
+                > if self.request.format == DeliveryFormat::H264Mp4 {
+                    1023
+                } else {
+                    0
+                }
+            {
+                return Err("Delivery contains excess sound beyond codec padding".into());
             }
-            for sample in block.samples {
+            let valid_samples = &block.samples[..valid as usize * channels];
+            if self.request.format == DeliveryFormat::H264Mp4 {
+                let mut first = 0usize;
+                while first < valid as usize {
+                    let count = (valid as usize - first).min(4096) as u32;
+                    let plan = self
+                        .plan
+                        .prepare(self.first_sample + self.samples + first as u64, count)?;
+                    let reference = self.sound.render(&plan)?;
+                    self.sound.validate_result(&reference)?;
+                    for (expected, actual) in
+                        reference.sound().samples().iter().zip(
+                            &valid_samples[first * channels..(first + count as usize) * channels],
+                        )
+                    {
+                        self.sound_quality
+                            .observe(f64::from(*expected), f64::from(*actual))?;
+                    }
+                    first += count as usize;
+                }
+            }
+            self.samples += frames;
+            for sample in valid_samples {
                 self.decoded.update(sample.to_le_bytes());
             }
         } else {
-            if self.samples != self.total_samples
-                || self.decoded.clone().finalize() != self.expected_pcm.clone().finalize()
+            if self.samples - self.decoded_padding != self.total_samples
+                || (self.request.format != DeliveryFormat::H264Mp4
+                    && self.decoded.clone().finalize() != self.expected_pcm.clone().finalize())
             {
                 return Err("Decoded delivery sound differs from shared graph output".into());
+            }
+            if self.request.format == DeliveryFormat::H264Mp4
+                && self
+                    .sound_quality
+                    .rms_error()
+                    .is_none_or(|error| error > 0.02)
+            {
+                return Err("AAC delivery exceeds its declared sound quality tolerance".into());
             }
             self.picture.verify_sources()?;
             self.sound.verify_sources()?;
             let source = self.source.as_ref().ok_or("Delivery source is absent")?;
             source.verify(&self.cancel)?;
             self.receipt = Some(Receipt {
+                format: self.request.format,
                 version: self.version,
                 profile: self.profile.clone(),
                 pixel_sha256: format!("{:x}", self.expected_pixels.clone().finalize()),
                 pcm_sha256: format!("{:x}", self.expected_pcm.clone().finalize()),
+                decoded_pixel_sha256: self
+                    .decoded_pixels
+                    .clone()
+                    .ok_or("Missing picture QC hash")?,
+                decoded_pcm_sha256: format!("{:x}", self.decoded.clone().finalize()),
+                picture_quality: self.picture_quality.clone(),
+                sound_quality: self.sound_quality.clone(),
                 file_sha256: source.fingerprint().sha256.clone(),
                 file_bytes: source.fingerprint().bytes,
                 clipped_picture_values: self.clipped,
@@ -319,6 +432,18 @@ impl Session {
             self.phase = Phase::Complete;
         }
         Ok(())
+    }
+}
+
+fn flatten(rgba: &mut [u8], format: DeliveryFormat) {
+    if format == DeliveryFormat::H264Mp4 {
+        for pixel in rgba.as_chunks_mut::<4>().0 {
+            let alpha = u32::from(pixel[3]);
+            for value in &mut pixel[..3] {
+                *value = ((u32::from(*value) * alpha + 127) / 255) as u8;
+            }
+            pixel[3] = 255;
+        }
     }
 }
 

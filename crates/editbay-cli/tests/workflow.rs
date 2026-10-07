@@ -94,7 +94,10 @@ fn invalid_commands_and_names_report_failure_without_creating_work() {
     assert!(String::from_utf8_lossy(&output.stderr).contains("invalid command"));
     let output = run(&["--version".as_ref()]);
     assert!(output.status.success());
-    assert!(String::from_utf8_lossy(&output.stdout).contains("Rust project foundation"));
+    assert_eq!(
+        String::from_utf8_lossy(&output.stdout),
+        format!("editbay {}\n", env!("CARGO_PKG_VERSION"))
+    );
 }
 
 #[test]
