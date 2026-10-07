@@ -1,6 +1,24 @@
 use serde::{Deserialize, Serialize};
 use std::sync::atomic::{AtomicU64, Ordering};
 
+#[derive(Default)]
+pub(super) struct NativeContinuity {
+    previous: Option<(u64, u64)>,
+}
+impl NativeContinuity {
+    /// Check the hardware graph without losing an underrun between callbacks.
+    /// `clock`, `xruns` and `flags` are native driver observations. Returns false
+    /// for recovery, a changed clock or any change in accumulated underrun time.
+    pub(super) fn observe(&mut self, clock: u64, xruns: u64, flags: u64) -> bool {
+        let current = (clock, xruns);
+        flags & 2 == 0
+            && self
+                .previous
+                .replace(current)
+                .is_none_or(|last| last == current)
+    }
+}
+
 /// One native graph observation, retained separately from accepted source samples.
 #[derive(Clone, Copy, Debug, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
@@ -79,5 +97,25 @@ impl NativeTrace {
             }
         }
         None
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn accumulated_driver_underruns_survive_a_cleared_recovery_flag() {
+        let mut graph = NativeContinuity::default();
+        assert!(graph.observe(37, 14283, 0));
+        assert!(graph.observe(37, 14283, 0));
+        assert!(!graph.observe(37, 18394, 0));
+        assert!(!NativeContinuity::default().observe(37, 0, 2));
+        let mut reset = NativeContinuity::default();
+        assert!(reset.observe(37, 14283, 0));
+        assert!(!reset.observe(37, 0, 0));
+        let mut changed = NativeContinuity::default();
+        assert!(changed.observe(37, 0, 0));
+        assert!(!changed.observe(38, 0, 0));
     }
 }

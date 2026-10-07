@@ -1,4 +1,4 @@
-use super::native_trace::NativeTrace;
+use super::native_trace::{NativeContinuity, NativeTrace};
 use super::{Callback, Result};
 use std::{
     ffi::{c_int, c_void},
@@ -29,6 +29,7 @@ struct Owner {
     rate: u32,
     channels: usize,
     trace: Arc<NativeTrace>,
+    continuity: NativeContinuity,
 }
 
 /// Serialized control handle retaining one exclusively real-time callback owner.
@@ -47,6 +48,7 @@ impl Stream {
             rate,
             channels: usize::from(channels),
             trace: Arc::new(NativeTrace::default()),
+            continuity: NativeContinuity::default(),
         });
         let handle = unsafe {
             eb_pw_open(
@@ -123,7 +125,10 @@ unsafe extern "C" fn render(
     let owner = unsafe { &mut *user.cast::<Owner>() };
     let diagnostic = unsafe { &*diagnostic.cast::<[u64; 17]>() };
     owner.trace.record(diagnostic);
-    if diagnostic[4] & 2 != 0 {
+    if !owner
+        .continuity
+        .observe(diagnostic[14], diagnostic[6], diagnostic[4])
+    {
         owner.callback.control.stop(super::State::BackendUnderrun);
         owner.callback.cancel.cancel();
     }

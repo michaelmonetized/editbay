@@ -423,6 +423,8 @@ pub fn run(path: &Path, seconds: u64, directory: &Path) -> Result<Value> {
     let mut recovered_storage_errors = 0;
     let mut failure = None;
     let mut last_heartbeat = Instant::now();
+    let mut native_first = None;
+    let mut native_last = None;
     let final_status = loop {
         let status = playback.0.status();
         let rss = resources(&mut observed)?;
@@ -437,6 +439,18 @@ pub fn run(path: &Path, seconds: u64, directory: &Path) -> Result<Value> {
             schedule_sample = Instant::now();
         }
         peak_prepared = peak_prepared.max(status.prepared_frames);
+        if let Some(native) = status.native_output {
+            let first = native_first.get_or_insert(native);
+            if native.graph_clock_id != first.graph_clock_id
+                || native.graph_xrun_ticks != first.graph_xrun_ticks
+                || native.graph_flags & 2 != 0
+                || native.dequeue_misses != 0
+                || native.maximum_ticks_step > native.graph_duration
+            {
+                failure = Some("Native hardware graph continuity failed");
+            }
+            native_last = Some(native);
+        }
         if let Some(position) = status.position_samples {
             if position < previous_position {
                 failure = Some("Sound position regressed");
@@ -532,6 +546,7 @@ pub fn run(path: &Path, seconds: u64, directory: &Path) -> Result<Value> {
         "prepared_capacity_frames":16384,"peak_prepared_frames":peak_prepared,"peak_combined_rss_kib":peak_rss,
         "processes":observed,"owned_processes_reaped":owned_reaped,"source_unchanged":source_unchanged,"project_unchanged":project_unchanged,
         "complete":complete,"backend_clock_gate":clock_pass,"failure":failure,"qualified":qualified,
+        "native_graph_first":native_first,"native_graph_last":native_last,
         "two_hour_run_complete":seconds == MAX_SECONDS && complete && began.elapsed() >= Duration::from_secs(MAX_SECONDS),
         "limits":["Actual native device callbacks; backend and host latency-adjusted clock estimates only. No physical speaker, display, audibility or independent-user proof.",
         "RSS includes the lab and observed descendants, may double count shared memory, and excludes unmapped page cache and unreported driver/device allocations.",
