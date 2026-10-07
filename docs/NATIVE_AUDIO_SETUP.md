@@ -6,6 +6,12 @@ under memory pressure. A driver underrun was observed in the same second as a
 PipeWire major page fault, with the editor's source ring still full. Scheduling
 priority alone did not prevent that failure.
 
+The resident speaker route still reported an underrun after 382.991 seconds,
+without additional service page faults and with drift below 1.6 ms. The supplied
+Asahi speaker rule reserves 4,096 extra hardware frames. It changes only that
+device's buffering; the protected speaker filter and EditBay's 16,384-frame source
+ring remain in use. Backend timestamps retain the added hardware latency.
+
 The supplied configuration enables PipeWire's memory locking and limits each
 service to 1 GiB of locked address space. The speaker filter needs more than
 256 MiB of address space during startup. Locked address space includes reserved
@@ -23,6 +29,7 @@ mkdir -p ~/.config/systemd/user/pipewire.service.d
 mkdir -p ~/.config/systemd/user/wireplumber.service.d
 install -m 644 assets/audio/residency.conf ~/.config/pipewire/pipewire.conf.d/50-editbay-audio-residency.conf
 install -m 644 assets/audio/residency.conf ~/.config/wireplumber/wireplumber.conf.d/50-editbay-audio-residency.conf
+install -m 644 assets/audio/asahi-speaker-headroom.conf ~/.config/wireplumber/wireplumber.conf.d/50-editbay-asahi-speaker-headroom.conf
 install -m 644 assets/audio/memlock-service.conf ~/.config/systemd/user/pipewire.service.d/50-editbay-audio-memory.conf
 install -m 644 assets/audio/memlock-service.conf ~/.config/systemd/user/wireplumber.service.d/50-editbay-audio-memory.conf
 sudo install -D -m 644 assets/audio/memlock-service.conf "/etc/systemd/system/user@$audio_uid.service.d/50-editbay-audio-memory.conf"
@@ -52,4 +59,5 @@ services.
 
 Sources: [PipeWire memory properties](https://docs.pipewire.org/page_man_pipewire_conf_5.html),
 [driver clock observations](https://docs.pipewire.org/structspa__io__clock.html),
+[ALSA hardware buffering](https://docs.pipewire.org/page_man_pipewire-props_7.html),
 [WirePlumber configuration fragments](https://pipewire.pages.freedesktop.org/wireplumber/daemon/configuration/conf_file.html).
