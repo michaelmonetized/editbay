@@ -101,13 +101,25 @@ Backend presentation time includes native graph delay and queued/buffered sample
 The unchanged continuity gate stops visibly above 20 ms instead of skipping source
 sound. Device changes, underruns and child failure retire owned work.
 
-The current two-hour qualification is in progress with native graph ticks, queue
-availability, missed dequeue attempts and backend underrun observations retained.
-The prior frozen candidate stopped at 1130.679 seconds on a 55.220 ms clock
-discontinuity with prepared source sound still available. Earlier failed runs
-remain local evidence. The host audio services were restarted after their data threads
-were observed without real-time scheduling. The candidate records actual server
-and client scheduling rather than treating a configuration flag as proof.
+The two-hour production runtime completes at exactly 345,600,000 samples, with
+zero driver underruns/dequeue misses and reaped children. Maximum backend/host
+drift is 0.194580/0.194913 ms; peak sampled combined RSS is 145,344 KiB. The route
+uses measured adaptive rate correction, resident realtime audio services and
+interrupt-driven protected speaker output.
+
+The frozen recorder retried four disk writes. Its zero-retry recording check
+fails. Independent audit parses all 70,869 expected observations, recomputes
+clock/memory summaries, verifies the byte count and matches the stored trace
+hash on a second read. The current collector fails on any recording error.
+Earlier failed runs remain local evidence; no zero-retry recording pass is claimed.
+
+The installed RC9 stream completes all 900 actual GPU draws before observed sound
+end. Selection-to-draw p95 is 9.053 ms. After verified rollback and restoration,
+playback completes 896/900 draws with four counted skips; p95 is 13.603 ms. Slow
+UI frames trigger the existing policy of selecting the current sound-clock frame
+and discarding expired pictures. Both runs reach exact audio end, preserve sources
+and reap workers. This records native scheduling and its degradation, separately
+from physical display timing and the broader hardware matrix.
 
 ## Real-job acceptance
 
@@ -122,9 +134,18 @@ is retained and fingerprinted. Whole source indexing is currently bounded to
 500,000 pictures; the long 60 fps recording exceeds that bound, so preparation of
 the excerpt is disclosed rather than claiming whole-recording import.
 
-The optimized editing candidate passed 100/100 native kill/recover/reopen trials with
-4,000 catalog documents. Input p95 is 17.169 ms across 250 injections; CPU frame
-work p95 is 0.592 ms. This measures software-injected native events.
+The installed RC9 candidate passed 100/100 native kill/recover/reopen trials with
+4,000 catalog documents, including 50 saved and 50 untitled originals. Input p95
+is 16.992 ms across 250 injections, with a 23.458 ms maximum. CPU frame work p95
+is 0.556 ms. Checkpoint acknowledgement on the UI takes at most 0.002 ms; durable
+worker commits have p95 4.030 ms and maximum 1,021.294 ms. Actual native startup
+has maximum 5.778 seconds and storage completion waits maximum 8.062 seconds.
+The harness reports separate 30-second startup and 120-second storage deadlines;
+input acceptance retains its 50 ms p95 gate. These are software-injected native
+events. Original/checkpoint bytes and all 500 archived diagnostic capture hashes
+pass independent verification. The native file chooser confirms actual focus,
+cursor changes and a validated filename before accepting Save; earlier failed
+attempts remain separate evidence. See [qualification](NATIVE_QUALIFICATION.md).
 
 Each of the three acceptance jobs passes checkpoint recovery, a moved media archive
 and matching lossless range picture/PCM hashes. Private media and original paths
@@ -132,6 +153,8 @@ remain local. The three requested review videos are uploaded unlisted and each
 plays to its end on YouTube without a reported playback error. Review links remain
 in the owner's thread and local receipts. The owner accepted all three release
 jobs after reviewing these links.
+The [release evidence](evidence/shipping-candidate/README.md) records the five
+scoped gap implementations and measured qualification, including all limitations.
 Station/client approval,
 physical speaker/display timing, other GPU families and the broader suite's
 migration, recording, loudness, team/cloud and artist workflows are not implied

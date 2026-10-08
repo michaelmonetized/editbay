@@ -4,11 +4,18 @@ The [shipping candidate](SHIPPING_CANDIDATE.md) adds complete local editing,
 finishing, checked commercial formats, a bounded native export queue and portable
 media archives in [PR #63](https://github.com/michaelmonetized/editbay/pull/63).
 The [native realtime layer](https://github.com/michaelmonetized/editbay/pull/65)
-retains the earlier optimized 100/100 native kill/recover/reopen result, input p95
-17.169 ms. The final installed runtime is being qualified again after picker
-readiness fixes; earlier installed attempts timed out in durable disk work or
-picker navigation. Continuous two-hour speaker playback remains open after
-recorded hardware underruns; interrupt-driven hardware timing is under test.
+passes 100/100 native kill/recover/reopen trials on the installed RC9 runtime,
+with 4,000 catalog documents and input p95 16.992 ms. Originals/checkpoints and
+all 500 archived diagnostic captures pass independent hash checks. Earlier
+timeouts remain recorded; [qualification](NATIVE_QUALIFICATION.md) separates
+durable storage waits from input acceptance and confirms actual picker focus
+and filename validation. The two-hour production audio runtime passes unchanged
+20 ms clock gates with zero underruns, exact end and reaped children. The frozen
+recorder retried four writes; every expected trace record and stored hash passes
+independent audit, while its stricter zero-retry recording check fails. Initial
+native stream playback completes 900/900 pictures; playback after rollback
+records four skipped pictures under the existing audio-clock catch-up policy.
+See [release evidence](evidence/shipping-candidate/README.md).
 Real commercial, social and camera/stream jobs pass native QC, independent
 decoding, checkpoint recovery and matching moved-archive exports. The owner
 accepted all three unlisted review cuts. Native package installation, verified
