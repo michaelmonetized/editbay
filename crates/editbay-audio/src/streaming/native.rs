@@ -123,7 +123,7 @@ unsafe extern "C" fn render(
     diagnostic: *const u64,
 ) {
     let owner = unsafe { &mut *user.cast::<Owner>() };
-    let diagnostic = unsafe { &*diagnostic.cast::<[u64; 17]>() };
+    let diagnostic = unsafe { &*diagnostic.cast::<[u64; 18]>() };
     owner.trace.record(diagnostic);
     if !owner
         .continuity

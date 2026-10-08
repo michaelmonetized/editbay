@@ -15,6 +15,15 @@ EditBay's 16,384-frame source ring remain in use. Backend timestamps retain the
 added hardware latency. An actual two-hour run must pass before this route is
 considered qualified.
 
+EditBay requires PipeWire 1.4 or later for its realtime adaptive resampler. The
+Asahi driver reports a small rate difference from the monotonic clock. The native
+callback applies that measured ratio through `pw_stream_set_rate`, keeping source
+playback aligned with both host and backend timestamps. Conversion stays inside
+PipeWire; the Rust source ring retains its capacity and exact content end. Driver
+underrun counters and both 20 ms clock checks remain active. The 180-second pilot
+passes with maximum backend drift 0.087770 ms and host drift 0.112691 ms; full
+two-hour qualification remains open.
+
 The supplied configuration enables PipeWire's memory locking and limits each
 service to 1 GiB of locked address space. The speaker filter needs more than
 256 MiB of address space during startup. Locked address space includes reserved
@@ -62,5 +71,6 @@ services.
 
 Sources: [PipeWire memory properties](https://docs.pipewire.org/page_man_pipewire_conf_5.html),
 [driver clock observations](https://docs.pipewire.org/structspa__io__clock.html),
+[realtime stream rate control](https://docs.pipewire.org/group__pw__stream.html),
 [ALSA hardware buffering](https://docs.pipewire.org/page_man_pipewire-props_7.html),
 [WirePlumber configuration fragments](https://pipewire.pages.freedesktop.org/wireplumber/daemon/configuration/conf_file.html).

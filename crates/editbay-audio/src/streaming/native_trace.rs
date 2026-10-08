@@ -40,11 +40,12 @@ pub struct NativeOutputStats {
     pub graph_clock_id: u64,
     pub queued_buffers: u64,
     pub available_buffers: u64,
+    pub graph_rate_diff: f64,
 }
 
 pub(super) struct NativeTrace {
     generation: AtomicU64,
-    values: [AtomicU64; 17],
+    values: [AtomicU64; 18],
 }
 impl Default for NativeTrace {
     fn default() -> Self {
@@ -57,7 +58,7 @@ impl Default for NativeTrace {
 impl NativeTrace {
     /// Publish fixed native graph counters on the exclusive realtime callback.
     /// `values` are the validated C timing array. Returns after atomic stores only.
-    pub(super) fn record(&self, values: &[u64; 17]) {
+    pub(super) fn record(&self, values: &[u64; 18]) {
         self.generation.fetch_add(1, Ordering::SeqCst);
         for (slot, value) in self.values.iter().zip(values) {
             slot.store(*value, Ordering::SeqCst);
@@ -73,7 +74,7 @@ impl NativeTrace {
             if before == 0 || !before.is_multiple_of(2) {
                 continue;
             }
-            let v: [u64; 17] = std::array::from_fn(|i| self.values[i].load(Ordering::SeqCst));
+            let v: [u64; 18] = std::array::from_fn(|i| self.values[i].load(Ordering::SeqCst));
             if self.generation.load(Ordering::SeqCst) == before {
                 return Some(NativeOutputStats {
                     process_calls: v[0],
@@ -93,6 +94,7 @@ impl NativeTrace {
                     graph_clock_id: v[14],
                     queued_buffers: v[15],
                     available_buffers: v[16],
+                    graph_rate_diff: f64::from_bits(v[17]),
                 });
             }
         }

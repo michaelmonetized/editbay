@@ -7,6 +7,7 @@
 #include <stdlib.h>
 #include <string.h>
 #include <errno.h>
+#include <math.h>
 
 typedef void (*eb_render)(void *, float *, size_t, uint64_t, uint64_t, const uint64_t *);
 struct eb_pw {
@@ -68,6 +69,16 @@ static void process(void *data) {
     struct spa_io_position *position = atomic_load(&output->position);
     struct spa_io_clock *clock = atomic_load(&output->clock);
     if (position) clock = &position->clock;
+    if (!clock || !isfinite(clock->rate_diff) || clock->rate_diff < 0.99
+        || clock->rate_diff > 1.01) {
+        atomic_store(&output->error, EINVAL);
+        return;
+    }
+    int rate_result = pw_stream_set_rate(output->stream, clock->rate_diff);
+    if (rate_result < 0) {
+        atomic_store(&output->error, -rate_result);
+        return;
+    }
     struct pw_buffer *buffer = pw_stream_dequeue_buffer(output->stream);
     if (!buffer) { output->misses++; return; }
     buffer->size = 0;
@@ -103,12 +114,15 @@ static void process(void *data) {
             if (presentation > UINT64_MAX || presentation < callback)
                 atomic_store(&output->error, EOVERFLOW);
             else {
-                uint64_t diagnostic[17] = { output->calls, output->misses, time.ticks,
+                uint64_t rate_bits;
+                memcpy(&rate_bits, &clock->rate_diff, sizeof(rate_bits));
+                uint64_t diagnostic[18] = { output->calls, output->misses, time.ticks,
                     output->maximum_step, clock ? clock->flags : 0,
                     clock ? clock->duration : 0, clock ? clock->xrun : 0,
                     callback, (uint64_t)time.now, (uint64_t)time.delay,
                     time.queued, time.buffered, time.rate.num, time.rate.denom,
-                    clock ? clock->id : UINT32_MAX, time.queued_buffers, time.avail_buffers };
+                    clock ? clock->id : UINT32_MAX, time.queued_buffers, time.avail_buffers,
+                    rate_bits };
                 output->render(output->user, samples->data, frames * output->channels,
                                callback, (uint64_t)presentation, diagnostic);
             }

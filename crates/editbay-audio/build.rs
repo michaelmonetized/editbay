@@ -1,8 +1,8 @@
 fn main() {
     let native = pkg_config::Config::new()
-        .atleast_version("1.1.0")
+        .atleast_version("1.4.0")
         .probe("libpipewire-0.3")
-        .expect("PipeWire 1.1.0 development libraries are required");
+        .expect("PipeWire 1.4.0 development libraries are required");
     let mut adapter = cc::Build::new();
     adapter
         .file("native/output.c")
