@@ -1,16 +1,19 @@
 # Native audio preparation
 
-The qualified ARM64 Omarchy speaker route includes PipeWire and an Asahi
+The ARM64 Omarchy speaker route under qualification includes PipeWire and an Asahi
 speaker filter running inside WirePlumber. Both processes must remain resident
 under memory pressure. A driver underrun was observed in the same second as a
 PipeWire major page fault, with the editor's source ring still full. Scheduling
 priority alone did not prevent that failure.
 
 The resident speaker route still reported an underrun after 382.991 seconds,
-without additional service page faults and with drift below 1.6 ms. The supplied
-Asahi speaker rule reserves 4,096 extra hardware frames. It changes only that
-device's buffering; the protected speaker filter and EditBay's 16,384-frame source
-ring remain in use. Backend timestamps retain the added hardware latency.
+without additional service page faults and with drift below 1.6 ms. Adding 4,096
+hardware frames still underruns after 939.304 seconds with a full source ring.
+The supplied Asahi speaker rule retains that headroom and selects interrupt
+timing with a 2,048-frame hardware period. The protected speaker filter and
+EditBay's 16,384-frame source ring remain in use. Backend timestamps retain the
+added hardware latency. An actual two-hour run must pass before this route is
+considered qualified.
 
 The supplied configuration enables PipeWire's memory locking and limits each
 service to 1 GiB of locked address space. The speaker filter needs more than
