@@ -60,6 +60,8 @@ struct Trace {
     path: PathBuf,
     offset: u64,
     records: Vec<Value>,
+    startup_ms: f64,
+    storage_waits: Vec<f64>,
 }
 
 impl Trace {
@@ -115,7 +117,28 @@ impl Trace {
     }
 
     fn wait(&mut self, description: &str, predicate: impl Fn(&Value) -> bool) -> Result<Value> {
-        let deadline = Instant::now() + Duration::from_secs(10);
+        self.wait_for(description, Duration::from_secs(10), predicate)
+    }
+
+    fn wait_storage(
+        &mut self,
+        description: &str,
+        predicate: impl Fn(&Value) -> bool,
+    ) -> Result<Value> {
+        let began = Instant::now();
+        let record = self.wait_for(description, Duration::from_secs(120), predicate)?;
+        self.storage_waits
+            .push(began.elapsed().as_secs_f64() * 1000.);
+        Ok(record)
+    }
+
+    fn wait_for(
+        &mut self,
+        description: &str,
+        timeout: Duration,
+        predicate: impl Fn(&Value) -> bool,
+    ) -> Result<Value> {
+        let deadline = Instant::now() + timeout;
         loop {
             self.read()?;
             if let Some(record) = self.records.iter().rev().find(|record| predicate(record)) {
@@ -152,7 +175,11 @@ fn dispatch(action: &str) -> Result<()> {
 }
 
 fn window(predicate: impl Fn(&Value) -> bool) -> Result<Value> {
-    let deadline = Instant::now() + Duration::from_secs(10);
+    window_for(Duration::from_secs(10), predicate)
+}
+
+fn window_for(timeout: Duration, predicate: impl Fn(&Value) -> bool) -> Result<Value> {
+    let deadline = Instant::now() + timeout;
     loop {
         let clients: Value = serde_json::from_str(&command("hyprctl", &["clients", "-j"])?)?;
         if let Some(window) = clients
@@ -245,11 +272,12 @@ fn start(
     if let Some(path) = original {
         process.arg(path);
     }
+    let began = Instant::now();
     let application = Application(
         process.spawn()?,
         (capture != trace).then(|| (capture.clone(), trace.to_owned())),
     );
-    let native = window(|window| {
+    let native = window_for(Duration::from_secs(30), |window| {
         window["pid"] == application.0.id()
             && window["class"] == "editbay"
             && window["mapped"] == true
@@ -279,6 +307,8 @@ fn start(
         path: capture,
         offset: 0,
         records: Vec::new(),
+        startup_ms: 0.,
+        storage_waits: Vec::new(),
     };
     trace.wait("initial desktop typography", |record| {
         record["kind"] == "frame"
@@ -287,6 +317,7 @@ fn start(
                 .as_u64()
                 .is_some_and(|time| time < 20_000)
     })?;
+    trace.startup_ms = began.elapsed().as_secs_f64() * 1000.;
     Ok((application, trace))
 }
 
@@ -2339,7 +2370,7 @@ fn recover(trace: &mut Trace, folder: &Path, minimum_checkpoints: u64) -> Result
         click(x + width - 40, y + height - 18)?;
     }
     let destination = folder.join("Recovered.editbay");
-    trace.wait("recovered copy open", |record| {
+    trace.wait_storage("recovered copy open", |record| {
         record["kind"] == "workspace"
             && record["details"]["tabs"].as_array().is_some_and(|tabs| {
                 tabs.iter().any(|tab| {
@@ -2379,6 +2410,8 @@ pub fn run(binary: &Path, directory: &Path, count: usize) -> Result<Value> {
     let mut frames = Vec::new();
     let mut commits = Vec::new();
     let mut accepts = Vec::new();
+    let mut startups = Vec::new();
+    let mut storage_waits = Vec::new();
     for index in 0..count {
         let folder = directory.join(format!("trial-{index:03}"));
         fs::create_dir(&folder)?;
@@ -2403,7 +2436,7 @@ pub fn run(binary: &Path, directory: &Path, count: usize) -> Result<Value> {
             saved.then_some(original.as_path()),
         )?;
         if saved {
-            trace.wait("original project open", |record| {
+            trace.wait_storage("original project open", |record| {
                 has_tab(record, &active, 0)
             })?;
         }
@@ -2447,7 +2480,7 @@ pub fn run(binary: &Path, directory: &Path, count: usize) -> Result<Value> {
             })
             .collect::<Result<_>>()?;
         let after = redone["unix_us"].as_u64().ok_or("Redo timestamp missing")?;
-        let acknowledged = trace.wait("active and inactive checkpoints", |record| {
+        let acknowledged = trace.wait_storage("active and inactive checkpoints", |record| {
             checkpoints::acknowledged(record, after, &expected)
         })?;
         let pid = application.0.id();
@@ -2511,10 +2544,14 @@ pub fn run(binary: &Path, directory: &Path, count: usize) -> Result<Value> {
             &folder.join("reopened.jsonl"),
             Some(&recovered_path),
         )?;
-        reopen_trace.wait("recovered file reopen", |record| {
+        reopen_trace.wait_storage("recovered file reopen", |record| {
             has_tab(record, &revised, 3)
         })?;
         reopened.kill()?;
+        for captured in [&trace, &restarted_trace, &reopen_trace] {
+            startups.push(captured.startup_ms);
+            storage_waits.extend_from_slice(&captured.storage_waits);
+        }
         let mut publications = std::collections::HashSet::new();
         for record in &trace.records {
             if record["kind"] == "frame"
@@ -2548,7 +2585,7 @@ pub fn run(binary: &Path, directory: &Path, count: usize) -> Result<Value> {
         }
     }
     let input = metrics(&mut latencies);
-    let receipt = json!({"schema":1,"kind":"native_workspace_qualification","application_sha256":hash(&binary)?,"architecture":std::env::consts::ARCH,"desktop":"Hyprland Wayland / installed native portal","catalog_documents":4000,"trials":count,"passed":reports.len(),"latest_revision":3,"input_injection_to_ui_acceptance":input,"cpu_frame_work":metrics(&mut frames),"checkpoint_worker_commit":metrics(&mut commits),"checkpoint_main_thread_accept":metrics(&mut accepts),"input_gate_pass":input["p95_ms"].as_f64().is_some_and(|latency|latency <= 50.),"reports":reports,"limits":["Software-injected Wayland text/portal keys and persistent Linux keyboard/pointer events; no physical-device input measurement","Native UI recovery uses the installed native file chooser","These fixtures qualify local workspace behavior, not completed client edits or media playback"]});
+    let receipt = json!({"schema":1,"kind":"native_workspace_qualification","application_sha256":hash(&binary)?,"architecture":std::env::consts::ARCH,"desktop":"Hyprland Wayland / installed native portal","catalog_documents":4000,"trials":count,"passed":reports.len(),"latest_revision":3,"input_injection_to_ui_acceptance":input,"cpu_frame_work":metrics(&mut frames),"checkpoint_worker_commit":metrics(&mut commits),"checkpoint_main_thread_accept":metrics(&mut accepts),"native_start_to_ready":metrics(&mut startups),"durable_completion_wait":metrics(&mut storage_waits),"native_window_startup_deadline_seconds":30,"durable_completion_deadline_seconds":120,"input_gate_pass":input["p95_ms"].as_f64().is_some_and(|latency|latency <= 50.),"reports":reports,"limits":["Software-injected Wayland text/portal keys and persistent Linux keyboard/pointer events; no physical-device input measurement","Native UI recovery uses the installed native file chooser","Native window startup has a 30-second deadline; durable storage completion has 120 seconds. UI acknowledgement stays at 10 seconds and the input p95 gate at 50 ms.","These fixtures qualify local workspace behavior, not completed client edits or media playback"]});
     File::create_new(directory.join("qualification.json"))?
         .write_all(&serde_json::to_vec_pretty(&receipt)?)?;
     Ok(receipt)

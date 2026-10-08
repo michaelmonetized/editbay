@@ -72,7 +72,7 @@ Actual supervised device playback starts at sample zero and must finish at its
 exact declared sample end. Every 100 ms, `samples.jsonl` records coherent callback
 status, prepared occupancy, combined lab/descendant RSS and host memory/CPU stall
 counters. Memory keeps fixed summaries and at most 512 observed process IDs;
-the trace is limited to 75000 records / 128 MiB. A limit, source change, device
+the trace is limited to 75000 records / 256 MiB. A limit, source change, device
 error, missing cleanup or interrupted run cannot pass. The command's process
 exit alone is not acceptance: inspect `qualification.json.qualified` and the
 separate `two_hour_run_complete` field.
