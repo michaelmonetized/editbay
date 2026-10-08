@@ -24,6 +24,14 @@ underrun counters and both 20 ms clock checks remain active. The 180-second pilo
 passes with maximum backend drift 0.087770 ms and host drift 0.112691 ms; full
 two-hour qualification remains open.
 
+On 2026-10-07, an installed cold-start trial exposed the running worker's 500 ms
+response deadline being applied to process loading and the initial document
+binding. The first request now has a separate five-second startup deadline;
+every following request retains 500 ms. Cancellation still interrupts the wait,
+and device callbacks, source progress, drift and retirement keep their existing
+limits. Preparation requires granted realtime scheduling on the qualified host;
+denial remains a visible startup failure.
+
 The supplied configuration enables PipeWire's memory locking and limits each
 service to 1 GiB of locked address space. The speaker filter needs more than
 256 MiB of address space during startup. Locked address space includes reserved
