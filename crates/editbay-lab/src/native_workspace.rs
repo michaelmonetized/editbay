@@ -2254,17 +2254,33 @@ fn recover(trace: &mut Trace, folder: &Path, minimum_checkpoints: u64) -> Result
         )?)?;
         let field = state["field"]
             .as_str()
-            .ok_or("Flea filename field has no geometry")?
-            .split_whitespace()
-            .map(str::parse::<i64>)
-            .collect::<std::result::Result<Vec<_>, _>>()?;
-        if field.len() != 2 {
-            return Err("Invalid Flea filename field geometry".into());
-        }
-        click(x + field[0], y + field[1])?;
+            .ok_or("Flea filename field has no geometry")?;
+        flea_point(&pid, field)?;
+        flea_wait(&pid, |state| {
+            state["controls"].as_array().is_some_and(|controls| {
+                controls
+                    .iter()
+                    .any(|control| control["name"] == "Filename" && control["focused"] == true)
+            })
+        })?;
         key(30, true, false)?;
         command("wtype", &["-s", "40", "Recovered.editbay", "-s", "80"])?;
-        key(28, false, false)?;
+        let ready = flea_wait(&pid, |state| {
+            state["saveName"] == "Recovered.editbay"
+                && state["saveBusy"] == false
+                && state["saveReady"] == true
+                && state["canAccept"] == true
+        })?;
+        let save = ready["controls"]
+            .as_array()
+            .and_then(|controls| {
+                controls
+                    .iter()
+                    .find(|control| control["name"] == "Save" && control["enabled"] == true)
+            })
+            .and_then(|control| control["centre"].as_str())
+            .ok_or("Native Save control is unavailable")?;
+        flea_point(&pid, save)?;
     } else {
         thread::sleep(Duration::from_millis(150));
         key(38, true, false)?;
