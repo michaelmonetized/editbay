@@ -2010,8 +2010,19 @@ fn flea_state(pid: &str, remaining: Duration) -> Result<Option<Value>> {
 
 #[track_caller]
 fn flea_wait(pid: &str, predicate: impl Fn(&Value) -> bool) -> Result<Value> {
+    flea_wait_until(pid, Instant::now() + Duration::from_secs(5), predicate)
+}
+
+/// Await actual picker state within one fixed deadline.
+/// `pid` owns the picker, `deadline` bounds the complete action and `predicate`
+/// identifies its acknowledgement. Returns the observed state or a timeout.
+#[track_caller]
+fn flea_wait_until(
+    pid: &str,
+    deadline: Instant,
+    predicate: impl Fn(&Value) -> bool,
+) -> Result<Value> {
     let caller = std::panic::Location::caller();
-    let deadline = Instant::now() + Duration::from_secs(5);
     let mut last = None;
     loop {
         let remaining = deadline.saturating_duration_since(Instant::now());
@@ -2101,10 +2112,19 @@ fn flea_entry(pid: &str, name: &str) -> Result<()> {
             if index > 4096 {
                 return Err("Native picker navigation exceeds qualification bounds".into());
             }
+            let deadline = Instant::now() + Duration::from_secs(5);
+            let mut expected = cursor;
             for _ in 0..cursor.abs_diff(index) {
+                flea_focus(pid)?;
                 key(if index >= cursor { 108 } else { 103 }, false, false)?;
+                expected = if index >= cursor {
+                    expected + 1
+                } else {
+                    expected - 1
+                };
+                flea_wait_until(pid, deadline, |state| state["cursor"] == expected)?;
             }
-            flea_wait(pid, |state| state["cursorName"] == name)?;
+            flea_wait_until(pid, deadline, |state| state["cursorName"] == name)?;
             if rows[offset]["d"] == false || rows[offset]["d"] == 0 {
                 key(57, false, false)?;
                 flea_wait(pid, |state| {
