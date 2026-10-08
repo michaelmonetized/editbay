@@ -20,18 +20,10 @@ const MAX_RECEIPT_BYTES: u64 = 256 * 1024 * 1024;
 const MAX_RSS_KIB: u64 = 4 * 1024 * 1024;
 const DRIFT_NS: i128 = 20_000_000;
 
-fn flush_samples(output: &mut BufWriter<File>, recovered: &mut u64) -> Result<()> {
-    for attempt in 0..4 {
-        match output.flush() {
-            Ok(()) => return Ok(()),
-            Err(error) if attempt < 3 && error.raw_os_error() == Some(5) => {
-                *recovered += 1;
-                std::thread::sleep(Duration::from_millis(5));
-            }
-            Err(error) => return Err(format!("samples.jsonl flush: {error}").into()),
-        }
-    }
-    unreachable!()
+fn flush_samples(output: &mut BufWriter<File>) -> Result<()> {
+    output
+        .flush()
+        .map_err(|error| format!("samples.jsonl flush: {error}").into())
 }
 
 struct Playback(StreamingPlayback);
@@ -420,7 +412,6 @@ pub fn run(path: &Path, seconds: u64, directory: &Path) -> Result<Value> {
     let mut previous_position = 0;
     let mut polls = 0;
     let mut bytes = 0;
-    let mut recovered_storage_errors = 0;
     let mut failure = None;
     let mut last_heartbeat = Instant::now();
     let mut native_first = None;
@@ -477,7 +468,7 @@ pub fn run(path: &Path, seconds: u64, directory: &Path) -> Result<Value> {
         output
             .write_all(b"\n")
             .map_err(|error| format!("samples.jsonl newline: {error}"))?;
-        flush_samples(&mut output, &mut recovered_storage_errors)?;
+        flush_samples(&mut output)?;
         if last_heartbeat.elapsed() >= Duration::from_secs(60) {
             let _ = writeln!(
                 std::io::stderr().lock(),
@@ -511,7 +502,7 @@ pub fn run(path: &Path, seconds: u64, directory: &Path) -> Result<Value> {
         }
         std::thread::sleep(Duration::from_millis(100));
     };
-    flush_samples(&mut output, &mut recovered_storage_errors)?;
+    flush_samples(&mut output)?;
     output.get_ref().sync_all()?;
     let owned_reaped = observed
         .iter()
@@ -542,7 +533,6 @@ pub fn run(path: &Path, seconds: u64, directory: &Path) -> Result<Value> {
         "sampled_callback_frames_min":(callback_min != u64::MAX).then_some(callback_min),
         "sampled_callback_frames_max":callback_max,"device_thread_schedules":schedules,"thread_schedule_sample_interval_ms":1000,
         "sample_interval_ms":100,"samples":polls,"receipt_bytes":bytes,"receipt_limit_bytes":MAX_RECEIPT_BYTES,
-        "recovered_storage_write_errors":recovered_storage_errors,
         "prepared_capacity_frames":16384,"peak_prepared_frames":peak_prepared,"peak_combined_rss_kib":peak_rss,
         "processes":observed,"owned_processes_reaped":owned_reaped,"source_unchanged":source_unchanged,"project_unchanged":project_unchanged,
         "complete":complete,"backend_clock_gate":clock_pass,"failure":failure,"qualified":qualified,

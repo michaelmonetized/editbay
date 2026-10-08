@@ -34,17 +34,18 @@ From the source checkout, install these fragments:
 
 ```sh
 audio_uid=$(id -u)
+audio_backup_suffix=".editbay-before-$(date -u +%Y%m%dT%H%M%SZ)"
 manager_pid=$(systemctl show "user@$audio_uid.service" -p MainPID --value)
 mkdir -p ~/.config/pipewire/pipewire.conf.d
 mkdir -p ~/.config/wireplumber/wireplumber.conf.d
 mkdir -p ~/.config/systemd/user/pipewire.service.d
 mkdir -p ~/.config/systemd/user/wireplumber.service.d
-install -m 644 assets/audio/residency.conf ~/.config/pipewire/pipewire.conf.d/50-editbay-audio-residency.conf
-install -m 644 assets/audio/residency.conf ~/.config/wireplumber/wireplumber.conf.d/50-editbay-audio-residency.conf
-install -m 644 assets/audio/asahi-speaker-headroom.conf ~/.config/wireplumber/wireplumber.conf.d/50-editbay-asahi-speaker-headroom.conf
-install -m 644 assets/audio/memlock-service.conf ~/.config/systemd/user/pipewire.service.d/50-editbay-audio-memory.conf
-install -m 644 assets/audio/memlock-service.conf ~/.config/systemd/user/wireplumber.service.d/50-editbay-audio-memory.conf
-sudo install -D -m 644 assets/audio/memlock-service.conf "/etc/systemd/system/user@$audio_uid.service.d/50-editbay-audio-memory.conf"
+install -b -S "$audio_backup_suffix" -m 644 assets/audio/residency.conf ~/.config/pipewire/pipewire.conf.d/50-editbay-audio-residency.conf
+install -b -S "$audio_backup_suffix" -m 644 assets/audio/residency.conf ~/.config/wireplumber/wireplumber.conf.d/50-editbay-audio-residency.conf
+install -b -S "$audio_backup_suffix" -m 644 assets/audio/asahi-speaker-headroom.conf ~/.config/wireplumber/wireplumber.conf.d/50-editbay-asahi-speaker-headroom.conf
+install -b -S "$audio_backup_suffix" -m 644 assets/audio/memlock-service.conf ~/.config/systemd/user/pipewire.service.d/50-editbay-audio-memory.conf
+install -b -S "$audio_backup_suffix" -m 644 assets/audio/memlock-service.conf ~/.config/systemd/user/wireplumber.service.d/50-editbay-audio-memory.conf
+sudo install -D -b -S "$audio_backup_suffix" -m 644 assets/audio/memlock-service.conf "/etc/systemd/system/user@$audio_uid.service.d/50-editbay-audio-memory.conf"
 sudo prlimit --pid "$manager_pid" --memlock=1073741824:1073741824
 sudo systemctl daemon-reload
 systemctl --user daemon-reload
@@ -55,7 +56,8 @@ The manager limit takes effect for the current session through `prlimit`; its
 service fragment preserves the same limit after login. Configuration presence
 does not establish qualification. Before testing, inspect each service's real
 `/proc/PID/status` (`VmLck`, `VmRSS`, `VmSwap`), its thread scheduling and the
-actual speaker device. Require zero swapped service memory, real-time data
+actual speaker device. The commands retain any existing named fragments beside
+their replacement with the timestamped backup suffix. Require zero swapped service memory, real-time data
 threads and the intended hardware route. Retain the previous fragments if a
 machine already has these names.
 
