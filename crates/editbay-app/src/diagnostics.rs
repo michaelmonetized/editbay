@@ -44,6 +44,12 @@ impl Diagnostics {
     /// `path` is a new local JSONL file and `ctx` wakes for visible write errors.
     /// Returns a bounded worker channel; it cannot issue commands or alter documents.
     pub fn new(path: PathBuf, ctx: eframe::egui::Context) -> Result<Self, String> {
+        let limit = std::env::var("EDITBAY_DIAGNOSTICS_BYTES")
+            .map(|value| value.parse::<usize>().map_err(|e| e.to_string()))
+            .unwrap_or(Ok(16 * 1024 * 1024))?;
+        if !(1024 * 1024..=128 * 1024 * 1024).contains(&limit) {
+            return Err("Native diagnostics budget must be 1–128 MiB".into());
+        }
         let (sender, records) = mpsc::sync_channel::<Value>(256);
         let (error_sender, errors) = mpsc::channel();
         std::thread::Builder::new()
@@ -60,8 +66,10 @@ impl Diagnostics {
                         let mut bytes = serde_json::to_vec(&record).map_err(|e| e.to_string())?;
                         bytes.push(b'\n');
                         written += bytes.len();
-                        if written > 16 * 1024 * 1024 {
-                            return Err("Native diagnostics reached its 16 MiB budget".into());
+                        if written > limit {
+                            return Err(format!(
+                                "Native diagnostics reached its {limit}-byte budget"
+                            ));
                         }
                         file.write_all(&bytes)
                             .and_then(|_| file.flush())

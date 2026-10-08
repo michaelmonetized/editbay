@@ -1278,9 +1278,11 @@ dependencies = [
 name = "editbay-audio"
 version = "0.1.0"
 dependencies = [
+ "cc",
  "cpal",
  "editbay-core",
  "editbay-media",
+ "pkg-config",
  "serde",
  "serde_json",
  "tempfile",
@@ -1370,6 +1372,7 @@ dependencies = [
 name = "editbay-media"
 version = "0.1.0"
 dependencies = [
+ "audio_thread_priority",
  "bytemuck",
  "cc",
  "editbay-core",

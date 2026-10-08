@@ -78,6 +78,10 @@ enum Operation {
     },
     Check,
     Verify,
+    Realtime {
+        frames: u32,
+        rate: u32,
+    },
 }
 #[derive(Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
@@ -104,6 +108,7 @@ enum Reply {
     },
     Checked,
     Verified,
+    Realtime,
     Failed {
         message: String,
         cancelled: bool,
@@ -291,6 +296,16 @@ impl PcmWorker {
     /// Takes no arguments; returns no PID after termination or explicit cleanup.
     pub fn process_id(&self) -> Option<u32> {
         self.process.as_ref().map(|p| p.child.id())
+    }
+    /// Protect prepared PCM reads from ordinary build and background workloads.
+    /// `frames` and `rate` declare the output deadline. Returns only after the
+    /// owned codec process confirms its bounded real-time scheduling allowance.
+    pub fn realtime(&mut self, frames: u32, rate: u32) -> Result<()> {
+        let (reply, descriptor) = self.rpc(Operation::Realtime { frames, rate })?;
+        if descriptor.is_some() || !matches!(reply.result, Reply::Realtime) {
+            return self.protocol_error("Invalid PCM scheduling response");
+        }
+        Ok(())
     }
     /// Check idle process health without requesting samples.
     /// Takes this provider; returns a visible failure and invalidates stale receipts.
@@ -714,6 +729,7 @@ fn serve_socket(mut output: std::os::unix::net::UnixStream) -> Result<()> {
     let mut serial: Option<u64> = None;
     let mut cache: Option<NativePcmCache> = None;
     let mut budget = PcmBudget::default();
+    let mut priority = None;
     for request in receiver {
         if cancel.is_cancelled() {
             return Err(Error::Cancelled);
@@ -802,6 +818,13 @@ fn serve_socket(mut output: std::os::unix::net::UnixStream) -> Result<()> {
                     Operation::Verify => {
                         cache.verify_sources()?;
                         Ok(Reply::Verified)
+                    }
+                    Operation::Realtime { frames, rate } => {
+                        if priority.is_some() {
+                            return Err(Error::Invalid("PCM scheduling already acquired".into()));
+                        }
+                        priority = Some(crate::realtime::Priority::acquire(frames, rate)?);
+                        Ok(Reply::Realtime)
                     }
                     Operation::Bind { .. } => unreachable!(),
                 }

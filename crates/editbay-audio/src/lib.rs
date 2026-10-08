@@ -15,7 +15,7 @@ pub use sound::{
     KernelStats, SoundBuffer, SoundPreparation, SoundRenderBudget, SoundRenderer, SoundResult,
     SoundSourceProgress,
 };
-pub use streaming::{PlaybackPhase, PlaybackStart, StreamingStatus};
+pub use streaming::{NativeOutputStats, PlaybackPhase, PlaybackStart, StreamingStatus};
 
 use cpal::{
     FromSample, SizedSample,

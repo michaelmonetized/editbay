@@ -72,7 +72,7 @@ Actual supervised device playback starts at sample zero and must finish at its
 exact declared sample end. Every 100 ms, `samples.jsonl` records coherent callback
 status, prepared occupancy, combined lab/descendant RSS and host memory/CPU stall
 counters. Memory keeps fixed summaries and at most 512 observed process IDs;
-the trace is limited to 75000 records / 128 MiB. A limit, source change, device
+the trace is limited to 75000 records / 256 MiB. A limit, source change, device
 error, missing cleanup or interrupted run cannot pass. The command's process
 exit alone is not acceptance: inspect `qualification.json.qualified` and the
 separate `two_hour_run_complete` field.
@@ -95,6 +95,16 @@ unreported driver/device allocations. Periodic observations do not capture every
 callback or transient allocation peak. A short pass cannot close the two-hour gate.
 
 ## Current evidence
+
+The [release candidate](evidence/shipping-candidate/README.md) completes 7,200
+seconds through the production PipeWire worker: exact 345,600,000-sample end,
+zero driver underruns/dequeue misses, 0.194580/0.194913 ms maximum backend/host
+drift, bounded memory and reaped children. Its frozen recorder retried four
+write errors. The zero-retry check fails; independent audit confirms every
+expected record, byte count, clock/memory summary and stored trace hash. The
+new collector aborts on any recording error. No zero-retry recording pass or
+physical audibility/display timing is claimed. Earlier failures below remain
+historical evidence.
 
 [Candidate and failure evidence](evidence/r2-sustained-clock/README.md) retains
 the startup-epoch failure, a later 512-frame clock failure and a 2048-frame source

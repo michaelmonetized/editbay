@@ -16,9 +16,15 @@ use std::{
 
 const MAX_SECONDS: u64 = 7200;
 const MAX_POLLS: u64 = 75000;
-const MAX_RECEIPT_BYTES: u64 = 128 * 1024 * 1024;
+const MAX_RECEIPT_BYTES: u64 = 256 * 1024 * 1024;
 const MAX_RSS_KIB: u64 = 4 * 1024 * 1024;
 const DRIFT_NS: i128 = 20_000_000;
+
+fn flush_samples(output: &mut BufWriter<File>) -> Result<()> {
+    output
+        .flush()
+        .map_err(|error| format!("samples.jsonl flush: {error}").into())
+}
 
 struct Playback(StreamingPlayback);
 impl Drop for Playback {
@@ -133,10 +139,9 @@ fn resources(observed: &mut BTreeSet<u32>) -> Result<u64> {
         if visited.len() > 512 || pending.len() > 512 {
             return Err("Process tree exceeded 512 entries".into());
         }
-        let status = match fs::read_to_string(format!("/proc/{pid}/status")) {
-            Ok(status) => status,
-            Err(error) if error.kind() == std::io::ErrorKind::NotFound => continue,
-            Err(error) => return Err(error.into()),
+        let Some(status) = read_live_proc(&Path::new(&format!("/proc/{pid}")).join("status"))?
+        else {
+            continue;
         };
         observed.insert(pid);
         if observed.len() > 512 {
@@ -155,21 +160,17 @@ fn resources(observed: &mut BTreeSet<u32>) -> Result<u64> {
         let tasks = match fs::read_dir(format!("/proc/{pid}/task")) {
             Ok(tasks) => tasks,
             Err(error) if error.kind() == std::io::ErrorKind::NotFound => continue,
-            Err(error) => return Err(error.into()),
+            Err(error) => return Err(format!("/proc/{pid}/task directory: {error}").into()),
         };
         for task in tasks {
-            let task = task?;
-            match fs::read_to_string(task.path().join("children")) {
-                Ok(children) => {
-                    for child in children.split_whitespace() {
-                        if pending.len() >= 512 {
-                            return Err("Pending process set exceeded 512 entries".into());
-                        }
-                        pending.push(child.parse::<u32>()?);
+            let task = task.map_err(|error| format!("/proc/{pid}/task entry: {error}"))?;
+            if let Some(children) = read_live_proc(&task.path().join("children"))? {
+                for child in children.split_whitespace() {
+                    if pending.len() >= 512 {
+                        return Err("Pending process set exceeded 512 entries".into());
                     }
+                    pending.push(child.parse::<u32>()?);
                 }
-                Err(error) if error.kind() == std::io::ErrorKind::NotFound => {}
-                Err(error) => return Err(error.into()),
             }
         }
     }
@@ -193,21 +194,37 @@ fn thread_schedules(process: u32) -> Result<Vec<ThreadSchedule>> {
     let tasks = match fs::read_dir(format!("/proc/{process}/task")) {
         Ok(tasks) => tasks,
         Err(error) if error.kind() == std::io::ErrorKind::NotFound => return Ok(vec![]),
-        Err(error) => return Err(error.into()),
+        Err(error) => return Err(format!("/proc/{process}/task directory: {error}").into()),
     };
     let mut result = Vec::new();
     for (index, task) in tasks.enumerate() {
         if index >= 256 {
             return Err("Device thread sample exceeded 256 entries".into());
         }
-        let stat = match fs::read_to_string(task?.path().join("stat")) {
-            Ok(stat) => stat,
-            Err(error) if error.kind() == std::io::ErrorKind::NotFound => continue,
-            Err(error) => return Err(error.into()),
+        let task = task.map_err(|error| format!("/proc/{process}/task entry: {error}"))?;
+        let Some(stat) = read_live_proc(&task.path().join("stat"))? else {
+            continue;
         };
         result.push(parse_schedule(process, &stat)?);
     }
     Ok(result)
+}
+
+/// Read a process sample while its independently retiring task still exists.
+/// `path` selects a proc task field; returns none only for a vanished task.
+/// A live-task read failure retains its exact path and fails qualification.
+fn read_live_proc(path: &Path) -> Result<Option<String>> {
+    match fs::read_to_string(path) {
+        Ok(value) => Ok(Some(value)),
+        Err(error) if error.kind() == std::io::ErrorKind::NotFound => Ok(None),
+        Err(error)
+            if matches!(error.raw_os_error(), Some(3 | 5))
+                && path.parent().is_some_and(|parent| !parent.exists()) =>
+        {
+            Ok(None)
+        }
+        Err(error) => Err(format!("{}: {error}", path.display()).into()),
+    }
 }
 
 fn parse_schedule(process: u32, stat: &str) -> Result<ThreadSchedule> {
@@ -228,7 +245,8 @@ fn parse_schedule(process: u32, stat: &str) -> Result<ThreadSchedule> {
 }
 
 fn host_pressure() -> Result<Value> {
-    let memory = fs::read_to_string("/proc/meminfo")?;
+    let memory =
+        fs::read_to_string("/proc/meminfo").map_err(|error| format!("/proc/meminfo: {error}"))?;
     let amount = |name: &str| -> Result<u64> {
         Ok(memory
             .lines()
@@ -237,7 +255,7 @@ fn host_pressure() -> Result<Value> {
             .parse()?)
     };
     let total = |path: &str, name: &str| -> Result<u64> {
-        let pressure = fs::read_to_string(path)?;
+        let pressure = fs::read_to_string(path).map_err(|error| format!("{path}: {error}"))?;
         Ok(pressure
             .lines()
             .find(|line| line.starts_with(name))
@@ -396,6 +414,8 @@ pub fn run(path: &Path, seconds: u64, directory: &Path) -> Result<Value> {
     let mut bytes = 0;
     let mut failure = None;
     let mut last_heartbeat = Instant::now();
+    let mut native_first = None;
+    let mut native_last = None;
     let final_status = loop {
         let status = playback.0.status();
         let rss = resources(&mut observed)?;
@@ -410,6 +430,18 @@ pub fn run(path: &Path, seconds: u64, directory: &Path) -> Result<Value> {
             schedule_sample = Instant::now();
         }
         peak_prepared = peak_prepared.max(status.prepared_frames);
+        if let Some(native) = status.native_output {
+            let first = native_first.get_or_insert(native);
+            if native.graph_clock_id != first.graph_clock_id
+                || native.graph_xrun_ticks != first.graph_xrun_ticks
+                || native.graph_flags & 2 != 0
+                || native.dequeue_misses != 0
+                || native.maximum_ticks_step > native.graph_duration
+            {
+                failure = Some("Native hardware graph continuity failed");
+            }
+            native_last = Some(native);
+        }
         if let Some(position) = status.position_samples {
             if position < previous_position {
                 failure = Some("Sound position regressed");
@@ -430,11 +462,16 @@ pub fn run(path: &Path, seconds: u64, directory: &Path) -> Result<Value> {
         if polls > MAX_POLLS || bytes > MAX_RECEIPT_BYTES {
             return Err("Sustained receipt exceeded its declared bound".into());
         }
-        output.write_all(&line)?;
-        output.write_all(b"\n")?;
-        output.flush()?;
+        output
+            .write_all(&line)
+            .map_err(|error| format!("samples.jsonl record: {error}"))?;
+        output
+            .write_all(b"\n")
+            .map_err(|error| format!("samples.jsonl newline: {error}"))?;
+        flush_samples(&mut output)?;
         if last_heartbeat.elapsed() >= Duration::from_secs(60) {
-            eprintln!(
+            let _ = writeln!(
+                std::io::stderr().lock(),
                 "Sustained {:.1}s: {:?}, sample {:?}, peak {} KiB",
                 began.elapsed().as_secs_f64(),
                 status.phase,
@@ -465,7 +502,7 @@ pub fn run(path: &Path, seconds: u64, directory: &Path) -> Result<Value> {
         }
         std::thread::sleep(Duration::from_millis(100));
     };
-    output.flush()?;
+    flush_samples(&mut output)?;
     output.get_ref().sync_all()?;
     let owned_reaped = observed
         .iter()
@@ -499,6 +536,7 @@ pub fn run(path: &Path, seconds: u64, directory: &Path) -> Result<Value> {
         "prepared_capacity_frames":16384,"peak_prepared_frames":peak_prepared,"peak_combined_rss_kib":peak_rss,
         "processes":observed,"owned_processes_reaped":owned_reaped,"source_unchanged":source_unchanged,"project_unchanged":project_unchanged,
         "complete":complete,"backend_clock_gate":clock_pass,"failure":failure,"qualified":qualified,
+        "native_graph_first":native_first,"native_graph_last":native_last,
         "two_hour_run_complete":seconds == MAX_SECONDS && complete && began.elapsed() >= Duration::from_secs(MAX_SECONDS),
         "limits":["Actual native device callbacks; backend and host latency-adjusted clock estimates only. No physical speaker, display, audibility or independent-user proof.",
         "RSS includes the lab and observed descendants, may double count shared memory, and excludes unmapped page cache and unreported driver/device allocations.",
