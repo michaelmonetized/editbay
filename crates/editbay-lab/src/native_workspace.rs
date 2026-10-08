@@ -18,12 +18,32 @@ use std::{
     time::{Duration, Instant, SystemTime, UNIX_EPOCH},
 };
 
-struct Application(Child);
+struct Application(Child, Option<(PathBuf, PathBuf)>);
 
 impl Application {
     fn kill(&mut self) -> Result<()> {
         self.0.kill()?;
         self.0.wait()?;
+        self.archive()
+    }
+
+    /// Retain completed capture files after the native process has stopped.
+    /// Takes the owned paths; returns only after each evidence copy is synced.
+    fn archive(&mut self) -> Result<()> {
+        if let Some((source, destination)) = self.1.take() {
+            for (source, destination) in [
+                (source.clone(), destination.clone()),
+                (
+                    source.with_extension("focus.jsonl"),
+                    destination.with_extension("focus.jsonl"),
+                ),
+            ] {
+                if source.exists() {
+                    fs::copy(source, &destination)?;
+                    File::open(destination)?.sync_all()?;
+                }
+            }
+        }
         Ok(())
     }
 }
@@ -32,6 +52,7 @@ impl Drop for Application {
     fn drop(&mut self) {
         let _ = self.0.kill();
         let _ = self.0.wait();
+        let _ = self.archive();
     }
 }
 
@@ -202,19 +223,32 @@ fn start(
     trace: &Path,
     original: Option<&Path>,
 ) -> Result<(Application, Trace)> {
+    let capture = std::env::var_os("EDITBAY_LAB_DIAGNOSTICS_ROOT")
+        .map(|root| -> Result<PathBuf> {
+            let root = PathBuf::from(root).canonicalize()?;
+            if !root.is_dir() {
+                return Err("Native capture root must be an existing directory".into());
+            }
+            Ok(root.join(format!("{}.jsonl", uuid::Uuid::new_v4())))
+        })
+        .transpose()?
+        .unwrap_or_else(|| trace.to_owned());
     let log = File::create_new(trace.with_extension("stderr.log"))?;
     let mut process = Command::new(binary);
     process
         .env("EDITBAY_STATE_DIR", state)
         .env("EDITBAY_CATALOG_ROOT", catalog)
-        .env("EDITBAY_DIAGNOSTICS_PATH", trace)
+        .env("EDITBAY_DIAGNOSTICS_PATH", &capture)
         .env("EDITBAY_DIAGNOSTICS_BYTES", "134217728")
         .stderr(Stdio::from(log.try_clone()?))
         .stdout(Stdio::from(log));
     if let Some(path) = original {
         process.arg(path);
     }
-    let application = Application(process.spawn()?);
+    let application = Application(
+        process.spawn()?,
+        (capture != trace).then(|| (capture.clone(), trace.to_owned())),
+    );
     let native = window(|window| {
         window["pid"] == application.0.id()
             && window["class"] == "editbay"
@@ -242,7 +276,7 @@ fn start(
     focused(u64::from(application.0.id()))?;
     thread::sleep(Duration::from_millis(350));
     let mut trace = Trace {
-        path: trace.to_owned(),
+        path: capture,
         offset: 0,
         records: Vec::new(),
     };
