@@ -1,0 +1,156 @@
+{
+  "version": "0.1.0-rc9",
+  "architecture": "aarch64",
+  "scope": "Native local editing and delivery on the qualified ARM64 Omarchy host",
+  "audio": {
+    "two_hours_complete": true,
+    "exact_end_samples": 345600000,
+    "underrun_ticks": 0,
+    "dequeue_misses": 0,
+    "backend_drift_ms": 0.19458,
+    "host_drift_ms": 0.194913,
+    "peak_combined_rss_kib": 145344,
+    "ring_capacity_frames": 16384,
+    "owned_processes_reaped": true,
+    "recording": {
+      "observations": 70869,
+      "bytes": 151780374,
+      "recovered_write_errors": 4,
+      "strict_zero_retry_check_passed": false,
+      "complete_trace_audit_passed": true,
+      "direct_read_sha256_matches": true,
+      "trace_sha256": "ae16ec33510ea3623c0e3e7f329d8bdd89b86177ed9efdd805f3f2de3c7d6e49",
+      "new_collector_fails_on_write_error": true
+    }
+  },
+  "recovery": {
+    "trials": 100,
+    "passed": 100,
+    "catalog_documents": 4000,
+    "saved_originals": 50,
+    "untitled_originals": 50,
+    "input": {
+      "count": 250,
+      "max_ms": 23.458,
+      "p50_ms": 9.816,
+      "p95_ms": 16.992
+    },
+    "cpu_frame": {
+      "count": 19459,
+      "max_ms": 9.911,
+      "p50_ms": 0.2,
+      "p95_ms": 0.556
+    },
+    "ui_checkpoint_acceptance": {
+      "count": 200,
+      "max_ms": 0.002,
+      "p50_ms": 0,
+      "p95_ms": 0
+    },
+    "worker_checkpoint_commit": {
+      "count": 200,
+      "max_ms": 1021.294,
+      "p50_ms": 0.265,
+      "p95_ms": 4.03
+    },
+    "startup": {
+      "count": 300,
+      "max_ms": 5777.685324,
+      "p50_ms": 480.375165,
+      "p95_ms": 781.516716
+    },
+    "durable_completion_wait": {
+      "count": 350,
+      "max_ms": 8062.468718,
+      "p50_ms": 34.689240000000005,
+      "p95_ms": 1075.5004470000001
+    },
+    "archived_capture_files": 500,
+    "parsed_observations": 109208,
+    "originals_and_checkpoints_preserved": true,
+    "capture_archive_hashes_match": true,
+    "diagnostic_capture": "512 MiB noswap tmpfs; projects and persistence on real Btrfs disk",
+    "startup_deadline_seconds": 30,
+    "storage_deadline_seconds": 120,
+    "input_p95_limit_ms": 50
+  },
+  "picture_scheduling": {
+    "initial": {
+      "frames": 900,
+      "completed": 900,
+      "missing": 0,
+      "selection_to_gpu_completion": {
+        "count": 900,
+        "max_ms": 13.005,
+        "p50_ms": 3.609,
+        "p95_ms": 9.053
+      },
+      "exact_sound_end": true,
+      "owned_processes_reaped": true,
+      "source_preserved": true
+    },
+    "after_rollback": {
+      "frames": 900,
+      "completed": 896,
+      "missing": 4,
+      "selection_to_gpu_completion": {
+        "count": 896,
+        "max_ms": 37.098,
+        "p50_ms": 6.356,
+        "p95_ms": 13.603
+      },
+      "exact_sound_end": true,
+      "owned_processes_reaped": true,
+      "source_preserved": true
+    },
+    "degradation": "After slow UI frames, playback selects the current audio-clock picture and counts expired pictures as skipped.",
+    "physical_display_qualified": false,
+    "full_R2_qualified": false
+  },
+  "editorial": {
+    "typed_multitrack_commands": true,
+    "undo_save_recovery": true,
+    "editable_titles_fades_grade_mix": true
+  },
+  "delivery": {
+    "h264_aac": true,
+    "prores_pcm": true,
+    "lossless_rgba_pcm": true,
+    "native_queue_cancel_death_retry": true,
+    "independent_decoding": true,
+    "moved_archives_recover_and_export_exactly": true
+  },
+  "package": {
+    "version": "0.1.0-rc9",
+    "files": 1355,
+    "rust_package_notices": 392,
+    "studio_sha256": "8dd35a191fbe8b939963d90cfa7f13b6b6b155faddc54cdca980849eab364de5",
+    "manifest_sha256": "04dab15a4bf8e5ea4869314dede110d68c42580139d7275e0a77c2839304e0da",
+    "binary_archive_sha256": "018195b956b333393bc41095e7dc7fab5fb9a8d931fe643aed6afffba38a85a9",
+    "user_install_verified": true,
+    "rollback_both_directions_verified": true,
+    "preferences_projects_checkpoints_preserved": true,
+    "corrupt_update_rejected": true
+  },
+  "real_jobs": {
+    "commercial_accepted": true,
+    "social_accepted": true,
+    "stream_accepted": true,
+    "reviewer": "Owner",
+    "unlisted_external_playback_completed": true,
+    "private_media_and_links_retained_locally": true
+  },
+  "software_checks": {
+    "workspace_tests_locked": true,
+    "workspace_format_check": true,
+    "production_clippy": true,
+    "latest_lab_release_clippy": true,
+    "latest_lab_release_build": true
+  },
+  "limits": [
+    "Recorded ARM64 host and workloads only; another architecture or GPU requires its own qualification.",
+    "Four recovered recorder write errors are disclosed; the complete trace was independently parsed, counted and hashed. A zero-retry recording pass is not claimed.",
+    "The second native stream run skipped four pictures; delivered outputs retain every frame.",
+    "No physical audibility/display timing, station acceptance, independent artist workflow or full production-suite roadmap claim."
+  ]
+}
