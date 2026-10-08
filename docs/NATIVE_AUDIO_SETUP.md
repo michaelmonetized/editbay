@@ -12,8 +12,9 @@ hardware frames still underruns after 939.304 seconds with a full source ring.
 The supplied Asahi speaker rule retains that headroom and selects interrupt
 timing with a 2,048-frame hardware period. The protected speaker filter and
 EditBay's 16,384-frame source ring remain in use. Backend timestamps retain the
-added hardware latency. An actual two-hour run must pass before this route is
-considered qualified.
+added hardware latency. The recorded two-hour runtime completes with zero driver
+underruns or dequeue misses, exact source end and reaped children. This qualifies
+the measured native route; physical speaker/display timing remains separate.
 
 EditBay requires PipeWire 1.4 or later for its realtime adaptive resampler. The
 Asahi driver reports a small rate difference from the monotonic clock. The native
@@ -21,8 +22,16 @@ callback applies that measured ratio through `pw_stream_set_rate`, keeping sourc
 playback aligned with both host and backend timestamps. Conversion stays inside
 PipeWire; the Rust source ring retains its capacity and exact content end. Driver
 underrun counters and both 20 ms clock checks remain active. The 180-second pilot
-passes with maximum backend drift 0.087770 ms and host drift 0.112691 ms; full
-two-hour qualification remains open.
+passes with maximum backend drift 0.087770 ms and host drift 0.112691 ms. The full
+two-hour run passes the unchanged runtime gates at 0.194580 ms backend drift and
+0.194913 ms host drift, with 145,344 KiB peak sampled combined RSS.
+
+That frozen recorder retried four disk-write errors. Its strict zero-retry check
+fails; independent audit verifies all 70,869 records, declared byte count, clock
+and memory summaries, source/project hashes and a matching second read of the
+stored trace. The current collector fails immediately on a recording error.
+See [release evidence](evidence/shipping-candidate/README.md) for this distinction
+and earlier failures.
 
 On 2026-10-07, an installed cold-start trial exposed the running worker's 500 ms
 response deadline being applied to process loading and the initial document

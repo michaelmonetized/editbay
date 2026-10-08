@@ -96,6 +96,16 @@ callback or transient allocation peak. A short pass cannot close the two-hour ga
 
 ## Current evidence
 
+The [release candidate](evidence/shipping-candidate/README.md) completes 7,200
+seconds through the production PipeWire worker: exact 345,600,000-sample end,
+zero driver underruns/dequeue misses, 0.194580/0.194913 ms maximum backend/host
+drift, bounded memory and reaped children. Its frozen recorder retried four
+write errors. The zero-retry check fails; independent audit confirms every
+expected record, byte count, clock/memory summary and stored trace hash. The
+new collector aborts on any recording error. No zero-retry recording pass or
+physical audibility/display timing is claimed. Earlier failures below remain
+historical evidence.
+
 [Candidate and failure evidence](evidence/r2-sustained-clock/README.md) retains
 the startup-epoch failure, a later 512-frame clock failure and a 2048-frame source
 underflow during concurrent builds/native fault trials. The 2048-frame candidate
