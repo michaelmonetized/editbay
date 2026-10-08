@@ -17,6 +17,7 @@ use uuid::Uuid;
 
 type Result<T> = std::result::Result<T, String>;
 const RESPONSE: Duration = Duration::from_millis(500);
+const STARTUP_RESPONSE: Duration = Duration::from_secs(5);
 const POLL: Duration = Duration::from_millis(8);
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
@@ -251,8 +252,13 @@ fn supervise(
     let mut preparation_progress = Instant::now();
     let mut progress = preparation_progress;
     while !cancel.is_cancelled() {
+        let response_deadline = if request.serial == 0 {
+            STARTUP_RESPONSE
+        } else {
+            RESPONSE
+        };
         let reply = job
-            .request_with_timeout(&request, None, cancel, RESPONSE)
+            .request_with_timeout(&request, None, cancel, response_deadline)
             .map_err(|e| e.to_string())?;
         validate(&reply, owner, request.serial, &previous, &bounds)?;
         let mut status = reply.status;
