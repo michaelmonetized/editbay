@@ -14,6 +14,8 @@ mod pictures;
 mod planes;
 pub mod realtime;
 mod source;
+#[cfg(test)]
+mod tests;
 pub mod worker;
 
 pub use delivery::{DeliveryFormat, LosslessMovProfile};

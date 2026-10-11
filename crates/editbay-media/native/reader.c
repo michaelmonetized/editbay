@@ -226,6 +226,7 @@ typedef struct {
     AVCodecContext *codec;
     AVPacket *packet;
     AVFrame *frame;
+    AVFrame *converted;
     struct SwsContext *scale;
     SwrContext *resample;
     int stream, audio, draining, sample_rate, channels;
@@ -235,7 +236,7 @@ typedef struct {
 void eb_reader_close(EBReader *reader) {
     if (!reader) return;
     sws_freeContext(reader->scale); swr_free(&reader->resample);
-    av_frame_free(&reader->frame); av_packet_free(&reader->packet);
+    av_frame_free(&reader->frame); av_frame_free(&reader->converted); av_packet_free(&reader->packet);
     avcodec_free_context(&reader->codec); input_close(&reader->input);
     free(reader);
 }
@@ -416,10 +417,25 @@ next_frame:
     ret = sws_setColorspaceDetails(reader->scale, coefficients, details->color_range == AVCOL_RANGE_JPEG,
         coefficients, 1, 0, 1<<16, 1<<16);
     if (ret < 0) return ret;
-    uint8_t *planes[] = {output}; int strides[] = {width * 4};
-    ret = sws_scale(reader->scale, (const uint8_t * const *)frame->data, frame->linesize, 0, height, planes, strides);
+    if (!reader->converted) {
+        reader->converted = av_frame_alloc();
+        if (!reader->converted) return AVERROR(ENOMEM);
+        reader->converted->format = AV_PIX_FMT_RGBA;
+        reader->converted->width = width; reader->converted->height = height;
+    }
+    if (!reader->converted->data[0]) {
+        ret = av_frame_get_buffer(reader->converted, 64);
+        if (ret < 0) return ret;
+    }
+    ret = sws_scale(reader->scale, (const uint8_t * const *)frame->data, frame->linesize, 0, height,
+        reader->converted->data, reader->converted->linesize);
+    if (ret < 0) return ret;
+    if (ret != height) return AVERROR(EIO);
     if (interrupted(&reader->input)) return AVERROR_EXIT;
-    return ret < 0 ? ret : width * height * 4;
+    for (int row = 0; row < height; row++)
+        memcpy(output + (size_t)row * width * 4,
+            reader->converted->data[0] + (size_t)row * reader->converted->linesize[0], (size_t)width * 4);
+    return width * height * 4;
 }
 
 int eb_reader_next(EBReader *reader, uint8_t *output, size_t capacity, EBFrame *details) {

@@ -22,8 +22,10 @@ The child retains fully checksummed read-only source descriptors. Native positio
 reads cannot reopen a replacement pathname. Every request, including a raw/GPU
 cache hit, checks source identity and cancellation. `verify_sources` rehashes all
 used source bytes before final publication. The native adapter decodes delayed
-pictures from the preceding keyframe, converts only the exact requested picture,
-and writes it directly into an exclusively owned shared output. Independent
+pictures from the preceding keyframe, converts only the exact requested picture
+into a retained native RGBA frame with 64-byte-aligned rows, and copies exact rows
+into an exclusively owned shared output. Narrow SIMD conversion cannot write past
+the caller's dense payload. Independent
 sequential decoding remains the pixel reference. Backward and after-EOF requests
 retain exact timestamps; neighbouring pictures cannot substitute for a target.
 
@@ -63,7 +65,8 @@ until consumers release pins. The child also retains bounded sealed outputs;
 decoded output has no second RGBA-vector copy in this route.
 
 Counters describe mapped/retained payloads and handles, excluding native codec
-reference buffers, allocator overhead, GPU uploads/textures, kernel bookkeeping
+reference buffers, the retained aligned conversion frame per decoder, allocator
+overhead, GPU uploads/textures, kernel bookkeeping
 and a bounded in-flight descriptor. Shared backing pages can remain allocated
 without appearing in a process's RSS until its mapping is touched; adding parent
 and child RSS also double-counts touched shared pages. Payload and process receipts
