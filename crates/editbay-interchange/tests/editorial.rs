@@ -28,7 +28,15 @@ fn project(path: &std::path::Path) -> eb::Project {
     let mut p = eb::Project::new("Editorial exact time").unwrap();
     p.assets.push(media.asset);
     p.sources.push(media.source);
-    let commands = eb::sequence_from_audio(&p, p.sources[0].id, 0).unwrap();
+    let commands = eb::sequence_from_audio(
+        &p,
+        p.sources[0].id,
+        0,
+        1920,
+        1080,
+        eb::FrameRate::new(24, 1).unwrap(),
+    )
+    .unwrap();
     let mut editor = eb::DocumentEditor::new(p).unwrap();
     editor
         .apply(
