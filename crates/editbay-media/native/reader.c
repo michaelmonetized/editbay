@@ -423,9 +423,34 @@ next_frame:
     }
     if (!output) return 1;
     int bytes = reader->output_encoding == 2 ? 16 : reader->output_encoding == 1 ? 8 : 4;
-    enum AVPixelFormat output_format = reader->output_encoding == 2 ? AV_PIX_FMT_GBRAPF32LE :
-        reader->output_encoding == 1 ? AV_PIX_FMT_RGBA64LE : AV_PIX_FMT_RGBA;
     if (capacity < (size_t)width * height * bytes) return AVERROR(ENOBUFS);
+    if (reader->output_encoding == 2 && pixel && (pixel->flags & AV_PIX_FMT_FLAG_FLOAT)) {
+        int gray = pixel->nb_components <= 2;
+        if (!gray && !(pixel->flags & AV_PIX_FMT_FLAG_RGB)) return AVERROR(ENOSYS);
+        for (int channel = 0; channel < pixel->nb_components; channel++)
+            if (pixel->comp[channel].depth != 32 || pixel->comp[channel].shift) return AVERROR(ENOSYS);
+        for (int row = 0; row < height; row++) {
+            if (interrupted(&reader->input)) return AVERROR_EXIT;
+            for (int x = 0; x < width; x++) {
+                for (int channel = 0; channel < 4; channel++) {
+                    uint8_t *target = output + ((size_t)row * width + x) * 16 + channel * 4;
+                    int selected = gray ? (channel < 3 ? 0 : 1) : channel;
+                    if (selected >= pixel->nb_components) {
+                        const uint8_t opaque[] = {0, 0, 128, 63};
+                        memcpy(target, opaque, 4);
+                    } else {
+                        const AVComponentDescriptor *component = &pixel->comp[selected];
+                        const uint8_t *sample = frame->data[component->plane] +
+                            (ptrdiff_t)row * frame->linesize[component->plane] + (size_t)x * component->step + component->offset;
+                        for (int byte = 0; byte < 4; byte++)
+                            target[byte] = sample[pixel->flags & AV_PIX_FMT_FLAG_BE ? 3 - byte : byte];
+                    }
+                }
+            }
+        }
+        return width * height * bytes;
+    }
+    enum AVPixelFormat output_format = reader->output_encoding ? AV_PIX_FMT_RGBA64LE : AV_PIX_FMT_RGBA;
     reader->scale = sws_getCachedContext(reader->scale, width, height, frame->format, width, height,
         output_format, SWS_BILINEAR, NULL, NULL, NULL);
     if (!reader->scale) return AVERROR(ENOMEM);
@@ -455,11 +480,14 @@ next_frame:
     if (interrupted(&reader->input)) return AVERROR_EXIT;
     for (int row = 0; row < height; row++) {
         if (reader->output_encoding == 2) {
-            const int plane[] = {2, 0, 1, 3};
-            for (int x = 0; x < width; x++)
-                for (int channel = 0; channel < 4; channel++)
-                    memcpy(output + ((size_t)row * width + x) * 16 + channel * 4,
-                        reader->converted->data[plane[channel]] + (size_t)row * reader->converted->linesize[plane[channel]] + x * 4, 4);
+            for (int x = 0; x < width * 4; x++) {
+                const uint8_t *sample = reader->converted->data[0] + (size_t)row * reader->converted->linesize[0] + x * 2;
+                float value = (float)((unsigned int)sample[0] | ((unsigned int)sample[1] << 8)) / 65535.0f;
+                uint32_t bits;
+                memcpy(&bits, &value, 4);
+                uint8_t *target = output + (size_t)row * width * 16 + x * 4;
+                for (int byte = 0; byte < 4; byte++) target[byte] = (uint8_t)(bits >> (byte * 8));
+            }
         } else {
             memcpy(output + (size_t)row * width * bytes,
                 reader->converted->data[0] + (size_t)row * reader->converted->linesize[0], (size_t)width * bytes);
