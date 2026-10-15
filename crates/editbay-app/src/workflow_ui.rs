@@ -30,6 +30,12 @@ struct Task {
     result: Receiver<Result<Completion, String>>,
 }
 
+impl Drop for Task {
+    fn drop(&mut self) {
+        self.cancel.cancel();
+    }
+}
+
 struct CaptionTextDraft {
     baseline: String,
     text: String,
@@ -714,14 +720,6 @@ fn caption_vtt(path: &std::path::Path) -> Result<bool, String> {
 /// `path` and `bytes` select content; returns an error if user output already exists.
 fn write_new(path: &std::path::Path, bytes: &[u8]) -> Result<(), String> {
     editbay_core::write_new_bytes(path, bytes).map_err(|error| error.to_string())
-}
-
-impl Drop for WorkflowPane {
-    fn drop(&mut self) {
-        if let Some(task) = &self.task {
-            task.cancel.cancel();
-        }
-    }
 }
 
 #[cfg(test)]
