@@ -9,6 +9,8 @@ pub use authoring::{
 mod command;
 mod composition;
 mod document;
+mod editorial;
+pub use editorial::{EditorialTransition, rebuild_editorial};
 mod evaluation;
 mod prepared;
 mod sound;

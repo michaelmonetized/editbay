@@ -1309,6 +1309,7 @@ version = "0.1.0"
 dependencies = [
  "editbay-audio",
  "editbay-core",
+ "editbay-interchange",
  "editbay-delivery",
  "editbay-media",
  "fs2",
@@ -6313,4 +6314,94 @@ dependencies = [
  "serde",
  "syn 3.0.6",
  "winnow",
+]
+
+[[package]]
+name = "editbay-interchange"
+version = "0.1.0"
+dependencies = [
+ "editbay-core",
+ "editbay-media",
+ "filmcraft-color",
+ "filmcraft-interchange",
+ "filmcraft-media",
+ "filmcraft-project",
+ "filmcraft-time",
+ "serde",
+ "serde_json",
+ "sha2",
+ "tempfile",
+ "uuid",
+]
+
+[[package]]
+name = "filmcraft-cfb"
+version = "0.8.0"
+
+[[package]]
+name = "filmcraft-color"
+version = "0.8.0"
+dependencies = [
+ "serde",
+]
+
+[[package]]
+name = "filmcraft-geom"
+version = "0.8.0"
+dependencies = [
+ "serde",
+]
+
+[[package]]
+name = "filmcraft-interchange"
+version = "0.8.0"
+dependencies = [
+ "filmcraft-cfb",
+ "filmcraft-color",
+ "filmcraft-geom",
+ "filmcraft-media",
+ "filmcraft-project",
+ "filmcraft-time",
+ "roxmltree",
+ "serde",
+ "serde_json",
+ "thiserror 2.0.21",
+]
+
+[[package]]
+name = "filmcraft-media"
+version = "0.8.0"
+dependencies = [
+ "filmcraft-color",
+ "filmcraft-time",
+ "serde",
+]
+
+[[package]]
+name = "filmcraft-project"
+version = "0.8.0"
+dependencies = [
+ "filmcraft-color",
+ "filmcraft-geom",
+ "filmcraft-media",
+ "filmcraft-time",
+ "serde",
+ "serde_json",
+ "thiserror 2.0.21",
+]
+
+[[package]]
+name = "filmcraft-time"
+version = "0.8.0"
+dependencies = [
+ "serde",
+]
+
+[[package]]
+name = "roxmltree"
+version = "0.21.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "f1964b10c76125c36f8afe190065a4bf9a87bf324842c05701330bba9f1cacbb"
+dependencies = [
+ "memchr",
 ]
