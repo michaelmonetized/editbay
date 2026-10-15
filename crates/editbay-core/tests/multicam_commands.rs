@@ -45,6 +45,20 @@ fn retained_multicam_command_is_atomic_reversible_and_reopenable() {
             }],
         )
         .unwrap();
+    let stable_version = DocumentVersion::of(editor.project());
+    let stable_history = editor.history_usage();
+    let repeated = editor
+        .apply(
+            stable_version,
+            "Repeat unchanged session".into(),
+            &[DocumentCommand::SetMulticamSession {
+                session: session.clone(),
+            }],
+        )
+        .unwrap();
+    assert!(!repeated.changed);
+    assert_eq!(DocumentVersion::of(editor.project()), stable_version);
+    assert_eq!(editor.history_usage(), stable_history);
     let mut changed = session.clone();
     changed
         .cut_at(editor.project(), 24, changed.angles[1].id)
