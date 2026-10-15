@@ -1,0 +1,57 @@
+{
+  "schema": "editbay.caption-shape-reference.v1",
+  "generator": {
+    "executable": "pango-view",
+    "version": "1.58.2",
+    "sha256": "940b3423bce41083443cbd91ca678e289983e227b3e749d37ddf7e15c1be4f79",
+    "harfbuzz": "14.4.0",
+    "options": [
+      "--no-display",
+      "--backend=ft2",
+      "--font=Noto Sans Arabic 48",
+      "--text=CASE_TEXT",
+      "--serialize-to=NEW_JSON"
+    ]
+  },
+  "font": {
+    "path_hint": "/usr/share/fonts/noto/NotoSansArabic-Regular.ttf",
+    "sha256": "bdff3e5659d67e67def05b33f749683b9376ae819d65d3dd62ac4640b3aaef48",
+    "bytes": 234892,
+    "license": "Apache-2.0",
+    "license_path_hint": "/usr/share/licenses/noto-fonts/LICENSE"
+  },
+  "cases": [
+    {
+      "text": "سلام",
+      "glyphs": [
+        74,
+        11,
+        71,
+        37
+      ],
+      "bidi_levels": [
+        1
+      ],
+      "reference_sha256": "b64fa06205380e7e5f8309a99bfe4179fb216504b3363fda42b78e55fd00d2d9"
+    },
+    {
+      "text": "سلام 123",
+      "glyphs": [
+        119,
+        120,
+        121,
+        3,
+        74,
+        11,
+        71,
+        37
+      ],
+      "bidi_levels": [
+        2,
+        1
+      ],
+      "reference_sha256": "387e4f97207c3c1a7c315b6f7942382d57b926d54e761238fe51976ef6d8cbbd"
+    }
+  ],
+  "proof_boundary": "Independent headless Pango/FreeType/HarfBuzz font-specific visual glyph ordering; no pixel, desktop, device or physical display proof"
+}
