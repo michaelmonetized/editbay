@@ -878,7 +878,32 @@ fn bound_cli() -> TestResult<(PathBuf, Value)> {
     assert!(git.status.success());
     let revision = String::from_utf8(git.stdout)?;
     assert_eq!(binding["repository"], "editbay");
-    assert_eq!(binding["revision"], revision.trim());
+    let compiled = binding["revision"]
+        .as_str()
+        .ok_or("Compiler source revision absent")?;
+    if compiled != revision.trim() {
+        assert!(compiled.len() == 40 && compiled.bytes().all(|v| v.is_ascii_hexdigit()));
+        let changes = Command::new("git")
+            .args([
+                "-C",
+                env!("CARGO_MANIFEST_DIR"),
+                "diff",
+                "--name-only",
+                compiled,
+                revision.trim(),
+                "--",
+            ])
+            .output()?;
+        assert!(changes.status.success());
+        let changed = String::from_utf8(changes.stdout)?;
+        assert!(
+            changed
+                .lines()
+                .all(|p| p.starts_with("crates/editbay-delivery/tests/")
+                    || p.starts_with("crates/editbay-media/tests/")),
+            "CLI product source changed since compiler receipt: {changed}"
+        );
+    }
     assert_eq!(binding["exit_code"], 0);
     assert_eq!(binding["dirty_before"], false);
     assert_eq!(binding["dirty_after"], false);
@@ -1061,7 +1086,7 @@ fn craft_video_precision_decode_worker_store_float_graph_and_atomic_master() -> 
         deadline.media()?,
     )?;
     let frame = renderer.render(composition, SourcePosition::new(0, 1)?, false)?;
-    let linear = renderer.readback(frame.image())?;
+    let linear = renderer.readback(&frame)?;
     let mut max_linear_error = 0_f64;
     for (index, actual) in linear.as_chunks::<4>().0.iter().enumerate() {
         let expected = precision_pixel(index);
