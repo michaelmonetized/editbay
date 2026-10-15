@@ -11,7 +11,10 @@ use editbay_media::{
     Cancellation, LosslessMovProfile, LosslessMovWriter, NativeAudioReader, PictureBudget,
     SourceFile, StreamType, VideoReader,
 };
-use editbay_render::{GraphBudget, GraphRenderer};
+use editbay_render::{
+    GraphBudget, GraphRenderer,
+    scopes::{ScopeIdentity, ScopeScale, ScopeSettings, sample_program_frame},
+};
 use serde_json::{Value, json};
 use std::{
     fs::{self, OpenOptions},
@@ -650,6 +653,76 @@ fn craft_video_multicam_and_captions_deliver_verified_lossless_media_on_cpu_vulk
         GraphBudget::default(),
         cancel.clone(),
     )?;
+    assert_eq!(optional.color, editbay_core::ColorConfiguration::default());
+    let scope_settings = ScopeSettings {
+        columns: 16,
+        rows: 16,
+        vector_size: 16,
+        maximum_samples: (WIDTH * HEIGHT) as usize,
+        scale: ScopeScale::Linear,
+        ..Default::default()
+    };
+    let mut program_scopes = Vec::new();
+    let mut previous_identity = None;
+    for (frame, expected, luminance) in [
+        (0, [1.0, 0.0, 0.0], 0.2126),
+        (OUTPUT_FRAMES - 1, [0.0, 1.0, 0.0], 0.7152),
+    ] {
+        let rendered = graph.render(program, SourcePosition::new(frame as i64, 1)?, false)?;
+        let pixels = graph.readback(&rendered)?;
+        let identity = ScopeIdentity {
+            version: DocumentVersion::of(&optional),
+            composition: program,
+            frame,
+        };
+        let report = sample_program_frame(
+            &pixels,
+            rendered.image().dimensions(),
+            identity,
+            optional.color,
+            scope_settings,
+        )?;
+        assert_eq!(report.valid_pixels, u64::from(WIDTH * HEIGHT));
+        assert_eq!(report.invalid_pixels, 0);
+        assert_eq!(report.transparent_pixels, 0);
+        for (range, expected) in report.statistics.linear_rgb.iter().zip(expected) {
+            let range = range.ok_or("program scope channel absent")?;
+            assert!((range.minimum - expected).abs() < 1.0e-4);
+            assert!((range.maximum - expected).abs() < 1.0e-4);
+        }
+        let range = report
+            .statistics
+            .luminance_nits
+            .ok_or("program luminance absent")?;
+        assert!((range.minimum - luminance * 100.0).abs() < 0.02);
+        assert!((range.maximum - luminance * 100.0).abs() < 0.02);
+        assert!(report.matches(identity, optional.color, scope_settings));
+        if let Some(previous) = previous_identity {
+            assert!(!report.matches(previous, optional.color, scope_settings));
+        }
+        previous_identity = Some(identity);
+        let paused_settings = ScopeSettings {
+            scale: ScopeScale::Nits,
+            reference_white_nits: 200.0,
+            ..scope_settings
+        };
+        let paused = sample_program_frame(
+            &pixels,
+            rendered.image().dimensions(),
+            identity,
+            optional.color,
+            paused_settings,
+        )?;
+        assert!(!report.matches(identity, optional.color, paused_settings));
+        assert!(paused.matches(identity, optional.color, paused_settings));
+        let range = paused
+            .statistics
+            .luminance_nits
+            .ok_or("paused luminance absent")?;
+        assert!((range.minimum - luminance * 200.0).abs() < 0.04);
+        assert!((range.maximum - luminance * 200.0).abs() < 0.04);
+        program_scopes.push(json!({"frame":frame,"linear":report,"same_frame_nits":paused}));
+    }
     let position = SourcePosition::new(3, 1)?;
     let picture = graph.render(program, position, false)?;
     let (preview, warnings) = graph.preview_captions(&picture, program, position)?;
@@ -786,9 +859,9 @@ fn craft_video_multicam_and_captions_deliver_verified_lossless_media_on_cpu_vulk
             "cli":{"path":cli,"fingerprint":cli_file.fingerprint(),"build_receipt":binding_path,"source_revision":revision.trim()},
             "version":DocumentVersion::of(&reopened),"input_assets":reopened.assets,
             "program":program,"markers":[2,4],"camera_b_offset_frames":-2,"cut_frame":CUT_FRAME,
-            "policy_deliveries":observations,"captioned_numeric_oracle":measured,
+            "policy_deliveries":observations,"captioned_numeric_oracle":measured,"program_scopes":program_scopes,
             "preservation":{"original_camera_compositions":true,"undo_redo":true,"save_reopen":true,"source_hashes":true,"existing_master":true,"existing_sidecar":true,"cancel_before_publication":true},
-            "proof_boundary":"Actual CPU lavapipe/Vulkan render, native MOV/PCM encode and decode with independent numeric frame/sample oracles and the CLI worker. Encode and decode share FFmpeg; this does not prove independent codec conformance. No desktop, audio output, physical display, audio alignment from a device, external NLE or physical hardware acceptance is claimed."
+            "proof_boundary":"Actual CPU lavapipe/Vulkan render, native MOV/PCM encode and decode with independent numeric frame/sample/working-linear scope oracles and the CLI worker. Same-frame scope settings are sampled from actual program pixels; native UI paused/playback updates remain unproven. Encode and decode share FFmpeg; this does not prove independent codec conformance. No desktop, audio output, physical display, audio alignment from a device, external NLE or physical hardware acceptance is claimed."
         }))?,
     )?;
     Ok(())
