@@ -96,7 +96,7 @@ pub fn number<N: egui::emath::Numeric>(
             if let Some(error) = state.error.or(invalid.then_some("Enter a finite number")) {
                 ui.colored_label(ui.visuals().error_fg_color, error);
             }
-            let changed = response.changed() && !cancelled && !invalid && !state.locked;
+            let changed = response.changed() && !cancelled && !invalid && enabled;
             let committed = !cancelled
                 && !invalid
                 && enabled
