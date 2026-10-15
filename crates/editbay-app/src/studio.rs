@@ -1588,6 +1588,7 @@ impl Studio {
                 let active = self.layouts.active.clone();
                 let mut layout = self.layouts.tasks.remove(&active).unwrap_or_default();
                 layout.normalize(&PANEL_REGISTRY.iter().map(|p| p.0).collect::<Vec<_>>());
+                let arranging = self.panel_keyboard.opened();
                 self.panel_keyboard.show(
                     ui,
                     &format!("editbay-{active}"),
@@ -1595,7 +1596,7 @@ impl Studio {
                     PANEL_REGISTRY,
                     interactive,
                 );
-                let interactive = interactive && !self.panel_keyboard.opened();
+                let interactive = interactive && !arranging && !self.panel_keyboard.opened();
                 ui.weak("F6: next panel · Ctrl+F6: arrange panels · F8: timeline clips");
                 let available = ui.available_rect_before_wrap();
                 let area = egui::Rect::from_min_size(

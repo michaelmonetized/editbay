@@ -363,7 +363,10 @@ mod tests {
                 vec![key(egui::Key::Enter, egui::Modifiers::NONE)],
                 Some(&mut keyboard),
             );
-            let idle = render(&ctx, &mut layout, vec![], Some(&mut keyboard));
+            let mut native_labels = applied.2;
+            for _ in 0..3 {
+                native_labels.extend(render(&ctx, &mut layout, vec![], Some(&mut keyboard)).2);
+            }
             assert!(!keyboard.opened());
             assert_eq!(layout.focus.as_deref(), Some("media"));
             assert!(!layout.hidden.contains_key("media"));
@@ -373,14 +376,9 @@ mod tests {
                 "explicit same-panel request must focus its actual tab"
             );
             assert!(
-                applied
-                    .2
-                    .iter()
-                    .chain(&idle.2)
-                    .any(|label| label == "Media"),
-                "native focus did not return to Media: {:?} {:?}",
-                applied.2,
-                idle.2
+                native_labels.iter().any(|label| label == "Media"),
+                "native focus did not return to Media: {:?}",
+                native_labels
             );
         }
     }
