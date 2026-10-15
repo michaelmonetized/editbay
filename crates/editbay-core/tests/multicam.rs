@@ -129,6 +129,13 @@ fn incompatible_sound_policy_is_rejected_atomically_before_a_cut_is_published() 
     };
     *channels = vec!["FC".into()];
     let mut session = session(&p);
+    assert_eq!(
+        session.audio_policy,
+        MulticamAudioPolicy::Fixed {
+            angle: session.angles[0].id
+        }
+    );
+    session.audio_policy = MulticamAudioPolicy::FollowVideo;
     session.cut_at(&p, 24, session.angles[1].id).unwrap();
     let mut editor = DocumentEditor::new(p.clone()).unwrap();
     let version = DocumentVersion::of(editor.project());
