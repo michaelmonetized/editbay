@@ -282,8 +282,15 @@ mod tests {
         layout: &mut Workspace,
         events: Vec<egui::Event>,
         mut keyboard: Option<&mut PanelKeyboard>,
-    ) -> (egui::Rect, Option<egui::Id>, Vec<String>) {
+    ) -> (
+        egui::Rect,
+        Option<egui::Id>,
+        Vec<String>,
+        Vec<egui::Rect>,
+        Vec<String>,
+    ) {
         let mut body = egui::Rect::NOTHING;
+        let mut focus_trace = vec![];
         let modifiers = events
             .iter()
             .rev()
@@ -310,6 +317,15 @@ mod tests {
                     keyboard.show(ui, "editbay-panel-test", layout, REGISTRY, true);
                 }
                 layout.show(ui, "editbay-panel-test", REGISTRY, |ui, panel| {
+                    let focused = ui.memory(|memory| memory.focused());
+                    let response = focused.and_then(|id| ui.ctx().read_response(id));
+                    focus_trace.push(format!(
+                        "{panel}: focus={focused:?}, enabled={:?}, layer_allows={:?}, modal={:?}",
+                        response.as_ref().map(egui::Response::enabled),
+                        response.as_ref().map(|response| ui
+                            .memory(|memory| memory.allows_interaction(response.layer_id))),
+                        ui.memory(|memory| memory.top_modal_layer())
+                    ));
                     if panel == "media" {
                         body = ui.max_rect().intersect(ui.clip_rect());
                     }
@@ -329,8 +345,29 @@ mod tests {
                 }
             })
             .collect();
+        fn painted_rectangles(shape: &egui::epaint::Shape, rects: &mut Vec<egui::Rect>) {
+            match shape {
+                egui::epaint::Shape::Rect(rect) => rects.push(rect.rect),
+                egui::epaint::Shape::Vec(shapes) => {
+                    for shape in shapes {
+                        painted_rectangles(shape, rects);
+                    }
+                }
+                _ => {}
+            }
+        }
+        let mut painted = vec![];
+        for shape in &output.shapes {
+            painted_rectangles(&shape.shape, &mut painted);
+        }
         output.drop_without_applying_deltas();
-        (body, ctx.memory(|memory| memory.focused()), labels)
+        (
+            body,
+            ctx.memory(|memory| memory.focused()),
+            labels,
+            painted,
+            focus_trace,
+        )
     }
 
     #[test]
@@ -381,8 +418,11 @@ mod tests {
                 Some(&mut keyboard),
             );
             let mut native_labels = applied.2;
+            let mut focus_trace = applied.4;
             for _ in 0..3 {
-                native_labels.extend(render(&ctx, &mut layout, vec![], Some(&mut keyboard)).2);
+                let next = render(&ctx, &mut layout, vec![], Some(&mut keyboard));
+                native_labels.extend(next.2);
+                focus_trace.extend(next.4);
             }
             assert!(!keyboard.opened());
             assert_eq!(layout.focus.as_deref(), Some("media"));
@@ -390,7 +430,7 @@ mod tests {
             let focused = ctx.memory(|memory| memory.focused());
             assert!(
                 focused.is_some(),
-                "explicit same-panel request must focus its actual tab"
+                "explicit same-panel request must focus its actual tab: {focus_trace:?}"
             );
             assert!(
                 native_labels.iter().any(|label| label == "Media"),
@@ -418,8 +458,35 @@ mod tests {
                 "media",
                 egui::vec2(520., 360.)
             ));
+            let first = render(&ctx, &mut layout, vec![], None);
+            let rect = layout
+                .groups
+                .iter()
+                .find(|group| group.panels.iter().any(|panel| panel == "media"))
+                .unwrap()
+                .rect;
+            assert!(
+                (rect[2] - 520.).abs() < 2. && (rect[3] - 360.).abs() < 2.,
+                "native shown group missed the requested first-frame footprint: {rect:?}"
+            );
+            assert!(
+                first
+                    .3
+                    .iter()
+                    .any(|rect| (rect.width() - 520.).abs() < 2.
+                        && (rect.height() - 360.).abs() < 2.),
+                "native window frame was not actually painted at the requested size: {:?}",
+                first.3
+            );
             for _ in 0..4 {
-                render(&ctx, &mut layout, vec![], None);
+                let next = render(&ctx, &mut layout, vec![], None);
+                assert!(
+                    (next.0.width() - first.0.width()).abs() < 3.
+                        && (next.0.height() - first.0.height()).abs() < 3.,
+                    "actual visible body changed after the transient request: {:?} -> {:?}",
+                    first.0,
+                    next.0
+                );
             }
             let after = render(&ctx, &mut layout, vec![], None).0;
             assert!(

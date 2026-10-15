@@ -562,8 +562,26 @@ mod tests {
         author.tab_to("Place on track");
         author.press(egui::Key::Enter);
         author.settled(5);
+        let ordered =
+            editbay_core::timeline_clips(author.workspace.tabs[0].editor.project(), record)
+                .unwrap();
+        let current = author.pane.selections[&author.tab].clip.unwrap();
+        let previous = ordered[ordered
+            .iter()
+            .position(|clip| clip.id == current)
+            .unwrap()
+            .saturating_sub(1)]
+        .id;
         author.press(egui::Key::F8);
         author.press(egui::Key::PageUp);
+        assert_eq!(author.pane.selections[&author.tab].clip, Some(previous));
+        if previous != clip.id {
+            author.tab_to(&format!(
+                "Clip {} · Video 1 · frames {} to {}",
+                clip.name, clip.range.start, clip.range.end
+            ));
+            author.press(egui::Key::Enter);
+        }
         assert_eq!(author.pane.selections[&author.tab].clip, Some(clip.id));
         author.press(egui::Key::ArrowRight);
         author.settled(6);
