@@ -1051,7 +1051,7 @@ fn craft_video_hdr_native_tags_float_light_and_high_depth_delivery() -> TestResu
             deadline.media()?,
         )?;
         let frame = graph.render(composition, SourcePosition::new(0, 1)?, false)?;
-        let actual = graph.readback(frame.image())?;
+        let actual = graph.readback(&frame)?;
         let mut max_relative_error = 0_f64;
         for (index, pixel) in actual.as_chunks::<4>().0.iter().enumerate() {
             let codes = precision_pixel(index);
@@ -1183,7 +1183,7 @@ fn craft_video_hdr_native_tags_float_light_and_high_depth_delivery() -> TestResu
     write_new(
         &directory.path.join("hdr-pipeline.json"),
         &serde_json::to_vec_pretty(&json!({
-            "schema":"editbay.hdr-pipeline.v1","status":"passed","source_revision":binding["revision"],"cases":cases,
+            "schema":"editbay.hdr-pipeline.v1","status":"passed","source_revision":binding["test_source_revision"],"cli_source_revision":binding["revision"],"cli_build_receipt":binding["actual_cli_compiler_packet"],"cli_fingerprint":binding["actual_cli_fingerprint"],"cases":cases,
             "reference":"Independent f64 BT.2100 PQ EOTF and HLG inverse OETF/OOTF, 203-nit white and 1000-nit HLG display",
             "proof_boundary":"Actual CPU Vulkan and native high-depth color-tagged MOV/QC. No HDR display/device/physical proof; mastering/content-light/ICC metadata are separate pending cuts."
         }))?,
