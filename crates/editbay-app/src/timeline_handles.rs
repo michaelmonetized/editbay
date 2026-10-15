@@ -118,6 +118,12 @@ pub fn actions(
 }
 
 impl Handles {
+    /// End pointer capture after cancellation, explicit commit or owner replacement.
+    /// Args: none. Returns no value; a held pointer stays inert until its next fresh drag.
+    pub fn cancel(&mut self) {
+        self.drag = None;
+    }
+
     /// Draw source-aware clip bodies and trim edges.
     /// Args: UI, composition, clips, source durations, selection, playhead and ripple mode.
     /// Returns a coalescible typed gesture update; release commits and Escape cancels upstream.

@@ -138,6 +138,7 @@ impl TimelinePane {
             !visible || workspace.active != Some(draft.owner.tab) || !workspace.owns(draft.owner)
         }) {
             self.draft = None;
+            self.handles.cancel();
             preview.set_draft(None);
         }
         self.selections
@@ -1354,6 +1355,9 @@ impl TimelinePane {
                 });
             }
         });
+        if enter {
+            self.handles.cancel();
+        }
         if escape || cancel_gesture {
             self.draft = None;
             preview.set_draft(None);
@@ -2053,7 +2057,13 @@ mod tests {
             } else {
                 clips.iter().find(|c| c.id == first).unwrap()
             };
-            let delta = if tool == Tool::Move { 50 } else { 1 };
+            let delta = if tool == Tool::Move {
+                50
+            } else if tool == Tool::TrimEnd {
+                -1
+            } else {
+                1
+            };
             pane.update_drafts(
                 &workspace,
                 tab,
