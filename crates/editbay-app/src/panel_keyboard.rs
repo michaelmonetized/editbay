@@ -25,6 +25,7 @@ pub struct PanelKeyboard {
 }
 
 struct Draft {
+    instance: uuid::Uuid,
     workspace: String,
     panel: String,
     target: String,
@@ -61,6 +62,7 @@ impl PanelKeyboard {
                 .or_else(|| registry.first().map(|entry| entry.0));
             if let Some(panel) = panel {
                 self.draft = Some(Draft {
+                    instance: uuid::Uuid::new_v4(),
                     workspace: workspace_id.into(),
                     panel: panel.into(),
                     target: registry
@@ -162,7 +164,7 @@ impl PanelKeyboard {
             if matches!(draft.operation, Operation::Float | Operation::Resize) {
                 let width = fields::number(
                     ui,
-                    ("width", workspace_id, &draft.panel),
+                    ("width", workspace_id, &draft.panel, draft.instance),
                     "Floating width",
                     &mut draft.size[0],
                     120. ..=4096.,
@@ -172,7 +174,7 @@ impl PanelKeyboard {
                 );
                 let height = fields::number(
                     ui,
-                    ("height", workspace_id, &draft.panel),
+                    ("height", workspace_id, &draft.panel, draft.instance),
                     "Floating height",
                     &mut draft.size[1],
                     80. ..=4096.,
@@ -244,6 +246,9 @@ impl PanelKeyboard {
             }
         }
         if close {
+            if !apply && let Some(panel) = layout.focus.clone() {
+                layout.request_focus(ui.ctx(), workspace_id, &panel);
+            }
             self.draft = None;
         }
     }
@@ -569,5 +574,77 @@ mod tests {
         assert!(!next.2.iter().any(|label| label == "Apply"));
         assert!(keyboard.opened());
         assert_eq!(layout.groups[0].rect, before);
+        render(
+            &ctx,
+            &mut layout,
+            vec![key(egui::Key::Enter, egui::Modifiers::NONE)],
+            Some(&mut keyboard),
+        );
+        assert!(!keyboard.opened());
+        render(
+            &ctx,
+            &mut layout,
+            vec![key(egui::Key::F6, egui::Modifiers::CTRL)],
+            Some(&mut keyboard),
+        );
+        render(&ctx, &mut layout, vec![], Some(&mut keyboard));
+        render(
+            &ctx,
+            &mut layout,
+            vec![key(egui::Key::Tab, egui::Modifiers::NONE)],
+            Some(&mut keyboard),
+        );
+        render(
+            &ctx,
+            &mut layout,
+            vec![key(egui::Key::End, egui::Modifiers::NONE)],
+            Some(&mut keyboard),
+        );
+        render(
+            &ctx,
+            &mut layout,
+            vec![key(egui::Key::Tab, egui::Modifiers::NONE)],
+            Some(&mut keyboard),
+        );
+        render(
+            &ctx,
+            &mut layout,
+            vec![
+                key(
+                    egui::Key::A,
+                    egui::Modifiers::CTRL | egui::Modifiers::COMMAND,
+                ),
+                egui::Event::Text("480".into()),
+            ],
+            Some(&mut keyboard),
+        );
+        render(
+            &ctx,
+            &mut layout,
+            vec![key(egui::Key::Tab, egui::Modifiers::NONE)],
+            Some(&mut keyboard),
+        );
+        let recovered = render(
+            &ctx,
+            &mut layout,
+            vec![key(egui::Key::Tab, egui::Modifiers::NONE)],
+            Some(&mut keyboard),
+        );
+        assert!(
+            recovered.2.iter().any(|label| label == "Apply"),
+            "fresh valid draft inherited canceled text: {:?}",
+            recovered.2
+        );
+        render(
+            &ctx,
+            &mut layout,
+            vec![key(egui::Key::Enter, egui::Modifiers::NONE)],
+            Some(&mut keyboard),
+        );
+        for _ in 0..3 {
+            render(&ctx, &mut layout, vec![], Some(&mut keyboard));
+        }
+        assert!(!keyboard.opened());
+        assert!(layout.groups[0].rect[2] > before[2] + 100.);
     }
 }
