@@ -386,6 +386,18 @@ impl Task {
         self.mailbox.1.notify_one();
         Ok(())
     }
+    /// Recapture a displayed frame without retiring its prepared playback queue.
+    /// `request` keeps the current serial and frame. Returns after notifying the
+    /// existing render worker; its result still needs normal ownership checks.
+    fn refresh(&self, request: Request) -> Result<(), String> {
+        let mut mailbox = self.mailbox.0.lock().map_err(|e| e.to_string())?;
+        if mailbox.stopped {
+            return Err("Viewer is stopping".into());
+        }
+        mailbox.request = Some(request);
+        self.mailbox.1.notify_one();
+        Ok(())
+    }
     fn prepare(&self, preparation: Preparation) -> Result<(), String> {
         let mut mailbox = self.mailbox.0.lock().map_err(|e| e.to_string())?;
         if mailbox.stopped {
@@ -476,7 +488,9 @@ impl Task {
                             if mailbox.stopped {
                                 return Ok(());
                             }
-                            let request = if let Some(preparation) = &mailbox.preparation {
+                            let request = if let Some(request) = mailbox.request.take() {
+                                Some((request, None))
+                            } else if let Some(preparation) = &mailbox.preparation {
                                 let reserved = preparation
                                     .pictures
                                     .lock()
@@ -493,7 +507,7 @@ impl Task {
                                     )
                                 })
                             } else {
-                                mailbox.request.take().map(|request| (request, None))
+                                None
                             };
                             if request.is_none() {
                                 mailbox = input
@@ -1068,12 +1082,51 @@ impl PreviewPane {
                 Ordering::Release,
             );
             self.picture = Some(picture);
+            if self.color.enabled
+                && self.picture.as_ref().is_some_and(|picture| {
+                    picture
+                        .scopes
+                        .as_ref()
+                        .is_none_or(|report| report.settings != self.color.settings)
+                })
+            {
+                self.refresh_scopes()?;
+            }
             Ok(())
         } else if self.starting.is_some() {
             Ok(())
         } else {
             Err("Pictures could not keep up with sound; playback stopped. Retry playback".into())
         }
+    }
+
+    /// Apply scope settings and refresh the current program frame in place.
+    /// Takes the panel's enabled state and settings. Returns after notifying the
+    /// render worker, preserving prepared frames, sound and playback serial.
+    fn refresh_scopes(&mut self) -> Result<(), String> {
+        if let Some(task) = &self.task {
+            *task
+                .scope_settings
+                .lock()
+                .map_err(|error| error.to_string())? =
+                self.color.enabled.then_some(self.color.settings);
+            if self.prepared.is_some() {
+                if self.color.enabled
+                    && let Some(picture) = &self.picture
+                {
+                    task.refresh(Request {
+                        serial: self.serial,
+                        frame: picture.frame,
+                        requested: Instant::now(),
+                    })?;
+                }
+            } else {
+                self.requested_frame = None;
+            }
+        } else {
+            self.requested_frame = None;
+        }
+        Ok(())
     }
 
     fn start_prepared_sound(&mut self) -> Result<(), String> {
@@ -1297,7 +1350,11 @@ impl PreviewPane {
         match event {
             Some(Event::Started(pid)) => self.worker_pid = Some(pid),
             Some(Event::Picture(picture))
-                if self.prepared.is_none()
+                if (self.prepared.is_none()
+                    || self
+                        .picture
+                        .as_ref()
+                        .is_some_and(|current| current.frame == picture.frame))
                     && picture.serial == self.serial
                     && Some(picture.frame) == self.requested_frame =>
             {
@@ -1735,15 +1792,9 @@ impl PreviewPane {
             scope_changed = self.color.show(ui, report);
         });
         if scope_changed {
-            if let Some(task) = &self.task {
-                match task.scope_settings.lock() {
-                    Ok(mut settings) => {
-                        *settings = self.color.enabled.then_some(self.color.settings)
-                    }
-                    Err(error) => self.error = Some(error.to_string()),
-                }
+            if let Err(error) = self.refresh_scopes() {
+                self.error = Some(error);
             }
-            self.requested_frame = None;
             ui.ctx().request_repaint();
         }
         if self.creation.is_some() {
