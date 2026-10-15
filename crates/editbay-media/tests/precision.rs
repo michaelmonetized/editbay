@@ -12,7 +12,8 @@ use std::{
     io::Write,
     os::unix::fs::PermissionsExt,
     path::{Path, PathBuf},
-    process::Command,
+    process::{Command, Output, Stdio},
+    time::{Duration, Instant},
 };
 use uuid::Uuid;
 
@@ -67,7 +68,7 @@ impl Fixture {
                 "schema":"editbay.native-precision.v1","status":"passed","case":case,
                 "license":"MIT; original analytic source-generated fixtures",
                 "dimensions":[WIDTH,HEIGHT],"evidence":evidence,
-                "proof_boundary":"Native integer16 PNG/MOV and normalized F32 output only. The separate ffmpeg process shares the FFmpeg codec family; original PNG encoding and analytic channel/sample oracles are independent. No GPU, display, sound device, ICC processing, HDR tone mapping, float-origin media or general format-family conformance is claimed."
+                "proof_boundary":"Only the source formats and numeric ranges explicitly asserted by this case are covered. The separate ffmpeg process shares the FFmpeg codec family; original PNG/EXR fixture encoding and analytic channel/sample oracles are independent. No GPU, display, sound device, ICC processing, HDR transfer/tone mapping or general format-family conformance is claimed."
             });
             let path = self.directory.join("precision.json");
             let mut file = new_file(&path)?;
@@ -197,9 +198,14 @@ fn independent_png(path: &Path, depth: u8) -> TestResult<()> {
     Ok(())
 }
 
-/// Decode raw integer16 pixels through a separately invoked software reference path.
-/// `path` and `frames` bound output; returns bytes or fails when reference tooling is unavailable.
-fn reference16(path: &Path, frames: u64) -> TestResult<(Vec<u8>, Value)> {
+/// Decode a bounded raw payload through a separately invoked software reference.
+/// `path`, `frames` and `pixel_format` select output; returns actual bytes/tool identity.
+fn reference_pixels(
+    path: &Path,
+    frames: u64,
+    pixel_format: &str,
+    bytes_per_pixel: usize,
+) -> TestResult<(Vec<u8>, Value)> {
     let executable = std::env::split_paths(&std::env::var_os("PATH").ok_or("PATH is absent")?)
         .map(|directory| directory.join("ffmpeg"))
         .find(|candidate| {
@@ -211,7 +217,19 @@ fn reference16(path: &Path, frames: u64) -> TestResult<(Vec<u8>, Value)> {
         .canonicalize()?;
     let cancel = Cancellation::new()?;
     let tool = SourceFile::open(&executable, &cancel)?;
-    let version = Command::new(&executable).arg("-version").output()?;
+    reference_note(
+        path,
+        pixel_format,
+        "version-invocation",
+        &json!({"status":"pending","executable":executable,"executable_fingerprint":tool.fingerprint(),"command":[executable,"-version"],"wall_deadline_seconds":20}),
+    )?;
+    let version = bounded_reference(Command::new(&executable).arg("-version"))?;
+    reference_note(
+        path,
+        pixel_format,
+        "version-result",
+        &json!({"status":if version.status.success() {"completed"} else {"failed"},"exit_code":version.status.code(),"stdout":String::from_utf8_lossy(&version.stdout),"stderr":String::from_utf8_lossy(&version.stderr)}),
+    )?;
     assert!(version.status.success());
     assert!(version.stdout.len() <= 32768 && version.stderr.len() <= 32768);
     let version_text = String::from_utf8(version.stdout)?;
@@ -236,7 +254,7 @@ fn reference16(path: &Path, frames: u64) -> TestResult<(Vec<u8>, Value)> {
         "-frames:v".into(),
         frames.to_string(),
         "-pix_fmt".into(),
-        "rgba64le".into(),
+        pixel_format.into(),
         "-c:v".into(),
         "rawvideo".into(),
         "-threads:v".into(),
@@ -245,7 +263,22 @@ fn reference16(path: &Path, frames: u64) -> TestResult<(Vec<u8>, Value)> {
         "rawvideo".into(),
         "-".into(),
     ];
-    let output = Command::new(&executable).args(&args).output()?;
+    let invocation = std::iter::once(executable.to_string_lossy().into_owned())
+        .chain(args.clone())
+        .collect::<Vec<_>>();
+    reference_note(
+        path,
+        pixel_format,
+        "decode-invocation",
+        &json!({"status":"pending","executable":executable,"executable_fingerprint":tool.fingerprint(),"version":version_text,"command":invocation,"wall_deadline_seconds":20}),
+    )?;
+    let output = bounded_reference(Command::new(&executable).args(&args))?;
+    reference_note(
+        path,
+        pixel_format,
+        "decode-result",
+        &json!({"status":if output.status.success() {"completed"} else {"failed"},"exit_code":output.status.code(),"decoded_bytes":output.stdout.len(),"decoded_sha256":format!("{:x}",Sha256::digest(&output.stdout)),"stderr":String::from_utf8_lossy(&output.stderr)}),
+    )?;
     assert!(
         output.status.success(),
         "{}",
@@ -253,20 +286,27 @@ fn reference16(path: &Path, frames: u64) -> TestResult<(Vec<u8>, Value)> {
     );
     assert_eq!(
         output.stdout.len(),
-        WIDTH as usize * HEIGHT as usize * 8 * frames as usize
+        WIDTH as usize * HEIGHT as usize * bytes_per_pixel * frames as usize
     );
     tool.verify(&cancel)?;
-    let invocation = std::iter::once(executable.to_string_lossy().into_owned())
-        .chain(args)
-        .collect::<Vec<_>>();
-    let evidence = json!({
+    let mut evidence = json!({
         "executable":executable,"executable_fingerprint":tool.fingerprint(),
         "version_command":[executable,"-version"],"version":version_text,
         "command":invocation,"exit_code":0,
-        "decoded_rgba16le_sha256":format!("{:x}",Sha256::digest(&output.stdout)),
+        "pixel_format":pixel_format,"decoded_payload_sha256":format!("{:x}",Sha256::digest(&output.stdout)),
+        "wall_deadline_seconds":20,"hardware_acceleration":"none",
         "boundary":"Separate software process; shares the FFmpeg codec family, not an independent codec implementation"
     });
+    if pixel_format == "rgba64le" {
+        evidence["decoded_rgba16le_sha256"] = evidence["decoded_payload_sha256"].clone();
+    }
     Ok((output.stdout, evidence))
+}
+
+/// Decode raw integer16 pixels through the separately invoked software reference.
+/// `path` and `frames` bound output; returns bytes or fails if reference tooling is unavailable.
+fn reference16(path: &Path, frames: u64) -> TestResult<(Vec<u8>, Value)> {
+    reference_pixels(path, frames, "rgba64le", 8)
 }
 
 /// Evaluate exactly representable mono PCM independently of all media readers.
@@ -594,5 +634,276 @@ fn craft_video_precision_cancelled_native16_reads_and_writes_fail_before_media_o
     assert_eq!(file.metadata()?.len(), 0);
     source.verify(&cancel)?;
     fixture.record("native16_cancellation", json!({"input":path,"source":source.fingerprint(),"pre_cancelled_reader_rejected":true,"running_read_cancelled_permanently":true,"cancelled_ingest_rejected":true,"pre_cancelled_writer_bytes":0}))?;
+    Ok(())
+}
+
+/// Generate signed/headroom source pixels without transfer or alpha math.
+/// Takes no arguments; returns exactly representable, straight row-major RGBA floats.
+fn samples_float() -> Vec<f32> {
+    (0..WIDTH as usize * HEIGHT as usize)
+        .flat_map(|index| {
+            [
+                [-0.25, 1.0 + 1.0 / 1024.0, 4.5, 0.125 + 1.0 / 262_144.0][index % 4]
+                    + (index % 5) as f32 / 65_536.0,
+                [-1.5, 0.0, 0.5 + 1.0 / 262_144.0, 2.25][(index / 4) % 4],
+                1.0 + (index % 11) as f32 / 262_144.0,
+                [0.0, 0.25, 0.5, 1.0][index % 4],
+            ]
+        })
+        .collect()
+}
+
+/// Append one OpenEXR attribute using its specified little-endian wire layout.
+/// `output`, `name`, `kind` and `data` select its bytes; returns checked length status.
+fn exr_attribute(output: &mut Vec<u8>, name: &str, kind: &str, data: &[u8]) -> TestResult<()> {
+    output.extend_from_slice(name.as_bytes());
+    output.push(0);
+    output.extend_from_slice(kind.as_bytes());
+    output.push(0);
+    output.extend_from_slice(&i32::try_from(data.len())?.to_le_bytes());
+    output.extend_from_slice(data);
+    Ok(())
+}
+
+/// Encode one original uncompressed FLOAT scanline EXR without a codec library.
+/// `path` and `samples` select storage/pixels; returns after writing the new file.
+/// Layout reference: https://openexr.com/en/latest/OpenEXRFileLayout.html
+fn independent_float_exr(path: &Path, samples: &[f32]) -> TestResult<()> {
+    assert_eq!(samples.len(), WIDTH as usize * HEIGHT as usize * 4);
+    assert!(samples.iter().all(|sample| sample.is_finite()));
+    let mut exr = Vec::new();
+    exr.extend_from_slice(&20_000_630_u32.to_le_bytes());
+    exr.extend_from_slice(&2_u32.to_le_bytes());
+    let mut channels = Vec::new();
+    for name in [b'A', b'B', b'G', b'R'] {
+        channels.extend_from_slice(&[name, 0]);
+        channels.extend_from_slice(&2_i32.to_le_bytes());
+        channels.extend_from_slice(&[0; 4]);
+        channels.extend_from_slice(&1_i32.to_le_bytes());
+        channels.extend_from_slice(&1_i32.to_le_bytes());
+    }
+    channels.push(0);
+    exr_attribute(&mut exr, "channels", "chlist", &channels)?;
+    exr_attribute(&mut exr, "compression", "compression", &[0])?;
+    let bounds: Vec<u8> = [0_i32, 0, WIDTH as i32 - 1, HEIGHT as i32 - 1]
+        .iter()
+        .flat_map(|value| value.to_le_bytes())
+        .collect();
+    exr_attribute(&mut exr, "dataWindow", "box2i", &bounds)?;
+    exr_attribute(&mut exr, "displayWindow", "box2i", &bounds)?;
+    exr_attribute(&mut exr, "lineOrder", "lineOrder", &[0])?;
+    exr_attribute(&mut exr, "pixelAspectRatio", "float", &1_f32.to_le_bytes())?;
+    exr_attribute(&mut exr, "screenWindowCenter", "v2f", &[0; 8])?;
+    exr_attribute(&mut exr, "screenWindowWidth", "float", &1_f32.to_le_bytes())?;
+    exr.push(0);
+    let first_chunk = u64::try_from(exr.len())? + u64::from(HEIGHT) * 8;
+    let row_bytes = WIDTH * 16;
+    for row in 0..HEIGHT {
+        let offset = first_chunk + u64::from(row) * u64::from(8 + row_bytes);
+        exr.extend_from_slice(&offset.to_le_bytes());
+    }
+    for row in 0..HEIGHT {
+        exr.extend_from_slice(&(row as i32).to_le_bytes());
+        exr.extend_from_slice(&(row_bytes as i32).to_le_bytes());
+        for channel in [3, 2, 1, 0] {
+            for column in 0..WIDTH {
+                let index = ((row * WIDTH + column) * 4) as usize + channel;
+                exr.extend_from_slice(&samples[index].to_le_bytes());
+            }
+        }
+    }
+    let mut file = new_file(path)?;
+    file.write_all(&exr)?;
+    file.sync_all()?;
+    Ok(())
+}
+
+/// Check a native interleaved F32 payload against signed analytic source values.
+/// `bytes` and `expected` retain source channels; returns the maximum absolute error.
+fn source_floats(bytes: &[u8], expected: &[f32]) -> TestResult<f32> {
+    assert_eq!(bytes.len(), expected.len() * 4);
+    let mut maximum = 0_f32;
+    for (index, (bytes, wanted)) in bytes.chunks_exact(4).zip(expected).enumerate() {
+        let value = f32::from_le_bytes(bytes.try_into()?);
+        let error = (value - wanted).abs();
+        assert!(
+            value.is_finite() && error <= 1.0e-6,
+            "Source F32 channel {index}: {value} != {wanted}; signed RGB/headroom/straight alpha must survive"
+        );
+        maximum = maximum.max(error);
+    }
+    Ok(maximum)
+}
+
+/// Retain actual reference attempts independently of final assertion success.
+/// `path`, `format`, `stage` and `evidence` select new test-owned JSON; returns synchronized status.
+fn reference_note(path: &Path, format: &str, stage: &str, evidence: &Value) -> TestResult<()> {
+    if std::env::var_os("EDITBAY_WORKFLOW_RECEIPTS_DIR").is_some() {
+        let parent = path.parent().ok_or("Fixture parent absent")?;
+        assert!(parent.starts_with("/home"));
+        let mut file = new_file(&parent.join(format!("reference-{format}-{stage}.json")))?;
+        file.write_all(&serde_json::to_vec_pretty(evidence)?)?;
+        file.sync_all()?;
+    }
+    Ok(())
+}
+
+/// Bound every small software reference invocation and reap it on timeout.
+/// `command` owns executable/arguments; returns captured output within twenty seconds.
+fn bounded_reference(command: &mut Command) -> TestResult<Output> {
+    let mut child = command
+        .stdin(Stdio::null())
+        .stdout(Stdio::piped())
+        .stderr(Stdio::piped())
+        .spawn()?;
+    let start = Instant::now();
+    loop {
+        match child.try_wait() {
+            Ok(Some(_)) => break,
+            Ok(None) => {}
+            Err(error) => {
+                let _ = child.kill();
+                let _ = child.wait();
+                return Err(error.into());
+            }
+        }
+        if start.elapsed() >= Duration::from_secs(20) {
+            let _ = child.kill();
+            let _ = child.wait();
+            return Err("Software reference exceeded its twenty-second deadline".into());
+        }
+        std::thread::sleep(Duration::from_millis(5));
+    }
+    Ok(child.wait_with_output()?)
+}
+
+#[test]
+fn craft_video_precision_float_source_preserves_signed_headroom_straight_alpha_and_metadata()
+-> TestResult<()> {
+    let fixture = Fixture::new("independent-float-exr")?;
+    let path = fixture.directory.join("original-signed-headroom-float.exr");
+    let expected = samples_float();
+    let pixels: Vec<_> = expected.chunks_exact(4).collect();
+    for alpha in [0.0, 0.25, 0.5, 1.0] {
+        assert!(pixels.iter().any(|pixel| pixel[3] == alpha));
+    }
+    assert!(pixels.iter().any(|pixel| pixel[3] == 0.0 && pixel[0] < 0.0));
+    assert!(pixels.iter().any(|pixel| pixel[3] == 0.5 && pixel[0] > 4.0));
+    let minimum_rgb = pixels
+        .iter()
+        .flat_map(|pixel| &pixel[..3])
+        .copied()
+        .fold(f32::INFINITY, f32::min);
+    let maximum_rgb = pixels
+        .iter()
+        .flat_map(|pixel| &pixel[..3])
+        .copied()
+        .fold(f32::NEG_INFINITY, f32::max);
+    assert!(minimum_rgb < 0.0 && maximum_rgb > 1.0);
+    independent_float_exr(&path, &expected)?;
+    let cancel = Cancellation::new()?;
+    let source = SourceFile::open(&path, &cancel)?;
+    let generator = json!({"implementation":"original Rust uncompressed OpenEXR FLOAT scanline writer in this integration test", "implementation_sha256":format!("{:x}",Sha256::digest(include_bytes!("precision.rs"))), "external_invocations":[],"external_executable":null,"version":"single-part scanline version2; FLOAT channels A/B/G/R; no compression; increasingY", "layout_spec":"https://openexr.com/en/latest/OpenEXRFileLayout.html"});
+    if fixture.retained {
+        let mut file = new_file(&fixture.directory.join("float-source-generated.json"))?;
+        file.write_all(&serde_json::to_vec_pretty(&json!({"status":"generated-not-qualified","input":path,"input_fingerprint":source.fingerprint(),"generator":generator,"analytic_rgba":expected,"absolute_tolerance":1.0e-6}))?)?;
+        file.sync_all()?;
+    }
+    let mut native = VideoReader::open_with_encoding(&path, PixelEncoding::RgbaF32Le)?;
+    assert_eq!(
+        (
+            u32::try_from(native.info.width)?,
+            u32::try_from(native.info.height)?
+        ),
+        (WIDTH, HEIGHT)
+    );
+    let decoded = native
+        .next_frame()?
+        .ok_or("EXR FLOAT source picture absent")?;
+    assert_eq!(decoded.encoding, PixelEncoding::RgbaF32Le);
+    let maximum_native_error = source_floats(&decoded.rgba, &expected)?;
+    let public_values = PixelEncoding::RgbaF32Le.to_f32(&decoded.rgba)?;
+    assert_eq!(public_values.len(), expected.len());
+    assert!(
+        public_values
+            .iter()
+            .zip(&expected)
+            .all(|(actual, wanted)| actual.is_finite() && (actual - wanted).abs() <= 1.0e-6)
+    );
+    assert!(native.next_frame()?.is_none());
+    let (reference, reference_evidence) = reference_pixels(&path, 1, "gbrapf32le", 16)?;
+    let count = WIDTH as usize * HEIGHT as usize;
+    let mut maximum_reference_error = 0_f32;
+    for (plane, channel) in [1, 2, 0, 3].into_iter().enumerate() {
+        for pixel in 0..count {
+            let offset = (plane * count + pixel) * 4;
+            let value = f32::from_le_bytes(reference[offset..offset + 4].try_into()?);
+            let wanted = expected[pixel * 4 + channel];
+            let error = (value - wanted).abs();
+            assert!(
+                value.is_finite() && error <= 1.0e-6,
+                "Reference plane {plane} pixel {pixel}: {value} != {wanted}"
+            );
+            maximum_reference_error = maximum_reference_error.max(error);
+        }
+    }
+    let probe = source.probe(cancel.clone())?;
+    let video = probe
+        .streams
+        .iter()
+        .find(|stream| stream.kind == StreamType::Video)
+        .ok_or("EXR probe video absent")?;
+    assert_eq!(video.codec, "exr");
+    let mut owned = VideoReader::open_stream_with_encoding(
+        &source,
+        video.index,
+        cancel.clone(),
+        PixelEncoding::RgbaF32Le,
+    )?;
+    let owned_frame = owned
+        .next_frame()?
+        .ok_or("Owned EXR FLOAT picture absent")?;
+    assert_eq!(owned_frame.encoding, PixelEncoding::RgbaF32Le);
+    assert_eq!(owned_frame.rgba, decoded.rgba);
+    assert!(owned.next_frame()?.is_none());
+    let ingested = source.ingest(
+        "Original signed/headroom float source".into(),
+        &[video.index],
+        cancel.clone(),
+        |_, _| {},
+    )?;
+    let captured = ingested
+        .source
+        .streams
+        .iter()
+        .find(|stream| matches!(stream.format, StreamFormat::Video { .. }))
+        .ok_or("Ingested EXR video absent")?;
+    assert_eq!(
+        captured
+            .metadata
+            .get("editbay.pixel_encoding")
+            .map(String::as_str),
+        Some("rgba_f32_le")
+    );
+    let mut editor = DocumentEditor::new(Project::new("Float source metadata save/reopen")?)?;
+    editor.apply(
+        DocumentVersion::of(editor.project()),
+        "Retain native float source".into(),
+        &ingested.commands(),
+    )?;
+    let project = fixture.directory.join("retained-float.editbay");
+    editbay_core::save_new(editor.project(), &project)?;
+    assert_eq!(editbay_core::load(&project)?, *editor.project());
+    source.verify(&cancel)?;
+    fixture.record("independent_exr_float_source", json!({
+        "input":path,"input_fingerprint":source.fingerprint(),
+        "generator":generator,
+        "analytic_rgba":expected,"minimum_source_rgb":minimum_rgb,"maximum_source_rgb":maximum_rgb,
+        "absolute_tolerance":1.0e-6,"maximum_native_error":maximum_native_error,"maximum_reference_error":maximum_reference_error,
+        "native_rgba_f32le_sha256":format!("{:x}",Sha256::digest(&decoded.rgba)),"reference":reference_evidence,
+        "straight_stored_values_at_zero_partial_full_alpha_preserved":true,
+        "native_project":project,"sources":editor.project().sources,"saved_reopened_equal":true,
+        "proof_boundary":"An independently written uncompressed FLOAT EXR supplies signed/headroom source samples; native F32 decoding/ingest and a separate shared-FFmpeg reference are measured. Source storage values are checked, not EXR alpha conventions, HDR transfer/tags, ICC, GPU/render/delivery behavior or format-family conformance. Missing decoder/reference support fails this test."
+    }))?;
     Ok(())
 }

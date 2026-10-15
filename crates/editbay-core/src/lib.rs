@@ -25,8 +25,8 @@ pub use command::{
 };
 pub use composition::{
     AlphaMode, AnimatedProperty, AnimationChannel, AssetKind, AssetReference, Clip, ClipSource,
-    ColorConfiguration, Composition, FloatPrecision, FrameRange, Interpolation, Keyframe,
-    MediaSource, NodeOperation, OutputTransfer, PictureTiming, SocketType, SourceColor,
+    ColorConfiguration, Composition, FloatPrecision, FrameRange, HdrConfiguration, Interpolation,
+    Keyframe, MediaSource, NodeOperation, OutputTransfer, PictureTiming, SocketType, SourceColor,
     SourceStream, StreamFormat, TimedNode, Track, TrackKind, WorkingGamut,
 };
 pub use document::{FrameRate, PROJECT_SCHEMA, Project, Sequence};

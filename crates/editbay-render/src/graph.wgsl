@@ -6,6 +6,8 @@ struct Parameters {
     red: vec4f,
     green: vec4f,
     blue: vec4f,
+    hdr: vec4f,
+    luma: vec4f,
 }
 @group(0) @binding(0) var first: texture_2d<f32>;
 @group(0) @binding(1) var second: texture_2d<f32>;
@@ -44,6 +46,19 @@ fn gamut(v: vec3f) -> vec3f {
     return vec3f(dot(p.red.xyz, v), dot(p.green.xyz, v), dot(p.blue.xyz, v));
 }
 fn decode(v: vec3f) -> vec3f {
+    if p.mode.y == 3.0 {
+        let power = pow(max(v, vec3f(0.0)), vec3f(32.0 / 2523.0));
+        let ratio = max(power - 3424.0 / 4096.0, vec3f(0.0)) / max(2413.0 / 128.0 - 2392.0 / 128.0 * power, vec3f(1e-10));
+        return pow(ratio, vec3f(16384.0 / 2610.0)) * (10000.0 / p.hdr.x);
+    }
+    if p.mode.y == 4.0 {
+        let a = 0.17883277;
+        let b = 1.0 - 4.0 * a;
+        let c = 0.5 - a * log(4.0 * a);
+        let scene = select((exp((v - c) / a) + b) / 12.0, v * v / 3.0, v <= vec3f(0.5));
+        let luminance = max(dot(scene, p.luma.xyz), 0.0);
+        return scene * pow(luminance, p.hdr.z - 1.0) * (p.hdr.y / p.hdr.x);
+    }
     if p.mode.y == 1.0 {
         return select(pow(max((v + 0.055) / 1.055, vec3f(0.0)), vec3f(2.4)), v / 12.92, v <= vec3f(0.04045));
     }
@@ -53,6 +68,20 @@ fn decode(v: vec3f) -> vec3f {
     return v;
 }
 fn encode(v: vec3f) -> vec3f {
+    if p.mode.y == 3.0 {
+        let power = pow(max(v, vec3f(0.0)) * (p.hdr.x / 10000.0), vec3f(2610.0 / 16384.0));
+        return pow((3424.0 / 4096.0 + 2413.0 / 128.0 * power) / (1.0 + 2392.0 / 128.0 * power), vec3f(2523.0 / 32.0));
+    }
+    if p.mode.y == 4.0 {
+        let display = max(v, vec3f(0.0)) * (p.hdr.x / p.hdr.y);
+        let luminance = dot(display, p.luma.xyz);
+        if luminance <= 0.0 { return vec3f(0.0); }
+        let scene = display * pow(luminance, (1.0 - p.hdr.z) / p.hdr.z);
+        let a = 0.17883277;
+        let b = 1.0 - 4.0 * a;
+        let c = 0.5 - a * log(4.0 * a);
+        return select(a * log(max(12.0 * scene - b, vec3f(1e-10))) + c, sqrt(3.0 * scene), scene <= vec3f(1.0 / 12.0));
+    }
     if p.mode.y == 1.0 {
         return select(1.055 * pow(max(v, vec3f(0.0)), vec3f(1.0 / 2.4)) - 0.055, v * 12.92, v <= vec3f(0.0031308));
     }

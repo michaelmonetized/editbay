@@ -19,6 +19,7 @@
 
 
 typedef struct EBCancel EBCancel;
+typedef struct { int primaries, transfer; } EBColor;
 
 typedef struct {
     AVFormatContext *format;
@@ -81,7 +82,7 @@ static int64_t seek_bytes(void *opaque, int64_t offset, int whence) {
 }
 
 static EBWriter *writer_open(int descriptor, int width, int height, int num, int den,
-        int rate, const char *layout, int encoding, void *cancel, int *error) {
+        int rate, const char *layout, int encoding, const EBColor *color, void *cancel, int *error) {
     EBWriter *w = calloc(1, sizeof(*w));
     AVDictionary *options = NULL;
     int ret = AVERROR(ENOMEM);
@@ -122,8 +123,8 @@ static EBWriter *writer_open(int descriptor, int width, int height, int num, int
     w->codec->framerate = (AVRational){num, den};
     w->codec->thread_count = 2;
     w->codec->color_range = encoding == 1 || encoding == 2 ? AVCOL_RANGE_MPEG : AVCOL_RANGE_JPEG;
-    w->codec->color_primaries = AVCOL_PRI_BT709;
-    w->codec->color_trc = AVCOL_TRC_IEC61966_2_1;
+    w->codec->color_primaries = color ? color->primaries : AVCOL_PRI_BT709;
+    w->codec->color_trc = color ? color->transfer : AVCOL_TRC_IEC61966_2_1;
     w->codec->colorspace = encoding == 1 || encoding == 2 ? AVCOL_SPC_BT709 : AVCOL_SPC_RGB;
     w->codec->alpha_mode = encoding == 1 ? AVALPHA_MODE_UNSPECIFIED : AVALPHA_MODE_STRAIGHT;
     if (encoding == 1) {
@@ -201,12 +202,18 @@ failed:
 }
 
 EBWriter *eb_writer_open(int descriptor, int width, int height, int num, int den, int *error) {
-    return writer_open(descriptor, width, height, num, den, 0, NULL, 0, NULL, error);
+    return writer_open(descriptor, width, height, num, den, 0, NULL, 0, NULL, NULL, error);
 }
 
 EBWriter *eb_delivery_open_profile(int descriptor, int width, int height, int num, int den,
         int rate, const char *layout, int encoding, void *cancel, int *error) {
-    return writer_open(descriptor, width, height, num, den, rate, layout, encoding, cancel, error);
+    return writer_open(descriptor, width, height, num, den, rate, layout, encoding, NULL, cancel, error);
+}
+
+EBWriter *eb_delivery_open_color_profile(int descriptor, int width, int height, int num, int den,
+        int rate, const char *layout, int encoding, const EBColor *color, void *cancel, int *error) {
+    if (!color) { *error = AVERROR(EINVAL); return NULL; }
+    return writer_open(descriptor, width, height, num, den, rate, layout, encoding, color, cancel, error);
 }
 
 static int packets(EBWriter *w, AVCodecContext *codec, AVStream *stream) {

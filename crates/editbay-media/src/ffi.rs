@@ -81,7 +81,7 @@ unsafe extern "C" {
     fn eb_writer_close(writer: *mut c_void);
     fn eb_writer_frame(writer: *mut c_void, rgba: *const u8, length: usize) -> c_int;
     fn eb_writer_finish(writer: *mut c_void) -> c_int;
-    fn eb_delivery_open_profile(
+    fn eb_delivery_open_color_profile(
         descriptor: c_int,
         width: c_int,
         height: c_int,
@@ -90,6 +90,7 @@ unsafe extern "C" {
         rate: c_int,
         layout: *const c_char,
         format: c_int,
+        color: *const crate::DeliveryColor,
         cancel: *mut c_void,
         error: *mut c_int,
     ) -> *mut c_void;
@@ -497,6 +498,26 @@ impl LosslessMovWriter {
         format: crate::DeliveryFormat,
         cancel: Cancellation,
     ) -> Result<Self> {
+        Self::encoded_color(
+            file,
+            profile,
+            format,
+            crate::DeliveryColor::default(),
+            cancel,
+        )
+    }
+
+    /// Open one native encoder with explicit output color tags.
+    /// `file`, `profile`, `format` and `cancel` retain bounded ownership;
+    /// `color` declares the already-rendered RGB interpretation. Returns a writer.
+    pub fn encoded_color(
+        file: &File,
+        profile: crate::LosslessMovProfile,
+        format: crate::DeliveryFormat,
+        color: crate::DeliveryColor,
+        cancel: Cancellation,
+    ) -> Result<Self> {
+        color.validate(format)?;
         format.validate(&profile)?;
         check(0, &cancel)?;
         let metadata = file.metadata()?;
@@ -509,7 +530,7 @@ impl LosslessMovWriter {
             .map_err(|_| Error::Invalid("invalid delivery channel names".into()))?;
         let mut code = 0;
         let pointer = unsafe {
-            eb_delivery_open_profile(
+            eb_delivery_open_color_profile(
                 file.as_raw_fd(),
                 profile.width as i32,
                 profile.height as i32,
@@ -523,6 +544,7 @@ impl LosslessMovWriter {
                     crate::DeliveryFormat::H264Mp4 => 1,
                     crate::DeliveryFormat::ProresMov => 2,
                 },
+                &color,
                 cancel.0.pointer(),
                 &mut code,
             )

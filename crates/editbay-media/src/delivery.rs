@@ -2,6 +2,40 @@ use crate::{Error, Result};
 use editbay_core::FrameRate;
 use serde::{Deserialize, Serialize};
 
+/// Declared RGB output tags; matrix and range follow the selected encoder.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[repr(C)]
+#[serde(deny_unknown_fields)]
+pub struct DeliveryColor {
+    pub primaries: i32,
+    pub transfer: i32,
+}
+
+impl Default for DeliveryColor {
+    fn default() -> Self {
+        Self {
+            primaries: 1,
+            transfer: 13,
+        }
+    }
+}
+
+impl DeliveryColor {
+    /// Reject unimplemented color encodings before opening output storage.
+    /// `format` selects the codec; returns success only for explicit RGB tags or legacy SDR.
+    pub fn validate(self, format: DeliveryFormat) -> Result<()> {
+        if ![1, 9, 12].contains(&self.primaries)
+            || ![1, 8, 13, 16, 18].contains(&self.transfer)
+            || (format != DeliveryFormat::Lossless16Mov && self != Self::default())
+        {
+            return Err(Error::Invalid(
+                "delivery format does not support this color profile".into(),
+            ));
+        }
+        Ok(())
+    }
+}
+
 /// A declared client encoding, with an explicit container and alpha policy.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
