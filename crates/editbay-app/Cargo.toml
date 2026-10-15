@@ -10,6 +10,9 @@ description = "Native EditBay welcome and local workspace"
 name = "editbay-studio"
 path = "src/main.rs"
 
+[features]
+oma-ui-egui032 = []
+
 [dependencies]
 editbay-delivery = { path = "../editbay-delivery" }
 editbay-core = { path = "../editbay-core" }
