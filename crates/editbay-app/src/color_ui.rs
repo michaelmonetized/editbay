@@ -29,20 +29,11 @@ struct CachedTextures {
 }
 
 /// Native color-workspace scopes with one bounded accepted-frame texture cache.
+#[derive(Default)]
 pub struct ScopePanel {
     pub enabled: bool,
     pub settings: ScopeSettings,
     cached: Option<CachedTextures>,
-}
-
-impl Default for ScopePanel {
-    fn default() -> Self {
-        Self {
-            enabled: false,
-            settings: ScopeSettings::default(),
-            cached: None,
-        }
-    }
 }
 
 impl ScopePanel {
