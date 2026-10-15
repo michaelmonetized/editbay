@@ -19,33 +19,95 @@ fn wav(path: &std::path::Path) {
     f.write_all(&bytes.to_le_bytes()).unwrap();
     f.write_all(&vec![0; bytes as usize]).unwrap();
 }
+/// Build direct editable clips over two seconds of verified native media.
+/// `media` owns source metadata and fingerprint; returns one linked 24fps program.
+fn direct_project(media: editbay_media::IngestedSource) -> eb::Project {
+    let mut p = eb::Project::new("Editorial exact time").unwrap();
+    let rate = eb::FrameRate::new(24, 1).unwrap();
+    let id = uuid::Uuid::new_v4();
+    let range = eb::FrameRange { start: 0, end: 48 };
+    let mut tracks = vec![];
+    for stream in &media.source.streams {
+        let kind = match stream.format {
+            eb::StreamFormat::Video { .. } => eb::TrackKind::Video,
+            eb::StreamFormat::Audio { .. } => eb::TrackKind::Audio,
+        };
+        let end = eb::TimeBase {
+            numerator: 1,
+            denominator: 24,
+        }
+        .at_rate(
+            eb::SourcePosition::new(48, 1).unwrap(),
+            eb::FrameRate::new(stream.time_base.denominator, stream.time_base.numerator).unwrap(),
+        )
+        .unwrap();
+        assert_eq!(end.denominator, 1);
+        tracks.push(eb::Track {
+            id: uuid::Uuid::new_v4(),
+            name: format!("{kind:?}"),
+            kind,
+            enabled: true,
+            clips: vec![eb::Clip {
+                id: uuid::Uuid::new_v4(),
+                name: media.source.name.clone(),
+                range,
+                source: eb::ClipSource::Media {
+                    source: media.source.id,
+                    stream: stream.index,
+                },
+                linked: None,
+                time_map: eb::TimeMap {
+                    source_denominator: 1,
+                    points: vec![
+                        eb::TimePoint {
+                            frame: 0,
+                            source_tick: stream.start_tick,
+                        },
+                        eb::TimePoint {
+                            frame: 48,
+                            source_tick: stream.start_tick + end.numerator,
+                        },
+                    ],
+                },
+            }],
+        });
+    }
+    if tracks.len() == 2 {
+        let a = tracks[0].clips[0].id;
+        let b = tracks[1].clips[0].id;
+        tracks[0].clips[0].linked = Some(b);
+        tracks[1].clips[0].linked = Some(a);
+    }
+    let mut scene = eb::Composition {
+        id,
+        name: "Program".into(),
+        width: 16,
+        height: 16,
+        frame_rate: rate,
+        duration: 48,
+        tracks,
+        nodes: vec![],
+        picture: None,
+        audio: None,
+    };
+    eb::rebuild_editorial(&mut scene, &[]).unwrap();
+    p.assets.push(media.asset);
+    p.sources.push(media.source);
+    p.compositions.push(scene);
+    p.sequences[0].width = 16;
+    p.sequences[0].height = 16;
+    p.sequences[0].frame_rate = rate;
+    p.sequences[0].composition = Some(id);
+    p.validate().unwrap();
+    p
+}
 fn project(path: &std::path::Path) -> eb::Project {
     let cancel = editbay_media::Cancellation::new().unwrap();
     let file = editbay_media::SourceFile::open(path, &cancel).unwrap();
-    let media = file
-        .ingest("Interview 音声".into(), &[0], cancel, |_, _| {})
-        .unwrap();
-    let mut p = eb::Project::new("Editorial exact time").unwrap();
-    p.assets.push(media.asset);
-    p.sources.push(media.source);
-    let commands = eb::sequence_from_audio(
-        &p,
-        p.sources[0].id,
-        0,
-        1920,
-        1080,
-        eb::FrameRate::new(24, 1).unwrap(),
+    direct_project(
+        file.ingest("Interview 音声".into(), &[0], cancel, |_, _| {})
+            .unwrap(),
     )
-    .unwrap();
-    let mut editor = eb::DocumentEditor::new(p).unwrap();
-    editor
-        .apply(
-            eb::DocumentVersion::of(editor.project()),
-            "source".into(),
-            &commands,
-        )
-        .unwrap();
-    editor.project().clone()
 }
 #[test]
 fn real_audio_all_formats_and_saved_relinked_source() {
@@ -211,26 +273,7 @@ fn av_project(path: &std::path::Path) -> eb::Project {
         .unwrap()
         .ingest("Linked original".into(), &[0, 1], token, |_, _| {})
         .unwrap();
-    let mut p = eb::Project::new("Two linked camera edits").unwrap();
-    p.assets.push(source.asset);
-    p.sources.push(source.source);
-    let commands = eb::sequence_from_video_with_audio(
-        &p,
-        p.sources[0].id,
-        0,
-        1,
-        eb::FrameRate::new(24, 1).unwrap(),
-    )
-    .unwrap();
-    let mut editor = eb::DocumentEditor::new(p).unwrap();
-    editor
-        .apply(
-            eb::DocumentVersion::of(editor.project()),
-            "Original".into(),
-            &commands,
-        )
-        .unwrap();
-    let mut p = editor.project().clone();
+    let mut p = direct_project(source);
     let scene = &mut p.compositions[0];
     scene.duration = 28;
     for (index, track) in scene.tracks.iter_mut().enumerate() {
