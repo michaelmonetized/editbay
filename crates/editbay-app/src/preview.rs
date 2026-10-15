@@ -516,8 +516,19 @@ impl Task {
                                 .map_err(|e| e.to_string())?;
                             let render_us = began.elapsed().as_micros() as u64;
                             let began = Instant::now();
+                            let preview = graph
+                                .preview_captions(
+                                    &working,
+                                    composition,
+                                    SourcePosition::new(
+                                        i64::try_from(request.frame).map_err(|e| e.to_string())?,
+                                        1,
+                                    )
+                                    .map_err(|e| e.to_string())?,
+                                )
+                                .map_err(|e| e.to_string())?;
                             let converted = graph
-                                .convert(&working, ImageBoundary::Display)
+                                .convert(&preview, ImageBoundary::Display)
                                 .map_err(|e| e.to_string())?;
                             let convert_us = began.elapsed().as_micros() as u64;
                             let began = Instant::now();
@@ -1634,6 +1645,37 @@ impl PreviewPane {
             } else {
                 "Stopping the previous viewer…"
             });
+        }
+        if self.picture.is_some() {
+            for track in project
+                .captions
+                .iter()
+                .filter(|t| t.enabled && t.composition == composition.id)
+            {
+                if let Ok(area) = track
+                    .style
+                    .safe_area
+                    .bounds(composition.width, composition.height)
+                {
+                    let safe = egui::Rect::from_min_max(
+                        rect.min + egui::vec2(area[0] * scale, area[1] * scale),
+                        rect.min + egui::vec2(area[2] * scale, area[3] * scale),
+                    );
+                    ui.painter().rect_stroke(
+                        safe,
+                        0.,
+                        egui::Stroke::new(1., egui::Color32::from_white_alpha(60)),
+                        egui::StrokeKind::Inside,
+                    );
+                }
+            }
+        }
+        if project
+            .captions
+            .iter()
+            .any(|t| t.enabled && t.composition == composition.id && t.style.font.is_none())
+        {
+            ui.weak("Choose a retained font for exact caption preview and burn-in.");
         }
         if self.creation.is_some() {
             ui.weak("Creating sequence…");

@@ -6,6 +6,7 @@ mod authoring;
 pub use authoring::{
     conform_sequence, sequence_from_audio, sequence_from_video, sequence_from_video_with_audio,
 };
+pub mod captions;
 mod command;
 mod composition;
 mod document;

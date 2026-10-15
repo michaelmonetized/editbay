@@ -216,6 +216,7 @@ pub struct GraphRenderer<P: PictureProvider = PictureCache> {
     generation: u64,
     pub adapter: wgpu::AdapterInfo,
     fonts: crate::text::FontCache,
+    caption_fonts: crate::caption_text::CaptionFontCache,
 }
 impl GraphRenderer {
     /// Create a headless native GPU worker over one immutable document.
@@ -393,6 +394,7 @@ impl<P: PictureProvider> GraphRenderer<P> {
             generation: 0,
             adapter: info,
             fonts: crate::text::FontCache::default(),
+            caption_fonts: Default::default(),
         })
     }
 
@@ -415,6 +417,147 @@ impl<P: PictureProvider> GraphRenderer<P> {
         let image = self.scene(composition, position, before, 0, &mut remaining)?;
         self.check()?;
         Ok(self.receipt(image))
+    }
+
+    /// Preview retained sidecar captions with the delivery font and shaping.
+    /// `frame` is the rendered program, `composition` and `position` own its clock.
+    /// Returns viewer pixels; scopes and deliveries keep the original program.
+    pub fn preview_captions(
+        &mut self,
+        frame: &RenderedFrame,
+        composition: Uuid,
+        position: SourcePosition,
+    ) -> Result<RenderedFrame> {
+        self.validate_result(frame)?;
+        let image =
+            self.caption_overlay(frame.image.clone(), composition, position, false, true)?;
+        Ok(self.receipt(image))
+    }
+
+    fn caption_overlay(
+        &mut self,
+        mut image: Arc<ResidentImage>,
+        composition: Uuid,
+        position: SourcePosition,
+        before: bool,
+        preview_only: bool,
+    ) -> Result<Arc<ResidentImage>> {
+        use editbay_core::captions::CaptionTime;
+        let snapshot = self.snapshot.clone();
+        let project = snapshot.project();
+        let scene = project
+            .compositions
+            .iter()
+            .find(|c| c.id == composition)
+            .ok_or("Caption composition absent")?;
+        let seconds = CaptionTime::new(
+            u64::try_from(position.numerator)?
+                .checked_mul(u64::from(scene.frame_rate.denominator))
+                .ok_or("Caption time overflow")?,
+            position
+                .denominator
+                .checked_mul(u64::from(scene.frame_rate.numerator))
+                .ok_or("Caption time overflow")?,
+        )?;
+        for track in project.captions.iter().filter(|t| {
+            t.composition == composition
+                && t.enabled
+                && if preview_only {
+                    !t.delivery.burns_in() && t.style.font.is_some()
+                } else {
+                    t.delivery.burns_in()
+                }
+        }) {
+            let cues = if before {
+                track
+                    .cues
+                    .iter()
+                    .filter_map(
+                        |c| match (c.start.compare(seconds), c.end.compare(seconds)) {
+                            (Ok(a), Ok(b)) if a.is_lt() && b.is_ge() => Some(Ok(c)),
+                            (Err(e), _) | (_, Err(e)) => Some(Err(e)),
+                            _ => None,
+                        },
+                    )
+                    .collect::<editbay_core::Result<Vec<_>>>()?
+            } else {
+                track.active_at(seconds)?
+            };
+            if cues.is_empty() {
+                continue;
+            }
+            track.validate_burn_in()?;
+            let asset = project
+                .assets
+                .iter()
+                .find(|a| Some(a.id) == track.style.font)
+                .ok_or("Choose a retained font before caption burn-in")?;
+            let key = fingerprint(&("caption-overlay-v1", &image.key, track, &cues))?;
+            if let Some(hit) = self.cached(&key) {
+                image = hit;
+                continue;
+            }
+            let pixels = crate::caption_text::rasterize(
+                &mut self.caption_fonts,
+                asset,
+                track,
+                &cues,
+                scene.width,
+                scene.height,
+            )?;
+            let upload = self.allocate(
+                scene.width,
+                scene.height,
+                project.color.precision,
+                project.color.working_gamut,
+                OutputTransfer::Linear,
+                wgpu::TextureFormat::Rgba8Unorm,
+                "caption coverage".into(),
+                false,
+            )?;
+            if self.pending.load(Ordering::Acquire) >= self.budget.pending_submissions {
+                self.wait(true)?;
+            }
+            self.queue.write_texture(
+                upload.texture.as_image_copy(),
+                &pixels,
+                wgpu::TexelCopyBufferLayout {
+                    offset: 0,
+                    bytes_per_row: Some(scene.width * 4),
+                    rows_per_image: Some(scene.height),
+                },
+                upload.texture.size(),
+            );
+            let commands = self.device.create_command_encoder(&Default::default());
+            self.submit(commands, vec![upload.clone()])?;
+            self.uploads = self.uploads.saturating_add(1);
+            let mut source = Parameters::default();
+            source.operation = Kernel::Source;
+            source.alpha = AlphaMode::Straight;
+            let foreground = self.evaluate(
+                format!("{key}-glyphs"),
+                scene.width,
+                scene.height,
+                project.color.precision,
+                project.color.working_gamut,
+                OutputTransfer::Linear,
+                &source,
+                vec![upload],
+            )?;
+            let mut over = Parameters::default();
+            over.operation = Kernel::Over;
+            image = self.evaluate(
+                key,
+                scene.width,
+                scene.height,
+                project.color.precision,
+                project.color.working_gamut,
+                OutputTransfer::Linear,
+                &over,
+                vec![foreground, image],
+            )?;
+        }
+        Ok(image)
     }
 
     fn scene(
@@ -849,13 +992,14 @@ impl<P: PictureProvider> GraphRenderer<P> {
                 }
             }
         }
-        match frame.picture {
+        let image = match frame.picture {
             Some(root) => values
                 .remove(&root)
                 .ok_or("picture root is absent")?
                 .image(),
             None => self.blank(&frame),
-        }
+        }?;
+        self.caption_overlay(image, composition, position, before, false)
     }
 
     /// Convert a working receipt into its explicit display or output encoding.
@@ -1064,6 +1208,7 @@ impl<P: PictureProvider> GraphRenderer<P> {
         self.wait(false)?;
         self.entries.clear();
         self.fonts.clear();
+        self.caption_fonts.clear();
         self.bytes = 0;
         self.pictures.clear()?;
         self.generation = next;

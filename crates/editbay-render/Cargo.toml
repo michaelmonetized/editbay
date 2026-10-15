@@ -7,6 +7,10 @@ license.workspace = true
 description = "Typed resident float GPU picture evaluation"
 
 [dependencies]
+rustybuzz = "=0.20.1"
+unicode-bidi = "=0.3.18"
+unicode-script = "=0.5.8"
+unicode-segmentation = "=1.13.3"
 wgpu.workspace = true
 pollster.workspace = true
 half.workspace = true
