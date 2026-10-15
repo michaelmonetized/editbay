@@ -11,4 +11,5 @@ pub mod preview;
 pub mod studio;
 pub mod theme;
 pub mod timeline_ui;
+pub mod workflow_ui;
 pub mod workspace;

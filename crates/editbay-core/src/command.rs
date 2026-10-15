@@ -66,6 +66,12 @@ pub enum DocumentCommand {
     SetColor {
         configuration: ColorConfiguration,
     },
+    SetCaptionTrack {
+        track: crate::captions::CaptionTrack,
+    },
+    RemoveCaptionTrack {
+        id: Uuid,
+    },
     SetTransition {
         transition: crate::EditorialTransition,
     },
@@ -99,6 +105,8 @@ impl DocumentCommand {
             "set_composition",
             "remove_composition",
             "set_color",
+            "set_caption_track",
+            "remove_caption_track",
             "set_transition",
             "remove_transition",
         ]
@@ -127,6 +135,8 @@ impl DocumentCommand {
             }
             Self::RemoveComposition { id } => remove(&mut project.compositions, *id)?,
             Self::SetColor { configuration } => project.color = *configuration,
+            Self::SetCaptionTrack { track } => set(&mut project.captions, track.clone()),
+            Self::RemoveCaptionTrack { id } => remove(&mut project.captions, *id)?,
             Self::SetTransition { transition } => {
                 let previous = project
                     .transitions
@@ -183,6 +193,11 @@ pub struct CommandReceipt {
 
 trait Identified {
     fn id(&self) -> Uuid;
+}
+impl Identified for crate::captions::CaptionTrack {
+    fn id(&self) -> Uuid {
+        self.id
+    }
 }
 impl Identified for crate::EditorialTransition {
     fn id(&self) -> Uuid {
@@ -293,6 +308,7 @@ struct GroupChange {
     sources: Vec<Delta<MediaSource>>,
     compositions: Vec<Delta<Composition>>,
     transitions: Vec<Delta<crate::EditorialTransition>>,
+    captions: Vec<Delta<crate::captions::CaptionTrack>>,
     impact: ChangeImpact,
     label: String,
     bytes: usize,
@@ -308,6 +324,7 @@ impl GroupChange {
             sources: differences(&before.sources, &after.sources),
             compositions: differences(&before.compositions, &after.compositions),
             transitions: differences(&before.transitions, &after.transitions),
+            captions: differences(&before.captions, &after.captions),
             impact: ChangeImpact::default(),
             label,
             bytes: 0,
@@ -334,6 +351,7 @@ impl GroupChange {
         restore(&mut project.sources, &self.sources, forward);
         restore(&mut project.compositions, &self.compositions, forward);
         restore(&mut project.transitions, &self.transitions, forward);
+        restore(&mut project.captions, &self.captions, forward);
     }
 
     fn impact_for(&self, before: &Project, after: &Project) -> ChangeImpact {
@@ -352,6 +370,7 @@ impl GroupChange {
         let mut affected: BTreeSet<_> = self.compositions.iter().map(|delta| delta.id).collect();
         for composition in &all_compositions {
             if self.color.is_some()
+                || before.captions.iter().chain(&after.captions).any(|t|t.composition==composition.id && t.style.font.is_some_and(|font|assets.contains(&font)))
                 || composition.tracks.iter().flat_map(|track| &track.clips).any(|clip| matches!(clip.source, ClipSource::Media { source, .. } if sources.contains(&source)))
                 || composition.nodes.iter().any(|node| matches!(node.operation, crate::NodeOperation::MaskAsset { asset } | crate::NodeOperation::Text { font: asset, .. } if assets.contains(&asset))) {
                 affected.insert(composition.id);
@@ -363,6 +382,11 @@ impl GroupChange {
                 if let ClipSource::Composition { composition: child } = clip.source {
                     parents.entry(child).or_default().push(composition.id);
                 }
+            }
+        }
+        for track in before.captions.iter().chain(&after.captions) {
+            if self.captions.iter().any(|delta| delta.id == track.id) {
+                affected.insert(track.composition);
             }
         }
         for transition in before.transitions.iter().chain(&after.transitions) {
@@ -388,6 +412,7 @@ impl GroupChange {
             .chain(self.sequences.iter().map(|delta| delta.id))
             .chain(self.compositions.iter().map(|delta| delta.id))
             .chain(self.transitions.iter().map(|delta| delta.id))
+            .chain(self.captions.iter().map(|delta| delta.id))
             .collect();
         if self.name.is_some() || self.color.is_some() {
             entities.insert(before.id);
