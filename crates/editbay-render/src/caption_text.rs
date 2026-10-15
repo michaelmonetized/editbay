@@ -795,39 +795,43 @@ mod tests {
     }
 
     #[test]
-    fn arabic_uses_contextual_joining_lam_alef_and_visual_digit_order() {
+    fn arabic_matches_pinned_pango_joining_and_visual_digit_order() {
         let font = asset(PathBuf::from(
             "/usr/share/fonts/noto/NotoSansArabic-Regular.ttf",
         ));
+        let reference: serde_json::Value =
+            serde_json::from_str(include_str!("../tests/fixtures/caption-arabic-pango.json"))
+                .unwrap();
+        assert_eq!(font.sha256, reference["font"]["sha256"].as_str().unwrap());
+        assert_eq!(font.bytes, reference["font"]["bytes"].as_u64().unwrap());
         let bytes = std::fs::read(&font.path).unwrap();
         let face = Face::from_slice(&bytes, 0).unwrap();
-        let line = shaped(&bytes, "سلام", 48.0);
-        let expected: Vec<_> = ['\u{fee1}', '\u{fefc}', '\u{feb3}']
-            .into_iter()
-            .map(|character| {
-                face.glyph_index(character)
-                    .expect("Noto Arabic fixture must contain Arabic presentation forms")
-                    .0
-            })
-            .collect();
-        assert_eq!(
-            line.glyphs.iter().map(|glyph| glyph.id).collect::<Vec<_>>(),
-            expected
-        );
-        assert_eq!(line.glyphs.len(), 3);
-        let mixed = shaped(&bytes, "سلام 123", 48.0);
-        let digits: Vec<_> = "123"
+        for case in reference["cases"].as_array().unwrap() {
+            let text = case["text"].as_str().unwrap();
+            let line = shaped(&bytes, text, 48.0);
+            let expected: Vec<_> = case["glyphs"]
+                .as_array()
+                .unwrap()
+                .iter()
+                .map(|id| u16::try_from(id.as_u64().unwrap()).unwrap())
+                .collect();
+            assert_eq!(
+                line.glyphs.iter().map(|glyph| glyph.id).collect::<Vec<_>>(),
+                expected
+            );
+        }
+        let unjoined: Vec<_> = "سلام"
             .chars()
+            .rev()
             .map(|character| face.glyph_index(character).unwrap().0)
             .collect();
-        assert_eq!(
-            mixed
+        assert_ne!(
+            shaped(&bytes, "سلام", 48.0)
                 .glyphs
                 .iter()
-                .take(3)
                 .map(|glyph| glyph.id)
                 .collect::<Vec<_>>(),
-            digits
+            unjoined
         );
         let track = track(&font, "سلام 123");
         let pixels = rasterize(
