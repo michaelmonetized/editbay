@@ -1,0 +1,9 @@
+[package]
+name = "filmcraft-time"
+version = "0.8.0"
+edition = "2024"
+rust-version = "1.95"
+license = "MIT"
+
+[dependencies]
+serde = { version = "1", features = ["derive", "rc"] }

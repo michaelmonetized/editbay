@@ -4,6 +4,8 @@ mod completion;
 #[path = "preview_keyboard_tests.rs"]
 mod keyboard_tests;
 mod prepared;
+#[cfg(test)]
+mod scope_tests;
 
 use crate::workspace::{DocumentOwner, Workspace};
 use completion::CompletionLog;
@@ -330,6 +332,8 @@ struct Picture {
     selected_us: AtomicU64,
     incompatible: AtomicBool,
     stats: GraphStats,
+    caption_warnings: Vec<String>,
+    scopes: Option<editbay_render::scopes::ScopeReport>,
     worker_pid: Option<u32>,
 }
 enum Event {
@@ -344,7 +348,14 @@ struct Task {
     mailbox: Arc<(Mutex<Mailbox>, Condvar)>,
     result: Arc<Mutex<Option<Event>>>,
     coalesced: Arc<AtomicU64>,
+    scope_settings: Arc<Mutex<Option<editbay_render::scopes::ScopeSettings>>>,
     thread: Option<JoinHandle<()>>,
+}
+
+struct RenderOptions {
+    executable: std::path::PathBuf,
+    store: Option<editbay_media::picture_store::PreparedStore>,
+    scopes: Option<editbay_render::scopes::ScopeSettings>,
 }
 
 /// Read a worker's final event without racing its exit.
@@ -386,6 +397,18 @@ impl Task {
         self.mailbox.1.notify_one();
         Ok(())
     }
+    /// Recapture a displayed frame without retiring its prepared playback queue.
+    /// `request` keeps the current serial and frame. Returns after notifying the
+    /// existing render worker; its result still needs normal ownership checks.
+    fn refresh(&self, request: Request) -> Result<(), String> {
+        let mut mailbox = self.mailbox.0.lock().map_err(|e| e.to_string())?;
+        if mailbox.stopped {
+            return Err("Viewer is stopping".into());
+        }
+        mailbox.request = Some(request);
+        self.mailbox.1.notify_one();
+        Ok(())
+    }
     fn prepare(&self, preparation: Preparation) -> Result<(), String> {
         let mut mailbox = self.mailbox.0.lock().map_err(|e| e.to_string())?;
         if mailbox.stopped {
@@ -402,7 +425,7 @@ impl Task {
         sequence: Uuid,
         gpu: Gpu,
         ctx: egui::Context,
-        store: Option<editbay_media::picture_store::PreparedStore>,
+        options: RenderOptions,
         draft: bool,
     ) -> Result<Self, String> {
         if owner.version != DocumentVersion::of(&project)
@@ -420,6 +443,8 @@ impl Task {
         let input = mailbox.clone();
         let output = result.clone();
         let token = cancel.clone();
+        let scope_settings = Arc::new(Mutex::new(options.scopes));
+        let scope_options = scope_settings.clone();
         let thread = std::thread::Builder::new()
             .name("editbay-native-picture".into())
             .spawn(move || {
@@ -442,15 +467,14 @@ impl Task {
                         .find(|item| item.id == sequence)
                         .and_then(|item| item.composition)
                         .ok_or("Sequence has no picture composition")?;
-                    let executable = std::env::current_exe().map_err(|e| e.to_string())?;
                     let mut provider = PictureWorker::new(
-                        &executable,
+                        &options.executable,
                         snapshot.clone(),
                         WorkerBudget::default(),
                         token.clone(),
                     )
                     .map_err(|e| e.to_string())?;
-                    if let Some(store) = store {
+                    if let Some(store) = options.store {
                         provider.attach_store(store).map_err(|e| e.to_string())?;
                     }
                     if let Some(pid) = provider.process_id() {
@@ -458,6 +482,7 @@ impl Task {
                     }
                     let display = DisplayRenderer::new(gpu.device.clone(), gpu.format)
                         .map_err(|e| e.to_string())?;
+                    let color = snapshot.project().color;
                     let mut graph = GraphRenderer::with_device(
                         snapshot,
                         provider,
@@ -477,7 +502,9 @@ impl Task {
                             if mailbox.stopped {
                                 return Ok(());
                             }
-                            let request = if let Some(preparation) = &mailbox.preparation {
+                            let request = if let Some(request) = mailbox.request.take() {
+                                Some((request, None))
+                            } else if let Some(preparation) = &mailbox.preparation {
                                 let reserved = preparation
                                     .pictures
                                     .lock()
@@ -494,7 +521,7 @@ impl Task {
                                     )
                                 })
                             } else {
-                                mailbox.request.take().map(|request| (request, None))
+                                None
                             };
                             if request.is_none() {
                                 mailbox = input
@@ -522,10 +549,42 @@ impl Task {
                                     false,
                                 )
                                 .map_err(|e| e.to_string())?;
+                            let scope_settings =
+                                *scope_options.lock().map_err(|e| e.to_string())?;
+                            let scopes = if let Some(settings) = scope_settings {
+                                let pixels = graph.readback(&working).map_err(|e| e.to_string())?;
+                                Some(
+                                    editbay_render::scopes::sample_program_frame(
+                                        &pixels,
+                                        working.image().dimensions(),
+                                        editbay_render::scopes::ScopeIdentity {
+                                            version: owner.version,
+                                            composition,
+                                            frame: request.frame,
+                                        },
+                                        color,
+                                        settings,
+                                    )
+                                    .map_err(|e| e.to_string())?,
+                                )
+                            } else {
+                                None
+                            };
                             let render_us = began.elapsed().as_micros() as u64;
                             let began = Instant::now();
+                            let (preview, caption_warnings) = graph
+                                .preview_captions(
+                                    &working,
+                                    composition,
+                                    SourcePosition::new(
+                                        i64::try_from(request.frame).map_err(|e| e.to_string())?,
+                                        1,
+                                    )
+                                    .map_err(|e| e.to_string())?,
+                                )
+                                .map_err(|e| e.to_string())?;
                             let converted = graph
-                                .convert(&working, ImageBoundary::Display)
+                                .convert(&preview, ImageBoundary::Display)
                                 .map_err(|e| e.to_string())?;
                             let convert_us = began.elapsed().as_micros() as u64;
                             let began = Instant::now();
@@ -556,6 +615,8 @@ impl Task {
                                     selected_us: AtomicU64::new(0),
                                     incompatible: AtomicBool::new(false),
                                     stats: graph.stats(),
+                                    caption_warnings,
+                                    scopes,
                                     worker_pid: graph.picture_provider().process_id(),
                                 });
                                 if let Some((pictures, reservation)) = preparation {
@@ -584,6 +645,7 @@ impl Task {
             mailbox,
             result,
             coalesced,
+            scope_settings,
             thread: Some(thread),
         })
     }
@@ -659,6 +721,7 @@ struct Creation {
 pub struct PreviewPane {
     draft: Option<(DocumentOwner, Arc<Project>)>,
     cached: cached::Cache,
+    color: crate::color_ui::ScopePanel,
     view_owner: Option<DocumentOwner>,
     gpu: Option<Gpu>,
     selections: HashMap<Uuid, Selection>,
@@ -1058,12 +1121,51 @@ impl PreviewPane {
                 Ordering::Release,
             );
             self.picture = Some(picture);
+            if self.color.enabled
+                && self.picture.as_ref().is_some_and(|picture| {
+                    picture
+                        .scopes
+                        .as_ref()
+                        .is_none_or(|report| report.settings != self.color.settings)
+                })
+            {
+                self.refresh_scopes()?;
+            }
             Ok(())
         } else if self.starting.is_some() {
             Ok(())
         } else {
             Err("Pictures could not keep up with sound; playback stopped. Retry playback".into())
         }
+    }
+
+    /// Apply scope settings and refresh the current program frame in place.
+    /// Takes the panel's enabled state and settings. Returns after notifying the
+    /// render worker, preserving prepared frames, sound and playback serial.
+    fn refresh_scopes(&mut self) -> Result<(), String> {
+        if let Some(task) = &self.task {
+            *task
+                .scope_settings
+                .lock()
+                .map_err(|error| error.to_string())? =
+                self.color.enabled.then_some(self.color.settings);
+            if self.prepared.is_some() {
+                if self.color.enabled
+                    && let Some(picture) = &self.picture
+                {
+                    task.refresh(Request {
+                        serial: self.serial,
+                        frame: picture.frame,
+                        requested: Instant::now(),
+                    })?;
+                }
+            } else {
+                self.requested_frame = None;
+            }
+        } else {
+            self.requested_frame = None;
+        }
+        Ok(())
     }
 
     fn start_prepared_sound(&mut self) -> Result<(), String> {
@@ -1294,7 +1396,11 @@ impl PreviewPane {
         match event {
             Some(Event::Started(pid)) => self.worker_pid = Some(pid),
             Some(Event::Picture(picture))
-                if self.prepared.is_none()
+                if (self.prepared.is_none()
+                    || self
+                        .picture
+                        .as_ref()
+                        .is_some_and(|current| current.frame == picture.frame))
                     && picture.serial == self.serial
                     && Some(picture.frame) == self.requested_frame =>
             {
@@ -1618,7 +1724,11 @@ impl PreviewPane {
                     selected.sequence,
                     gpu,
                     ui.ctx().clone(),
-                    self.cached.ready(owner, selected.sequence),
+                    RenderOptions {
+                        executable: std::env::current_exe().map_err(|e| e.to_string())?,
+                        store: self.cached.ready(owner, selected.sequence),
+                        scopes: self.color.enabled.then_some(self.color.settings),
+                    },
                     is_draft,
                 )
             });
@@ -1703,6 +1813,67 @@ impl PreviewPane {
             } else {
                 "Stopping the previous viewer…"
             });
+        }
+        if self.picture.is_some() {
+            for warning in self
+                .picture
+                .as_ref()
+                .into_iter()
+                .flat_map(|picture| &picture.caption_warnings)
+            {
+                ui.colored_label(
+                    ui.visuals().warn_fg_color,
+                    format!("Caption preview unavailable: {warning}"),
+                );
+            }
+            for track in project
+                .captions
+                .iter()
+                .filter(|t| t.enabled && t.composition == composition.id)
+            {
+                if let Ok(area) = track
+                    .style
+                    .safe_area
+                    .bounds(composition.width, composition.height)
+                {
+                    let safe = egui::Rect::from_min_max(
+                        rect.min + egui::vec2(area[0] * scale, area[1] * scale),
+                        rect.min + egui::vec2(area[2] * scale, area[3] * scale),
+                    );
+                    ui.painter().rect_stroke(
+                        safe,
+                        0.,
+                        egui::Stroke::new(1., egui::Color32::from_white_alpha(60)),
+                        egui::StrokeKind::Inside,
+                    );
+                }
+            }
+        }
+        if project
+            .captions
+            .iter()
+            .any(|t| t.enabled && t.composition == composition.id && t.style.font.is_none())
+        {
+            ui.weak("Choose a retained font for exact caption preview and burn-in.");
+        }
+        let mut scope_changed = false;
+        ui.collapsing("Color workspace", |ui| {
+            let report = self
+                .picture
+                .as_ref()
+                .and_then(|p| p.scopes.as_ref())
+                .filter(|r| {
+                    r.identity.version == DocumentVersion::of(&project)
+                        && r.identity.composition == composition.id
+                        && r.settings == self.color.settings
+                });
+            scope_changed = self.color.show(ui, report);
+        });
+        if scope_changed {
+            if let Err(error) = self.refresh_scopes() {
+                self.error = Some(error);
+            }
+            ui.ctx().request_repaint();
         }
         if self.creation.is_some() {
             ui.weak("Creating sequence…");

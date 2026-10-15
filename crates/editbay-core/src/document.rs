@@ -73,6 +73,12 @@ pub struct Project {
     pub compositions: Vec<crate::Composition>,
     #[serde(default, skip_serializing_if = "crate::ColorConfiguration::is_default")]
     pub color: crate::ColorConfiguration,
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub transitions: Vec<crate::EditorialTransition>,
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub captions: Vec<crate::captions::CaptionTrack>,
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub multicam: Vec<crate::multicam::MulticamSession>,
 }
 
 impl Project {
@@ -83,6 +89,9 @@ impl Project {
             revision: 0,
             name: name.into(),
             recovered_from: None,
+            transitions: Vec::new(),
+            captions: Vec::new(),
+            multicam: Vec::new(),
             assets: Vec::new(),
             sources: Vec::new(),
             compositions: Vec::new(),
@@ -138,6 +147,56 @@ impl Project {
             sequence.frame_rate.validate()?;
         }
         crate::composition::validate_model(self, &mut identities)?;
+        for session in &self.multicam {
+            session.validate(self)?;
+            if !identities.insert(session.id)
+                || session.angles.iter().any(|a| !identities.insert(a.id))
+            {
+                return Err(Error::Invalid("Duplicate multicam identity".into()));
+            }
+            let scene = self
+                .compositions
+                .iter()
+                .find(|c| c.id == session.composition)
+                .ok_or_else(|| Error::Invalid("Multicam output is absent".into()))?;
+            let compiled = crate::multicam::compile(self, session)?;
+            if scene.tracks != compiled.tracks
+                || scene.nodes != compiled.nodes
+                || scene.picture != compiled.picture
+                || scene.audio != compiled.audio
+                || scene.duration != compiled.duration
+                || scene.frame_rate != compiled.frame_rate
+                || scene.width != compiled.width
+                || scene.height != compiled.height
+            {
+                return Err(Error::Invalid(
+                    "Update retained multicam cuts through the multicam command".into(),
+                ));
+            }
+        }
+        for track in &self.captions {
+            track.validate()?;
+            if !self.compositions.iter().any(|c| c.id == track.composition) {
+                return Err(Error::Invalid("Caption composition is absent".into()));
+            }
+            if !identities.insert(track.id) || track.cues.iter().any(|c| !identities.insert(c.id)) {
+                return Err(Error::Invalid("Duplicate caption identity".into()));
+            }
+            if let Some(font) = track.style.font
+                && !self
+                    .assets
+                    .iter()
+                    .any(|a| a.id == font && a.kind == crate::AssetKind::Font)
+            {
+                return Err(Error::Invalid("Caption font is absent".into()));
+            }
+        }
+        for transition in &self.transitions {
+            if !identities.insert(transition.id) {
+                return Err(Error::Invalid("Duplicate transition identity".into()));
+            }
+            transition.validate(self)?;
+        }
         Ok(())
     }
 
@@ -146,7 +205,10 @@ impl Project {
     /// and sequence profiles retained. Recovery callers verify integrity first.
     pub fn migrate(mut self) -> Result<Self> {
         if self.schema == 1 {
-            if !self.assets.is_empty()
+            if !self.multicam.is_empty()
+                || !self.captions.is_empty()
+                || !self.transitions.is_empty()
+                || !self.assets.is_empty()
                 || !self.sources.is_empty()
                 || !self.compositions.is_empty()
                 || self
