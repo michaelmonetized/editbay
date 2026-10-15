@@ -1897,6 +1897,17 @@ mod tests {
         let path = dir.path().join("Gesture.editbay");
         editbay_core::save_new(workspace.tabs[0].editor.project(), &path).unwrap();
         let reopened = editbay_core::load(&path).unwrap();
+        if let Some(directory) = std::env::var_os("EDITBAY_CRAFT_EVIDENCE") {
+            let directory = std::path::PathBuf::from(directory);
+            std::fs::create_dir_all(&directory).unwrap();
+            let mut evidence = reopened.clone();
+            for asset in &mut evidence.assets {
+                let target = directory.join("generated-source.wav");
+                std::fs::copy(&asset.path, &target).unwrap();
+                asset.path = target;
+            }
+            editbay_core::save(&evidence, directory.join("gesture-reopened.editbay")).unwrap();
+        }
         assert_eq!(
             editbay_core::timeline_clips(&reopened, composition).unwrap()[0].controls,
             controls
