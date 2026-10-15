@@ -1,6 +1,44 @@
 use editbay_core as eb;
 use editbay_interchange::*;
 use std::io::Write;
+
+/// Keep generated originals when a receipt directory was requested.
+/// `name` identifies this case; returns its private directory, temporary otherwise.
+fn fixture_dir(name: &str) -> tempfile::TempDir {
+    if let Some(root) = std::env::var_os("EDITBAY_WORKFLOW_RECEIPTS_DIR") {
+        std::fs::create_dir_all(&root).unwrap();
+        tempfile::Builder::new()
+            .prefix(&format!("inputs-{name}-"))
+            .disable_cleanup(true)
+            .tempdir_in(root)
+            .unwrap()
+    } else {
+        tempfile::tempdir().unwrap()
+    }
+}
+
+/// Retain the editable input and its verified member identities for an external runner.
+/// `project`, `name`, and `directory` select the fixture; returns after writing only when requested.
+fn record_fixture(project: &eb::Project, name: &str, directory: &std::path::Path) {
+    if std::env::var_os("EDITBAY_WORKFLOW_RECEIPTS_DIR").is_some() {
+        let native = directory.join("native.editbay");
+        eb::save_new(project, &native).unwrap();
+        std::fs::write(
+            directory.join("fixture.json"),
+            serde_json::to_vec_pretty(&serde_json::json!({
+                "schema": "editbay.editorial.fixture.v1",
+                "case": name,
+                "license": "MIT; original source-generated fixture",
+                "native_project": native,
+                "members": project.assets.iter().map(|a| serde_json::json!({
+                    "path": a.path, "bytes": a.bytes, "sha256": a.sha256
+                })).collect::<Vec<_>>()
+            }))
+            .unwrap(),
+        )
+        .unwrap();
+    }
+}
 fn wav(path: &std::path::Path) {
     let samples = 96_000u32;
     let bytes = samples * 2;
@@ -111,7 +149,7 @@ fn project(path: &std::path::Path) -> eb::Project {
 }
 #[test]
 fn real_audio_all_formats_and_saved_relinked_source() {
-    let dir = tempfile::tempdir().unwrap();
+    let dir = fixture_dir("audio");
     let source = dir.path().join("Original 音声.wav");
     wav(&source);
     let mut p = project(&source);
@@ -156,6 +194,7 @@ fn real_audio_all_formats_and_saved_relinked_source() {
             &[command],
         )
         .unwrap();
+    record_fixture(editor.project(), "audio-reverse-relinked", dir.path());
     for format in Format::ALL {
         let (bytes, report) = export_document(
             editor.project(),
@@ -194,6 +233,10 @@ fn real_audio_all_formats_and_saved_relinked_source() {
         )
         .unwrap_or_else(|e| panic!("{format:?}: {e}; export report {report:?}"));
         imported.validate().unwrap();
+        assert!(
+            !imported.sources.is_empty(),
+            "{format:?} retained no sources: {loss:?}; export: {report:?}"
+        );
         assert_eq!(
             imported.sources[0].streams[0].time_base,
             editor.project().sources[0].streams[0].time_base
@@ -321,10 +364,11 @@ fn av_project(path: &std::path::Path) -> eb::Project {
 }
 #[test]
 fn linked_av_reverse_internal_and_trailing_gaps_reopen_exactly_in_capable_formats() {
-    let dir = tempfile::tempdir().unwrap();
+    let dir = fixture_dir("linked");
     let original = dir.path().join("linked.mov");
     let p = av_project(&original);
     let composition = p.compositions[0].id;
+    record_fixture(&p, "linked", dir.path());
     for format in [
         Format::Edl,
         Format::Fcp7Xml,

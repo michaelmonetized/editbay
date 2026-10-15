@@ -855,11 +855,9 @@ impl Exp<'_, '_> {
                 t = it.end();
             }
         }
-        let last_start = seq.all_tracks().skip(1).flat_map(|tr| tr.items.iter().map(|i| i.start)).chain(seq.markers.iter().map(|m| m.start)).max();
-        if let Some(ls) = last_start
-            && ls >= t
-        {
-            let end = seq.duration().max(ls + rate.frame_duration());
+        let last_start = seq.all_tracks().flat_map(|tr| tr.items.iter().map(|i| i.start)).chain(seq.markers.iter().map(|m| m.start)).max();
+        let end = seq.duration().max(last_start.map_or(Tick::ZERO, |ls| ls + rate.frame_duration()));
+        if end > t {
             push_gap(&mut els, t, end);
         }
         // Connected clips.
