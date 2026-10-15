@@ -400,8 +400,13 @@ impl Task {
         gpu: Gpu,
         ctx: egui::Context,
         store: Option<editbay_media::picture_store::PreparedStore>,
+        draft: bool,
     ) -> Result<Self, String> {
-        if owner.version != DocumentVersion::of(&project) {
+        if owner.version != DocumentVersion::of(&project)
+            && !(draft
+                && project.id == owner.version.project_id
+                && owner.version.revision.checked_add(1) == Some(project.revision))
+        {
             return Err("Viewer document ownership changed before startup".into());
         }
         let cancel = Cancellation::new().map_err(|e| e.to_string())?;
@@ -649,6 +654,7 @@ struct Creation {
 
 #[derive(Default)]
 pub struct PreviewPane {
+    draft: Option<(DocumentOwner, Arc<Project>)>,
     cached: cached::Cache,
     view_owner: Option<DocumentOwner>,
     gpu: Option<Gpu>,
@@ -678,6 +684,21 @@ pub struct PreviewPane {
 }
 
 impl PreviewPane {
+    /// Display an immutable gesture draft without publishing document commands.
+    /// Args: optional captured owner and its one-revision draft. Returns no value;
+    /// replacement drains old picture work and never starts sound from a draft.
+    pub fn set_draft(&mut self, draft: Option<(DocumentOwner, Arc<Project>)>) {
+        let draft = draft.filter(|(owner, project)| {
+            project.id == owner.version.project_id
+                && owner.version.revision.checked_add(1) == Some(project.revision)
+        });
+        self.stop();
+        self.cached.invalidate();
+        self.stopped = false;
+        self.error = None;
+        self.draft = draft;
+    }
+
     /// Configure bounded background picture storage in the application's state directory.
     /// `directory` is the explicit cache location. Returns a viewer without starting IO.
     pub fn new(directory: std::path::PathBuf) -> Self {
@@ -1099,6 +1120,13 @@ impl PreviewPane {
         } else {
             None
         };
+        if self
+            .draft
+            .as_ref()
+            .is_some_and(|(base, _)| Some(*base) != owner)
+        {
+            self.set_draft(None);
+        }
         self.observe_owner(owner);
         if self.cached.poll() {
             self.stop();
@@ -1297,6 +1325,15 @@ impl PreviewPane {
         project: Arc<Project>,
     ) {
         self.observe_owner(workspace.edit_snapshot(tab).ok().map(|(owner, _)| owner));
+        let project = self
+            .draft
+            .as_ref()
+            .filter(|(owner, _)| owner.tab == tab && workspace.owns(*owner))
+            .map_or(project, |(_, project)| project.clone());
+        let is_draft = self.draft.is_some();
+        if is_draft {
+            ui.weak("Gesture preview · Enter to commit · Escape to cancel");
+        }
         let sequences: Vec<_> = project
             .sequences
             .iter()
@@ -1394,7 +1431,7 @@ impl PreviewPane {
                 }
             } else {
                 let play = ui.add_enabled(
-                    !self.stopped && self.task.is_some() && self.sound_retiring.is_empty() && !self.cached.busy(),
+                    !is_draft && !self.stopped && self.task.is_some() && self.sound_retiring.is_empty() && !self.cached.busy(),
                     egui::Button::new("Play"),
                 );
                 self.observe_control("play-sequence", &play, ui);
@@ -1449,7 +1486,7 @@ impl PreviewPane {
                     }
                 }
             }
-            ui.add_enabled_ui(self.sound.is_none() && self.starting.is_none() && self.sound_retiring.is_empty(), |ui| {
+            ui.add_enabled_ui(!is_draft && self.sound.is_none() && self.starting.is_none() && self.sound_retiring.is_empty(), |ui| {
                 let response = egui::ComboBox::from_id_salt("monitor-route")
                     .selected_text(match self.monitor_route {
                         MonitorRoute::Stereo => "Stereo monitor",
@@ -1484,7 +1521,7 @@ impl PreviewPane {
                 ui.weak("Stopping sound…");
             }
         });
-        ui.horizontal_wrapped(|ui| {
+        ui.add_enabled_ui(!is_draft, |ui| { ui.horizontal_wrapped(|ui| {
             if !self.stopped {
                 let cancel = ui.button("Cancel viewer");
                 self.observe_control("cancel-viewer", &cancel, ui);
@@ -1516,6 +1553,7 @@ impl PreviewPane {
                     if let Err(error) = result { self.cached.error = Some(error); }
                 }
             }
+        });
         });
         let cache_label = self.cached.label();
         if !cache_label.is_empty() {
@@ -1551,6 +1589,7 @@ impl PreviewPane {
                     gpu,
                     ui.ctx().clone(),
                     self.cached.ready(owner, selected.sequence),
+                    is_draft,
                 )
             });
             match started {

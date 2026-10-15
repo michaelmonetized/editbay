@@ -12,3 +12,6 @@ pub mod studio;
 pub mod theme;
 pub mod timeline_ui;
 pub mod workspace;
+
+#[path = "../../../vendor/oma-ui/fields.rs"]
+pub mod fields;
