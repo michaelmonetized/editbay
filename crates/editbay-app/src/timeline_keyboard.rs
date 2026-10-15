@@ -362,6 +362,8 @@ mod tests {
         preview: PreviewPane,
         tab: Uuid,
         focus: String,
+        viewer: bool,
+        values: Vec<String>,
     }
 
     fn key(key: egui::Key, modifiers: egui::Modifiers) -> egui::Event {
@@ -388,6 +390,8 @@ mod tests {
                 preview: PreviewPane::default(),
                 tab,
                 focus: String::new(),
+                viewer: false,
+                values: vec![],
             }
         }
 
@@ -417,19 +421,30 @@ mod tests {
                     ..Default::default()
                 },
                 |ui| {
-                    self.pane.show(
-                        ui,
-                        &self.workspace,
-                        &mut self.preview,
-                        self.tab,
-                        project.clone(),
-                        true,
-                    )
+                    if self.viewer {
+                        self.preview
+                            .show(ui, &self.workspace, self.tab, project.clone());
+                    } else {
+                        self.pane.show(
+                            ui,
+                            &self.workspace,
+                            &mut self.preview,
+                            self.tab,
+                            project.clone(),
+                            true,
+                        );
+                    }
                 },
             );
+            self.values.clear();
             for event in &output.platform_output.events {
                 if let egui::output::OutputEvent::FocusGained(info) = event {
                     self.focus = info.label.clone().unwrap_or_default();
+                }
+                if let egui::output::OutputEvent::ValueChanged(info) = event
+                    && let Some(label) = &info.label
+                {
+                    self.values.push(label.clone());
                 }
             }
             output.drop_without_applying_deltas();
@@ -857,5 +872,143 @@ mod tests {
                     .iter()
                     .any(|node| matches!(node.operation, NodeOperation::Text { size: 64., .. })))
         );
+    }
+
+    #[test]
+    fn craft_keyboard_invalid_source_record_trim_and_slip_drafts_disable_only_their_actions() {
+        let directory = tempfile::tempdir().unwrap();
+        let mut author = Author::new(directory.path());
+        author.empty();
+        author.title();
+        author.tab_to("In");
+        author.replace("-");
+        for _ in 0..12 {
+            author.press(egui::Key::Tab);
+            author.frame(vec![]);
+            assert_ne!(author.focus, "Create cut");
+        }
+        assert_eq!(author.workspace.tabs[0].editor.project().revision, 2);
+        author.tab_to("In");
+        author.replace("0");
+        author.press(egui::Key::Enter);
+        author.tab_to("Create cut");
+        author.press(egui::Key::Enter);
+        author.settled(3);
+        author.tab_to("Record frame");
+        author.replace("-");
+        for _ in 0..36 {
+            author.press(egui::Key::Tab);
+            author.frame(vec![]);
+            assert!(
+                ![
+                    "Insert · W",
+                    "Place on track",
+                    "Overwrite V1",
+                    "Split at record frame · S",
+                    "Move to record frame",
+                    "Roll cut to record frame",
+                    "Slide to record frame"
+                ]
+                .contains(&author.focus.as_str()),
+                "invalid record frame enabled {:?}",
+                author.focus
+            );
+        }
+        author.tab_to("Record frame");
+        author.replace("1");
+        author.press(egui::Key::Enter);
+        author.tab_to("Trim source in");
+        author.replace("-");
+        author.press(egui::Key::Tab);
+        author.frame(vec![]);
+        author.press(egui::Key::Tab);
+        author.frame(vec![]);
+        assert_ne!(author.focus, "Apply trim");
+        author.tab_to("Slip frames");
+        author.replace("-");
+        author.press(egui::Key::Tab);
+        author.frame(vec![]);
+        assert_ne!(author.focus, "Slip source");
+        assert_eq!(author.workspace.tabs[0].editor.project().revision, 3);
+        assert!(author.pane.task.is_none());
+    }
+
+    #[test]
+    fn craft_keyboard_authored_viewer_selectors_and_invalid_frame_use_actual_native_controls() {
+        let directory = tempfile::tempdir().unwrap();
+        let mut author = Author::new(directory.path());
+        author.empty();
+        let title = author.title();
+        author.viewer = true;
+        author.frame(vec![]);
+        let current = author
+            .preview
+            .selected_composition(author.tab, author.workspace.tabs[0].editor.project())
+            .unwrap();
+        let current_name = author.workspace.tabs[0]
+            .editor
+            .project()
+            .sequences
+            .iter()
+            .find(|sequence| sequence.composition == Some(current))
+            .unwrap()
+            .name
+            .clone();
+        author.tab_to(&format!("Viewer sequence: {current_name}"));
+        author.press(egui::Key::Home);
+        let first = author.workspace.tabs[0].editor.project().sequences[0]
+            .composition
+            .unwrap();
+        assert_eq!(
+            author
+                .preview
+                .position(author.tab, author.workspace.tabs[0].editor.project()),
+            Some((first, 0))
+        );
+        author.press(egui::Key::End);
+        assert_eq!(
+            author
+                .preview
+                .position(author.tab, author.workspace.tabs[0].editor.project()),
+            Some((title, 0))
+        );
+        author.tab_to("Viewer frame");
+        author.replace("12");
+        author.press(egui::Key::Enter);
+        assert_eq!(
+            author
+                .preview
+                .position(author.tab, author.workspace.tabs[0].editor.project()),
+            Some((title, 12))
+        );
+        author.tab_to("Viewer frame");
+        author.replace("-");
+        author.press(egui::Key::Tab);
+        author.frame(vec![]);
+        assert!(!["Previous frame", "Next frame", "Play"].contains(&author.focus.as_str()));
+        assert_eq!(
+            author
+                .preview
+                .position(author.tab, author.workspace.tabs[0].editor.project()),
+            Some((title, 12))
+        );
+        author.tab_to("Viewer frame");
+        author.replace("7");
+        author.press(egui::Key::Enter);
+        assert_eq!(
+            author
+                .preview
+                .position(author.tab, author.workspace.tabs[0].editor.project()),
+            Some((title, 7))
+        );
+        author.tab_to("Monitor route: Stereo monitor");
+        author.press(egui::Key::End);
+        assert!(
+            author
+                .values
+                .iter()
+                .any(|label| label == "Monitor route: Original channels")
+        );
+        assert_eq!(author.workspace.tabs[0].editor.project().revision, 2);
     }
 }

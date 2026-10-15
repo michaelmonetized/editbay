@@ -692,6 +692,8 @@ impl TimelinePane {
         let mut finish_gesture = false;
         let mut cancel_gesture = false;
         let mut action = None;
+        let mut source_valid = true;
+        let mut record_valid = true;
         let escape = interactive && ui.input(|i| i.key_pressed(egui::Key::Escape));
         let enter = interactive
             && !ui.ctx().text_edit_focused()
@@ -755,16 +757,6 @@ impl TimelinePane {
                         selected.baseline = *position;
                     }
                 }
-                if button(ui, preview, "timeline-view-source", "View source")
-                    && let Err(error) = preview.select(
-                        tab,
-                        &project,
-                        source.id,
-                        selected.source_range.start.min(source.duration - 1),
-                    )
-                {
-                    self.error = Some(error);
-                }
             });
             let source = scenes
                 .iter()
@@ -795,49 +787,100 @@ impl TimelinePane {
                 {
                     selected.source_range.end = frame + 1;
                 }
-                frame_input(
+                let source_in = frame_input(
                     ui,
                     preview,
                     "timeline-source-in",
+                    (tab, source.id),
                     "In",
                     &mut selected.source_range.start,
                     source.duration,
                 );
-                frame_input(
+                let source_out = frame_input(
                     ui,
                     preview,
                     "timeline-source-out",
+                    (tab, source.id),
                     "Out exclusive",
                     &mut selected.source_range.end,
                     source.duration,
                 );
+                source_valid = fields::number_is_valid(&source_in)
+                    && fields::number_is_valid(&source_out)
+                    && selected.source_range.start < selected.source_range.end;
+                if selected.source_range.start >= selected.source_range.end {
+                    field_error(ui, &source_out.response, "Out must follow In");
+                }
+                if enabled_button(
+                    ui,
+                    preview,
+                    "timeline-view-source",
+                    "View source",
+                    source_valid,
+                ) && let Err(error) = preview.select(
+                    tab,
+                    &project,
+                    source.id,
+                    selected.source_range.start.min(source.duration - 1),
+                ) {
+                    self.error = Some(error);
+                }
             });
             ui.collapsing("Titles and fades", |ui| {
                 if let Some(title) = keyboard::title_controls(ui, selected, source, tab) {
                     action = Some(title);
                 }
                 ui.horizontal_wrapped(|ui| {
-                    fields::number(
+                    let fade_in = fields::native_scope(
                         ui,
-                        ("fade-in", tab),
-                        "Fade in",
-                        &mut selected.fade_in,
-                        0..=source.duration,
-                        " frames",
-                        None,
-                        FieldState::default(),
-                    );
-                    fields::number(
+                        egui::Id::new(("fade-in", tab, source.id)),
+                        |ui| {
+                            fields::number(
+                                ui,
+                                "value",
+                                "Fade in",
+                                &mut selected.fade_in,
+                                0..=source.duration,
+                                " frames",
+                                None,
+                                FieldState::default(),
+                            )
+                        },
+                    )
+                    .inner;
+                    let fade_out = fields::native_scope(
                         ui,
-                        ("fade-out", tab),
-                        "Fade out",
-                        &mut selected.fade_out,
-                        0..=source.duration,
-                        " frames",
-                        None,
-                        FieldState::default(),
-                    );
-                    if ui.button("Create faded source").clicked() {
+                        egui::Id::new(("fade-out", tab, source.id)),
+                        |ui| {
+                            fields::number(
+                                ui,
+                                "value",
+                                "Fade out",
+                                &mut selected.fade_out,
+                                0..=source.duration,
+                                " frames",
+                                None,
+                                FieldState::default(),
+                            )
+                        },
+                    )
+                    .inner;
+                    let fade_range_valid = selected
+                        .fade_in
+                        .checked_add(selected.fade_out)
+                        .is_some_and(|total| total <= source.duration);
+                    if !fade_range_valid {
+                        field_error(ui, &fade_out.response, "Fades must fit within the source");
+                    }
+                    if enabled_button(
+                        ui,
+                        preview,
+                        "timeline-fade",
+                        "Create faded source",
+                        fields::number_is_valid(&fade_in)
+                            && fields::number_is_valid(&fade_out)
+                            && fade_range_valid,
+                    ) {
                         action = Some(TimelineAction::Fade {
                             source: source.id,
                             name: format!("{} · fades", source.name),
@@ -847,6 +890,7 @@ impl TimelinePane {
                     }
                 });
             });
+            let source_has_audio = source.audio.is_some();
             let source = SourceSelection {
                 composition: selected.source.unwrap(),
                 range: selected.source_range,
@@ -860,7 +904,13 @@ impl TimelinePane {
                     false,
                 );
                 preview.observe_control("timeline-name", &name, ui);
-                if button(ui, preview, "timeline-create", "Create cut") {
+                if enabled_button(
+                    ui,
+                    preview,
+                    "timeline-create",
+                    "Create cut",
+                    source_valid && !selected.name.trim().is_empty(),
+                ) {
                     action = Some(TimelineAction::Create {
                         name: selected.name.clone(),
                         source,
@@ -934,6 +984,84 @@ impl TimelinePane {
             }) {
                 selected.track = Some(scene.tracks[0].id);
             }
+            let end = assembly
+                .clips
+                .iter()
+                .map(|clip| clip.range.end)
+                .max()
+                .unwrap_or(0);
+            ui.horizontal_wrapped(|ui| {
+                let at = frame_input(
+                    ui,
+                    preview,
+                    "timeline-record-at",
+                    (tab, composition),
+                    "Record frame",
+                    &mut selected.at,
+                    i64::MAX as u64,
+                );
+                record_valid = fields::number_is_valid(&at);
+                let position = preview
+                    .position(tab, &project)
+                    .filter(|(id, _)| *id == composition);
+                if ui
+                    .add_enabled_ui(position.is_some(), |ui| {
+                        button(ui, preview, "timeline-use-playhead", "Use playhead")
+                    })
+                    .inner
+                    && let Some((_, frame)) = position
+                {
+                    selected.at = frame;
+                }
+                if enabled_button(
+                    ui,
+                    preview,
+                    "timeline-view-record",
+                    "View record",
+                    record_valid,
+                ) && let Err(error) = preview.select(
+                    tab,
+                    &project,
+                    composition,
+                    selected.at.min(end.saturating_sub(1)),
+                ) {
+                    self.error = Some(error);
+                }
+                if (enabled_button(
+                    ui,
+                    preview,
+                    "timeline-append",
+                    "Append · E",
+                    source_valid && source.composition != composition,
+                ) || append)
+                    && source_valid
+                    && source.composition != composition
+                {
+                    action = Some(TimelineAction::Insert {
+                        composition,
+                        at: end,
+                        source,
+                    });
+                }
+                if (enabled_button(
+                    ui,
+                    preview,
+                    "timeline-insert",
+                    "Insert · W",
+                    source_valid && record_valid && source.composition != composition,
+                ) || insert)
+                    && source_valid
+                    && record_valid
+                    && source.composition != composition
+                {
+                    action = Some(TimelineAction::Insert {
+                        composition,
+                        at: selected.at,
+                        source,
+                    });
+                }
+                ui.checkbox(&mut selected.ripple, "Ripple following clips");
+            });
             ui.horizontal_wrapped(|ui| {
                 crate::keyboard_ui::choice(
                     ui,
@@ -953,7 +1081,13 @@ impl TimelinePane {
                         name: format!("Track {}", scene.tracks.len() / 2 + 1),
                     });
                 }
-                if button(ui, preview, "timeline-place", "Place on track") {
+                if enabled_button(
+                    ui,
+                    preview,
+                    "timeline-place",
+                    "Place on track",
+                    source_valid && record_valid && source.composition != composition,
+                ) {
                     action = Some(TimelineAction::Place {
                         composition,
                         track: selected.track.unwrap(),
@@ -962,7 +1096,16 @@ impl TimelinePane {
                         audio_only: false,
                     });
                 }
-                if button(ui, preview, "timeline-place-sound", "Place sound only") {
+                if enabled_button(
+                    ui,
+                    preview,
+                    "timeline-place-sound",
+                    "Place sound only",
+                    source_valid
+                        && record_valid
+                        && source_has_audio
+                        && source.composition != composition,
+                ) {
                     let index = scene
                         .tracks
                         .iter()
@@ -976,66 +1119,19 @@ impl TimelinePane {
                         audio_only: true,
                     });
                 }
-                if button(ui, preview, "timeline-overwrite", "Overwrite V1") {
+                if enabled_button(
+                    ui,
+                    preview,
+                    "timeline-overwrite",
+                    "Overwrite V1",
+                    source_valid && record_valid && source.composition != composition,
+                ) {
                     action = Some(TimelineAction::Overwrite {
                         composition,
                         at: selected.at,
                         source,
                     });
                 }
-            });
-            let end = assembly
-                .clips
-                .iter()
-                .map(|clip| clip.range.end)
-                .max()
-                .unwrap_or(0);
-            ui.horizontal_wrapped(|ui| {
-                frame_input(
-                    ui,
-                    preview,
-                    "timeline-record-at",
-                    "Record frame",
-                    &mut selected.at,
-                    i64::MAX as u64,
-                );
-                let position = preview
-                    .position(tab, &project)
-                    .filter(|(id, _)| *id == composition);
-                if ui
-                    .add_enabled_ui(position.is_some(), |ui| {
-                        button(ui, preview, "timeline-use-playhead", "Use playhead")
-                    })
-                    .inner
-                    && let Some((_, frame)) = position
-                {
-                    selected.at = frame;
-                }
-                if button(ui, preview, "timeline-view-record", "View record")
-                    && let Err(error) = preview.select(
-                        tab,
-                        &project,
-                        composition,
-                        selected.at.min(end.saturating_sub(1)),
-                    )
-                {
-                    self.error = Some(error);
-                }
-                if button(ui, preview, "timeline-append", "Append · E") || append {
-                    action = Some(TimelineAction::Insert {
-                        composition,
-                        at: end,
-                        source,
-                    });
-                }
-                if button(ui, preview, "timeline-insert", "Insert · W") || insert {
-                    action = Some(TimelineAction::Insert {
-                        composition,
-                        at: selected.at,
-                        source,
-                    });
-                }
-                ui.checkbox(&mut selected.ripple, "Ripple following clips");
             });
             let mut visual_clips = assembly.clips.clone();
             if let Some(scene) = draft_project
@@ -1087,14 +1183,19 @@ impl TimelinePane {
                     memory.has_focus(egui::Id::new(("timeline-content", composition)))
                 });
             if clip_focused && interactive && !busy && !ui.ctx().text_edit_focused() {
-                if ui.input_mut(|input| input.consume_key(egui::Modifiers::NONE, egui::Key::E)) {
+                if source_valid
+                    && source.composition != composition
+                    && ui.input_mut(|input| input.consume_key(egui::Modifiers::NONE, egui::Key::E))
+                {
                     action = Some(TimelineAction::Insert {
                         composition,
                         at: end,
                         source,
                     });
-                } else if ui
-                    .input_mut(|input| input.consume_key(egui::Modifiers::NONE, egui::Key::W))
+                } else if source_valid
+                    && record_valid
+                    && source.composition != composition
+                    && ui.input_mut(|input| input.consume_key(egui::Modifiers::NONE, egui::Key::W))
                 {
                     action = Some(TimelineAction::Insert {
                         composition,
@@ -1102,7 +1203,15 @@ impl TimelinePane {
                         source,
                     });
                 } else if let Some(clip) = selected.clip {
-                    if ui.input_mut(|input| input.consume_key(egui::Modifiers::NONE, egui::Key::S))
+                    if record_valid
+                        && assembly.clips.iter().any(|target| {
+                            target.id == clip
+                                && target.range.start < selected.at
+                                && selected.at < target.range.end
+                        })
+                        && ui.input_mut(|input| {
+                            input.consume_key(egui::Modifiers::NONE, egui::Key::S)
+                        })
                     {
                         action = Some(TimelineAction::Split {
                             composition,
@@ -1170,23 +1279,31 @@ impl TimelinePane {
                         .find(|c| c.id == clip.source.composition)
                         .unwrap()
                         .duration;
-                    frame_input(
+                    let trim_in = frame_input(
                         ui,
                         preview,
                         "timeline-trim-in",
+                        (tab, clip.id),
                         "Trim source in",
                         &mut selected.trim_range.start,
                         duration,
                     );
-                    frame_input(
+                    let trim_out = frame_input(
                         ui,
                         preview,
                         "timeline-trim-out",
+                        (tab, clip.id),
                         "out exclusive",
                         &mut selected.trim_range.end,
                         duration,
                     );
-                    if button(ui, preview, "timeline-trim", "Apply trim") {
+                    let trim_valid = fields::number_is_valid(&trim_in)
+                        && fields::number_is_valid(&trim_out)
+                        && selected.trim_range.start < selected.trim_range.end;
+                    if selected.trim_range.start >= selected.trim_range.end {
+                        field_error(ui, &trim_out.response, "Out must follow In");
+                    }
+                    if enabled_button(ui, preview, "timeline-trim", "Apply trim", trim_valid) {
                         action = Some(TimelineAction::Trim {
                             composition,
                             clip: clip.id,
@@ -1194,7 +1311,17 @@ impl TimelinePane {
                             ripple: selected.ripple,
                         });
                     }
-                    if button(ui, preview, "timeline-split", "Split at record frame · S") || split
+                    let split_valid = record_valid
+                        && clip.range.start < selected.at
+                        && selected.at < clip.range.end;
+                    if (enabled_button(
+                        ui,
+                        preview,
+                        "timeline-split",
+                        "Split at record frame · S",
+                        split_valid,
+                    ) || split)
+                        && split_valid
                     {
                         action = Some(TimelineAction::Split {
                             composition,
@@ -1202,7 +1329,13 @@ impl TimelinePane {
                             at: selected.at,
                         });
                     }
-                    if button(ui, preview, "timeline-move", "Move to record frame") {
+                    if enabled_button(
+                        ui,
+                        preview,
+                        "timeline-move",
+                        "Move to record frame",
+                        record_valid,
+                    ) {
                         action = Some(TimelineAction::Move {
                             composition,
                             clip: clip.id,
@@ -1218,31 +1351,53 @@ impl TimelinePane {
                     }
                 });
                 ui.horizontal_wrapped(|ui| {
-                    fields::number(
+                    let slip =
+                        fields::native_scope(ui, egui::Id::new(("slip", tab, clip.id)), |ui| {
+                            fields::number(
+                                ui,
+                                "value",
+                                "Slip frames",
+                                &mut selected.slip,
+                                i64::MIN..=i64::MAX,
+                                " frames",
+                                None,
+                                FieldState::default(),
+                            )
+                        })
+                        .inner;
+                    if enabled_button(
                         ui,
-                        ("slip", tab),
-                        "Slip frames",
-                        &mut selected.slip,
-                        i64::MIN..=i64::MAX,
-                        " frames",
-                        None,
-                        FieldState::default(),
-                    );
-                    if button(ui, preview, "timeline-slip", "Slip source") {
+                        preview,
+                        "timeline-slip",
+                        "Slip source",
+                        fields::number_is_valid(&slip),
+                    ) {
                         action = Some(TimelineAction::Slip {
                             composition,
                             clip: clip.id,
                             frames: selected.slip,
                         });
                     }
-                    if button(ui, preview, "timeline-roll", "Roll cut to record frame") {
+                    if enabled_button(
+                        ui,
+                        preview,
+                        "timeline-roll",
+                        "Roll cut to record frame",
+                        record_valid,
+                    ) {
                         action = Some(TimelineAction::Roll {
                             composition,
                             clip: clip.id,
                             at: selected.at,
                         });
                     }
-                    if button(ui, preview, "timeline-slide", "Slide to record frame") {
+                    if enabled_button(
+                        ui,
+                        preview,
+                        "timeline-slide",
+                        "Slide to record frame",
+                        record_valid,
+                    ) {
                         action = Some(TimelineAction::Slide {
                             composition,
                             clip: clip.id,
@@ -1629,26 +1784,57 @@ fn button(ui: &mut Ui, preview: &mut PreviewPane, name: &str, label: &str) -> bo
     preview.observe_control(name, &response, ui);
     response.clicked()
 }
+/// Draw an exact frame draft owned by its document and content target.
+/// Args: UI, diagnostics, name, target, label, draft and maximum frame.
+/// Returns the actual native field response and its authoritative validity.
 fn frame_input(
     ui: &mut Ui,
     preview: &mut PreviewPane,
     name: &str,
+    owner: (Uuid, Uuid),
     label: &str,
     value: &mut u64,
     end: u64,
-) {
-    let response = fields::number(
-        ui,
-        name,
-        label,
-        value,
-        0..=end,
-        " frames",
-        None,
-        FieldState::default(),
-    )
-    .response;
-    preview.observe_control(name, &response, ui);
+) -> fields::FieldResponse {
+    let field = fields::native_scope(ui, egui::Id::new(("timeline-frame", name, owner)), |ui| {
+        fields::number(
+            ui,
+            "value",
+            label,
+            value,
+            0..=end,
+            " frames",
+            None,
+            FieldState::default(),
+        )
+    })
+    .inner;
+    preview.observe_control(name, &field.response, ui);
+    field
+}
+
+/// Disable an action whose current native draft cannot be accepted.
+/// Args: UI, diagnostics, name, label and validity. Returns native activation.
+fn enabled_button(
+    ui: &mut Ui,
+    preview: &mut PreviewPane,
+    name: &str,
+    label: &str,
+    valid: bool,
+) -> bool {
+    ui.add_enabled_ui(valid, |ui| button(ui, preview, name, label))
+        .inner
+}
+
+/// Associate a domain error with its actual native field.
+/// Args: UI, actual field response and message. Returns no value; draws one error.
+fn field_error(ui: &mut Ui, field: &egui::Response, message: &str) {
+    let error = ui.colored_label(ui.visuals().error_fg_color, message);
+    ui.ctx().accesskit_node_builder(field.id, |node| {
+        node.set_invalid(egui::accesskit::Invalid::True);
+        node.set_error_message(error.id.accesskit_id());
+        node.push_described_by(error.id.accesskit_id());
+    });
 }
 
 #[cfg(test)]

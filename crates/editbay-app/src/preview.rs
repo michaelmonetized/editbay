@@ -1,5 +1,8 @@
 mod cached;
 mod completion;
+#[cfg(test)]
+#[path = "preview_keyboard_tests.rs"]
+mod keyboard_tests;
 mod prepared;
 
 use crate::workspace::{DocumentOwner, Workspace};
@@ -828,7 +831,6 @@ impl PreviewPane {
         if streams.is_empty() {
             return None;
         }
-        ui.label("Sequence sound");
         let selected = self
             .source_audio
             .entry((tab, source.id))
@@ -851,18 +853,19 @@ impl PreviewPane {
                 channels.join(" / ")
             )
         };
-        let text = selected
-            .and_then(|index| streams.iter().find(|s| s.index == index))
-            .map_or_else(|| "Picture only".into(), |s| label(s));
-        let response = egui::ComboBox::from_id_salt(("sequence-sound", tab, source.id))
-            .selected_text(text)
-            .show_ui(ui, |ui| {
-                ui.selectable_value(selected, None, "Picture only");
-                for stream in streams {
-                    ui.selectable_value(selected, Some(stream.index), label(stream));
-                }
-            })
-            .response;
+        let mut choices = vec![(None, "Picture only".into())];
+        choices.extend(
+            streams
+                .iter()
+                .map(|stream| (Some(stream.index), label(stream))),
+        );
+        let response = crate::keyboard_ui::choice(
+            ui,
+            ("sequence-sound", tab, source.id),
+            "Sequence sound",
+            selected,
+            &choices,
+        );
         let choice = *selected;
         self.observe_control(&format!("sequence-sound:{}", source.id), &response, ui);
         choice
@@ -1369,20 +1372,16 @@ impl PreviewPane {
                 frame: 0,
             });
         let before_interaction = selected;
-        egui::ComboBox::from_id_salt(("picture-sequence", tab))
-            .selected_text(
-                sequences
-                    .iter()
-                    .find(|item| item.id == selected.sequence)
-                    .unwrap()
-                    .name
-                    .clone(),
-            )
-            .show_ui(ui, |ui| {
-                for sequence in &sequences {
-                    ui.selectable_value(&mut selected.sequence, sequence.id, &sequence.name);
-                }
-            });
+        crate::keyboard_ui::choice(
+            ui,
+            ("picture-sequence", tab),
+            "Viewer sequence",
+            &mut selected.sequence,
+            &sequences
+                .iter()
+                .map(|sequence| (sequence.id, sequence.name.clone()))
+                .collect::<Vec<_>>(),
+        );
         let sequence = sequences
             .iter()
             .find(|item| item.id == selected.sequence)
@@ -1399,20 +1398,47 @@ impl PreviewPane {
             self.cached.observe(owner, selected.sequence);
         }
         selected.frame = selected.frame.min(last);
+        let mut frame_valid = true;
         ui.horizontal_wrapped(|ui| {
-            let previous = ui.add_enabled(selected.frame > 0, egui::Button::new("Previous frame"));
+            let mut draft = selected.frame;
+            let frame = crate::fields::native_scope(
+                ui,
+                egui::Id::new(("viewer-frame", tab, selected.sequence)),
+                |ui| {
+                    crate::fields::number(
+                        ui,
+                        "frame",
+                        "Viewer frame",
+                        &mut draft,
+                        0..=last,
+                        " frames",
+                        None,
+                        crate::fields::FieldState::default(),
+                    )
+                },
+            )
+            .inner;
+            frame_valid = crate::fields::number_is_valid(&frame);
+            if frame.changed {
+                selected.frame = draft;
+            }
+            self.observe_control("frame-number", &frame.response, ui);
+            let previous = ui.add_enabled(
+                frame_valid && selected.frame > 0,
+                egui::Button::new("Previous frame"),
+            );
             self.observe_control("previous-frame", &previous, ui);
             if previous.clicked() {
                 selected.frame -= 1;
             }
-            let next = ui.add_enabled(selected.frame < last, egui::Button::new("Next frame"));
+            let next = ui.add_enabled(
+                frame_valid && selected.frame < last,
+                egui::Button::new("Next frame"),
+            );
             self.observe_control("next-frame", &next, ui);
             if next.clicked() {
                 selected.frame += 1;
             }
-            ui.label("Frame");
-            let frame = ui.add(egui::DragValue::new(&mut selected.frame).range(0..=last));
-            self.observe_control("frame-number", &frame, ui);
             ui.weak(format!(
                 "/ {last} · {} × {} · {}/{} fps",
                 composition.width,
@@ -1440,7 +1466,7 @@ impl PreviewPane {
                 }
             } else {
                 let play = ui.add_enabled(
-                    !is_draft && !self.stopped && self.task.is_some() && self.sound_retiring.is_empty() && !self.cached.busy(),
+                    frame_valid && !is_draft && !self.stopped && self.task.is_some() && self.sound_retiring.is_empty() && !self.cached.busy(),
                     egui::Button::new("Play"),
                 );
                 self.observe_control("play-sequence", &play, ui);
@@ -1496,15 +1522,10 @@ impl PreviewPane {
                 }
             }
             ui.add_enabled_ui(!is_draft && self.sound.is_none() && self.starting.is_none() && self.sound_retiring.is_empty(), |ui| {
-                let response = egui::ComboBox::from_id_salt("monitor-route")
-                    .selected_text(match self.monitor_route {
-                        MonitorRoute::Stereo => "Stereo monitor",
-                        MonitorRoute::Original => "Original channels",
-                    })
-                    .show_ui(ui, |ui| {
-                        ui.selectable_value(&mut self.monitor_route, MonitorRoute::Stereo, "Stereo monitor");
-                        ui.selectable_value(&mut self.monitor_route, MonitorRoute::Original, "Original channels");
-                    }).response.on_hover_text("Stereo monitor sends mono to both speakers, reduces center/surround channels by 3 dB and omits LFE. Original source and delivery channels stay unchanged.");
+                let response = crate::keyboard_ui::choice(
+                    ui, ("monitor-route", tab, selected.sequence), "Monitor route", &mut self.monitor_route,
+                    &[(MonitorRoute::Stereo, "Stereo monitor".into()), (MonitorRoute::Original, "Original channels".into())],
+                ).on_hover_text("Stereo monitor sends mono to both speakers, reduces center/surround channels by 3 dB and omits LFE. Original source and delivery channels stay unchanged.");
                 self.observe_control("monitor-route", &response, ui);
             });
             if self.starting.is_some() {
