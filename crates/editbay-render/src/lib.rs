@@ -3,6 +3,7 @@
 mod caption_text;
 mod graph;
 mod presentation;
+pub mod scopes;
 mod text;
 pub use graph::{
     GraphBudget, GraphRenderer, GraphStats, ImageBoundary, RenderedFrame, ResidentImage,

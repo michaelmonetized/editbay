@@ -328,6 +328,7 @@ struct Picture {
     incompatible: AtomicBool,
     stats: GraphStats,
     caption_warnings: Vec<String>,
+    scopes: Option<editbay_render::scopes::ScopeReport>,
     worker_pid: Option<u32>,
 }
 enum Event {
@@ -342,6 +343,7 @@ struct Task {
     mailbox: Arc<(Mutex<Mailbox>, Condvar)>,
     result: Arc<Mutex<Option<Event>>>,
     coalesced: Arc<AtomicU64>,
+    scope_settings: Arc<Mutex<Option<editbay_render::scopes::ScopeSettings>>>,
     thread: Option<JoinHandle<()>>,
 }
 
@@ -401,6 +403,7 @@ impl Task {
         gpu: Gpu,
         ctx: egui::Context,
         store: Option<editbay_media::picture_store::PreparedStore>,
+        scope_settings: Option<editbay_render::scopes::ScopeSettings>,
     ) -> Result<Self, String> {
         if owner.version != DocumentVersion::of(&project) {
             return Err("Viewer document ownership changed before startup".into());
@@ -413,6 +416,8 @@ impl Task {
         let input = mailbox.clone();
         let output = result.clone();
         let token = cancel.clone();
+        let scope_settings = Arc::new(Mutex::new(scope_settings));
+        let scope_options = scope_settings.clone();
         let thread = std::thread::Builder::new()
             .name("editbay-native-picture".into())
             .spawn(move || {
@@ -451,6 +456,7 @@ impl Task {
                     }
                     let display = DisplayRenderer::new(gpu.device.clone(), gpu.format)
                         .map_err(|e| e.to_string())?;
+                    let color = snapshot.project().color;
                     let mut graph = GraphRenderer::with_device(
                         snapshot,
                         provider,
@@ -515,6 +521,27 @@ impl Task {
                                     false,
                                 )
                                 .map_err(|e| e.to_string())?;
+                            let scope_settings =
+                                *scope_options.lock().map_err(|e| e.to_string())?;
+                            let scopes = if let Some(settings) = scope_settings {
+                                let pixels = graph.readback(&working).map_err(|e| e.to_string())?;
+                                Some(
+                                    editbay_render::scopes::sample_program_frame(
+                                        &pixels,
+                                        working.image().dimensions(),
+                                        editbay_render::scopes::ScopeIdentity {
+                                            version: owner.version,
+                                            composition,
+                                            frame: request.frame,
+                                        },
+                                        color,
+                                        settings,
+                                    )
+                                    .map_err(|e| e.to_string())?,
+                                )
+                            } else {
+                                None
+                            };
                             let render_us = began.elapsed().as_micros() as u64;
                             let began = Instant::now();
                             let (preview, caption_warnings) = graph
@@ -561,6 +588,7 @@ impl Task {
                                     incompatible: AtomicBool::new(false),
                                     stats: graph.stats(),
                                     caption_warnings,
+                                    scopes,
                                     worker_pid: graph.picture_provider().process_id(),
                                 });
                                 if let Some((pictures, reservation)) = preparation {
@@ -589,6 +617,7 @@ impl Task {
             mailbox,
             result,
             coalesced,
+            scope_settings,
             thread: Some(thread),
         })
     }
@@ -663,6 +692,7 @@ struct Creation {
 #[derive(Default)]
 pub struct PreviewPane {
     cached: cached::Cache,
+    color: crate::color_ui::ScopePanel,
     view_owner: Option<DocumentOwner>,
     gpu: Option<Gpu>,
     selections: HashMap<Uuid, Selection>,
@@ -1564,6 +1594,7 @@ impl PreviewPane {
                     gpu,
                     ui.ctx().clone(),
                     self.cached.ready(owner, selected.sequence),
+                    self.color.enabled.then_some(self.color.settings),
                 )
             });
             match started {
@@ -1689,6 +1720,31 @@ impl PreviewPane {
             .any(|t| t.enabled && t.composition == composition.id && t.style.font.is_none())
         {
             ui.weak("Choose a retained font for exact caption preview and burn-in.");
+        }
+        let mut scope_changed = false;
+        ui.collapsing("Color workspace", |ui| {
+            let report = self
+                .picture
+                .as_ref()
+                .and_then(|p| p.scopes.as_ref())
+                .filter(|r| {
+                    r.identity.version == DocumentVersion::of(&project)
+                        && r.identity.composition == composition.id
+                        && r.settings == self.color.settings
+                });
+            scope_changed = self.color.show(ui, report);
+        });
+        if scope_changed {
+            if let Some(task) = &self.task {
+                match task.scope_settings.lock() {
+                    Ok(mut settings) => {
+                        *settings = self.color.enabled.then_some(self.color.settings)
+                    }
+                    Err(error) => self.error = Some(error.to_string()),
+                }
+            }
+            self.requested_frame = None;
+            ui.ctx().request_repaint();
         }
         if self.creation.is_some() {
             ui.weak("Creating sequence…");

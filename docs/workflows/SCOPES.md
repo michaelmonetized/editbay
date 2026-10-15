@@ -1,0 +1,5 @@
+# Program-frame color scopes
+
+Color workspace has waveform, RGB parade and vectorscope. Enable Live scopes to capture the actual program's premultiplied linear float picture on its existing render worker. Reports carry document revision, composition and displayed frame; stale owners and previous settings are not accepted. Linear/nits plots preserve the working gamut and overrange/negative values. Nits depend on the explicitly selected reference-white scale. Output-code plots convert to the declared output primaries/transfer, including analytical PQ/HLG values. This does not add HDR display/output support to the renderer. Counts describe bounded deterministic samples; labels show units and sample limits. Readback happens off the UI thread and only when scopes are enabled. Native playback performance is not qualified by the numeric tests.
+
+Changing capture settings preserves transport and filters older reports until a matching frame arrives. Known ramps, primary matrices, clipping and PQ/HLG constants have focused numeric tests. Native paused/playback UI performance and HDR display/output require separate qualification.
