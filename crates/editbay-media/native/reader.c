@@ -423,7 +423,7 @@ next_frame:
     }
     if (!output) return 1;
     int bytes = reader->output_encoding == 2 ? 16 : reader->output_encoding == 1 ? 8 : 4;
-    enum AVPixelFormat output_format = reader->output_encoding == 2 ? AV_PIX_FMT_RGBAF32LE :
+    enum AVPixelFormat output_format = reader->output_encoding == 2 ? AV_PIX_FMT_GBRAPF32LE :
         reader->output_encoding == 1 ? AV_PIX_FMT_RGBA64LE : AV_PIX_FMT_RGBA;
     if (capacity < (size_t)width * height * bytes) return AVERROR(ENOBUFS);
     reader->scale = sws_getCachedContext(reader->scale, width, height, frame->format, width, height,
@@ -453,9 +453,18 @@ next_frame:
     if (ret < 0) return ret;
     if (ret != height) return AVERROR(EIO);
     if (interrupted(&reader->input)) return AVERROR_EXIT;
-    for (int row = 0; row < height; row++)
-        memcpy(output + (size_t)row * width * bytes,
-            reader->converted->data[0] + (size_t)row * reader->converted->linesize[0], (size_t)width * bytes);
+    for (int row = 0; row < height; row++) {
+        if (reader->output_encoding == 2) {
+            const int plane[] = {2, 0, 1, 3};
+            for (int x = 0; x < width; x++)
+                for (int channel = 0; channel < 4; channel++)
+                    memcpy(output + ((size_t)row * width + x) * 16 + channel * 4,
+                        reader->converted->data[plane[channel]] + (size_t)row * reader->converted->linesize[plane[channel]] + x * 4, 4);
+        } else {
+            memcpy(output + (size_t)row * width * bytes,
+                reader->converted->data[0] + (size_t)row * reader->converted->linesize[0], (size_t)width * bytes);
+        }
+    }
     return width * height * bytes;
 }
 
