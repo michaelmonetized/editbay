@@ -54,7 +54,7 @@ impl PanelKeyboard {
                 keyboard_ui::button(ui, "keyboard-panels", "Arrange panels… · Ctrl+F6")
             })
             .inner;
-        if open || button.clicked() {
+        if (open || button.clicked()) && self.draft.is_none() {
             let panel = layout
                 .focus
                 .as_deref()
