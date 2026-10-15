@@ -436,8 +436,9 @@ impl MulticamPane {
                         let reference_composition = next.angle(reference).map_err(|error| error.to_string())?.composition;
                         let candidate_composition = next.angle(candidate).map_err(|error| error.to_string())?.composition;
                         let evaluation = Arc::new(EvaluationSnapshot::new(project.clone()).map_err(|error| error.to_string())?);
-                        let (a, mut a_renderer) = decode_envelope(evaluation.clone(), reference_composition, seconds, &cancel)?;
-                        let (b, mut b_renderer) = decode_envelope(evaluation, candidate_composition, seconds, &cancel)?;
+                        let directory = pcm_directory()?;
+                        let (a, mut a_renderer) = decode_envelope(evaluation.clone(), reference_composition, seconds, &directory, &cancel)?;
+                        let (b, mut b_renderer) = decode_envelope(evaluation, candidate_composition, seconds, &directory, &cancel)?;
                         check(&cancel)?;
                         let max_offset_samples = (max_offset * 200).min((a.len().min(b.len()) / 2).saturating_sub(1) as u32);
                         let sync = correlate_audio(&a, &b, AudioSyncOptions { sample_rate: 200, max_offset_samples, min_overlap_samples: 64, min_correlation: 0.85, min_separation: 0.02 }).map_err(|error| error.to_string())?;
@@ -718,12 +719,13 @@ fn pcm_directory() -> Result<PathBuf, String> {
 }
 
 /// Decode real native sound into a bounded channel-independent loudness envelope.
-/// `evaluation`, `composition`, `seconds` and `cancel` bind source bytes and worker lifetime.
+/// `evaluation`, `composition`, `seconds`, `directory` and `cancel` bind sources, storage and lifetime.
 /// Returns 200 Hz absolute-mean bins and a retained renderer for final source verification.
 fn decode_envelope(
     evaluation: Arc<EvaluationSnapshot>,
     composition: Uuid,
     seconds: u32,
+    directory: &std::path::Path,
     cancel: &Cancellation,
 ) -> Result<(Vec<f32>, SoundRenderer), String> {
     check(cancel)?;
@@ -760,7 +762,7 @@ fn decode_envelope(
             ..PcmBudget::default()
         },
         cancel.clone(),
-        &pcm_directory()?,
+        directory,
     )
     .map_err(|error| error.to_string())?;
     let mut renderer =
@@ -808,6 +810,202 @@ fn append_envelope(output: &mut Vec<f32>, samples: &[f32], channels: usize) -> R
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    /// Evaluate the public analytic audio fixture without decoding an output.
+    /// `bin` is a 200 Hz event coordinate; returns an exactly representable loudness.
+    fn fixture_loudness(bin: u32) -> f32 {
+        let mut value = bin.wrapping_add(1).wrapping_mul(0x9e37_79b9);
+        value ^= value >> 16;
+        value = value.wrapping_mul(0x85eb_ca6b);
+        value ^= value >> 13;
+        ((value % 127) + 1) as f32 / 256.0
+    }
+
+    /// Retain one tiny real camera through the production media/authoring route.
+    /// `editor`, `path`, `event_offset` and `cancel` select new bytes; returns its composition.
+    fn fixture_camera(
+        editor: &mut DocumentEditor,
+        path: &std::path::Path,
+        event_offset: u32,
+        cancel: &Cancellation,
+    ) -> Result<Uuid, Box<dyn std::error::Error>> {
+        use editbay_core::{FrameRate, sequence_from_video_with_audio};
+        use editbay_media::{LosslessMovProfile, LosslessMovWriter, SourceFile, StreamType};
+        let rate = FrameRate::new(24, 1)?;
+        let profile = LosslessMovProfile {
+            width: 8,
+            height: 8,
+            frame_rate: rate,
+            first_frame: 0,
+            frames: 32,
+            sample_rate: 48_000,
+            channels: vec!["FC".into()],
+        };
+        let file = std::fs::OpenOptions::new()
+            .create_new(true)
+            .read(true)
+            .write(true)
+            .open(path)?;
+        let mut writer = LosslessMovWriter::new(&file, profile.clone(), cancel.clone())?;
+        let pixels = [48, 96, 144, 255].repeat(64);
+        let mut first = 0;
+        for frame in 0..profile.frames {
+            writer.picture(frame, &pixels)?;
+            let end = profile.samples_through(frame + 1)?;
+            let samples: Vec<_> = (first..end)
+                .map(|sample| {
+                    let amplitude = fixture_loudness((sample / 240) as u32 + event_offset);
+                    if sample % 2 == 0 {
+                        amplitude
+                    } else {
+                        -amplitude
+                    }
+                })
+                .collect();
+            writer.sound(first, &samples)?;
+            first = end;
+        }
+        writer.finish()?;
+        file.sync_all()?;
+        let source = SourceFile::open(path, cancel)?;
+        let probe = source.probe(cancel.clone())?;
+        let video = probe
+            .streams
+            .iter()
+            .find(|stream| stream.kind == StreamType::Video)
+            .ok_or("camera picture missing")?
+            .index;
+        let audio = probe
+            .streams
+            .iter()
+            .find(|stream| stream.kind == StreamType::Audio)
+            .ok_or("camera sound missing")?
+            .index;
+        let ingested = source.ingest(
+            "Analytic camera".into(),
+            &[video, audio],
+            cancel.clone(),
+            |_, _| {},
+        )?;
+        apply(editor, "Retain camera", &ingested.commands(), cancel)?;
+        let commands = sequence_from_video_with_audio(
+            editor.project(),
+            ingested.source.id,
+            video,
+            audio,
+            rate,
+        )?;
+        let composition = commands
+            .iter()
+            .find_map(|command| match command {
+                DocumentCommand::SetComposition { composition }
+                    if composition.picture.is_some() =>
+                {
+                    Some(composition.id)
+                }
+                _ => None,
+            })
+            .ok_or("camera composition missing")?;
+        apply(editor, "Author linked camera", &commands, cancel)?;
+        source.verify(cancel)?;
+        Ok(composition)
+    }
+
+    #[test]
+    fn craft_video_real_camera_audio_decodes_syncs_and_reopens_without_a_device()
+    -> Result<(), Box<dyn std::error::Error>> {
+        let requested = std::env::var_os("EDITBAY_WORKFLOW_RECEIPTS_DIR").map(PathBuf::from);
+        let root = requested
+            .clone()
+            .unwrap_or_else(|| PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../artifacts"));
+        std::fs::create_dir_all(&root)?;
+        let root = root.canonicalize()?;
+        assert!(root.starts_with("/home"));
+        let mut temporary = Some(
+            tempfile::Builder::new()
+                .prefix("multicam-audio-")
+                .tempdir_in(&root)?,
+        );
+        let directory = if requested.is_some() {
+            temporary.take().unwrap().keep()
+        } else {
+            temporary.as_ref().unwrap().path().to_path_buf()
+        };
+        let cancel = Cancellation::new()?;
+        let mut editor = DocumentEditor::new(Project::new("Actual camera audio sync")?)?;
+        let a = fixture_camera(&mut editor, &directory.join("camera-a.mov"), 0, &cancel)?;
+        let b = fixture_camera(&mut editor, &directory.join("camera-b.mov"), 25, &cancel)?;
+        let snapshot = Arc::new(EvaluationSnapshot::new(editor.snapshot())?);
+        let cache = directory.join("pcm");
+        std::fs::create_dir(&cache)?;
+        let (reference, mut a_renderer) = decode_envelope(snapshot.clone(), a, 2, &cache, &cancel)?;
+        let (candidate, mut b_renderer) = decode_envelope(snapshot, b, 2, &cache, &cancel)?;
+        assert_eq!(reference.len(), 266);
+        assert_eq!(candidate.len(), 266);
+        for (offset, envelope) in [(0, &reference), (25, &candidate)] {
+            for (bin, actual) in envelope.iter().enumerate() {
+                assert!(
+                    (actual - fixture_loudness(bin as u32 + offset)).abs() <= 1.0e-6,
+                    "camera offset {offset}, bin {bin}: {actual}"
+                );
+            }
+        }
+        let options = AudioSyncOptions {
+            sample_rate: 200,
+            max_offset_samples: 40,
+            min_overlap_samples: 64,
+            min_correlation: 0.85,
+            min_separation: 0.02,
+        };
+        let sync = correlate_audio(&reference, &candidate, options)?;
+        assert_eq!(sync.lag_samples(), -25);
+        assert!(sync.correlation() > 0.999_999);
+        let mut session = MulticamSession::new(editor.project(), "Audio aligned", &[a, b])?;
+        let reference_angle = session.angles[0].id;
+        let candidate_angle = session.angles[1].id;
+        session.sync_audio_offset(editor.project(), reference_angle, candidate_angle, sync)?;
+        assert_eq!(session.angles[1].offset, SourcePosition::new(3, 1)?);
+        apply(
+            &mut editor,
+            "Sync decoded camera audio",
+            &[DocumentCommand::SetMulticamSession {
+                session: session.clone(),
+            }],
+            &cancel,
+        )?;
+        editor.undo(DocumentVersion::of(editor.project()))?;
+        assert!(editor.project().multicam.is_empty());
+        editor.redo(DocumentVersion::of(editor.project()))?;
+        let project_file = directory.join("synced.editbay");
+        editbay_core::save_new(editor.project(), &project_file)?;
+        assert_eq!(editbay_core::load(&project_file)?, *editor.project());
+        a_renderer.verify_sources()?;
+        b_renderer.verify_sources()?;
+        cancel.cancel();
+        assert!(
+            decode_envelope(
+                Arc::new(EvaluationSnapshot::new(editor.snapshot())?),
+                a,
+                2,
+                &cache,
+                &cancel
+            )
+            .is_err()
+        );
+        let receipt = serde_json::json!({
+            "schema":"editbay.multicam.audio-sync.v1", "status":"passed", "license":"MIT analytic fixture",
+            "inputs":editor.project().sources, "reference_envelope":reference, "candidate_envelope":candidate,
+            "envelope_rate":200, "expected_lag_bins":-25, "actual_lag_bins":sync.lag_samples(),
+            "correlation":sync.correlation(), "separation":sync.separation(), "camera_offset_frames":session.angles[1].offset,
+            "save_reopen":true, "undo_redo":true, "cancel_rejected":true,
+            "proof_boundary":"Software native encode/decode and independent analytic loudness/offset oracle; no sound device or physical timing"
+        });
+        std::fs::write(
+            directory.join("audio-sync.json"),
+            serde_json::to_vec_pretty(&receipt)?,
+        )?;
+        Ok(())
+    }
 
     #[test]
     fn craft_video_markers_keep_fractions_and_reject_invalid_scales() {
