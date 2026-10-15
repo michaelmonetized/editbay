@@ -15,6 +15,7 @@ name = "editbay-install"
 path = "src/install.rs"
 
 [dependencies]
+editbay-interchange = { path = "../editbay-interchange" }
 editbay-audio = { path = "../editbay-audio" }
 editbay-core = { path = "../editbay-core" }
 editbay-media = { path = "../editbay-media" }

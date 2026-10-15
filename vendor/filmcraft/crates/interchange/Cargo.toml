@@ -1,0 +1,18 @@
+[package]
+name = "filmcraft-interchange"
+version = "0.8.0"
+edition = "2024"
+rust-version = "1.95"
+license = "MIT"
+
+[dependencies]
+filmcraft-time = { path = "../time" }
+filmcraft-geom = { path = "../geom" }
+filmcraft-color = { path = "../color" }
+filmcraft-media = { path = "../media" }
+filmcraft-project = { path = "../project" }
+filmcraft-cfb = { path = "../cfb" }
+serde = { version = "1", features = ["derive", "rc"] }
+serde_json = "1"
+thiserror = "2"
+roxmltree = "0.21"

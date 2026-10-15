@@ -1,7 +1,7 @@
 [workspace]
-exclude = ["vendor/cpal"]
-members = ["crates/editbay-core", "crates/editbay-cli", "crates/editbay-media", "crates/editbay-render", "crates/editbay-audio", "crates/editbay-delivery", "crates/editbay-lab", "crates/editbay-ai", "crates/editbay-reference", "crates/editbay-automation", "crates/editbay-app", "vendor/eframe", "vendor/egui-winit"]
-default-members = ["crates/editbay-core", "crates/editbay-cli", "crates/editbay-media", "crates/editbay-render", "crates/editbay-audio", "crates/editbay-delivery", "crates/editbay-lab", "crates/editbay-ai", "crates/editbay-reference", "crates/editbay-automation", "crates/editbay-app"]
+exclude = ["vendor/cpal", "vendor/filmcraft"]
+members = ["crates/editbay-interchange", "crates/editbay-core", "crates/editbay-cli", "crates/editbay-media", "crates/editbay-render", "crates/editbay-audio", "crates/editbay-delivery", "crates/editbay-lab", "crates/editbay-ai", "crates/editbay-reference", "crates/editbay-automation", "crates/editbay-app", "vendor/eframe", "vendor/egui-winit"]
+default-members = ["crates/editbay-interchange", "crates/editbay-core", "crates/editbay-cli", "crates/editbay-media", "crates/editbay-render", "crates/editbay-audio", "crates/editbay-delivery", "crates/editbay-lab", "crates/editbay-ai", "crates/editbay-reference", "crates/editbay-automation", "crates/editbay-app"]
 resolver = "3"
 
 [workspace.package]

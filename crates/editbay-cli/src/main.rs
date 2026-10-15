@@ -10,6 +10,8 @@ use std::{
     path::Path,
     process::ExitCode,
 };
+mod captions;
+mod exchange;
 mod job;
 
 #[derive(serde::Deserialize)]
@@ -22,6 +24,11 @@ struct TimelineRequest {
 const HELP: &str = "EditBay native media editor
 
 Usage:
+  editbay exchange-import SOURCE NEW_PROJECT FORMAT [OPTIONS_JSON]
+  editbay exchange-export FILE COMPOSITION_ID NEW_FILE FORMAT
+  editbay relink FILE ASSET_ID MOVED_ORIGINAL
+  editbay captions-import FILE COMPOSITION_ID SOURCE_SRT_OR_VTT
+  editbay captions-export FILE TRACK_ID NEW_SRT_OR_VTT
   editbay new FILE NAME
   editbay info FILE
   editbay rename FILE NAME
@@ -171,6 +178,8 @@ fn run(args: &[OsString]) -> Result<(), Box<dyn std::error::Error>> {
         .and_then(|arg| arg.to_str())
         .unwrap_or("--help");
     match (command, args.len()) {
+        ("captions-import" | "captions-export", 4) => captions::run(args)?,
+        ("exchange-import", 4 | 5) | ("exchange-export", 5) | ("relink", 4) => exchange::run(args)?,
         ("build-job", 3) => print(job::build(Path::new(&args[1]), Path::new(&args[2]))?)?,
         ("archive", 3) => print(
             serde_json::json!({"project": editbay_core::archive_project(&load(Path::new(&args[1]))?, Path::new(&args[2]))?}),

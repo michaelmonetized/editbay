@@ -33,17 +33,57 @@ impl DocumentVersion {
 #[cfg_attr(feature = "json-schema", derive(schemars::JsonSchema))]
 #[serde(tag = "kind", rename_all = "snake_case", deny_unknown_fields)]
 pub enum DocumentCommand {
-    RenameProject { name: String },
-    SetSequence { sequence: Sequence },
-    SetPrimarySequence { id: Uuid },
-    RemoveSequence { id: Uuid },
-    SetAsset { asset: AssetReference },
-    RemoveAsset { id: Uuid },
-    SetSource { source: MediaSource },
-    RemoveSource { id: Uuid },
-    SetComposition { composition: Composition },
-    RemoveComposition { id: Uuid },
-    SetColor { configuration: ColorConfiguration },
+    RenameProject {
+        name: String,
+    },
+    SetSequence {
+        sequence: Sequence,
+    },
+    SetPrimarySequence {
+        id: Uuid,
+    },
+    RemoveSequence {
+        id: Uuid,
+    },
+    SetAsset {
+        asset: AssetReference,
+    },
+    RemoveAsset {
+        id: Uuid,
+    },
+    SetSource {
+        source: MediaSource,
+    },
+    RemoveSource {
+        id: Uuid,
+    },
+    SetComposition {
+        composition: Composition,
+    },
+    RemoveComposition {
+        id: Uuid,
+    },
+    SetColor {
+        configuration: ColorConfiguration,
+    },
+    SetMulticamSession {
+        session: crate::multicam::MulticamSession,
+    },
+    RemoveMulticamSession {
+        id: Uuid,
+    },
+    SetCaptionTrack {
+        track: crate::captions::CaptionTrack,
+    },
+    RemoveCaptionTrack {
+        id: Uuid,
+    },
+    SetTransition {
+        transition: crate::EditorialTransition,
+    },
+    RemoveTransition {
+        id: Uuid,
+    },
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
@@ -71,6 +111,12 @@ impl DocumentCommand {
             "set_composition",
             "remove_composition",
             "set_color",
+            "set_multicam_session",
+            "remove_multicam_session",
+            "set_caption_track",
+            "remove_caption_track",
+            "set_transition",
+            "remove_transition",
         ]
     }
 
@@ -97,6 +143,58 @@ impl DocumentCommand {
             }
             Self::RemoveComposition { id } => remove(&mut project.compositions, *id)?,
             Self::SetColor { configuration } => project.color = *configuration,
+            Self::SetMulticamSession { session } => {
+                let composition = crate::multicam::compile(project, session)?;
+                set(&mut project.compositions, composition);
+                set(&mut project.multicam, session.clone());
+                let snapshot = Arc::new(crate::EvaluationSnapshot::new(Arc::new(project.clone()))?);
+                crate::SoundSnapshot::at_output_rate(
+                    snapshot,
+                    session.composition,
+                    48_000,
+                    crate::SoundBudget::default(),
+                )
+                .map_err(|error| Error::Invalid(format!(
+                    "Multicam audio requires matching channel identities; select a fixed audio camera or conform its routing: {error}"
+                )))?;
+            }
+            Self::RemoveMulticamSession { id } => remove(&mut project.multicam, *id)?,
+            Self::SetCaptionTrack { track } => set(&mut project.captions, track.clone()),
+            Self::RemoveCaptionTrack { id } => remove(&mut project.captions, *id)?,
+            Self::SetTransition { transition } => {
+                let previous = project
+                    .transitions
+                    .iter()
+                    .find(|t| t.id == transition.id)
+                    .map(|t| t.composition);
+                set(&mut project.transitions, transition.clone());
+                for composition in [previous, Some(transition.composition)]
+                    .into_iter()
+                    .flatten()
+                {
+                    let scene = project
+                        .compositions
+                        .iter_mut()
+                        .find(|c| c.id == composition)
+                        .ok_or_else(|| Error::Invalid("Transition composition is absent".into()))?;
+                    crate::editorial::rebuild_editorial(scene, &project.transitions)?;
+                }
+            }
+            Self::RemoveTransition { id } => {
+                let composition = project
+                    .transitions
+                    .iter()
+                    .find(|t| t.id == *id)
+                    .ok_or_else(|| Error::Invalid("Transition is absent".into()))?
+                    .composition;
+                remove(&mut project.transitions, *id)?;
+                let scene = project
+                    .compositions
+                    .iter_mut()
+                    .find(|c| c.id == composition)
+                    .ok_or_else(|| Error::Invalid("Transition composition is absent".into()))?;
+                crate::editorial::rebuild_editorial(scene, &project.transitions)?;
+            }
         }
         project.validate()
     }
@@ -119,6 +217,21 @@ pub struct CommandReceipt {
 
 trait Identified {
     fn id(&self) -> Uuid;
+}
+impl Identified for crate::multicam::MulticamSession {
+    fn id(&self) -> Uuid {
+        self.id
+    }
+}
+impl Identified for crate::captions::CaptionTrack {
+    fn id(&self) -> Uuid {
+        self.id
+    }
+}
+impl Identified for crate::EditorialTransition {
+    fn id(&self) -> Uuid {
+        self.id
+    }
 }
 impl Identified for Sequence {
     fn id(&self) -> Uuid {
@@ -223,6 +336,9 @@ struct GroupChange {
     assets: Vec<Delta<AssetReference>>,
     sources: Vec<Delta<MediaSource>>,
     compositions: Vec<Delta<Composition>>,
+    transitions: Vec<Delta<crate::EditorialTransition>>,
+    captions: Vec<Delta<crate::captions::CaptionTrack>>,
+    multicam: Vec<Delta<crate::multicam::MulticamSession>>,
     impact: ChangeImpact,
     label: String,
     bytes: usize,
@@ -237,6 +353,9 @@ impl GroupChange {
             assets: differences(&before.assets, &after.assets),
             sources: differences(&before.sources, &after.sources),
             compositions: differences(&before.compositions, &after.compositions),
+            transitions: differences(&before.transitions, &after.transitions),
+            captions: differences(&before.captions, &after.captions),
+            multicam: differences(&before.multicam, &after.multicam),
             impact: ChangeImpact::default(),
             label,
             bytes: 0,
@@ -262,6 +381,9 @@ impl GroupChange {
         restore(&mut project.assets, &self.assets, forward);
         restore(&mut project.sources, &self.sources, forward);
         restore(&mut project.compositions, &self.compositions, forward);
+        restore(&mut project.transitions, &self.transitions, forward);
+        restore(&mut project.captions, &self.captions, forward);
+        restore(&mut project.multicam, &self.multicam, forward);
     }
 
     fn impact_for(&self, before: &Project, after: &Project) -> ChangeImpact {
@@ -280,6 +402,7 @@ impl GroupChange {
         let mut affected: BTreeSet<_> = self.compositions.iter().map(|delta| delta.id).collect();
         for composition in &all_compositions {
             if self.color.is_some()
+                || before.captions.iter().chain(&after.captions).any(|t|t.composition==composition.id && t.style.font.is_some_and(|font|assets.contains(&font)))
                 || composition.tracks.iter().flat_map(|track| &track.clips).any(|clip| matches!(clip.source, ClipSource::Media { source, .. } if sources.contains(&source)))
                 || composition.nodes.iter().any(|node| matches!(node.operation, crate::NodeOperation::MaskAsset { asset } | crate::NodeOperation::Text { font: asset, .. } if assets.contains(&asset))) {
                 affected.insert(composition.id);
@@ -291,6 +414,20 @@ impl GroupChange {
                 if let ClipSource::Composition { composition: child } = clip.source {
                     parents.entry(child).or_default().push(composition.id);
                 }
+            }
+        }
+        for track in before.captions.iter().chain(&after.captions) {
+            if self.captions.iter().any(|delta| delta.id == track.id) {
+                affected.insert(track.composition);
+            }
+        }
+        for transition in before.transitions.iter().chain(&after.transitions) {
+            if self
+                .transitions
+                .iter()
+                .any(|delta| delta.id == transition.id)
+            {
+                affected.insert(transition.composition);
             }
         }
         let mut pending: Vec<_> = affected.iter().copied().collect();
@@ -306,6 +443,9 @@ impl GroupChange {
             .chain(sources)
             .chain(self.sequences.iter().map(|delta| delta.id))
             .chain(self.compositions.iter().map(|delta| delta.id))
+            .chain(self.transitions.iter().map(|delta| delta.id))
+            .chain(self.captions.iter().map(|delta| delta.id))
+            .chain(self.multicam.iter().map(|delta| delta.id))
             .collect();
         if self.name.is_some() || self.color.is_some() {
             entities.insert(before.id);

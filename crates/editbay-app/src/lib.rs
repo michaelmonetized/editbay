@@ -3,16 +3,19 @@
 pub mod brand;
 pub mod brand_ui;
 pub mod catalog;
+pub mod color_ui;
 pub mod delivery_ui;
 pub mod diagnostics;
 pub mod keyboard_ui;
 pub mod media_ui;
+pub mod multicam_ui;
 pub mod panel_keyboard;
 pub mod preferences;
 pub mod preview;
 pub mod studio;
 pub mod theme;
 pub mod timeline_ui;
+pub mod workflow_ui;
 pub mod workspace;
 
 #[path = "../../../vendor/oma-ui/fields.rs"]
