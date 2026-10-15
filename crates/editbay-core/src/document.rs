@@ -152,14 +152,13 @@ impl Project {
             if !identities.insert(track.id) || track.cues.iter().any(|c| !identities.insert(c.id)) {
                 return Err(Error::Invalid("Duplicate caption identity".into()));
             }
-            if let Some(font) = track.style.font {
-                if !self
+            if let Some(font) = track.style.font
+                && !self
                     .assets
                     .iter()
                     .any(|a| a.id == font && a.kind == crate::AssetKind::Font)
-                {
-                    return Err(Error::Invalid("Caption font is absent".into()));
-                }
+            {
+                return Err(Error::Invalid("Caption font is absent".into()));
             }
         }
         for transition in &self.transitions {
