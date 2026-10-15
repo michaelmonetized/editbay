@@ -18,6 +18,9 @@ use std::{
 };
 use uuid::Uuid;
 
+#[path = "timeline_keyboard.rs"]
+mod keyboard;
+
 struct Assembly {
     composition: Uuid,
     clips: Vec<TimelineClip>,
@@ -637,6 +640,23 @@ impl TimelinePane {
             })
             .collect();
         if scenes.is_empty() {
+            ui.heading("Timeline");
+            ui.weak(
+                "Create an empty sequence to author titles, or import media in the Media panel.",
+            );
+            if ui
+                .add_enabled_ui(interactive && self.task.is_none(), |ui| {
+                    crate::keyboard_ui::button(ui, ("empty-sequence", tab), "Create empty sequence")
+                })
+                .inner
+                .clicked()
+                && let Err(error) = self.create_empty(workspace, tab)
+            {
+                self.error = Some(error);
+            }
+            if let Some(error) = &self.error {
+                ui.colored_label(ui.visuals().error_fg_color, error);
+            }
             return;
         }
         let catalog = self.catalog.as_ref().unwrap();
@@ -679,7 +699,13 @@ impl TimelinePane {
         let shortcut = |key| {
             interactive
                 && !busy
-                && !ui.ctx().text_edit_focused()
+                && ui.ctx().memory(|memory| {
+                    memory.focused().is_none()
+                        || memory.focused()
+                            == selected
+                                .record
+                                .map(|composition| egui::Id::new(("timeline-content", composition)))
+                })
                 && ui.input_mut(|i| i.consume_key(egui::Modifiers::NONE, key))
         };
         let mark_in = shortcut(egui::Key::I);
@@ -694,20 +720,16 @@ impl TimelinePane {
             ui.horizontal_wrapped(|ui| {
                 ui.label("Source");
                 let before = selected.source;
-                egui::ComboBox::from_id_salt(("timeline-source", tab))
-                    .selected_text(
-                        scenes
-                            .iter()
-                            .find(|s| Some(s.id) == selected.source)
-                            .unwrap()
-                            .name
-                            .clone(),
-                    )
-                    .show_ui(ui, |ui| {
-                        for scene in &scenes {
-                            ui.selectable_value(&mut selected.source, Some(scene.id), &scene.name);
-                        }
-                    });
+                crate::keyboard_ui::choice(
+                    ui,
+                    ("timeline-source", tab),
+                    "Source sequence",
+                    &mut selected.source,
+                    &scenes
+                        .iter()
+                        .map(|scene| (Some(scene.id), scene.name.clone()))
+                        .collect::<Vec<_>>(),
+                );
                 let source = scenes
                     .iter()
                     .find(|s| Some(s.id) == selected.source)
@@ -791,47 +813,9 @@ impl TimelinePane {
                 );
             });
             ui.collapsing("Titles and fades", |ui| {
-                ui.label("Editable title · ASCII text · retained font");
-                ui.text_edit_multiline(&mut selected.title);
-                ui.horizontal_wrapped(|ui| {
-                    ui.label("Font file");
-                    let mut path = selected.font.to_string_lossy().into_owned();
-                    if ui.text_edit_singleline(&mut path).changed() {
-                        selected.font = path.into();
-                    }
-                    ui.label("Size");
-                    ui.add(egui::DragValue::new(&mut selected.size).range(1. ..=512.));
-                    ui.label("Baseline X / Y");
-                    for value in &mut selected.baseline {
-                        ui.add(egui::DragValue::new(value));
-                    }
-                    ui.label("Frames");
-                    ui.add(egui::DragValue::new(&mut selected.title_duration).range(1..=u64::MAX));
-                    if ui.button("Create title source").clicked() {
-                        action = Some(TimelineAction::Title {
-                            profile: selected.record.unwrap_or(source.id),
-                            name: selected.name.clone(),
-                            text: selected.title.clone(),
-                            font: selected.font.clone(),
-                            size: selected.size,
-                            position: selected.baseline,
-                            rgba: [1.; 4],
-                            duration: selected.title_duration,
-                        });
-                    }
-                    if source.nodes.iter().any(|node| {
-                        matches!(node.operation, editbay_core::NodeOperation::Text { .. })
-                    }) && ui.button("Update selected title").clicked()
-                    {
-                        action = Some(TimelineAction::EditTitle {
-                            composition: source.id,
-                            text: selected.title.clone(),
-                            size: selected.size,
-                            position: selected.baseline,
-                            rgba: [1.; 4],
-                        });
-                    }
-                });
+                if let Some(title) = keyboard::title_controls(ui, selected, source, tab) {
+                    action = Some(title);
+                }
                 ui.horizontal_wrapped(|ui| {
                     ui.label("Picture and sound fade in / out frames");
                     ui.add(egui::DragValue::new(&mut selected.fade_in).range(0..=source.duration));
@@ -851,8 +835,13 @@ impl TimelinePane {
                 range: selected.source_range,
             };
             ui.horizontal_wrapped(|ui| {
-                let name =
-                    ui.add(egui::TextEdit::singleline(&mut selected.name).desired_width(130.));
+                let name = crate::keyboard_ui::text(
+                    ui,
+                    ("timeline-name", tab),
+                    "Cut name",
+                    &mut selected.name,
+                    false,
+                );
                 preview.observe_control("timeline-name", &name, ui);
                 if button(ui, preview, "timeline-create", "Create cut") {
                     action = Some(TimelineAction::Create {
@@ -884,31 +873,30 @@ impl TimelinePane {
                             ),
                         });
                     }
-                    egui::ComboBox::from_id_salt(("timeline-record", tab))
-                        .selected_text(
-                            scenes
-                                .iter()
-                                .find(|s| s.id == composition)
-                                .map_or("Record", |s| s.name.as_str()),
-                        )
-                        .show_ui(ui, |ui| {
-                            for assembly in &catalog.assemblies {
-                                let name = scenes
-                                    .iter()
-                                    .find(|s| s.id == assembly.composition)
-                                    .map_or("Record", |s| s.name.as_str());
-                                if ui
-                                    .selectable_value(
-                                        &mut selected.record,
-                                        Some(assembly.composition),
-                                        name,
-                                    )
-                                    .changed()
-                                {
-                                    selected.clip = None;
-                                }
-                            }
-                        });
+                    crate::keyboard_ui::choice(
+                        ui,
+                        ("timeline-record", tab),
+                        "Record sequence",
+                        &mut selected.record,
+                        &catalog
+                            .assemblies
+                            .iter()
+                            .map(|assembly| {
+                                (
+                                    Some(assembly.composition),
+                                    scenes
+                                        .iter()
+                                        .find(|scene| scene.id == assembly.composition)
+                                        .map_or("Record", |scene| scene.name.as_str())
+                                        .to_string(),
+                                )
+                            })
+                            .collect::<Vec<_>>(),
+                    );
+                    if selected.record != Some(composition) {
+                        selected.clip = None;
+                        selected.multiple.clear();
+                    }
                 }
             });
             let Some(composition) = selected.record else {
@@ -930,25 +918,18 @@ impl TimelinePane {
                 selected.track = Some(scene.tracks[0].id);
             }
             ui.horizontal_wrapped(|ui| {
-                egui::ComboBox::from_id_salt("record-track")
-                    .selected_text(
-                        scene
-                            .tracks
-                            .iter()
-                            .find(|track| Some(track.id) == selected.track)
-                            .unwrap()
-                            .name
-                            .clone(),
-                    )
-                    .show_ui(ui, |ui| {
-                        for track in scene
-                            .tracks
-                            .iter()
-                            .filter(|track| track.kind == editbay_core::TrackKind::Video)
-                        {
-                            ui.selectable_value(&mut selected.track, Some(track.id), &track.name);
-                        }
-                    });
+                crate::keyboard_ui::choice(
+                    ui,
+                    ("record-track", tab),
+                    "Target track",
+                    &mut selected.track,
+                    &scene
+                        .tracks
+                        .iter()
+                        .filter(|track| track.kind == editbay_core::TrackKind::Video)
+                        .map(|track| (Some(track.id), track.name.clone()))
+                        .collect::<Vec<_>>(),
+                );
                 if button(ui, preview, "timeline-add-track", "Add track pair") {
                     action = Some(TimelineAction::AddTrack {
                         composition,
@@ -1084,7 +1065,48 @@ impl TimelinePane {
                     finish_gesture |= change.finished;
                 }
             }
-            if !ui.ctx().text_edit_focused()
+            let clip_focused = keyboard::select_clips(ui, preview, selected, scene, assembly, tab)
+                || ui.memory(|memory| {
+                    memory.has_focus(egui::Id::new(("timeline-content", composition)))
+                });
+            if clip_focused && interactive && !busy && !ui.ctx().text_edit_focused() {
+                if ui.input_mut(|input| input.consume_key(egui::Modifiers::NONE, egui::Key::E)) {
+                    action = Some(TimelineAction::Insert {
+                        composition,
+                        at: end,
+                        source,
+                    });
+                } else if ui
+                    .input_mut(|input| input.consume_key(egui::Modifiers::NONE, egui::Key::W))
+                {
+                    action = Some(TimelineAction::Insert {
+                        composition,
+                        at: selected.at,
+                        source,
+                    });
+                } else if let Some(clip) = selected.clip {
+                    if ui.input_mut(|input| input.consume_key(egui::Modifiers::NONE, egui::Key::S))
+                    {
+                        action = Some(TimelineAction::Split {
+                            composition,
+                            clip,
+                            at: selected.at,
+                        });
+                    } else if ui.input_mut(|input| {
+                        input.consume_key(egui::Modifiers::NONE, egui::Key::Delete)
+                    }) {
+                        action = Some(TimelineAction::Remove {
+                            composition,
+                            clip,
+                            ripple: selected.ripple,
+                        });
+                    }
+                }
+            }
+            if interactive
+                && !busy
+                && !ui.ctx().text_edit_focused()
+                && (clip_focused || ui.ctx().memory(|memory| memory.focused().is_none()))
                 && let Some(clip) = assembly.clips.iter().find(|c| Some(c.id) == selected.clip)
             {
                 let modifiers = ui.input(|i| i.modifiers);
@@ -1119,61 +1141,6 @@ impl TimelinePane {
                     finish_gesture = true;
                 }
             }
-            egui::ScrollArea::vertical()
-                .id_salt("linked-clips")
-                .max_height(112.)
-                .show(ui, |ui| {
-                    if assembly.clips.is_empty() {
-                        ui.weak("Empty cut. Append a source range to begin.");
-                    }
-                    for clip in &assembly.clips {
-                        let response = ui.selectable_label(
-                            selected.clip == Some(clip.id),
-                            format!(
-                                "{} {}  {}–{}  ← {}–{}  {}",
-                                scene
-                                    .tracks
-                                    .iter()
-                                    .find(|track| track.id == clip.track)
-                                    .unwrap()
-                                    .name,
-                                if clip.linked.is_some() {
-                                    "+ A1 🔗"
-                                } else {
-                                    ""
-                                },
-                                clip.range.start,
-                                clip.range.end,
-                                clip.source.range.start,
-                                clip.source.range.end,
-                                clip.name
-                            ),
-                        );
-                        preview.observe_control(
-                            &format!("timeline-clip:{}", clip.id),
-                            &response,
-                            ui,
-                        );
-                        if response.clicked() {
-                            if ui.input(|i| i.modifiers.command || i.modifiers.ctrl) {
-                                if selected.multiple.is_empty() {
-                                    selected.multiple.extend(selected.clip);
-                                }
-                                if selected.multiple.contains(&clip.id) {
-                                    selected.multiple.retain(|id| *id != clip.id);
-                                } else {
-                                    selected.multiple.push(clip.id);
-                                }
-                            } else {
-                                selected.multiple.clear();
-                            }
-                            selected.clip = Some(clip.id);
-                            selected.trim_range = clip.source.range;
-                            selected.at = clip.range.start;
-                            selected.controls = clip.controls;
-                        }
-                    }
-                });
             if let Some(clip) = assembly
                 .clips
                 .iter()
@@ -1633,7 +1600,7 @@ fn patch_controls(
 }
 
 fn button(ui: &mut Ui, preview: &mut PreviewPane, name: &str, label: &str) -> bool {
-    let response = ui.add(egui::Button::new(label).wrap_mode(egui::TextWrapMode::Extend));
+    let response = crate::keyboard_ui::button(ui, name, label);
     preview.observe_control(name, &response, ui);
     response.clicked()
 }
@@ -1645,8 +1612,17 @@ fn frame_input(
     value: &mut u64,
     end: u64,
 ) {
-    ui.add(egui::Label::new(label).wrap_mode(egui::TextWrapMode::Extend));
-    let response = ui.add(egui::DragValue::new(value).range(0..=end));
+    let response = fields::number(
+        ui,
+        name,
+        label,
+        value,
+        0..=end,
+        " frames",
+        None,
+        FieldState::default(),
+    )
+    .response;
     preview.observe_control(name, &response, ui);
 }
 
