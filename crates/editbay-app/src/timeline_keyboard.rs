@@ -399,17 +399,7 @@ mod tests {
             self.pane
                 .poll(&mut self.workspace, &mut self.preview, true, &self.ctx);
             let project = self.workspace.tabs[0].editor.snapshot();
-            let modifiers = events
-                .iter()
-                .rev()
-                .find_map(|event| {
-                    if let egui::Event::Key { modifiers, .. } = event {
-                        Some(*modifiers)
-                    } else {
-                        None
-                    }
-                })
-                .unwrap_or_default();
+            let events = crate::keyboard_ui::with_native_modifiers(events);
             let output = self.ctx.run_ui(
                 egui::RawInput {
                     screen_rect: Some(egui::Rect::from_min_size(
@@ -417,7 +407,6 @@ mod tests {
                         egui::vec2(1200., 3000.),
                     )),
                     events,
-                    modifiers,
                     ..Default::default()
                 },
                 |ui| {

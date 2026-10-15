@@ -805,10 +805,11 @@ impl TimelinePane {
                     &mut selected.source_range.end,
                     source.duration,
                 );
-                source_valid = fields::number_is_valid(&source_in)
-                    && fields::number_is_valid(&source_out)
-                    && selected.source_range.start < selected.source_range.end;
-                if selected.source_range.start >= selected.source_range.end {
+                let numbers_valid =
+                    fields::number_is_valid(&source_in) && fields::number_is_valid(&source_out);
+                source_valid =
+                    numbers_valid && selected.source_range.start < selected.source_range.end;
+                if numbers_valid && selected.source_range.start >= selected.source_range.end {
                     field_error(ui, &source_out.response, "Out must follow In");
                 }
                 if enabled_button(
@@ -869,7 +870,9 @@ impl TimelinePane {
                         .fade_in
                         .checked_add(selected.fade_out)
                         .is_some_and(|total| total <= source.duration);
-                    if !fade_range_valid {
+                    let fade_numbers_valid =
+                        fields::number_is_valid(&fade_in) && fields::number_is_valid(&fade_out);
+                    if fade_numbers_valid && !fade_range_valid {
                         field_error(ui, &fade_out.response, "Fades must fit within the source");
                     }
                     if enabled_button(
@@ -877,9 +880,7 @@ impl TimelinePane {
                         preview,
                         "timeline-fade",
                         "Create faded source",
-                        fields::number_is_valid(&fade_in)
-                            && fields::number_is_valid(&fade_out)
-                            && fade_range_valid,
+                        fade_numbers_valid && fade_range_valid,
                     ) {
                         action = Some(TimelineAction::Fade {
                             source: source.id,
@@ -1297,10 +1298,11 @@ impl TimelinePane {
                         &mut selected.trim_range.end,
                         duration,
                     );
-                    let trim_valid = fields::number_is_valid(&trim_in)
-                        && fields::number_is_valid(&trim_out)
-                        && selected.trim_range.start < selected.trim_range.end;
-                    if selected.trim_range.start >= selected.trim_range.end {
+                    let trim_numbers_valid =
+                        fields::number_is_valid(&trim_in) && fields::number_is_valid(&trim_out);
+                    let trim_valid =
+                        trim_numbers_valid && selected.trim_range.start < selected.trim_range.end;
+                    if trim_numbers_valid && selected.trim_range.start >= selected.trim_range.end {
                         field_error(ui, &trim_out.response, "Out must follow In");
                     }
                     if enabled_button(ui, preview, "timeline-trim", "Apply trim", trim_valid) {

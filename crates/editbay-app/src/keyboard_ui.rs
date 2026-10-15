@@ -1,6 +1,20 @@
 //! Native keyboard controls retain the application's typed targets.
 use eframe::egui::{self, Response, Ui};
 
+/// Supply native modifier transitions for a headless key frame.
+/// Args: native events. Returns the same events with each key's modifier state.
+#[cfg(test)]
+pub(crate) fn with_native_modifiers(events: Vec<egui::Event>) -> Vec<egui::Event> {
+    let mut native = vec![egui::Event::ModifiersChanged(egui::Modifiers::NONE)];
+    for event in events {
+        if let egui::Event::Key { modifiers, .. } = &event {
+            native.push(egui::Event::ModifiersChanged(*modifiers));
+        }
+        native.push(event);
+    }
+    native
+}
+
 /// Associate one visible error with its actual native controls.
 /// Args: UI, rendered field responses and message. Returns no value.
 pub fn error(ui: &mut Ui, responses: &[Response], message: &str) {
