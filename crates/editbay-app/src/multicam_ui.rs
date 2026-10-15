@@ -121,7 +121,9 @@ impl MulticamPane {
             return;
         }
         match result.and_then(|done| {
-            workspace.commit_edit(owner, done.editor)?;
+            if DocumentVersion::of(done.editor.project()) != owner.version {
+                workspace.commit_edit(owner, done.editor)?;
+            }
             Ok((done.session, done.focus, done.message))
         }) {
             Ok((session, focus, message)) => {
@@ -424,30 +426,30 @@ impl MulticamPane {
                 ui.add(egui::DragValue::new(&mut self.audio_seconds).range(1..=30).suffix(" seconds"));
                 ui.label("Maximum offset");
                 ui.add(egui::DragValue::new(&mut self.audio_offset_seconds).range(1..=10).suffix(" seconds"));
-                if ui.add_enabled(self.audio_reference != self.audio_candidate, egui::Button::new("Sync decoded audio")).clicked() {
-                    if let (Some(reference), Some(candidate)) = (self.audio_reference, self.audio_candidate) {
-                        let next = session.clone();
-                        let seconds = self.audio_seconds;
-                        let max_offset = self.audio_offset_seconds;
-                        self.start(workspace, tab, ui.ctx(), move |mut editor, project, cancel| {
-                            let reference_composition = next.angle(reference).map_err(|error| error.to_string())?.composition;
-                            let candidate_composition = next.angle(candidate).map_err(|error| error.to_string())?.composition;
-                            let evaluation = Arc::new(EvaluationSnapshot::new(project.clone()).map_err(|error| error.to_string())?);
-                            let (a, mut a_renderer) = decode_envelope(evaluation.clone(), reference_composition, seconds, &cancel)?;
-                            let (b, mut b_renderer) = decode_envelope(evaluation, candidate_composition, seconds, &cancel)?;
-                            check(&cancel)?;
-                            let max_offset_samples = (max_offset * 200).min((a.len().min(b.len()) / 2).saturating_sub(1) as u32);
-                            let sync = correlate_audio(&a, &b, AudioSyncOptions { sample_rate: 200, max_offset_samples, min_overlap_samples: 64, min_correlation: 0.85, min_separation: 0.02 }).map_err(|error| error.to_string())?;
-                            a_renderer.verify_sources().map_err(|error| error.to_string())?;
-                            b_renderer.verify_sources().map_err(|error| error.to_string())?;
-                            check(&cancel)?;
-                            let message = format!("Audio aligned at lag {}/200 s · correlation {:.3} · separation {:.3} · searched ±{:.2} s", sync.lag_samples(), sync.correlation(), sync.separation(), f64::from(max_offset_samples) / 200.0);
-                            let mut next = next;
-                            next.sync_audio_offset(&project, reference, candidate, sync).map_err(|error| error.to_string())?;
-                            apply(&mut editor, "Sync multicam decoded audio", &[DocumentCommand::SetMulticamSession { session: next.clone() }], &cancel)?;
-                            Ok(Completion { editor, session: next.id, focus: Some((next.composition, 0)), message })
-                        });
-                    }
+                if ui.add_enabled(self.audio_reference != self.audio_candidate, egui::Button::new("Sync decoded audio")).clicked()
+                    && let (Some(reference), Some(candidate)) = (self.audio_reference, self.audio_candidate)
+                {
+                    let next = session.clone();
+                    let seconds = self.audio_seconds;
+                    let max_offset = self.audio_offset_seconds;
+                    self.start(workspace, tab, ui.ctx(), move |mut editor, project, cancel| {
+                        let reference_composition = next.angle(reference).map_err(|error| error.to_string())?.composition;
+                        let candidate_composition = next.angle(candidate).map_err(|error| error.to_string())?.composition;
+                        let evaluation = Arc::new(EvaluationSnapshot::new(project.clone()).map_err(|error| error.to_string())?);
+                        let (a, mut a_renderer) = decode_envelope(evaluation.clone(), reference_composition, seconds, &cancel)?;
+                        let (b, mut b_renderer) = decode_envelope(evaluation, candidate_composition, seconds, &cancel)?;
+                        check(&cancel)?;
+                        let max_offset_samples = (max_offset * 200).min((a.len().min(b.len()) / 2).saturating_sub(1) as u32);
+                        let sync = correlate_audio(&a, &b, AudioSyncOptions { sample_rate: 200, max_offset_samples, min_overlap_samples: 64, min_correlation: 0.85, min_separation: 0.02 }).map_err(|error| error.to_string())?;
+                        a_renderer.verify_sources().map_err(|error| error.to_string())?;
+                        b_renderer.verify_sources().map_err(|error| error.to_string())?;
+                        check(&cancel)?;
+                        let message = format!("Audio aligned at lag {}/200 s · correlation {:.3} · separation {:.3} · searched ±{:.2} s", sync.lag_samples(), sync.correlation(), sync.separation(), f64::from(max_offset_samples) / 200.0);
+                        let mut next = next;
+                        next.sync_audio_offset(&project, reference, candidate, sync).map_err(|error| error.to_string())?;
+                        apply(&mut editor, "Sync multicam decoded audio", &[DocumentCommand::SetMulticamSession { session: next.clone() }], &cancel)?;
+                        Ok(Completion { editor, session: next.id, focus: Some((next.composition, 0)), message })
+                    });
                 }
             });
             ui.weak("Audio is decoded in the background into a 200 Hz loudness envelope. Uncertain matches are rejected. No output device is opened.");
@@ -835,5 +837,146 @@ mod tests {
         assert_eq!(envelope, [0.75, 0.25]);
         assert!(append_envelope(&mut envelope, &[0.0; 239], 1).is_err());
         assert!(append_envelope(&mut envelope, &[f32::NAN; 240], 1).is_err());
+    }
+
+    #[test]
+    fn craft_video_multicam_completed_noop_preserves_revision_and_reports_success() {
+        let root = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../artifacts");
+        std::fs::create_dir_all(&root).unwrap();
+        let directory = tempfile::Builder::new()
+            .prefix("multicam-noop-cpu-")
+            .tempdir_in(root)
+            .unwrap();
+        let mut workspace =
+            Workspace::new(directory.path().join("recovery"), egui::Context::default());
+        let tab = workspace.create(Project::new("Original").unwrap()).unwrap();
+        let (owner, editor) = workspace.edit_snapshot(tab).unwrap();
+        let session = Uuid::new_v4();
+        let (sender, result) = mpsc::sync_channel(1);
+        let mut pane = MulticamPane {
+            task: Some(Task {
+                owner,
+                activation: workspace.activation_generation,
+                cancel: Cancellation::new().unwrap(),
+                result,
+                discarded: false,
+            }),
+            ..Default::default()
+        };
+        assert!(
+            sender
+                .send(Ok(Completion {
+                    editor,
+                    session,
+                    focus: None,
+                    message: "The selected camera is already active".into(),
+                }))
+                .is_ok()
+        );
+        pane.poll(&mut workspace, true);
+        assert!(pane.task.is_none());
+        assert_eq!(pane.selected, Some(session));
+        assert_eq!(
+            pane.status.as_deref(),
+            Some("The selected camera is already active")
+        );
+        assert!(workspace.owns(owner));
+        assert_eq!(
+            DocumentVersion::of(workspace.tabs[0].editor.project()),
+            owner.version
+        );
+    }
+
+    #[test]
+    fn craft_video_multicam_results_reject_changed_switched_hidden_cancelled_and_latched_owners() {
+        for change in 0..6 {
+            let root = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../artifacts");
+            std::fs::create_dir_all(&root).unwrap();
+            let directory = tempfile::Builder::new()
+                .prefix("multicam-owner-cpu-")
+                .tempdir_in(root)
+                .unwrap();
+            let mut workspace =
+                Workspace::new(directory.path().join("recovery"), egui::Context::default());
+            let tab = workspace.create(Project::new("Original").unwrap()).unwrap();
+            let (owner, mut editor) = workspace.edit_snapshot(tab).unwrap();
+            editor
+                .apply(
+                    owner.version,
+                    "Worker edit".into(),
+                    &[DocumentCommand::RenameProject {
+                        name: "Worker result".into(),
+                    }],
+                )
+                .unwrap();
+            let (sender, result) = mpsc::sync_channel(1);
+            let mut pane = MulticamPane {
+                task: Some(Task {
+                    owner,
+                    activation: workspace.activation_generation,
+                    cancel: Cancellation::new().unwrap(),
+                    result,
+                    discarded: false,
+                }),
+                ..Default::default()
+            };
+            match change {
+                1 => {
+                    workspace
+                        .apply(
+                            tab,
+                            owner.version,
+                            "New edit".into(),
+                            &[DocumentCommand::RenameProject {
+                                name: "Newer".into(),
+                            }],
+                        )
+                        .unwrap();
+                }
+                2 => {
+                    workspace
+                        .create(Project::new("Other tab").unwrap())
+                        .unwrap();
+                }
+                4 => pane.task.as_ref().unwrap().cancel.cancel(),
+                5 => {
+                    pane.poll(&mut workspace, false);
+                    assert!(pane.task.as_ref().unwrap().discarded);
+                }
+                _ => {}
+            }
+            assert!(
+                sender
+                    .send(Ok(Completion {
+                        editor,
+                        session: Uuid::new_v4(),
+                        focus: None,
+                        message: "Accepted worker edit".into()
+                    }))
+                    .is_ok()
+            );
+            pane.poll(&mut workspace, change != 3);
+            assert!(pane.task.is_none());
+            let original = workspace
+                .tabs
+                .iter()
+                .find(|candidate| candidate.id == tab)
+                .unwrap()
+                .editor
+                .project();
+            assert_eq!(
+                original.name,
+                match change {
+                    0 => "Worker result",
+                    1 => "Newer",
+                    _ => "Original",
+                }
+            );
+            if change == 0 {
+                assert_eq!(pane.status.as_deref(), Some("Accepted worker edit"));
+            } else {
+                assert!(pane.status.as_ref().unwrap().contains("discarded"));
+            }
+        }
     }
 }
