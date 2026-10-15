@@ -290,7 +290,8 @@ impl StoreReader {
                 .transpose()
                 .map_err(|e| Error::Invalid(e.to_string()))?
                 .unwrap_or(0.);
-            if record.offset != offset
+            if record.header.encoding != selected.encoding
+                || record.offset != offset
                 || record.header.width != selected.width
                 || record.header.height != selected.height
                 || record.header.tick != selected.tick

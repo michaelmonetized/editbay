@@ -22,6 +22,8 @@ unsafe extern "C" {
         error: *mut c_int,
     ) -> *mut c_void;
     fn eb_reader_close(reader: *mut c_void);
+    fn eb_reader_output(reader: *mut c_void, encoding: c_int) -> c_int;
+    fn eb_pixel_encoding(format: c_int) -> c_int;
     fn eb_reader_next(
         reader: *mut c_void,
         output: *mut u8,
@@ -164,6 +166,11 @@ pub(crate) struct RawFrame {
     pub color_range: i32,
     pub alpha_mode: i32,
     pub has_alpha: i32,
+    pub pixel_encoding: i32,
+}
+
+pub(crate) fn pixel_encoding(format: i32) -> Result<crate::PixelEncoding> {
+    crate::PixelEncoding::from_native(unsafe { eb_pixel_encoding(format) })
 }
 
 struct CancelInner(NonNull<c_void>);
@@ -329,6 +336,13 @@ pub(crate) struct Reader {
 }
 
 impl Reader {
+    pub(crate) fn output(&mut self, encoding: crate::PixelEncoding) -> Result<()> {
+        check(
+            unsafe { eb_reader_output(self.pointer.as_ptr(), encoding.native()) },
+            &self.cancel,
+        )?;
+        Ok(())
+    }
     pub(crate) fn open(path: &Path, audio: bool) -> Result<(Self, MediaInfo)> {
         let file = OpenOptions::new()
             .read(true)
@@ -505,6 +519,7 @@ impl LosslessMovWriter {
                 layout.as_ptr(),
                 match format {
                     crate::DeliveryFormat::LosslessMov => 0,
+                    crate::DeliveryFormat::Lossless16Mov => 3,
                     crate::DeliveryFormat::H264Mp4 => 1,
                     crate::DeliveryFormat::ProresMov => 2,
                 },
@@ -525,8 +540,9 @@ impl LosslessMovWriter {
         })
     }
 
-    /// Append one full-range straight-alpha Rec.709/sRGB RGBA8 picture.
-    /// `frame` is the consecutive relative ordinal; `rgba` is the exact geometry.
+    /// Append one full-range straight-alpha Rec.709/sRGB picture.
+    /// `frame` is the consecutive relative ordinal; `rgba` has exact geometry and
+    /// the format's declared pixel encoding (RGBA8 or little-endian RGBA16).
     /// Returns after encoding. Sound must catch up before the following picture.
     pub fn picture(&mut self, frame: u64, rgba: &[u8]) -> Result<()> {
         check(0, &self.cancel)?;
@@ -534,7 +550,10 @@ impl LosslessMovWriter {
             || frame != self.pictures
             || frame >= self.profile.frames
             || self.sound < self.profile.samples_through(frame)?
-            || rgba.len() != self.profile.width as usize * self.profile.height as usize * 4
+            || rgba.len()
+                != self.profile.width as usize
+                    * self.profile.height as usize
+                    * self.format.pixel_encoding().bytes_per_pixel()
         {
             return Err(Error::Invalid(
                 "invalid, stale or unbounded delivery picture".into(),

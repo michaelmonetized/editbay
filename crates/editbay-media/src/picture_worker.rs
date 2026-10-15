@@ -414,7 +414,8 @@ impl PictureProvider for PictureWorker {
                 );
             }
         };
-        if header.width != selected.width
+        if header.encoding != selected.encoding
+            || header.width != selected.width
             || header.height != selected.height
             || header.tick != selected.tick
             || !header.rotation_degrees.is_finite()
@@ -438,6 +439,7 @@ impl PictureProvider for PictureWorker {
             let plane = planes::Plane::map(descriptor, selected.size)?;
             let picture = Arc::new(DecodedPicture {
                 rgba: Pixels::Shared(plane),
+                encoding: header.encoding,
                 width: header.width,
                 height: header.height,
                 source_tick: header.tick,

@@ -10,6 +10,7 @@ pub mod pcm_worker;
 pub mod picture_store;
 pub mod picture_worker;
 mod pictures;
+mod pixels;
 #[allow(unsafe_code)]
 mod planes;
 pub mod realtime;
@@ -20,6 +21,7 @@ pub mod worker;
 
 pub use delivery::{DeliveryFormat, LosslessMovProfile};
 pub use ffi::LosslessMovWriter;
+pub use pixels::PixelEncoding;
 
 pub use pcm::{
     NativePcmCache, PcmBlock, PcmBudget, PcmPreparation, PcmPreparationLog, PcmProgress,
@@ -75,6 +77,7 @@ pub struct DecodedFrame {
     pub source_tick: Option<i64>,
     pub duration_ticks: Option<u64>,
     pub rgba: Vec<u8>,
+    pub encoding: PixelEncoding,
     pub color: editbay_core::SourceColor,
     pub alpha: editbay_core::AlphaMode,
     pub alpha_interpretation_required: bool,
@@ -82,6 +85,7 @@ pub struct DecodedFrame {
 }
 
 pub(crate) struct PictureMetadata {
+    pub(crate) encoding: PixelEncoding,
     pub(crate) timestamp_ns: Option<i64>,
     pub(crate) source_tick: Option<i64>,
     pub(crate) duration_ticks: Option<u64>,
@@ -94,6 +98,7 @@ impl PictureMetadata {
     fn with_pixels(self, rgba: Vec<u8>) -> DecodedFrame {
         DecodedFrame {
             rgba,
+            encoding: self.encoding,
             timestamp_ns: self.timestamp_ns,
             source_tick: self.source_tick,
             duration_ticks: self.duration_ticks,
@@ -108,6 +113,7 @@ impl PictureMetadata {
 pub struct VideoReader {
     inner: ffi::Reader,
     pub info: MediaInfo,
+    encoding: PixelEncoding,
 }
 
 impl VideoReader {
@@ -115,13 +121,28 @@ impl VideoReader {
     /// `path` is a regular local file. Returns a bounded CPU decoder and stream profile.
     pub fn open(path: &Path) -> Result<Self> {
         let (inner, info) = ffi::Reader::open(path, false)?;
-        Ok(Self { inner, info })
+        Ok(Self {
+            inner,
+            info,
+            encoding: PixelEncoding::Rgba8,
+        })
+    }
+
+    /// Open local pictures with an explicit native component storage format.
+    /// `path` is a regular source and `encoding` selects output precision.
+    /// Returns the same decoder with bounded aligned native conversion storage.
+    pub fn open_with_encoding(path: &Path, encoding: PixelEncoding) -> Result<Self> {
+        let mut reader = Self::open(path)?;
+        reader.inner.output(encoding)?;
+        reader.encoding = encoding;
+        Ok(reader)
     }
 
     /// Decode one source picture.
-    /// Returns timestamped full-range RGBA8 pixels, or `None` at end of stream.
+    /// Returns timestamped pixels in the selected encoding, or `None` at EOF.
     pub fn next_frame(&mut self) -> Result<Option<DecodedFrame>> {
-        let size = self.info.width as usize * self.info.height as usize * 4;
+        let size =
+            self.info.width as usize * self.info.height as usize * self.encoding.bytes_per_pixel();
         let mut rgba = vec![0; size];
         Ok(self
             .read_picture(&mut rgba, None)?
@@ -136,7 +157,8 @@ impl VideoReader {
         output: &mut [u8],
         tick: Option<i64>,
     ) -> Result<Option<PictureMetadata>> {
-        let size = self.info.width as usize * self.info.height as usize * 4;
+        let size =
+            self.info.width as usize * self.info.height as usize * self.encoding.bytes_per_pixel();
         if output.len() != size {
             return Err(Error::Invalid(
                 "decode output does not match source geometry".into(),
@@ -164,6 +186,7 @@ impl VideoReader {
             })
             .transpose()?;
         Ok(Some(PictureMetadata {
+            encoding: self.encoding,
             timestamp_ns,
             source_tick,
             duration_ticks: u64::try_from(details.duration)
@@ -207,7 +230,26 @@ impl VideoReader {
                 "picture stream has no valid time base".into(),
             ));
         }
-        Ok(Self { inner, info })
+        Ok(Self {
+            inner,
+            info,
+            encoding: PixelEncoding::Rgba8,
+        })
+    }
+
+    /// Open an owned stream with explicit native component storage.
+    /// `source`, `stream` and `cancel` retain existing ownership; `encoding`
+    /// selects the payload. Returns the shared native decoder implementation.
+    pub fn open_stream_with_encoding(
+        source: &SourceFile,
+        stream: u32,
+        cancel: Cancellation,
+        encoding: PixelEncoding,
+    ) -> Result<Self> {
+        let mut reader = Self::open_stream(source, stream, cancel)?;
+        reader.inner.output(encoding)?;
+        reader.encoding = encoding;
+        Ok(reader)
     }
 
     /// Seek to a source keyframe at or before a presentation tick.
@@ -221,7 +263,8 @@ impl VideoReader {
     /// `tick` is a previously indexed presentation timestamp. Returns its
     /// picture or an error rather than substituting a neighbouring frame.
     pub fn frame_at(&mut self, tick: i64) -> Result<DecodedFrame> {
-        let size = self.info.width as usize * self.info.height as usize * 4;
+        let size =
+            self.info.width as usize * self.info.height as usize * self.encoding.bytes_per_pixel();
         let mut rgba = vec![0; size];
         let details = self.read_picture(&mut rgba, Some(tick))?.ok_or_else(|| {
             Error::Invalid(format!("indexed picture at tick {tick} is unavailable"))

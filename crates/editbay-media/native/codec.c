@@ -88,7 +88,7 @@ static EBWriter *writer_open(int descriptor, int width, int height, int num, int
     if (!w) goto failed;
     w->cancel = cancel;
     w->encoding = encoding;
-    if (encoding < 0 || encoding > 2) { ret = AVERROR(EINVAL); goto failed; }
+    if (encoding < 0 || encoding > 3) { ret = AVERROR(EINVAL); goto failed; }
     struct stat file_info;
     if (fstat(descriptor, &file_info) != 0 || !S_ISREG(file_info.st_mode) || file_info.st_size != 0) {
         ret = AVERROR(EINVAL); goto failed;
@@ -117,14 +117,14 @@ static EBWriter *writer_open(int descriptor, int width, int height, int num, int
     w->codec->width = width;
     w->codec->height = height;
     w->codec->pix_fmt = encoding == 1 ? AV_PIX_FMT_YUV420P :
-        encoding == 2 ? AV_PIX_FMT_YUVA444P10LE : layout ? AV_PIX_FMT_RGBA : AV_PIX_FMT_BGRA;
+        encoding == 2 ? AV_PIX_FMT_YUVA444P10LE : encoding == 3 ? AV_PIX_FMT_RGBA64BE : layout ? AV_PIX_FMT_RGBA : AV_PIX_FMT_BGRA;
     w->codec->time_base = (AVRational){den, num};
     w->codec->framerate = (AVRational){num, den};
     w->codec->thread_count = 2;
-    w->codec->color_range = encoding ? AVCOL_RANGE_MPEG : AVCOL_RANGE_JPEG;
+    w->codec->color_range = encoding == 1 || encoding == 2 ? AVCOL_RANGE_MPEG : AVCOL_RANGE_JPEG;
     w->codec->color_primaries = AVCOL_PRI_BT709;
     w->codec->color_trc = AVCOL_TRC_IEC61966_2_1;
-    w->codec->colorspace = encoding ? AVCOL_SPC_BT709 : AVCOL_SPC_RGB;
+    w->codec->colorspace = encoding == 1 || encoding == 2 ? AVCOL_SPC_BT709 : AVCOL_SPC_RGB;
     w->codec->alpha_mode = encoding == 1 ? AVALPHA_MODE_UNSPECIFIED : AVALPHA_MODE_STRAIGHT;
     if (encoding == 1) {
         w->codec->gop_size = 48;
@@ -183,7 +183,7 @@ static EBWriter *writer_open(int descriptor, int width, int height, int num, int
     w->frame->colorspace = w->codec->colorspace;
     w->frame->alpha_mode = w->codec->alpha_mode;
     if ((ret = av_frame_get_buffer(w->frame, 32)) < 0) goto failed;
-    if (encoding) {
+    if (encoding == 1 || encoding == 2) {
         w->conversion = sws_getContext(width, height, AV_PIX_FMT_RGBA, width, height,
             w->codec->pix_fmt, SWS_BICUBIC, NULL, NULL, NULL);
         if (!w->conversion) { ret = AVERROR(ENOMEM); goto failed; }
@@ -229,7 +229,8 @@ static int packets(EBWriter *w, AVCodecContext *codec, AVStream *stream) {
 
 int eb_writer_frame(EBWriter *w, const uint8_t *rgba, size_t length) {
     if (w->cancel && eb_cancelled(w->cancel)) return AVERROR_EXIT;
-    if (length != (size_t)w->codec->width * w->codec->height * 4) return AVERROR(EINVAL);
+    int bytes = w->encoding == 3 ? 8 : 4;
+    if (length != (size_t)w->codec->width * w->codec->height * bytes) return AVERROR(EINVAL);
     int ret = av_frame_make_writable(w->frame);
     if (ret < 0) return ret;
     if (w->conversion) {
@@ -240,8 +241,12 @@ int eb_writer_frame(EBWriter *w, const uint8_t *rgba, size_t length) {
         if (ret != w->codec->height) return ret < 0 ? ret : AVERROR(EINVAL);
     } else for (int y = 0; y < w->codec->height; y++) {
         uint8_t *row = w->frame->data[0] + y * w->frame->linesize[0];
-        const uint8_t *source = rgba + (size_t)y * w->codec->width * 4;
-        if (w->codec->pix_fmt == AV_PIX_FMT_RGBA) {
+        const uint8_t *source = rgba + (size_t)y * w->codec->width * bytes;
+        if (w->encoding == 3) {
+            for (int x = 0; x < w->codec->width * 4; x++) {
+                row[x*2] = source[x*2+1]; row[x*2+1] = source[x*2];
+            }
+        } else if (w->codec->pix_fmt == AV_PIX_FMT_RGBA) {
             memcpy(row, source, (size_t)w->codec->width * 4);
         } else for (int x = 0; x < w->codec->width; x++) {
             row[x*4] = source[x*4+2]; row[x*4+1] = source[x*4+1];

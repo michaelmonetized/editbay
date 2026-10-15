@@ -222,6 +222,17 @@ impl SourceFile {
                 4 => StreamType::Attachment,
                 _ => StreamType::Other,
             };
+            if kind == StreamType::Video && raw.pixel_format >= 0 {
+                let encoding = ffi::pixel_encoding(raw.pixel_format)?;
+                metadata.insert(
+                    "editbay.pixel_encoding".into(),
+                    serde_json::to_value(encoding)
+                        .map_err(|e| Error::Invalid(e.to_string()))?
+                        .as_str()
+                        .unwrap()
+                        .into(),
+                );
+            }
             let channels = if kind == StreamType::Audio {
                 probe.channels(index, raw.channels)?
             } else {
@@ -305,16 +316,19 @@ impl SourceFile {
                     "video exceeds the 500,000-picture index budget".into(),
                 ));
             }
+            let encoding = crate::PixelEncoding::from_native(frame.pixel_encoding)?;
             let resolved_color = resolve_color(frame, stream.color);
             let resolved_alpha = alpha(frame.has_alpha, frame.alpha_mode);
             let current = (
                 resolved_color,
                 resolved_alpha,
+                encoding,
                 frame.has_alpha != 0 && frame.alpha_mode == 0,
             );
             if interpretation.is_some_and(|old| old != current) {
                 return Err(Error::Invalid(
-                    "video color or alpha interpretation changes within the stream".into(),
+                    "video color, alpha or precision interpretation changes within the stream"
+                        .into(),
                 ));
             }
             interpretation = Some(current);
@@ -353,7 +367,7 @@ impl SourceFile {
                     .into(),
             ));
         };
-        let (color, alpha, alpha_interpretation_required) = interpretation.unwrap();
+        let (color, alpha, encoding, alpha_interpretation_required) = interpretation.unwrap();
         progress(ticks.len() as u64);
         cancel.check()?;
         self.check_identity()?;
@@ -362,6 +376,7 @@ impl SourceFile {
             presentation_ticks: ticks,
             end_tick,
             end_method: end_method.into(),
+            encoding,
             color,
             alpha,
             alpha_interpretation_required,
@@ -405,6 +420,14 @@ impl SourceFile {
                 StreamType::Video => {
                     let video =
                         self.index_video(stream, cancel.clone(), |count| progress(*index, count))?;
+                    metadata.insert(
+                        "editbay.pixel_encoding".into(),
+                        serde_json::to_value(video.encoding)
+                            .map_err(|e| Error::Invalid(e.to_string()))?
+                            .as_str()
+                            .unwrap()
+                            .into(),
+                    );
                     metadata.insert(
                         "editbay.last_frame_duration".into(),
                         video.end_method.clone(),
@@ -686,6 +709,8 @@ pub struct MediaProbe {
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct VideoIndex {
+    #[serde(default)]
+    pub encoding: crate::PixelEncoding,
     pub start_tick: i64,
     pub presentation_ticks: Vec<i64>,
     pub end_tick: i64,

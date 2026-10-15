@@ -449,68 +449,13 @@ fn write_new(path: &Path, bytes: &[u8]) -> TestResult<()> {
 #[test]
 fn craft_video_multicam_and_captions_deliver_verified_lossless_media_on_cpu_vulkan()
 -> TestResult<()> {
-    assert_eq!(
-        std::env::var("WGPU_BACKEND").as_deref(),
-        Ok("vulkan"),
-        "Set WGPU_BACKEND=vulkan explicitly; this test must never choose a desktop GPU"
-    );
-    assert_eq!(
-        std::env::var("VK_DRIVER_FILES").as_deref(),
-        Ok("/usr/share/vulkan/icd.d/lvp_icd.json"),
-        "Pin the CPU lavapipe ICD explicitly"
-    );
-    assert!(Path::new("/usr/share/vulkan/icd.d/lvp_icd.json").is_file());
-    assert!(
-        matches!(std::env::var("LP_NUM_THREADS").as_deref(), Ok("1" | "2")),
-        "Set LP_NUM_THREADS=2 to bound CPU software rasterizer threads"
-    );
-    assert!(
-        std::env::temp_dir().canonicalize()?.starts_with("/home"),
-        "Set TMPDIR beneath /home: native anonymous PCM storage follows std::env::temp_dir()"
-    );
-    let cli = PathBuf::from(std::env::var_os("EDITBAY_TEST_CLI").ok_or("EDITBAY_TEST_CLI must point to the exact-current built editbay CLI; unavailable runtime is a failure")?).canonicalize()?;
-    let metadata = cli.metadata()?;
-    assert!(
-        metadata.is_file() && metadata.permissions().mode() & 0o111 != 0,
-        "EDITBAY_TEST_CLI must be executable"
-    );
+    let (cli, binding) = bound_cli()?;
     let directory = FixtureDirectory::new()?;
     let cancel = Cancellation::new()?;
     let deadline = DeadlineGuard::new(cancel.clone())?;
     let cli_file = SourceFile::open(&cli, &cancel)?;
-    let binding_path = PathBuf::from(std::env::var_os("EDITBAY_TEST_CLI_BUILD_RECEIPT").ok_or(
-        "EDITBAY_TEST_CLI_BUILD_RECEIPT must identify the exact-current serialized CLI build",
-    )?);
-    let binding: Value = serde_json::from_slice(&fs::read(&binding_path)?)?;
-    let git = Command::new("git")
-        .args(["-C", env!("CARGO_MANIFEST_DIR"), "rev-parse", "HEAD"])
-        .output()?;
-    assert!(git.status.success());
-    let revision = String::from_utf8(git.stdout)?;
-    assert_eq!(binding["repository"], "editbay");
-    assert_eq!(binding["revision"], revision.trim());
-    assert_eq!(binding["exit_code"], 0);
-    assert_eq!(binding["dirty_before"], false);
-    assert_eq!(binding["dirty_after"], false);
-    assert!(binding["signal"].is_null());
-    assert_eq!(
-        binding["receipt_errors"]
-            .as_array()
-            .ok_or("missing receipt errors")?
-            .len(),
-        0
-    );
-    let executable = binding["executables"]
-        .as_array()
-        .ok_or("missing executable bindings")?
-        .iter()
-        .find(|entry| {
-            entry["target"]["name"] == "editbay"
-                && entry["path"].as_str().is_some_and(|p| Path::new(p) == cli)
-        })
-        .ok_or("serialized receipt does not bind this CLI")?;
-    assert_eq!(executable["sha256"], cli_file.fingerprint().sha256);
-    assert_eq!(executable["size"], cli_file.fingerprint().bytes);
+    let binding_path = PathBuf::from(std::env::var_os("EDITBAY_TEST_CLI_BUILD_RECEIPT").unwrap());
+    let revision = binding["revision"].as_str().unwrap();
     let mut editor = DocumentEditor::new(Project::new("Actual multicam and captions delivery")?)?;
     let mut cameras = Vec::new();
     for camera in 0..2 {
@@ -888,6 +833,349 @@ fn craft_video_multicam_and_captions_deliver_verified_lossless_media_on_cpu_vulk
             "policy_deliveries":observations,"captioned_numeric_oracle":measured,"program_scopes":program_scopes,
             "preservation":{"original_camera_compositions":true,"undo_redo":true,"save_reopen":true,"source_hashes":true,"existing_master":true,"existing_sidecar":true,"cancel_before_publication":true},
             "proof_boundary":"Actual CPU lavapipe/Vulkan render, native MOV/PCM encode and decode with independent numeric frame/sample/working-linear scope oracles and the CLI worker. Same-frame scope settings are sampled from actual program pixels; native UI paused/playback updates remain unproven. Encode and decode share FFmpeg; this does not prove independent codec conformance. No desktop, audio output, physical display, audio alignment from a device, external NLE or physical hardware acceptance is claimed."
+        }))?,
+    )?;
+    Ok(())
+}
+
+/// Bind software-only worker execution to the exact clean compiler receipt.
+/// Takes explicit environment paths; returns the actual CLI and source packet.
+fn bound_cli() -> TestResult<(PathBuf, Value)> {
+    assert_eq!(
+        std::env::var("WGPU_BACKEND").as_deref(),
+        Ok("vulkan"),
+        "Set WGPU_BACKEND=vulkan explicitly; this test must never choose a desktop GPU"
+    );
+    assert_eq!(
+        std::env::var("VK_DRIVER_FILES").as_deref(),
+        Ok("/usr/share/vulkan/icd.d/lvp_icd.json"),
+        "Pin the CPU lavapipe ICD explicitly"
+    );
+    assert!(Path::new("/usr/share/vulkan/icd.d/lvp_icd.json").is_file());
+    assert!(
+        matches!(std::env::var("LP_NUM_THREADS").as_deref(), Ok("1" | "2")),
+        "Set LP_NUM_THREADS=2 to bound CPU software rasterizer threads"
+    );
+    assert!(
+        std::env::temp_dir().canonicalize()?.starts_with("/home"),
+        "Set TMPDIR beneath /home: native anonymous PCM storage follows std::env::temp_dir()"
+    );
+    let cli = PathBuf::from(std::env::var_os("EDITBAY_TEST_CLI").ok_or("EDITBAY_TEST_CLI must point to the exact-current built editbay CLI; unavailable runtime is a failure")?).canonicalize()?;
+    let metadata = cli.metadata()?;
+    assert!(
+        metadata.is_file() && metadata.permissions().mode() & 0o111 != 0,
+        "EDITBAY_TEST_CLI must be executable"
+    );
+    let cancel = Cancellation::new()?;
+    let cli_file = SourceFile::open(&cli, &cancel)?;
+    let binding_path = PathBuf::from(std::env::var_os("EDITBAY_TEST_CLI_BUILD_RECEIPT").ok_or(
+        "EDITBAY_TEST_CLI_BUILD_RECEIPT must identify the exact-current serialized CLI build",
+    )?);
+    let binding: Value = serde_json::from_slice(&fs::read(&binding_path)?)?;
+    let git = Command::new("git")
+        .args(["-C", env!("CARGO_MANIFEST_DIR"), "rev-parse", "HEAD"])
+        .output()?;
+    assert!(git.status.success());
+    let revision = String::from_utf8(git.stdout)?;
+    assert_eq!(binding["repository"], "editbay");
+    assert_eq!(binding["revision"], revision.trim());
+    assert_eq!(binding["exit_code"], 0);
+    assert_eq!(binding["dirty_before"], false);
+    assert_eq!(binding["dirty_after"], false);
+    assert!(binding["signal"].is_null());
+    assert_eq!(
+        binding["receipt_errors"]
+            .as_array()
+            .ok_or("missing receipt errors")?
+            .len(),
+        0
+    );
+    let executable = binding["executables"]
+        .as_array()
+        .ok_or("missing executable bindings")?
+        .iter()
+        .find(|entry| {
+            entry["target"]["name"] == "editbay"
+                && entry["path"].as_str().is_some_and(|p| Path::new(p) == cli)
+        })
+        .ok_or("serialized receipt does not bind this CLI")?;
+    assert_eq!(executable["sha256"], cli_file.fingerprint().sha256);
+    assert_eq!(executable["size"], cli_file.fingerprint().bytes);
+    Ok((cli, binding))
+}
+
+/// Generate distinct low-bit color and alpha values independently of the media code.
+/// `pixel` selects one of 256 samples and returns straight encoded RGBA16 components.
+fn precision_pixel(pixel: usize) -> [u16; 4] {
+    let n = pixel as u16;
+    [
+        n * 257 + u16::from(n < 255),
+        n * 251,
+        65535 - n * 193,
+        [0, 1, 257, 4096, 32768, 65535][pixel % 6],
+    ]
+}
+
+#[test]
+fn craft_video_precision_decode_worker_store_float_graph_and_atomic_master() -> TestResult<()> {
+    use editbay_core::{FrameRange, SourceRequest};
+    use editbay_media::{
+        PictureCache, PictureProvider, PixelEncoding,
+        picture_store::{StoreBudget, StorePlan, StoreSpace},
+        picture_worker::{PictureWorker, WorkerBudget},
+    };
+    use editbay_render::ImageBoundary;
+
+    let (cli, binding) = bound_cli()?;
+    let directory = FixtureDirectory::new()?;
+    let cancel = Cancellation::new()?;
+    let deadline = DeadlineGuard::new(cancel.clone())?;
+    let input = directory.path.join("precision-input.mov");
+    let file = OpenOptions::new()
+        .create_new(true)
+        .write(true)
+        .read(true)
+        .open(&input)?;
+    let profile = LosslessMovProfile {
+        width: WIDTH,
+        height: HEIGHT,
+        frame_rate: FrameRate::new(24, 1)?,
+        first_frame: 0,
+        frames: INPUT_FRAMES,
+        sample_rate: 48000,
+        channels: vec!["FC".into()],
+    };
+    let pixels: Vec<u8> = (0..256)
+        .flat_map(precision_pixel)
+        .flat_map(u16::to_le_bytes)
+        .collect();
+    let mut writer = LosslessMovWriter::encoded(
+        &file,
+        profile.clone(),
+        DeliveryFormat::Lossless16Mov,
+        cancel.clone(),
+    )?;
+    let mut first = 0;
+    for frame in 0..INPUT_FRAMES {
+        writer.picture(frame, &pixels)?;
+        let end = profile.samples_through(frame + 1)?;
+        writer.sound(
+            first,
+            &(first..end).map(|n| camera_pcm(0, n)).collect::<Vec<_>>(),
+        )?;
+        first = end;
+    }
+    writer.finish()?;
+    file.sync_all()?;
+    let mut editor = DocumentEditor::new(Project::new("Native precision through one pipeline")?)?;
+    let composition = import_camera(&mut editor, &input, &cancel)?;
+    assert_eq!(
+        editor.project().sources[0].streams[0].metadata["editbay.pixel_encoding"],
+        "rgba16_le"
+    );
+    let native = directory.path.join("precision.editbay");
+    save_new(editor.project(), &native)?;
+    let project = Arc::new(load(&native)?);
+    assert_eq!(*project, *editor.project());
+    let snapshot = Arc::new(EvaluationSnapshot::new(project.clone())?);
+    let source_request: SourceRequest = snapshot
+        .prepare(composition, SourcePosition::new(0, 1)?, false)?
+        .nodes
+        .into_iter()
+        .find_map(|node| {
+            node.source.filter(|s| {
+                matches!(
+                    s,
+                    SourceRequest::Media {
+                        picture: Some(_),
+                        ..
+                    }
+                )
+            })
+        })
+        .ok_or("media request absent")?;
+    let mut budget = PictureBudget::default();
+    budget.maximum_picture_bytes = (WIDTH * HEIGHT * 4) as usize;
+    let mut limited = PictureCache::new(snapshot.clone(), budget, deadline.media()?)?;
+    assert!(
+        limited.picture(&source_request).is_err(),
+        "admit actual 8-byte pixels, not 4-byte accounting"
+    );
+    assert_eq!(limited.stats().live_bytes, 0);
+    let mut worker = PictureWorker::new(
+        &cli,
+        snapshot.clone(),
+        WorkerBudget::default(),
+        deadline.media()?,
+    )?;
+    let pid = worker.process_id().ok_or("worker PID absent")?;
+    let decoded = worker
+        .picture(&source_request)?
+        .ok_or("native pixels absent")?;
+    assert_eq!(decoded.picture.encoding, PixelEncoding::Rgba16Le);
+    assert_eq!(decoded.picture.rgba(), pixels);
+    assert_eq!(worker.transfer_stats().mapped_bytes, pixels.len());
+    let stale = decoded;
+    let store_budget = StoreBudget {
+        bytes: 256 * 1024,
+        entries: 32,
+    };
+    let plan = StorePlan::new(
+        snapshot.clone(),
+        composition,
+        FrameRange {
+            start: 0,
+            end: INPUT_FRAMES,
+        },
+        PictureBudget::default(),
+        store_budget,
+        &cancel,
+    )?;
+    assert_eq!(plan.summary().bytes, INPUT_FRAMES * pixels.len() as u64);
+    let space = StoreSpace::new(store_budget)?;
+    let store = plan.prepare(&directory.path, &space, &mut worker, &cancel, |_| {})?;
+    worker.clear()?;
+    assert!(worker.validate_result(&stale).is_err());
+    drop(stale);
+    drop(worker);
+    assert!(!PathBuf::from(format!("/proc/{pid}")).exists());
+    let mut prepared = PictureWorker::new(
+        &cli,
+        snapshot.clone(),
+        WorkerBudget::default(),
+        deadline.media()?,
+    )?;
+    prepared.attach_store(store)?;
+    let stored = prepared
+        .picture(&source_request)?
+        .ok_or("stored native picture absent")?;
+    assert_eq!(stored.picture.encoding, PixelEncoding::Rgba16Le);
+    assert_eq!(stored.picture.rgba(), pixels);
+    assert_eq!(prepared.transfer_stats().child.stored_reads, 1);
+    drop(stored);
+    drop(prepared);
+    let mut renderer = GraphRenderer::new(
+        snapshot,
+        PictureBudget::default(),
+        GraphBudget::default(),
+        deadline.media()?,
+    )?;
+    let frame = renderer.render(composition, SourcePosition::new(0, 1)?, false)?;
+    let linear = renderer.readback(frame.image())?;
+    let mut max_linear_error = 0_f64;
+    for (index, actual) in linear.as_chunks::<4>().0.iter().enumerate() {
+        let expected = precision_pixel(index);
+        let alpha = f64::from(expected[3]) / 65535.;
+        for channel in 0..3 {
+            let encoded = f64::from(expected[channel]) / 65535.;
+            let linear = if encoded <= 0.04045 {
+                encoded / 12.92
+            } else {
+                ((encoded + 0.055) / 1.055).powf(2.4)
+            };
+            max_linear_error =
+                max_linear_error.max((f64::from(actual[channel]) - linear * alpha).abs());
+        }
+        assert!((f64::from(actual[3]) - alpha).abs() < 1e-6);
+    }
+    assert!(
+        max_linear_error < 2e-6,
+        "16-bit source must reach working float without 8-bit truncation: {max_linear_error}"
+    );
+    let encoded = renderer.convert(&frame, ImageBoundary::Output)?;
+    assert_eq!(renderer.readback(&encoded)?.len(), 1024);
+    drop(renderer);
+    let request = DeliveryRequest {
+        format: DeliveryFormat::Lossless16Mov,
+        composition,
+        sample_rate: 48000,
+        range: Some(FrameRange { start: 2, end: 5 }),
+    };
+    let master = directory.path.join("precision-master.mov");
+    let receipt = deliver(
+        &cli,
+        project.clone(),
+        request,
+        &master,
+        &deadline.control()?,
+        |_, _| {},
+    )?;
+    assert_eq!(receipt.pixel_sha256, receipt.decoded_pixel_sha256);
+    assert_eq!(receipt.pcm_sha256, receipt.decoded_pcm_sha256);
+    let mut reader = VideoReader::open_with_encoding(&master, PixelEncoding::Rgba16Le)?;
+    let mut count = 0;
+    let mut max_code_error = 0_u16;
+    let mut retained_low_bits = 0;
+    while let Some(frame) = reader.next_frame()? {
+        for (index, actual) in frame.rgba.as_chunks::<8>().0.iter().enumerate() {
+            let expected = precision_pixel(index);
+            let codes: Vec<_> = actual
+                .as_chunks::<2>()
+                .0
+                .iter()
+                .map(|v| u16::from_le_bytes(*v))
+                .collect();
+            assert_eq!(codes[3], expected[3]);
+            for channel in 0..3 {
+                let expected = if expected[3] == 0 {
+                    0
+                } else {
+                    expected[channel]
+                };
+                max_code_error = max_code_error.max(codes[channel].abs_diff(expected));
+                retained_low_bits += usize::from(!codes[channel].is_multiple_of(257));
+            }
+        }
+        count += 1;
+    }
+    assert_eq!(count, 3);
+    assert!(
+        max_code_error <= 2,
+        "16-bit roundtrip error {max_code_error}"
+    );
+    assert!(retained_low_bits > 500);
+    let existing = fs::read(&master)?;
+    assert!(
+        deliver(
+            &cli,
+            project.clone(),
+            request,
+            &master,
+            &deadline.control()?,
+            |_, _| {}
+        )
+        .is_err()
+    );
+    assert_eq!(fs::read(&master)?, existing);
+    let cancelled = directory.path.join("precision-cancelled.mov");
+    let control = deadline.control()?;
+    let mut accepted = false;
+    assert!(
+        deliver(
+            &cli,
+            project,
+            request,
+            &cancelled,
+            &control,
+            |progress, _| {
+                if progress.phase == Phase::Rendering && progress.pictures >= 1 {
+                    accepted |= control.cancel();
+                }
+            }
+        )
+        .is_err()
+    );
+    assert!(accepted && !cancelled.exists());
+    write_new(
+        &directory.path.join("precision-pipeline.json"),
+        &serde_json::to_vec_pretty(&json!({
+            "schema":"editbay.native-precision.v1", "status":"passed", "source_revision":binding["revision"],
+            "input":input, "native_project":native, "master":master, "receipt":receipt,
+            "pixel_encoding":"rgba16_le", "maximum_working_linear_error":max_linear_error,
+            "maximum_encoded_code_error":max_code_error, "retained_non8bit_components":retained_low_bits,
+            "prepared_bytes":INPUT_FRAMES * pixels.len() as u64, "stale_rejected":true,
+            "actual_worker_joined":true, "cancel_after_render_no_publication":true,
+            "proof_boundary":"CPU Vulkan native decode/cache/IPC/store/float render/16-bit encode/QC. No desktop/audio/device/physical proof. Native codec encode/decode share FFmpeg; analytic sample oracle is separate. ICC/HDR and other codec families are separate pending cuts."
         }))?,
     )?;
     Ok(())
