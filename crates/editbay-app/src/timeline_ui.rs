@@ -103,6 +103,7 @@ struct Draft {
 pub struct TimelinePane {
     draft: Option<Draft>,
     serial: u64,
+    handles: crate::timeline_handles::Handles,
     selections: HashMap<Uuid, Selection>,
     catalog: Option<Catalog>,
     task: Option<Task>,
@@ -137,6 +138,7 @@ impl TimelinePane {
             !visible || workspace.active != Some(draft.owner.tab) || !workspace.owns(draft.owner)
         }) {
             self.draft = None;
+            self.handles.cancel();
             preview.set_draft(None);
         }
         self.selections
@@ -526,6 +528,7 @@ impl TimelinePane {
                 .map(|assembly| assembly.composition);
             selected.clip = None;
         }
+        let draft_project = preview.draft_snapshot(owner);
         let busy = self.task.as_ref().is_some_and(|task| task.draft.is_none());
         let mut draft_action = None;
         let mut draft_actions = None;
@@ -899,6 +902,86 @@ impl TimelinePane {
                 }
                 ui.checkbox(&mut selected.ripple, "Ripple following clips");
             });
+            let mut visual_clips = assembly.clips.clone();
+            if let Some(scene) = draft_project
+                .as_ref()
+                .and_then(|p| p.compositions.iter().find(|c| c.id == composition))
+            {
+                for clip in &mut visual_clips {
+                    if let Some(raw) = scene
+                        .tracks
+                        .iter()
+                        .flat_map(|t| &t.clips)
+                        .find(|c| c.id == clip.id)
+                    {
+                        clip.range = raw.range;
+                    }
+                }
+            }
+            if let Some(change) = self.handles.show(
+                ui,
+                composition,
+                &visual_clips,
+                |id| {
+                    project
+                        .compositions
+                        .iter()
+                        .find(|c| c.id == id)
+                        .map_or(1, |c| c.duration)
+                },
+                selected.clip,
+                selected.at,
+                selected.ripple,
+            ) {
+                if selected.clip != Some(change.clip)
+                    && let Some(clip) = assembly.clips.iter().find(|c| c.id == change.clip)
+                {
+                    selected.controls = clip.controls;
+                    selected.trim_range = clip.source.range;
+                    selected.at = clip.range.start;
+                    selected.multiple.clear();
+                }
+                selected.clip = Some(change.clip);
+                if !change.actions.is_empty() {
+                    draft_actions = Some(change.actions);
+                    finish_gesture |= change.finished;
+                }
+            }
+            if !ui.ctx().text_edit_focused()
+                && let Some(clip) = assembly.clips.iter().find(|c| Some(c.id) == selected.clip)
+            {
+                let modifiers = ui.input(|i| i.modifiers);
+                let delta = if ui.input_mut(|i| i.consume_key(modifiers, egui::Key::ArrowLeft)) {
+                    -1
+                } else if ui.input_mut(|i| i.consume_key(modifiers, egui::Key::ArrowRight)) {
+                    1
+                } else {
+                    0
+                };
+                if delta != 0 {
+                    let tool = if modifiers.alt {
+                        crate::timeline_handles::Tool::Slip
+                    } else if modifiers.ctrl || modifiers.command {
+                        crate::timeline_handles::Tool::Roll
+                    } else {
+                        self.handles.tool
+                    };
+                    let duration = project
+                        .compositions
+                        .iter()
+                        .find(|c| c.id == clip.source.composition)
+                        .map_or(1, |c| c.duration);
+                    draft_actions = Some(crate::timeline_handles::actions(
+                        composition,
+                        clip,
+                        tool,
+                        delta * if modifiers.shift { 10 } else { 1 },
+                        selected.ripple,
+                        duration,
+                    ));
+                    finish_gesture = true;
+                }
+            }
             egui::ScrollArea::vertical()
                 .id_salt("linked-clips")
                 .max_height(112.)
@@ -1272,6 +1355,9 @@ impl TimelinePane {
                 });
             }
         });
+        if enter {
+            self.handles.cancel();
+        }
         if escape || cancel_gesture {
             self.draft = None;
             preview.set_draft(None);
@@ -1933,6 +2019,142 @@ mod tests {
                 ..other
             }
         );
+    }
+    #[test]
+    fn direct_handle_actions_preview_commit_and_undo_through_existing_commands() {
+        use crate::timeline_handles::{Tool, actions};
+        for tool in [
+            Tool::Move,
+            Tool::TrimStart,
+            Tool::TrimEnd,
+            Tool::Slip,
+            Tool::Roll,
+            Tool::Slide,
+        ] {
+            let (_dir, mut workspace, tab, source) = workspace();
+            let mut pane = TimelinePane::default();
+            let (composition, first) = cut(&mut pane, &mut workspace, tab, source);
+            for at in [16, 32] {
+                pane.edit(
+                    &workspace,
+                    tab,
+                    TimelineAction::Insert {
+                        composition,
+                        at,
+                        source: SourceSelection {
+                            composition: source,
+                            range: FrameRange { start: 4, end: 20 },
+                        },
+                    },
+                )
+                .unwrap();
+                finish(&mut pane, &mut workspace, true);
+            }
+            let original = workspace.tabs[0].editor.snapshot();
+            let clips = editbay_core::timeline_clips(&original, composition).unwrap();
+            let clip = if tool == Tool::Slide {
+                &clips[1]
+            } else {
+                clips.iter().find(|c| c.id == first).unwrap()
+            };
+            let delta = if tool == Tool::Move {
+                50
+            } else if tool == Tool::TrimEnd {
+                -1
+            } else {
+                1
+            };
+            pane.update_drafts(
+                &workspace,
+                tab,
+                actions(composition, clip, tool, delta, false, 48),
+                true,
+            );
+            finish(&mut pane, &mut workspace, true);
+            assert!(pane.error.is_none(), "{tool:?}: {:?}", pane.error);
+            assert_eq!(
+                workspace.tabs[0].editor.project().revision,
+                original.revision + 1
+            );
+            assert_ne!(
+                workspace.tabs[0].editor.project().compositions,
+                original.compositions
+            );
+            workspace.history(tab, false).unwrap();
+            assert_eq!(
+                workspace.tabs[0].editor.project().compositions,
+                original.compositions,
+                "{tool:?}"
+            );
+        }
+    }
+
+    #[test]
+    fn compact_inspector_draws_empty_single_mixed_and_locked_at_three_scales() {
+        for scale in [1., 1.5, 2.] {
+            let (_dir, mut workspace, tab, source) = workspace();
+            let mut pane = TimelinePane::default();
+            let (composition, clip) = cut(&mut pane, &mut workspace, tab, source);
+            pane.edit(
+                &workspace,
+                tab,
+                TimelineAction::Insert {
+                    composition,
+                    at: 16,
+                    source: SourceSelection {
+                        composition: source,
+                        range: FrameRange { start: 4, end: 20 },
+                    },
+                },
+            )
+            .unwrap();
+            finish(&mut pane, &mut workspace, true);
+            let (owner, editor) = workspace.edit_snapshot(tab).unwrap();
+            pane.refresh(owner, editor.snapshot()).unwrap();
+            finish(&mut pane, &mut workspace, true);
+            let ctx = egui::Context::default();
+            ctx.set_pixels_per_point(scale);
+            for state in 0..4 {
+                let selected = pane.selections.get_mut(&tab).unwrap();
+                selected.clip = if state == 0 { None } else { Some(clip) };
+                selected.multiple = if state == 2 {
+                    editbay_core::timeline_clips(editor.project(), composition)
+                        .unwrap()
+                        .iter()
+                        .map(|c| c.id)
+                        .collect()
+                } else {
+                    Vec::new()
+                };
+                let mut preview = PreviewPane::default();
+                ctx.run_ui(
+                    egui::RawInput {
+                        screen_rect: Some(egui::Rect::from_min_size(
+                            egui::Pos2::ZERO,
+                            egui::vec2(480., 1400.),
+                        )),
+                        ..Default::default()
+                    },
+                    |ui| {
+                        pane.show(
+                            ui,
+                            &workspace,
+                            &mut preview,
+                            tab,
+                            editor.snapshot(),
+                            state != 3,
+                        );
+                    },
+                )
+                .drop_without_applying_deltas();
+                assert!(
+                    pane.error.is_none(),
+                    "scale {scale} state {state}: {:?}",
+                    pane.error
+                );
+                assert_eq!(workspace.tabs[0].editor.project().revision, 2);
+            }
+        }
     }
     #[test]
     fn craft_idle_mixed_and_disabled_fields_preserve_imported_out_of_range_values() {

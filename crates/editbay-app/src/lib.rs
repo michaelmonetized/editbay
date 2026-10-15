@@ -15,3 +15,5 @@ pub mod workspace;
 
 #[path = "../../../vendor/oma-ui/fields.rs"]
 pub mod fields;
+
+pub mod timeline_handles;
