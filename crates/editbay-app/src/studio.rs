@@ -1539,6 +1539,8 @@ impl Studio {
                     && self.settings.is_none()
                     && !self.manual
                     && !self.bank.opened;
+                self.timeline
+                    .shortcuts(ui.ctx(), &self.workspace, &mut self.preview, interactive);
                 let presets = task_presets();
                 self.layouts.toolbar(ui, &presets, PANEL_REGISTRY);
                 let active = self.layouts.active.clone();

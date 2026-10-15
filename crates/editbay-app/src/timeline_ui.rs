@@ -436,6 +436,53 @@ impl TimelinePane {
         }
     }
 
+    /// Route gesture keys even when all timeline and property panels are hidden.
+    /// Args: UI context, live workspace, preview and interaction state. Returns no value;
+    /// text fields retain their own keys and publication still occurs through the captured owner.
+    pub fn shortcuts(
+        &mut self,
+        ctx: &egui::Context,
+        workspace: &Workspace,
+        preview: &mut PreviewPane,
+        interactive: bool,
+    ) {
+        if !interactive || ctx.text_edit_focused() {
+            return;
+        }
+        let Some(tab) = workspace.active else {
+            return;
+        };
+        if !self
+            .draft
+            .as_ref()
+            .is_some_and(|draft| draft.owner.tab == tab)
+        {
+            return;
+        }
+        if ctx.input_mut(|i| i.consume_key(egui::Modifiers::NONE, egui::Key::Escape)) {
+            self.draft = None;
+            preview.set_draft(None);
+            if let Some(selected) = self.selections.get_mut(&tab)
+                && let Some(clip) = self
+                    .catalog
+                    .as_ref()
+                    .and_then(|c| {
+                        c.assemblies
+                            .iter()
+                            .find(|a| Some(a.composition) == selected.record)
+                    })
+                    .and_then(|a| a.clips.iter().find(|c| Some(c.id) == selected.clip))
+            {
+                selected.controls = clip.controls;
+            }
+        } else if ctx.input_mut(|i| i.consume_key(egui::Modifiers::NONE, egui::Key::Enter))
+            && let Some(draft) = &mut self.draft
+        {
+            draft.finished = true;
+            ctx.request_repaint();
+        }
+    }
+
     /// Draw the selected clip's contextual properties in an independent dock.
     /// Args: UI, live workspace, preview, tab, immutable project and property scope.
     /// Returns no value; every field uses the same coalesced typed gesture path.
@@ -2635,5 +2682,62 @@ mod tests {
                 assert_eq!(workspace.tabs[0].editor.project().revision, 3);
             }
         }
+    }
+    #[test]
+    fn craft_global_draft_shortcuts_work_with_all_control_panels_hidden() {
+        let (_dir, mut workspace, tab, source) = workspace();
+        let mut pane = TimelinePane::default();
+        let (composition, clip) = cut(&mut pane, &mut workspace, tab, source);
+        let original = workspace.tabs[0].editor.snapshot();
+        let ctx = egui::Context::default();
+        let mut preview = PreviewPane::default();
+        let input = |key| egui::RawInput {
+            events: vec![egui::Event::Key {
+                key,
+                physical_key: Some(key),
+                pressed: true,
+                repeat: false,
+                modifiers: egui::Modifiers::NONE,
+            }],
+            ..Default::default()
+        };
+        for (key, opacity) in [(egui::Key::Escape, 0.5), (egui::Key::Enter, 0.6)] {
+            pane.update_draft(
+                &workspace,
+                tab,
+                TimelineAction::SetControls {
+                    composition,
+                    clip,
+                    controls: TimelineControls {
+                        opacity,
+                        ..Default::default()
+                    },
+                },
+                false,
+            );
+            finish(&mut pane, &mut workspace, true);
+            ctx.run_ui(input(key), |ui| {
+                pane.shortcuts(ui.ctx(), &workspace, &mut preview, true)
+            })
+            .drop_without_applying_deltas();
+            pane.poll(&mut workspace, &mut preview, true, &ctx);
+            assert!(pane.draft.is_none());
+            if key == egui::Key::Escape {
+                assert_eq!(
+                    workspace.tabs[0].editor.project().compositions,
+                    original.compositions
+                );
+            } else {
+                assert_eq!(
+                    workspace.tabs[0].editor.project().revision,
+                    original.revision + 1
+                );
+            }
+        }
+        workspace.history(tab, false).unwrap();
+        assert_eq!(
+            workspace.tabs[0].editor.project().compositions,
+            original.compositions
+        );
     }
 }
