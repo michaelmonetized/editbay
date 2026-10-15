@@ -120,7 +120,7 @@ fn normalized_floats(bytes: &[u8], expected: &[u16]) -> TestResult<f32> {
     assert_eq!(bytes.len(), expected.len() * 4);
     let mut maximum = 0_f32;
     for (bytes, sample) in bytes.as_chunks::<4>().0.iter().zip(expected) {
-        let value = f32::from_le_bytes(bytes.try_into()?);
+        let value = f32::from_le_bytes(*bytes);
         let wanted = f32::from(*sample) / 65535.0;
         let error = (value - wanted).abs();
         assert!(
@@ -163,7 +163,7 @@ fn independent_png(path: &Path, depth: u8) -> TestResult<()> {
     assert_eq!(crc32(b"123456789"), 0xcbf4_3926);
     let samples = samples16(0);
     let mut rows = Vec::new();
-    for row in samples.chunks_exact(WIDTH as usize * 4) {
+    for row in samples.as_chunks::<{ WIDTH as usize * 4 }>().0 {
         rows.push(0);
         for sample in row {
             if depth == 16 {
@@ -730,7 +730,7 @@ fn source_floats(bytes: &[u8], expected: &[f32]) -> TestResult<f32> {
     assert_eq!(bytes.len(), expected.len() * 4);
     let mut maximum = 0_f32;
     for (index, (bytes, wanted)) in bytes.as_chunks::<4>().0.iter().zip(expected).enumerate() {
-        let value = f32::from_le_bytes(bytes.try_into()?);
+        let value = f32::from_le_bytes(*bytes);
         let error = (value - wanted).abs();
         assert!(
             value.is_finite() && error <= 1.0e-6,
