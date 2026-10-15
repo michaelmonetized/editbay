@@ -451,6 +451,11 @@ fn fractional_audio_sync_survives_time_maps_picture_and_sound_evaluation() {
     let mut session = session(&project);
     let first = session.angles[0].id;
     let second = session.angles[1].id;
+    assert_eq!(
+        session.audio_policy,
+        MulticamAudioPolicy::Fixed { angle: first }
+    );
+    session.audio_policy = MulticamAudioPolicy::FollowVideo;
     let reference = noise(512);
     let mut candidate = vec![0.0; 3];
     candidate.extend(&reference);

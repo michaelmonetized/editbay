@@ -367,7 +367,7 @@ fn inspect_master(
         let expected = COLORS[usize::from(frame >= CUT_FRAME)];
         let caption_active = captioned && (3..6).contains(&frame);
         let mut changed_this_frame = 0;
-        for (index, pixel) in decoded.rgba.chunks_exact(4).enumerate() {
+        for (index, pixel) in decoded.rgba.as_chunks::<4>().0.iter().enumerate() {
             let within_safe_area =
                 (2..14).contains(&(index % 16)) && (2..14).contains(&(index / 16));
             assert_eq!(pixel[3], 255);
@@ -850,7 +850,10 @@ fn craft_video_multicam_and_captions_deliver_verified_lossless_media_on_cpu_vulk
     )?;
     let measured = inspect_master(&master, &receipt, "follow", true, &cancel)?;
     let sidecar = master.with_extension(format!("{caption_id}.vtt"));
-    assert_eq!(receipt.caption_sidecars, [sidecar.clone()]);
+    assert_eq!(
+        receipt.caption_sidecars.as_slice(),
+        std::slice::from_ref(&sidecar)
+    );
     let text = fs::read_to_string(&sidecar)?;
     assert_eq!(text, "WEBVTT\n\n00:00:00.125 --> 00:00:00.250\nI\n\n");
     let parsed = CaptionTrack::import_vtt(program, "Reopened emitted sidecar", &text)?;

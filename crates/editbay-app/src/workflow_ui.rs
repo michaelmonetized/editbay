@@ -17,7 +17,7 @@ use uuid::Uuid;
 
 enum Completion {
     Imported {
-        project: Project,
+        project: Box<Project>,
         report_path: PathBuf,
     },
     Edited(DocumentEditor),
@@ -192,7 +192,7 @@ impl WorkflowPane {
                     "Imported timeline; loss report: {}",
                     report_path.display()
                 ));
-                workspace.create(project).map(|_| ())
+                workspace.create(*project).map(|_| ())
             }
             Completion::Edited(editor) => {
                 if DocumentVersion::of(editor.project()) == owner.version {
@@ -272,7 +272,7 @@ impl WorkflowPane {
                                 &report_path,
                                 &serde_json::to_vec_pretty(&serde_json::json!({"version":DocumentVersion::of(&project),"source":path,"format":format.name(),"report":report})).map_err(|e|e.to_string())?,
                             )?;
-                            Ok(Completion::Imported{project,report_path})
+                            Ok(Completion::Imported{project:Box::new(project),report_path})
                         });
                     }
                     if ui.button("Export timeline").clicked() {
