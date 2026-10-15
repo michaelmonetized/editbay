@@ -2483,6 +2483,7 @@ mod tests {
             book.active = "Edit".into();
             let json = serde_json::to_vec(&book).unwrap();
             assert_eq!(book, serde_json::from_slice(&json).unwrap());
+            let before_focus = layout.focus.clone();
             ctx.run_ui(
                 egui::RawInput {
                     screen_rect: Some(viewport),
@@ -2503,6 +2504,10 @@ mod tests {
             )
             .drop_without_applying_deltas();
             assert!(layout.focus.is_some());
+            assert_ne!(
+                layout.focus, before_focus,
+                "F6 must move focus to another visible panel"
+            );
             let directory = tempfile::tempdir().unwrap();
             let mut workspace = Workspace::new(directory.path().join("recovery"), ctx.clone());
             let tab = workspace
