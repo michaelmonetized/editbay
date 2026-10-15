@@ -167,16 +167,14 @@ impl MulticamSession {
                 })
                 .collect::<Result<_>>()?,
             cuts: Vec::new(),
-            audio_policy: if sources
-                .iter()
-                .all(|id| source(project, *id).is_ok_and(|camera| camera.audio.is_some()))
-            {
-                MulticamAudioPolicy::FollowVideo
-            } else {
-                MulticamAudioPolicy::All
-            },
+            audio_policy: MulticamAudioPolicy::All,
         };
         let mut session = session;
+        if let Some(angle) = session.angles.iter().find(|angle| {
+            source(project, angle.composition).is_ok_and(|camera| camera.audio.is_some())
+        }) {
+            session.audio_policy = MulticamAudioPolicy::Fixed { angle: angle.id };
+        }
         session.cuts.push(MulticamCut {
             frame: 0,
             angle: session.angles[0].id,
