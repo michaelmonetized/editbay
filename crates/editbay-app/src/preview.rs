@@ -1,6 +1,8 @@
 mod cached;
 mod completion;
 mod prepared;
+#[cfg(test)]
+mod scope_tests;
 
 use crate::workspace::{DocumentOwner, Workspace};
 use completion::CompletionLog;
@@ -347,6 +349,12 @@ struct Task {
     thread: Option<JoinHandle<()>>,
 }
 
+struct RenderOptions {
+    executable: std::path::PathBuf,
+    store: Option<editbay_media::picture_store::PreparedStore>,
+    scopes: Option<editbay_render::scopes::ScopeSettings>,
+}
+
 /// Read a worker's final event without racing its exit.
 /// `result` owns the single event slot and `thread` reports completion. Returns
 /// the published event first, or an explicit failure after an empty worker exit.
@@ -414,8 +422,7 @@ impl Task {
         sequence: Uuid,
         gpu: Gpu,
         ctx: egui::Context,
-        store: Option<editbay_media::picture_store::PreparedStore>,
-        scope_settings: Option<editbay_render::scopes::ScopeSettings>,
+        options: RenderOptions,
     ) -> Result<Self, String> {
         if owner.version != DocumentVersion::of(&project) {
             return Err("Viewer document ownership changed before startup".into());
@@ -428,7 +435,7 @@ impl Task {
         let input = mailbox.clone();
         let output = result.clone();
         let token = cancel.clone();
-        let scope_settings = Arc::new(Mutex::new(scope_settings));
+        let scope_settings = Arc::new(Mutex::new(options.scopes));
         let scope_options = scope_settings.clone();
         let thread = std::thread::Builder::new()
             .name("editbay-native-picture".into())
@@ -452,15 +459,14 @@ impl Task {
                         .find(|item| item.id == sequence)
                         .and_then(|item| item.composition)
                         .ok_or("Sequence has no picture composition")?;
-                    let executable = std::env::current_exe().map_err(|e| e.to_string())?;
                     let mut provider = PictureWorker::new(
-                        &executable,
+                        &options.executable,
                         snapshot.clone(),
                         WorkerBudget::default(),
                         token.clone(),
                     )
                     .map_err(|e| e.to_string())?;
-                    if let Some(store) = store {
+                    if let Some(store) = options.store {
                         provider.attach_store(store).map_err(|e| e.to_string())?;
                     }
                     if let Some(pid) = provider.process_id() {
@@ -1650,8 +1656,11 @@ impl PreviewPane {
                     selected.sequence,
                     gpu,
                     ui.ctx().clone(),
-                    self.cached.ready(owner, selected.sequence),
-                    self.color.enabled.then_some(self.color.settings),
+                    RenderOptions {
+                        executable: std::env::current_exe().map_err(|e| e.to_string())?,
+                        store: self.cached.ready(owner, selected.sequence),
+                        scopes: self.color.enabled.then_some(self.color.settings),
+                    },
                 )
             });
             match started {
