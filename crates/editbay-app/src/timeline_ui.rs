@@ -461,6 +461,7 @@ impl TimelinePane {
         }
         if ctx.input_mut(|i| i.consume_key(egui::Modifiers::NONE, egui::Key::Escape)) {
             self.draft = None;
+            self.handles.cancel();
             preview.set_draft(None);
             if let Some(selected) = self.selections.get_mut(&tab)
                 && let Some(clip) = self
@@ -479,6 +480,7 @@ impl TimelinePane {
             && let Some(draft) = &mut self.draft
         {
             draft.finished = true;
+            self.handles.cancel();
             ctx.request_repaint();
         }
     }
