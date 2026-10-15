@@ -469,3 +469,72 @@ fn malformed_inputs_and_unbounded_resources_are_rejected_before_allocation() {
         ));
     }
 }
+
+#[test]
+fn independent_scope_numeric_receipts() {
+    let pixels = [
+        [0.0_f32, 0.0, 0.0, 1.0],
+        [0.25, 0.25, 0.25, 1.0],
+        [0.5, 0.5, 0.5, 1.0],
+        [0.75, 0.75, 0.75, 1.0],
+        [1.0, 1.0, 1.0, 1.0],
+        [1.0, 0.0, 0.0, 1.0],
+        [0.0, 1.0, 0.0, 1.0],
+        [0.0, 0.0, 1.0, 1.0],
+        [-0.25, 1.5, 64.0, 1.0],
+        [0.125, 0.25, 0.5, 0.5],
+        [0.5, -0.25, 2.0, 0.0],
+        [0.0, 0.0, 0.0, -0.5],
+    ];
+    for (name, output_transfer, scale) in [
+        ("linear", OutputTransfer::Linear, ScopeScale::Linear),
+        ("pq", OutputTransfer::Pq, ScopeScale::OutputCode),
+    ] {
+        let color = ColorConfiguration {
+            output_transfer,
+            ..linear_color(WorkingGamut::Bt709)
+        };
+        let settings = ScopeSettings {
+            columns: 12,
+            rows: 17,
+            vector_size: 17,
+            maximum_samples: pixels.len(),
+            scale,
+            reference_white_nits: 203.0,
+            peak_nits: 10_000.0,
+        };
+        let report = measure(&pixels, color, settings);
+        assert_eq!(report.sampled_pixels, 12);
+        assert_eq!(report.valid_pixels, 10);
+        assert_eq!(report.transparent_pixels, 1);
+        assert_eq!(report.invalid_pixels, 1);
+        assert_eq!(report.clipping.negative_channels, [1, 0, 0]);
+        assert_eq!(report.clipping.above_reference_white_channels, [0, 1, 1]);
+        assert_eq!(report.clipping.above_peak_channels, [0, 0, 1]);
+        for grid in [&report.waveform, &report.vectorscope]
+            .into_iter()
+            .chain(&report.parade)
+        {
+            assert_eq!(grid.counts.iter().sum::<u32>(), 10);
+        }
+        if let Some(directory) = std::env::var_os("EDITBAY_WORKFLOW_RECEIPTS_DIR") {
+            let directory = std::path::PathBuf::from(directory);
+            std::fs::create_dir_all(&directory).unwrap();
+            let receipt = serde_json::json!({
+                "schema": 1,
+                "fixture": "bt709_ramp_primaries_overrange_premultiplied_v1",
+                "case": name,
+                "pixels": pixels,
+                "dimensions": [pixels.len(), 1],
+                "color": color,
+                "settings": settings,
+                "report": report,
+            });
+            std::fs::write(
+                directory.join(format!("scopes-{name}.json")),
+                serde_json::to_vec_pretty(&receipt).unwrap(),
+            )
+            .unwrap();
+        }
+    }
+}
