@@ -871,7 +871,7 @@ fn bound_cli() -> TestResult<(PathBuf, Value)> {
     let binding_path = PathBuf::from(std::env::var_os("EDITBAY_TEST_CLI_BUILD_RECEIPT").ok_or(
         "EDITBAY_TEST_CLI_BUILD_RECEIPT must identify the exact-current serialized CLI build",
     )?);
-    let binding: Value = serde_json::from_slice(&fs::read(&binding_path)?)?;
+    let mut binding: Value = serde_json::from_slice(&fs::read(&binding_path)?)?;
     let git = Command::new("git")
         .args(["-C", env!("CARGO_MANIFEST_DIR"), "rev-parse", "HEAD"])
         .output()?;
@@ -926,6 +926,9 @@ fn bound_cli() -> TestResult<(PathBuf, Value)> {
         .ok_or("serialized receipt does not bind this CLI")?;
     assert_eq!(executable["sha256"], cli_file.fingerprint().sha256);
     assert_eq!(executable["size"], cli_file.fingerprint().bytes);
+    binding["test_source_revision"] = json!(revision.trim());
+    binding["actual_cli_fingerprint"] = json!(cli_file.fingerprint());
+    binding["actual_cli_compiler_packet"] = json!(binding_path);
     Ok((cli, binding))
 }
 
@@ -1194,7 +1197,7 @@ fn craft_video_precision_decode_worker_store_float_graph_and_atomic_master() -> 
     write_new(
         &directory.path.join("precision-pipeline.json"),
         &serde_json::to_vec_pretty(&json!({
-            "schema":"editbay.native-precision.v1", "status":"passed", "source_revision":binding["revision"],
+            "schema":"editbay.native-precision.v1", "status":"passed", "source_revision":binding["test_source_revision"], "cli_source_revision":binding["revision"], "cli_build_receipt":binding["actual_cli_compiler_packet"], "cli_fingerprint":binding["actual_cli_fingerprint"],
             "input":input, "native_project":native, "master":master, "receipt":receipt,
             "pixel_encoding":"rgba16_le", "maximum_working_linear_error":max_linear_error,
             "maximum_encoded_code_error":max_code_error, "retained_non8bit_components":retained_low_bits,
