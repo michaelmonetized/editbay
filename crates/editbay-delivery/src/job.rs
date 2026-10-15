@@ -282,10 +282,11 @@ pub fn deliver(
     if let Err(error) = publish_all {
         use std::os::unix::fs::MetadataExt;
         for (path, file) in published {
-            if let (Ok(a), Ok(b)) = (std::fs::symlink_metadata(path), file.metadata()) {
-                if a.dev() == b.dev() && a.ino() == b.ino() {
-                    let _ = std::fs::remove_file(path);
-                }
+            if let (Ok(a), Ok(b)) = (std::fs::symlink_metadata(path), file.metadata())
+                && a.dev() == b.dev()
+                && a.ino() == b.ino()
+            {
+                let _ = std::fs::remove_file(path);
             }
         }
         return Err(error);

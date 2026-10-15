@@ -531,9 +531,11 @@ impl<P: PictureProvider> GraphRenderer<P> {
             let commands = self.device.create_command_encoder(&Default::default());
             self.submit(commands, vec![upload.clone()])?;
             self.uploads = self.uploads.saturating_add(1);
-            let mut source = Parameters::default();
-            source.operation = Kernel::Source;
-            source.alpha = AlphaMode::Straight;
+            let source = Parameters {
+                operation: Kernel::Source,
+                alpha: AlphaMode::Straight,
+                ..Parameters::default()
+            };
             let foreground = self.evaluate(
                 format!("{key}-glyphs"),
                 scene.width,
@@ -544,8 +546,10 @@ impl<P: PictureProvider> GraphRenderer<P> {
                 &source,
                 vec![upload],
             )?;
-            let mut over = Parameters::default();
-            over.operation = Kernel::Over;
+            let over = Parameters {
+                operation: Kernel::Over,
+                ..Parameters::default()
+            };
             image = self.evaluate(
                 key,
                 scene.width,
