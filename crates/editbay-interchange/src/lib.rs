@@ -415,6 +415,8 @@ pub fn relink(
     Ok(eb::DocumentCommand::SetAsset { asset: reference })
 }
 
+/// Translate native tracks to the portable editorial model.
+/// `project` supplies exact sources and graph data; returns model identities and explicit losses.
 fn to_external(project: &eb::Project) -> Result<(fp::Project, HashMap<Uuid, fp::ItemId>, Report)> {
     let mut out = fp::Project::new(&project.name);
     let mut report = Report::default();
@@ -702,6 +704,8 @@ fn to_external(project: &eb::Project) -> Result<(fp::Project, HashMap<Uuid, fp::
     Ok((out, ids, report))
 }
 
+/// Preserve an exact frame-rate declaration.
+/// `rate` supplies positive native components; returns the portable rate.
 fn rate_out(rate: eb::FrameRate) -> filmcraft_time::FrameRate {
     filmcraft_time::FrameRate::new(i64::from(rate.numerator), i64::from(rate.denominator))
 }
@@ -724,16 +728,17 @@ fn source_rate(
         return Err("Picture timing absent".into());
     };
     let count = presentation_ticks.len();
-    let step = presentation_ticks
-        .get(1)
-        .map_or(*end_tick - stream.start_tick, |second| {
-            *second - stream.start_tick
-        });
+    let step = presentation_ticks.get(1).map_or(
+        i128::from(*end_tick) - i128::from(stream.start_tick),
+        |second| i128::from(*second) - i128::from(stream.start_tick),
+    );
     let uniform = step > 0
-        && presentation_ticks.windows(2).all(|p| p[1] - p[0] == step)
+        && presentation_ticks
+            .windows(2)
+            .all(|p| i128::from(p[1]) - i128::from(p[0]) == step)
         && presentation_ticks
             .last()
-            .is_some_and(|last| *end_tick - *last == step);
+            .is_some_and(|last| i128::from(*end_tick) - i128::from(*last) == step);
     let (n, d) = if uniform {
         (
             u128::from(stream.time_base.denominator),
@@ -743,7 +748,8 @@ fn source_rate(
         report.warn("Variable source frame timestamps are represented by an average descriptor; exact source-time endpoints are retained");
         (
             count as u128 * u128::from(stream.time_base.denominator),
-            u128::from(stream.time_base.numerator) * u128::try_from(*end_tick - stream.start_tick)?,
+            u128::from(stream.time_base.numerator)
+                * u128::try_from(i128::from(*end_tick) - i128::from(stream.start_tick))?,
         )
     };
     let factor = gcd(n, d);
@@ -752,6 +758,8 @@ fn source_rate(
         (d / factor).try_into()?,
     )?)
 }
+/// Convert a record tick boundary without rounding.
+/// `t` and `rate` select the clock; returns whole frames or a conform error.
 fn frames(t: Tick, rate: eb::FrameRate) -> Result<u64> {
     let n = i128::from(t.0) * i128::from(rate.numerator);
     let d = i128::from(TICKS_PER_SECOND) * i128::from(rate.denominator);
@@ -763,6 +771,8 @@ fn frames(t: Tick, rate: eb::FrameRate) -> Result<u64> {
     }
     Ok(u64::try_from(n / d)?)
 }
+/// Encode an exact native frame boundary.
+/// `frame` and `rate` select time; returns representable interchange ticks.
 fn frame_tick(frame: u64, rate: eb::FrameRate) -> Result<Tick> {
     tick(
         eb::SourcePosition::new(frame.try_into()?, 1)?,
@@ -772,6 +782,8 @@ fn frame_tick(frame: u64, rate: eb::FrameRate) -> Result<Tick> {
         },
     )
 }
+/// Convert a source fraction to the fixed interchange clock.
+/// `p` and `base` supply source time; returns exact ticks or an explicit range error.
 fn tick(p: eb::SourcePosition, base: eb::TimeBase) -> Result<Tick> {
     let n = i128::from(p.numerator)
         .checked_mul(i128::from(base.numerator))
@@ -783,6 +795,8 @@ fn tick(p: eb::SourcePosition, base: eb::TimeBase) -> Result<Tick> {
     }
     Ok(Tick(i64::try_from(n / d)?))
 }
+/// Reduce an exact intermediate source fraction.
+/// `n` and `d` supply time; returns a bounded native rational position.
 fn fraction(n: i128, d: u64) -> Result<eb::SourcePosition> {
     let g = gcd(n.unsigned_abs(), u128::from(d));
     Ok(eb::SourcePosition::new(
@@ -790,6 +804,8 @@ fn fraction(n: i128, d: u64) -> Result<eb::SourcePosition> {
         d / u64::try_from(g)?,
     )?)
 }
+/// Sum two reduced source positions without early rounding.
+/// `a` and `b` share units; returns their reduced sum or an overflow error.
 fn add(a: eb::SourcePosition, b: eb::SourcePosition) -> Result<eb::SourcePosition> {
     let g = gcd(a.denominator.into(), b.denominator.into()) as u64;
     let d = (a.denominator / g)
@@ -802,12 +818,16 @@ fn add(a: eb::SourcePosition, b: eb::SourcePosition) -> Result<eb::SourcePositio
         d,
     )
 }
+/// Find the integer scale shared by two magnitudes.
+/// `a` and `b` are unsigned factors; returns their greatest common divisor.
 fn gcd(mut a: u128, mut b: u128) -> u128 {
     while b != 0 {
         (a, b) = (b, a % b);
     }
     a.max(1)
 }
+/// Retain exact source endpoints over a native frame interval.
+/// `duration`, `a` and `b` supply the mapping; returns native time-map points.
 fn time_map(duration: u64, a: eb::SourcePosition, b: eb::SourcePosition) -> Result<eb::TimeMap> {
     let d = (a.denominator / (gcd(a.denominator.into(), b.denominator.into()) as u64))
         .checked_mul(b.denominator)

@@ -52,11 +52,7 @@ pub struct MediaInfo {
     /// [`MediaSource::audio`] reads; the others are read with [`MediaSource::audio_stream`].
     /// Project files written before multi-stream support hold a single `audio` object (or
     /// `null`): both still load.
-    #[serde(
-        default,
-        alias = "audio",
-        deserialize_with = "deserialize_audio_streams"
-    )]
+    #[serde(default, alias = "audio", deserialize_with = "deserialize_audio_streams")]
     pub audio_streams: Vec<AudioStreamInfo>,
     pub container: String,
     /// Timecode of the first frame (in frames at `video.frame_rate`), if the file carries one.
@@ -65,9 +61,7 @@ pub struct MediaInfo {
 }
 
 /// Reads `audio_streams` from a list, or from the single optional stream older project files wrote.
-fn deserialize_audio_streams<'de, D: serde::Deserializer<'de>>(
-    d: D,
-) -> std::result::Result<Vec<AudioStreamInfo>, D::Error> {
+fn deserialize_audio_streams<'de, D: serde::Deserializer<'de>>(d: D) -> std::result::Result<Vec<AudioStreamInfo>, D::Error> {
     #[derive(Deserialize)]
     #[serde(untagged)]
     enum Streams {
@@ -82,10 +76,7 @@ fn deserialize_audio_streams<'de, D: serde::Deserializer<'de>>(
 
 impl MediaInfo {
     pub fn frame_rate(&self) -> FrameRate {
-        self.video
-            .as_ref()
-            .map(|v| v.frame_rate)
-            .unwrap_or_default()
+        self.video.as_ref().map(|v| v.frame_rate).unwrap_or_default()
     }
     pub fn has_video(&self) -> bool {
         self.video.is_some()
@@ -110,14 +101,7 @@ pub enum DemoScene {
 }
 
 impl DemoScene {
-    pub const ALL: [DemoScene; 6] = [
-        DemoScene::OceanSunset,
-        DemoScene::Aurora,
-        DemoScene::CityNight,
-        DemoScene::Dunes,
-        DemoScene::Forest,
-        DemoScene::Plasma,
-    ];
+    pub const ALL: [DemoScene; 6] = [DemoScene::OceanSunset, DemoScene::Aurora, DemoScene::CityNight, DemoScene::Dunes, DemoScene::Forest, DemoScene::Plasma];
     pub fn file_name(self) -> &'static str {
         match self {
             DemoScene::Aurora => "Aurora_Timelapse.mp4",

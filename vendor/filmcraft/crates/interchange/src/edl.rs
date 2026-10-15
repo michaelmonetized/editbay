@@ -427,7 +427,9 @@ pub(crate) fn import(text: &str, opts: &ImportOptions, report: &mut Report) -> R
     }
 
     for ev in &parsed.events {
-        for line in &ev.lines {ctx.seq.editorial_duration=ctx.seq.editorial_duration.max(ctx.rec(line.tcs[3],ev.df));}
+        for line in &ev.lines {
+            ctx.seq.editorial_duration = ctx.seq.editorial_duration.max(ctx.rec(line.tcs[3], ev.df));
+        }
         import_event(&mut ctx, ev, report);
         for (tc, color, name) in &ev.locs {
             let t = ctx.rec(*tc, ev.df);

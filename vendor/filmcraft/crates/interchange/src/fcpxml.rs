@@ -298,7 +298,7 @@ impl<'a, 'i> Imp<'a, 'i, '_> {
         }
         let id = self.b.reserve_sequence(name, settings.clone(), bin);
         let mut seq = empty_sequence(settings);
-        seq.editorial_duration=attr_time(s,"duration").unwrap_or(Tick::ZERO);
+        seq.editorial_duration = attr_time(s, "duration").unwrap_or(Tick::ZERO);
         let tc_start = attr_time(s, "tcStart").unwrap_or(Tick::ZERO);
         seq.start_timecode = rate.frame_at(tc_start);
         let ctx = Ctx { seq_rate: rate, frame: (w, h) };

@@ -193,7 +193,9 @@ impl Exp<'_, '_> {
             }
             pos = it.end();
         }
-        if pos < seq.duration() { children.push(json!({"OTIO_SCHEMA":"Gap.1","name":"","source_range":tr(Tick::ZERO,seq.duration()-pos,rate),"effects":[],"markers":[],"enabled":true,"metadata":{}})); }
+        if pos < seq.duration() {
+            children.push(json!({"OTIO_SCHEMA":"Gap.1","name":"","source_range":tr(Tick::ZERO,seq.duration()-pos,rate),"effects":[],"markers":[],"enabled":true,"metadata":{}}));
+        }
         json!({
             "OTIO_SCHEMA": "Track.1",
             "name": t.name,
@@ -557,7 +559,7 @@ impl Imp<'_, '_> {
             let reverse = meta.and_then(|m| m.get("reverse")).and_then(Value::as_bool).unwrap_or(false);
             track.transitions.push(Transition { id: TransitionId(self.b.alloc()), effect, start: cut - inn, duration: inn + out, from, to, align, reverse });
         }
-        seq.editorial_duration=seq.editorial_duration.max(pos);
+        seq.editorial_duration = seq.editorial_duration.max(pos);
         track.sort();
         seq.tracks_mut(kind).push(track);
     }
