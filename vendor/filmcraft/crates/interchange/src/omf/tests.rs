@@ -1,3 +1,4 @@
+// Modified by EditBay: default the additive nominal transition cut in legacy fixtures.
 //! Structural checks of written OMF files: the Bento label and TOC, and the required properties of
 //! the OMF Interchange 2.0 classes FilmCraft writes.
 
@@ -53,6 +54,7 @@ fn project() -> (Project, ItemId) {
         effect: find_effect("constant_power").unwrap().instance(),
         start: r.tick_of(45),
         duration: r.tick_of(10),
+        cut: None,
         from: Some(ids[0]),
         to: Some(ids[1]),
         align: TransitionAlign::CenterAtCut,

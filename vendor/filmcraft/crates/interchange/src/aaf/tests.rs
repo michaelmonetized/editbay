@@ -1,3 +1,4 @@
+// Modified by EditBay: default the additive nominal transition cut in legacy fixtures.
 //! Structural checks of written AAF files against the required properties and rules of the AAF
 //! Object Specification v1.1 and the Edit Protocol, read back through our compound file reader.
 
@@ -68,6 +69,7 @@ fn project() -> (Project, ItemId) {
             effect: find_effect(eff).unwrap().instance(),
             start: r.tick_of(42),
             duration: r.tick_of(12),
+            cut: None,
             from: Some(ids[i]),
             to: Some(ids[i + 1]),
             align: TransitionAlign::CenterAtCut,

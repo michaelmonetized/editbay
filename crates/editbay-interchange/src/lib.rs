@@ -270,12 +270,16 @@ pub fn import_document(
                 let end = frames(transition.end(), rate)?;
                 let from = transition.from.and_then(|id| clip_ids.get(&id).copied());
                 let to = transition.to.and_then(|id| clip_ids.get(&id).copied());
-                let cut = transition
-                    .to
-                    .and_then(|id| track.item(id))
-                    .map(|c| frames(c.start, rate))
-                    .transpose()?
-                    .unwrap_or(end);
+                let cut = if let Some(cut) = transition.cut {
+                    frames(cut, rate)?
+                } else {
+                    transition
+                        .to
+                        .and_then(|id| track.item(id))
+                        .map(|c| frames(c.start, rate))
+                        .transpose()?
+                        .unwrap_or(end)
+                };
                 let effect = transition.effect.effect.as_str();
                 if !matches!(
                     effect,
@@ -671,6 +675,7 @@ fn to_external(project: &eb::Project) -> Result<(fp::Project, HashMap<Uuid, fp::
                 from: tr.from.and_then(|id| native_clips.get(&id).copied()),
                 to: tr.to.and_then(|id| native_clips.get(&id).copied()),
                 align: fp::TransitionAlign::CenterAtCut,
+                cut: Some(frame_tick(tr.cut, scene.frame_rate)?),
                 reverse: false,
             });
         }

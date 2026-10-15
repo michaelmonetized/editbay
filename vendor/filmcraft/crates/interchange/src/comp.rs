@@ -1,5 +1,5 @@
 //! A format-neutral mob-style composition model shared by AAF and OMF.
-//! EditBay modifications retain rational picture retimes and declared trailing gaps.
+//! EditBay modifications retain rational picture retimes, declared trailing gaps and nominal transition cuts.
 //!
 //! Both formats describe a timeline as a composition of slots (tracks) whose segments are
 //! sequences of fillers, source clips and transitions, where a transition *overlaps* the end of
@@ -1117,6 +1117,7 @@ fn build_track(b: &mut Builder, track: &mut Track, kind: TrackKind, t: &CTrack, 
             effect,
             start,
             duration: len,
+            cut: Some(cut_at),
             from: prev.map(|a| clips[a].id),
             to: next.map(|c| clips[c].id),
             align,

@@ -1,4 +1,4 @@
-// Modified by EditBay: retain the declared sequence duration.
+// Modified by EditBay: retain sequence duration and already-resolved nominal transition cuts.
 //! Final Cut Pro 7 XML interchange (`xmeml` versions 4 and 5), the dialect Premiere Pro imports
 //! and exports.
 //!
@@ -675,7 +675,17 @@ impl<'a, 'i> Imp<'a, 'i, '_> {
             _ => TransitionAlign::CenterAtCut,
         };
         let id = TransitionId(self.b.alloc());
-        track.transitions.push(Transition { id, effect, start: s, duration: e - s, from: from.map(|f| f.0), to: to.map(|t| t.0), align, reverse: false });
+        track.transitions.push(Transition {
+            id,
+            effect,
+            start: s,
+            duration: e - s,
+            cut: Some(cut),
+            from: from.map(|f| f.0),
+            to: to.map(|t| t.0),
+            align,
+            reverse: false,
+        });
         track.sort();
     }
 

@@ -1,11 +1,12 @@
-// Modified by EditBay: retain black filler duration, exact motion ratios and linked multi-channel events.
+// Modified by EditBay: retain black duration, exact motion, linked events and nominal transition cut comments.
 //! CMX 3600 edit decision lists.
 //!
 //! Supported: `TITLE:`, `FCM:` (drop/non-drop, may change mid-list), cut / dissolve (`D nnn`) /
 //! wipe (`Wnnn nnn`) / key (`K B`, `K`, `K O`) events, audio channels (`V`, `A`, `A2`, `AA`, `B`,
 //! `AA/V`, `A2/V`, `A3`, `A4`, `AUD 3 4` lines), `M2` motion (speed, reverse, freeze) lines, `BL`
 //! black, reel names up to 8 (strict) or 32+ (extended) characters, and the comment extensions
-//! `* FROM CLIP NAME:`, `* TO CLIP NAME:`, `* SOURCE FILE:`, `* EFFECT NAME:` and `* LOC:` markers.
+//! `* FROM CLIP NAME:`, `* TO CLIP NAME:`, `* SOURCE FILE:`, `* EFFECT NAME:`, `* LOC:` markers,
+//! and optional `* EDITBAY CUT OFFSET:` integer-frame comments for nominal transition cuts.
 //!
 //! EDLs carry no frame rate and no media identity beyond reels/comments; see [`ImportOptions`].
 //! Source timecodes are imported as media time (a file starting at 01:00:00:00 would need
@@ -136,6 +137,7 @@ struct Event {
     to_clip: Option<String>,
     files: Vec<String>,
     effect: Option<String>,
+    cut_offset_frames: Option<i64>,
     /// (reel, fps, entry tc)
     m2: Vec<(String, f64)>,
     locs: Vec<(Tc, String, String)>,
@@ -181,6 +183,11 @@ fn parse(text: &str, report: &mut Report) -> Parsed {
                 ev.files.push(value("SOURCE FILE:"));
             } else if cu.starts_with("EFFECT NAME:") {
                 ev.effect = Some(value("EFFECT NAME:"));
+            } else if cu.starts_with("EDITBAY CUT OFFSET:") {
+                match value("EDITBAY CUT OFFSET:").parse::<i64>() {
+                    Ok(offset) => ev.cut_offset_frames = Some(offset),
+                    Err(_) => report.warn("malformed EDITBAY CUT OFFSET comment was ignored; expected an integer frame offset"),
+                }
             } else if cu.starts_with("LOC:") {
                 let rest = value("LOC:");
                 let mut it = rest.splitn(3, char::is_whitespace).filter(|s| !s.is_empty());
@@ -471,6 +478,14 @@ fn import_event(ctx: &mut Ctx, ev: &Event, report: &mut Report) {
             let t0 = ctx.rec(l2.tcs[2], df);
             let t1 = ctx.rec(l2.tcs[3], df);
             let d = ctx.rate.tick_of(l2.dur);
+            let cut = ev.cut_offset_frames.and_then(|offset| {
+                if offset < 0 || offset > l2.dur {
+                    report.warn(format!("EDL event {}: EDITBAY CUT OFFSET outside 0..transition duration was ignored", l2.num));
+                    None
+                } else {
+                    Some(t0 + ctx.rate.tick_of(offset))
+                }
+            });
             // Resolve separately for each track kind: named audio dissolves have
             // different definitions from their video counterparts.
             let mut video_effect = None;
@@ -511,12 +526,21 @@ fn import_event(ctx: &mut Ctx, ev: &Event, report: &mut Report) {
                 if from.is_none() && to.is_none() {
                     continue;
                 }
+                if let Some(cut) = cut {
+                    align = if cut == t0 {
+                        TransitionAlign::StartAtCut
+                    } else if cut == t0 + d {
+                        TransitionAlign::EndAtCut
+                    } else {
+                        TransitionAlign::CenterAtCut
+                    };
+                }
                 let audio = kind == TrackKind::Audio;
                 let cache = if audio { &mut audio_effect } else { &mut video_effect };
                 let eff = cache.get_or_insert_with(|| transition_for(l2.trans, ev.effect.as_deref(), audio, report)).clone();
                 let id = TransitionId(ctx.b.alloc());
                 let track = &mut ctx.seq.tracks_mut(kind)[idx];
-                track.transitions.push(Transition { id, effect: eff, start: t0, duration: d, from, to, align, reverse: false });
+                track.transitions.push(Transition { id, effect: eff, start: t0, duration: d, cut, from, to, align, reverse: false });
                 track.sort();
             }
         }
@@ -628,6 +652,7 @@ struct MergeKey {
     enabled: bool,
     lines: Vec<MergeLine>,
     motion: Option<(u64, Tick)>,
+    cut_offset_frames: Option<i64>,
 }
 
 struct OutEvent {
@@ -813,7 +838,12 @@ pub(crate) fn export(p: &Project, seq_id: ItemId, opts: &ExportOptions, report: 
             let mut lines = Vec::new();
             let mut comments = Vec::new();
             let mut trans_name = None;
+            let mut cut_offset_frames = None;
             if let Some(t) = tr_in {
+                cut_offset_frames = edl_cut_offset(t, it.start, rate, report);
+                if let Some(offset) = cut_offset_frames {
+                    comments.push(format!("EDITBAY CUT OFFSET: {offset}"));
+                }
                 let s = t.start;
                 let (l1_reel, l1_src, from_name, from_item) = match t.from.and_then(|f| track.item(f)) {
                     Some(a) => {
@@ -907,6 +937,7 @@ pub(crate) fn export(p: &Project, seq_id: ItemId, opts: &ExportOptions, report: 
                     })
                     .collect(),
                 motion: m2.as_ref().map(|(_, speed, source)| (speed.to_bits(), *source)),
+                cut_offset_frames,
             });
             events.push(OutEvent {
                 merge,
@@ -923,6 +954,9 @@ pub(crate) fn export(p: &Project, seq_id: ItemId, opts: &ExportOptions, report: 
                 let (code, name) = edl_transition(&t.effect, report);
                 let d = t.duration;
                 let mut comments = Vec::new();
+                if let Some(offset) = edl_cut_offset(t, it.end(), rate, report) {
+                    comments.push(format!("EDITBAY CUT OFFSET: {offset}"));
+                }
                 if opts.edl.clip_names {
                     comments.push(format!("FROM CLIP NAME: {}", it.name));
                 }
@@ -1023,6 +1057,25 @@ fn src_tc(x: &Exp, l: &OutLine, t: Tick) -> i64 {
         Some(i) if l.reel != "BL" => x.src_frames(i, t),
         _ => frames_round(x.rate, t),
     }
+}
+
+/// Preserve a nominal cut without changing the standard EDL event lines.
+/// `transition`, `legacy_cut`, `rate` and `report` select the range and clock.
+/// Returns a bounded integer-frame offset, warning when external readers can discard it.
+fn edl_cut_offset(transition: &Transition, legacy_cut: Tick, rate: FrameRate, report: &mut Report) -> Option<i64> {
+    let cut = transition.cut.unwrap_or(legacy_cut);
+    if transition.duration < Tick::ZERO || cut < transition.start || cut > transition.end() {
+        report.warn("an EDL nominal transition cut outside its transition range was ignored");
+        return None;
+    }
+    let offset = cut - transition.start;
+    if !on_frame(rate, offset) || !on_frame(rate, transition.duration) {
+        report.warn("sub-frame nominal transition cuts were rounded to frames in the EDL");
+    }
+    let frames = frames_round(rate, offset);
+    let duration = frames_round(rate, transition.duration).max(0);
+    report.warn("EDL nominal cuts use app-specific EDITBAY CUT OFFSET comments; other EDL readers may discard this cut metadata");
+    Some(frames.clamp(0, duration))
 }
 
 /// EDL transition code and effect name.

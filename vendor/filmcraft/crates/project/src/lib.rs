@@ -1,4 +1,4 @@
-// Modified by EditBay: retain explicit editorial duration, including trailing gaps.
+// Modified by EditBay: retain explicit editorial duration and absolute nominal transition cuts.
 //! The FilmCraft document model.
 //!
 //! A [`Project`] owns a tree of bins and a flat map of [`ProjectItem`]s (media clips, sequences,
@@ -705,7 +705,7 @@ pub enum TransitionAlign {
     EndAtCut,
 }
 
-/// A transition on a track. `at` is the cut point (or clip edge for single-sided transitions).
+/// A transition on a track with an optional retained nominal cut.
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 pub struct Transition {
     pub id: TransitionId,
@@ -713,6 +713,9 @@ pub struct Transition {
     /// Timeline range covered by the transition.
     pub start: Tick,
     pub duration: Tick,
+    /// Absolute timeline position of the nominal cut; None uses the legacy adjacent clip boundary.
+    #[serde(default)]
+    pub cut: Option<Tick>,
     /// Outgoing clip (left) and incoming clip (right); one may be None (fade from/to nothing).
     pub from: Option<ClipId>,
     pub to: Option<ClipId>,

@@ -639,3 +639,125 @@ fn aaf_picture_speed_reverse_repeat_use_standard_operations_and_exact_source_bou
         }
     }
 }
+
+#[test]
+fn dissolve_handles_round_trip_in_all_editorial_formats() {
+    let dir = fixture_dir("dissolve");
+    let mut project = av_project(&dir.path().join("dissolve.mov"));
+    let scene = &mut project.compositions[0];
+    let mut transitions = vec![];
+    for track in &mut scene.tracks {
+        for (index, clip) in track.clips.iter_mut().enumerate() {
+            let (range, first, last) = if index == 0 {
+                (eb::FrameRange { start: 4, end: 18 }, 0, 14)
+            } else {
+                (eb::FrameRange { start: 14, end: 24 }, 20, 30)
+            };
+            let eb::ClipSource::Media { source, stream } = clip.source else {
+                unreachable!()
+            };
+            let source = project.sources.iter().find(|s| s.id == source).unwrap();
+            let stream = source.streams.iter().find(|s| s.index == stream).unwrap();
+            let convert = |frame: i64| {
+                eb::TimeBase {
+                    numerator: 1,
+                    denominator: 24,
+                }
+                .at_rate(
+                    eb::SourcePosition::new(frame, 1).unwrap(),
+                    eb::FrameRate::new(stream.time_base.denominator, stream.time_base.numerator)
+                        .unwrap(),
+                )
+                .unwrap()
+            };
+            let (a, b) = (convert(first), convert(last));
+            assert_eq!(a.denominator, 1);
+            assert_eq!(b.denominator, 1);
+            clip.range = range;
+            clip.time_map = eb::TimeMap {
+                source_denominator: 1,
+                points: vec![
+                    eb::TimePoint {
+                        frame: 0,
+                        source_tick: stream.start_tick + a.numerator,
+                    },
+                    eb::TimePoint {
+                        frame: range.end - range.start,
+                        source_tick: stream.start_tick + b.numerator,
+                    },
+                ],
+            };
+        }
+        transitions.push(eb::EditorialTransition {
+            id: uuid::Uuid::new_v4(),
+            composition: scene.id,
+            range: eb::FrameRange { start: 14, end: 18 },
+            cut: 16,
+            from: Some(track.clips[0].id),
+            to: Some(track.clips[1].id),
+        });
+    }
+    eb::rebuild_editorial(scene, &transitions).unwrap();
+    project.transitions = transitions;
+    project.validate().unwrap();
+    record_fixture(&project, "dissolve", dir.path());
+    let composition = project.compositions[0].id;
+    let mut failures = Vec::new();
+    for format in Format::ALL {
+        let result = (|| -> std::result::Result<(), String> {
+            let (bytes, report) =
+                export_document(&project, composition, format, &Default::default())
+                    .map_err(|error| error.to_string())?;
+            if let Some(root) = std::env::var_os("EDITBAY_WORKFLOW_RECEIPTS_DIR") {
+                let root = std::path::PathBuf::from(root);
+                std::fs::create_dir_all(&root).map_err(|error| error.to_string())?;
+                std::fs::write(
+                    root.join(format!("dissolve.{}", format.extension())),
+                    &bytes,
+                )
+                .map_err(|error| error.to_string())?;
+                std::fs::write(
+                    root.join(format!("dissolve.{}.loss.json", format.extension())),
+                    serde_json::to_vec_pretty(&report).map_err(|error| error.to_string())?,
+                )
+                .map_err(|error| error.to_string())?;
+            }
+            let (imported, loss) = import_document(
+                &bytes,
+                format,
+                &ImportOptions {
+                    edl_frame_rate: Some(eb::FrameRate::new(24, 1).unwrap()),
+                    ..Default::default()
+                },
+                &editbay_media::Cancellation::new().unwrap(),
+            )
+            .map_err(|error| format!("transition import: {error}; {report:?}"))?;
+            if imported.transitions.is_empty() {
+                return Err(format!("transition absent: {loss:?}"));
+            }
+            for transition in &imported.transitions {
+                if transition.range != (eb::FrameRange { start: 14, end: 18 })
+                    || transition.cut != 16
+                    || transition.from.is_none()
+                    || transition.to.is_none()
+                {
+                    return Err(format!(
+                        "transition boundaries or endpoints changed: {transition:?}; {loss:?}"
+                    ));
+                }
+            }
+            let path = dir
+                .path()
+                .join(format!("transition-{}.editbay", format.extension()));
+            eb::save_new(&imported, &path).map_err(|error| error.to_string())?;
+            if eb::load(path).map_err(|error| error.to_string())? != imported {
+                return Err("native save/reopen changed the imported edit".into());
+            }
+            Ok(())
+        })();
+        if let Err(error) = result {
+            failures.push(format!("{format:?}: {error}"));
+        }
+    }
+    assert!(failures.is_empty(), "{}", failures.join("\n"));
+}

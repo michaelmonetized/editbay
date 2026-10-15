@@ -1,4 +1,4 @@
-// Modified by EditBay: preserve explicit trailing gaps on both interchange paths.
+// Modified by EditBay: preserve explicit trailing gaps and imported nominal transition cuts.
 //! OpenTimelineIO JSON (`.otio`).
 //!
 //! Schemas read and written: `Timeline.1`, `Stack.1`, `Track.1`, `Clip.1`/`Clip.2`, `Gap.1`,
@@ -557,7 +557,17 @@ impl Imp<'_, '_> {
                 TransitionAlign::CenterAtCut
             });
             let reverse = meta.and_then(|m| m.get("reverse")).and_then(Value::as_bool).unwrap_or(false);
-            track.transitions.push(Transition { id: TransitionId(self.b.alloc()), effect, start: cut - inn, duration: inn + out, from, to, align, reverse });
+            track.transitions.push(Transition {
+                id: TransitionId(self.b.alloc()),
+                effect,
+                start: cut - inn,
+                duration: inn + out,
+                cut: Some(cut),
+                from,
+                to,
+                align,
+                reverse,
+            });
         }
         seq.editorial_duration = seq.editorial_duration.max(pos);
         track.sort();
