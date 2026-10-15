@@ -122,6 +122,45 @@ fn dissolve_with_equal_handle_starts_keeps_semantic_layer_order_and_halfway_weig
             .iter()
             .any(|n| n.id == image && n.operation == NodeOperation::Source { clip: id(998) })
     );
+    let mut editor = DocumentEditor::new(p.clone()).unwrap();
+    let mut changed = p.transitions[0].clone();
+    changed.range.start = 2;
+    changed.cut = 3;
+    editor
+        .apply(
+            DocumentVersion::of(editor.project()),
+            "Retime dissolve".into(),
+            &[DocumentCommand::SetTransition {
+                transition: changed,
+            }],
+        )
+        .unwrap();
+    let changed_plan = editor.project().frame_plan(id(100), 2).unwrap();
+    assert!(
+        changed_plan.nodes.iter().any(
+            |n| matches!(n.operation, NodeOperation::Transform { opacity, .. } if opacity == 0.)
+        )
+    );
+    editor.undo(DocumentVersion::of(editor.project())).unwrap();
+    assert_eq!(editor.project().transitions, p.transitions);
+    assert_eq!(editor.project().compositions, p.compositions);
+    editor
+        .apply(
+            DocumentVersion::of(editor.project()),
+            "Remove dissolve".into(),
+            &[DocumentCommand::RemoveTransition { id: id(200) }],
+        )
+        .unwrap();
+    assert!(editor.project().transitions.is_empty());
+    assert!(
+        !editor
+            .project()
+            .frame_plan(id(100), 2)
+            .unwrap()
+            .nodes
+            .iter()
+            .any(|n| matches!(n.operation, NodeOperation::Transform { .. }))
+    );
     let dir = tempfile::tempdir().unwrap();
     let path = dir.path().join("dissolve.editbay");
     save_new(&p, &path).unwrap();

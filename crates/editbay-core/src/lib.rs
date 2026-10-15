@@ -6,6 +6,7 @@ mod authoring;
 pub use authoring::{
     conform_sequence, sequence_from_audio, sequence_from_video, sequence_from_video_with_audio,
 };
+pub mod captions;
 mod command;
 mod composition;
 mod document;
@@ -37,7 +38,7 @@ pub use sound::{
 pub use storage::{
     MAX_DOCUMENT_BYTES, PreparedCheckpoint, RecoveryCatalog, RecoveryFailure, RecoveryRecord,
     archive_project, checkpoint, load, load_bounded, prepare_checkpoint, recover_copy,
-    recovery_catalog, save, save_if_unchanged, save_new,
+    recovery_catalog, save, save_if_unchanged, save_new, write_new_bytes,
 };
 pub use time::{SourcePosition, TimeBase, TimeMap, TimePoint};
 pub use timeline::{

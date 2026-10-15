@@ -99,6 +99,7 @@ pub fn deliver(
     {
         return Err("The cut is empty; append a source range before exporting".into());
     }
+    let captions = crate::caption_sidecars(&project, &request, destination)?;
     let evaluation = Arc::new(EvaluationSnapshot::new(project.clone())?);
     let sound = SoundSnapshot::at_output_rate(
         evaluation,
@@ -177,6 +178,13 @@ pub fn deliver(
         },
         pid,
     );
+    let mut sidecars = Vec::new();
+    for (path, bytes) in captions {
+        let mut file = private_file(&directory_file)?;
+        std::io::Write::write_all(&mut file, &bytes)?;
+        file.sync_all()?;
+        sidecars.push((path, file));
+    }
     let mut serial = 0;
     let format = request.format;
     let mut previous = None;
@@ -184,7 +192,7 @@ pub fn deliver(
         project: Box::new((*project).clone()),
         request,
     };
-    let receipt = loop {
+    let mut receipt = loop {
         let request = Request {
             owner,
             serial,
@@ -258,7 +266,32 @@ pub fn deliver(
         },
         pid,
     );
-    publish(&temporary, &directory_file, name)?;
+    let mut published = Vec::new();
+    let publish_all = (|| -> Result<()> {
+        for (path, file) in &sidecars {
+            publish(
+                file,
+                &directory_file,
+                path.file_name().ok_or("Caption filename absent")?,
+            )?;
+            published.push((path, file));
+        }
+        publish(&temporary, &directory_file, name)?;
+        Ok(())
+    })();
+    if let Err(error) = publish_all {
+        use std::os::unix::fs::MetadataExt;
+        for (path, file) in published {
+            if let (Ok(a), Ok(b)) = (std::fs::symlink_metadata(path), file.metadata())
+                && a.dev() == b.dev()
+                && a.ino() == b.ino()
+            {
+                let _ = std::fs::remove_file(path);
+            }
+        }
+        return Err(error);
+    }
+    receipt.caption_sidecars = sidecars.into_iter().map(|(path, _)| path).collect();
     control.state.store(3, Ordering::Release);
     directory_file.sync_all().map_err(|error| {
         format!(
@@ -603,6 +636,7 @@ mod tests {
             file_bytes: 4096,
             clipped_picture_values: 0,
             adapter: "test".into(),
+            caption_sidecars: Vec::new(),
         };
         assert!(
             validate_reply(

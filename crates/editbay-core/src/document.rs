@@ -75,6 +75,8 @@ pub struct Project {
     pub color: crate::ColorConfiguration,
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub transitions: Vec<crate::EditorialTransition>,
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub captions: Vec<crate::captions::CaptionTrack>,
 }
 
 impl Project {
@@ -86,6 +88,7 @@ impl Project {
             name: name.into(),
             recovered_from: None,
             transitions: Vec::new(),
+            captions: Vec::new(),
             assets: Vec::new(),
             sources: Vec::new(),
             compositions: Vec::new(),
@@ -141,6 +144,23 @@ impl Project {
             sequence.frame_rate.validate()?;
         }
         crate::composition::validate_model(self, &mut identities)?;
+        for track in &self.captions {
+            track.validate()?;
+            if !self.compositions.iter().any(|c| c.id == track.composition) {
+                return Err(Error::Invalid("Caption composition is absent".into()));
+            }
+            if !identities.insert(track.id) || track.cues.iter().any(|c| !identities.insert(c.id)) {
+                return Err(Error::Invalid("Duplicate caption identity".into()));
+            }
+            if let Some(font) = track.style.font
+                && !self
+                    .assets
+                    .iter()
+                    .any(|a| a.id == font && a.kind == crate::AssetKind::Font)
+            {
+                return Err(Error::Invalid("Caption font is absent".into()));
+            }
+        }
         for transition in &self.transitions {
             if !identities.insert(transition.id) {
                 return Err(Error::Invalid("Duplicate transition identity".into()));
@@ -155,7 +175,8 @@ impl Project {
     /// and sequence profiles retained. Recovery callers verify integrity first.
     pub fn migrate(mut self) -> Result<Self> {
         if self.schema == 1 {
-            if !self.transitions.is_empty()
+            if !self.captions.is_empty()
+                || !self.transitions.is_empty()
                 || !self.assets.is_empty()
                 || !self.sources.is_empty()
                 || !self.compositions.is_empty()

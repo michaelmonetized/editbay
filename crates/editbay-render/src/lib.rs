@@ -1,5 +1,6 @@
 //! Explicit sRGB input, linear-float composition and sRGB output boundaries.
 
+mod caption_text;
 mod graph;
 mod presentation;
 mod text;

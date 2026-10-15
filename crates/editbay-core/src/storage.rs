@@ -97,6 +97,13 @@ pub fn save(project: &Project, path: impl AsRef<Path>) -> Result<()> {
     write_project(project, path.as_ref(), false, None)
 }
 
+/// Publish complete new sidecar or exchange bytes without replacing any file.
+/// `path` selects a new destination and `bytes` its complete contents; returns
+/// after the existing atomic write protocol synchronizes and publishes them.
+pub fn write_new_bytes(path: impl AsRef<Path>, bytes: &[u8]) -> Result<()> {
+    atomic_write(path.as_ref(), bytes, true, None)
+}
+
 /// Create a project without replacing an existing destination.
 pub fn save_new(project: &Project, path: impl AsRef<Path>) -> Result<()> {
     write_project(project, path.as_ref(), true, None)
