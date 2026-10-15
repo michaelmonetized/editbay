@@ -1,6 +1,6 @@
 use editbay_core::{
     AssetKind, AssetReference, Composition, DocumentCommand, DocumentEditor, DocumentVersion,
-    FrameRate, Project, Sequence, SourcePosition, TrackKind,
+    EvaluationSnapshot, FrameRate, Project, Sequence, SourcePosition, TrackKind,
     captions::{CaptionCue, CaptionDelivery, CaptionSafeArea, CaptionTime, CaptionTrack},
     load,
     multicam::{MulticamAudioPolicy, MulticamSession, MulticamTimecode},
@@ -8,9 +8,10 @@ use editbay_core::{
 };
 use editbay_delivery::{DeliveryControl, DeliveryFormat, DeliveryRequest, Phase, Receipt, deliver};
 use editbay_media::{
-    Cancellation, LosslessMovProfile, LosslessMovWriter, NativeAudioReader, SourceFile, StreamType,
-    VideoReader,
+    Cancellation, LosslessMovProfile, LosslessMovWriter, NativeAudioReader, PictureBudget,
+    SourceFile, StreamType, VideoReader,
 };
+use editbay_render::{GraphBudget, GraphRenderer};
 use serde_json::{Value, json};
 use std::{
     fs::{self, OpenOptions},
@@ -639,6 +640,40 @@ fn craft_video_multicam_and_captions_deliver_verified_lossless_media_on_cpu_vulk
     save_new(editor.project(), &native)?;
     let reopened = Arc::new(load(&native)?);
     assert_eq!(*reopened, *editor.project());
+
+    let mut optional = (*reopened).clone();
+    optional.captions[0].delivery = CaptionDelivery::SidecarVtt;
+    optional.captions[0].cues[0].text = "<i>I</i>".into();
+    let mut graph = GraphRenderer::new(
+        Arc::new(EvaluationSnapshot::new(Arc::new(optional.clone()))?),
+        PictureBudget::default(),
+        GraphBudget::default(),
+        cancel.clone(),
+    )?;
+    let position = SourcePosition::new(3, 1)?;
+    let picture = graph.render(program, position, false)?;
+    let (preview, warnings) = graph.preview_captions(&picture, program, position)?;
+    assert!(
+        Arc::ptr_eq(picture.image(), preview.image()),
+        "an unsupported optional caption must preserve the program picture"
+    );
+    assert_eq!(warnings.len(), 1);
+    assert!(warnings[0].contains("explicit conversion"));
+    optional.captions[0].delivery = CaptionDelivery::BurnIn;
+    graph.rebind(
+        Arc::new(EvaluationSnapshot::new(Arc::new(optional))?),
+        cancel.clone(),
+    )?;
+    assert!(
+        graph
+            .render(program, position, false)
+            .err()
+            .expect("required burn-in must reject unsupported rich captions")
+            .to_string()
+            .contains("explicit conversion")
+    );
+    graph.finish()?;
+    drop(graph);
 
     let blocked = directory.path.join("existing-master.mov");
     write_new(&blocked, b"owner master")?;
