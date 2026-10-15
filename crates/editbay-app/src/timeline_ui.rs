@@ -1745,4 +1745,54 @@ mod tests {
             }
         );
     }
+    #[test]
+    fn craft_idle_mixed_and_disabled_fields_preserve_imported_out_of_range_values() {
+        for original in [1.2e7_f64, -6e6, 2e6, 720.] {
+            for (mixed, locked, enabled) in [
+                (false, false, true),
+                (true, false, true),
+                (false, true, true),
+                (false, false, false),
+            ] {
+                let ctx = egui::Context::default();
+                let mut value = original;
+                for _ in 0..2 {
+                    ctx.run_ui(
+                        egui::RawInput {
+                            screen_rect: Some(egui::Rect::from_min_size(
+                                egui::Pos2::ZERO,
+                                egui::vec2(360., 240.),
+                            )),
+                            ..Default::default()
+                        },
+                        |ui| {
+                            ui.add_enabled_ui(enabled, |ui| {
+                                let response = fields::number(
+                                    ui,
+                                    ("imported", original.to_bits()),
+                                    "Imported value",
+                                    &mut value,
+                                    -360. ..=360.,
+                                    " px",
+                                    Some(0.),
+                                    FieldState {
+                                        mixed,
+                                        locked,
+                                        error: None,
+                                    },
+                                );
+                                assert!(!response.changed);
+                                assert!(!response.committed);
+                            });
+                        },
+                    )
+                    .drop_without_applying_deltas();
+                    assert_eq!(
+                        value, original,
+                        "mixed={mixed} locked={locked} enabled={enabled}"
+                    );
+                }
+            }
+        }
+    }
 }
