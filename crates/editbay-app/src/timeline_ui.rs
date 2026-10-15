@@ -104,6 +104,7 @@ pub struct TimelinePane {
     draft: Option<Draft>,
     serial: u64,
     handles: crate::timeline_handles::Handles,
+    separate_properties: bool,
     selections: HashMap<Uuid, Selection>,
     catalog: Option<Catalog>,
     task: Option<Task>,
@@ -435,6 +436,77 @@ impl TimelinePane {
         }
     }
 
+    /// Draw the selected clip's contextual properties in an independent dock.
+    /// Args: UI, live workspace, preview, tab, immutable project and property scope.
+    /// Returns no value; every field uses the same coalesced typed gesture path.
+    pub fn inspector(
+        &mut self,
+        ui: &mut Ui,
+        workspace: &Workspace,
+        preview: &mut PreviewPane,
+        tab: Uuid,
+        project: Arc<Project>,
+        interactive: bool,
+        kind: InspectorKind,
+    ) {
+        self.separate_properties = true;
+        let Ok((owner, _)) = workspace.edit_snapshot(tab) else {
+            return;
+        };
+        if self.catalog.as_ref().is_none_or(|c| c.owner != owner) {
+            if self.task.is_none()
+                && let Err(e) = self.refresh(owner, project)
+            {
+                self.error = Some(e);
+            }
+            ui.weak("Preparing selection…");
+            return;
+        }
+        let selected = self.selections.entry(tab).or_default();
+        let Some(assembly) = self.catalog.as_ref().and_then(|c| {
+            c.assemblies
+                .iter()
+                .find(|a| Some(a.composition) == selected.record)
+        }) else {
+            ui.weak("Create or select a timeline cut.");
+            return;
+        };
+        let Some(clip) = assembly.clips.iter().find(|c| Some(c.id) == selected.clip) else {
+            ui.weak("Select a clip in Timeline. Ctrl-click clips for mixed properties.");
+            return;
+        };
+        let busy = self.task.as_ref().is_some_and(|task| task.draft.is_none());
+        let outcome = property_controls(
+            ui,
+            preview,
+            selected,
+            assembly,
+            clip,
+            assembly.composition,
+            tab,
+            interactive,
+            busy,
+            kind,
+        );
+        if outcome.cancelled || (interactive && ui.input(|i| i.key_pressed(egui::Key::Escape))) {
+            selected.controls = clip.controls;
+            self.draft = None;
+            preview.set_draft(None);
+        } else if let Some(actions) = outcome.actions {
+            self.update_drafts(workspace, tab, actions, outcome.finished);
+        } else if let Some(action) = outcome.action {
+            self.update_draft(workspace, tab, action, outcome.finished);
+        } else if outcome.finished
+            && let Some(draft) = &mut self.draft
+        {
+            draft.finished = true;
+            ui.ctx().request_repaint();
+        }
+        if let Some(error) = &self.error {
+            ui.colored_label(ui.visuals().error_fg_color, error);
+        }
+    }
+
     fn refresh(&mut self, owner: DocumentOwner, project: Arc<Project>) -> Result<(), String> {
         let (sender, result) = mpsc::sync_channel(1);
         std::thread::Builder::new()
@@ -459,6 +531,22 @@ impl TimelinePane {
             result,
         });
         Ok(())
+    }
+
+    /// Draw timeline tools without duplicating the separate property dock.
+    /// Args: UI, live workspace, preview, tab, immutable project and interaction state.
+    /// Returns no value; properties remain available through the contextual inspector.
+    pub fn show_timeline(
+        &mut self,
+        ui: &mut Ui,
+        workspace: &Workspace,
+        preview: &mut PreviewPane,
+        tab: Uuid,
+        project: Arc<Project>,
+        interactive: bool,
+    ) {
+        self.separate_properties = true;
+        self.show(ui, workspace, preview, tab, project, interactive);
     }
 
     /// Draw source marks, linked tracks and implemented edit controls.
@@ -1121,238 +1209,24 @@ impl TimelinePane {
                         });
                     }
                 });
-                fields::section(ui, "Clip properties", |ui| {
-                    ui.label(if selected.multiple.len() > 1 {
-                        format!("{} clips · mixed properties", selected.multiple.len())
-                    } else {
-                        clip.name.clone()
-                    });
-                    let locked = !interactive || busy;
-                    let state = FieldState {
-                        locked,
-                        ..Default::default()
-                    };
-                    let before = selected.controls;
-                    let mixed_controls: Vec<_> = assembly
-                        .clips
-                        .iter()
-                        .filter(|c| selected.multiple.contains(&c.id))
-                        .map(|c| c.controls)
-                        .collect();
-                    let mut changed = false;
-                    let mut changed_fields = Vec::new();
-                    let mut finished = false;
-                    let mut field = |ui: &mut Ui,
-                                     id: &'static str,
-                                     label: &str,
-                                     value: &mut f64,
-                                     range,
-                                     unit,
-                                     reset| {
-                        let result = fields::number(
-                            ui,
-                            (tab, id),
-                            label,
-                            value,
-                            range,
-                            unit,
-                            Some(reset),
-                            FieldState {
-                                mixed: mixed_controls
-                                    .iter()
-                                    .any(|c| control_value(id, *c) != control_value(id, before)),
-                                locked: state.locked
-                                    || if id == "timeline-gain" {
-                                        !(clip.audio_only || clip.linked.is_some())
-                                    } else {
-                                        clip.audio_only
-                                    },
-                                ..state
-                            },
-                        );
-                        preview.observe_control(id, &result.response, ui);
-                        if result.changed {
-                            changed = true;
-                            changed_fields.push(id);
-                        }
-                        finished |= result.response.drag_stopped()
-                            || result.response.lost_focus()
-                            || (result.changed
-                                && !result.response.dragged()
-                                && !result.response.has_focus());
-                        cancel_gesture |= result.cancelled;
-                    };
-
-                    let columns = if ui.available_width() < 220. { 1 } else { 2 };
-                    let width = ((ui.available_width() - 8. * (columns - 1) as f32)
-                        / columns as f32)
-                        .max(76.);
-                    let [scale_x, scale_y] = &mut selected.controls.scale;
-                    let [position_x, position_y] = &mut selected.controls.translation;
-                    let entries = [
-                        (
-                            "timeline-gain",
-                            "Sound level",
-                            &mut selected.controls.gain,
-                            0.,
-                            16.,
-                            " ×",
-                            1.,
-                        ),
-                        (
-                            "timeline-opacity",
-                            "Opacity",
-                            &mut selected.controls.opacity,
-                            0.,
-                            1.,
-                            " ×",
-                            1.,
-                        ),
-                        (
-                            "timeline-scale-X",
-                            "Scale X",
-                            scale_x,
-                            -100.,
-                            100.,
-                            " ×",
-                            1.,
-                        ),
-                        (
-                            "timeline-scale-Y",
-                            "Scale Y",
-                            scale_y,
-                            -100.,
-                            100.,
-                            " ×",
-                            1.,
-                        ),
-                        (
-                            "timeline-position-X",
-                            "Position X",
-                            position_x,
-                            -1_000_000.,
-                            1_000_000.,
-                            " px",
-                            0.,
-                        ),
-                        (
-                            "timeline-position-Y",
-                            "Position Y",
-                            position_y,
-                            -1_000_000.,
-                            1_000_000.,
-                            " px",
-                            0.,
-                        ),
-                        (
-                            "timeline-rotation",
-                            "Rotation",
-                            &mut selected.controls.rotation,
-                            -36000.,
-                            36000.,
-                            "°",
-                            0.,
-                        ),
-                        (
-                            "timeline-exposure",
-                            "Exposure",
-                            &mut selected.controls.exposure,
-                            -10.,
-                            10.,
-                            " stops",
-                            0.,
-                        ),
-                        (
-                            "timeline-contrast",
-                            "Contrast",
-                            &mut selected.controls.contrast,
-                            0.,
-                            4.,
-                            " ×",
-                            1.,
-                        ),
-                        (
-                            "timeline-saturation",
-                            "Saturation",
-                            &mut selected.controls.saturation,
-                            0.,
-                            4.,
-                            " ×",
-                            1.,
-                        ),
-                    ];
-                    egui::Grid::new(("clip-properties", tab))
-                        .num_columns(columns)
-                        .min_col_width(width)
-                        .max_col_width(width)
-                        .spacing([8., 8.])
-                        .show(ui, |ui| {
-                            for (index, (id, label, value, min, max, unit, reset)) in
-                                entries.into_iter().enumerate()
-                            {
-                                ui.scope(|ui| {
-                                    ui.set_width(width);
-                                    field(ui, id, label, value, min..=max, unit, reset);
-                                });
-                                if (index + 1) % columns == 0 {
-                                    ui.end_row();
-                                }
-                            }
-                        });
-                    if changed && selected.controls != before {
-                        draft_action = Some(TimelineAction::SetControls {
-                            composition,
-                            clip: clip.id,
-                            controls: selected.controls,
-                        });
-                    }
-                    if changed && selected.multiple.len() > 1 {
-                        draft_action = None;
-                        draft_actions = Some(
-                            assembly
-                                .clips
-                                .iter()
-                                .filter(|c| selected.multiple.contains(&c.id))
-                                .map(|c| TimelineAction::SetControls {
-                                    composition,
-                                    clip: c.id,
-                                    controls: patch_controls(
-                                        selected.controls,
-                                        c.controls,
-                                        &changed_fields,
-                                    ),
-                                })
-                                .collect(),
-                        );
-                    }
-                    finish_gesture |= finished;
-                    ui.horizontal_wrapped(|ui| {
-                        if fields::action(ui, "Reset clip properties", !locked).clicked() {
-                            selected.controls = TimelineControls::default();
-                            draft_action = Some(TimelineAction::SetControls {
-                                composition,
-                                clip: clip.id,
-                                controls: selected.controls,
-                            });
-                            if selected.multiple.len() > 1 {
-                                draft_action = None;
-                                draft_actions = Some(
-                                    assembly
-                                        .clips
-                                        .iter()
-                                        .filter(|c| selected.multiple.contains(&c.id))
-                                        .map(|c| TimelineAction::SetControls {
-                                            composition,
-                                            clip: c.id,
-                                            controls: TimelineControls::default(),
-                                        })
-                                        .collect(),
-                                );
-                            }
-                            finish_gesture = true;
-                        }
-                    });
-                });
+                if !self.separate_properties {
+                    let outcome = property_controls(
+                        ui,
+                        preview,
+                        selected,
+                        assembly,
+                        clip,
+                        composition,
+                        tab,
+                        interactive,
+                        busy,
+                        InspectorKind::All,
+                    );
+                    draft_action = outcome.action;
+                    draft_actions = outcome.actions;
+                    finish_gesture |= outcome.finished;
+                    cancel_gesture |= outcome.cancelled;
+                }
             }
         });
         if enter {
@@ -1396,6 +1270,277 @@ impl TimelinePane {
             ui.colored_label(ui.visuals().error_fg_color, error);
         }
     }
+}
+
+#[derive(Clone, Copy)]
+pub enum InspectorKind {
+    All,
+    Color,
+    Audio,
+}
+#[derive(Default)]
+struct PropertyOutcome {
+    action: Option<TimelineAction>,
+    actions: Option<Vec<TimelineAction>>,
+    finished: bool,
+    cancelled: bool,
+}
+fn property_controls(
+    ui: &mut Ui,
+    preview: &mut PreviewPane,
+    selected: &mut Selection,
+    assembly: &Assembly,
+    clip: &TimelineClip,
+    composition: Uuid,
+    tab: Uuid,
+    interactive: bool,
+    busy: bool,
+    kind: InspectorKind,
+) -> PropertyOutcome {
+    let mut outcome = PropertyOutcome::default();
+    fields::section(ui, "Clip properties", |ui| {
+        ui.label(if selected.multiple.len() > 1 {
+            format!("{} clips · mixed properties", selected.multiple.len())
+        } else {
+            clip.name.clone()
+        });
+        let locked = !interactive || busy;
+        let state = FieldState {
+            locked,
+            ..Default::default()
+        };
+        let before = selected.controls;
+        let mixed_controls: Vec<_> = assembly
+            .clips
+            .iter()
+            .filter(|c| selected.multiple.contains(&c.id))
+            .map(|c| c.controls)
+            .collect();
+        let mut changed = false;
+        let mut changed_fields = Vec::new();
+        let mut finished = false;
+        let mut field =
+            |ui: &mut Ui, id: &'static str, label: &str, value: &mut f64, range, unit, reset| {
+                let color = matches!(
+                    id,
+                    "timeline-exposure" | "timeline-contrast" | "timeline-saturation"
+                );
+                if matches!(kind, InspectorKind::Color) && !color
+                    || matches!(kind, InspectorKind::Audio) && id != "timeline-gain"
+                {
+                    return;
+                }
+                let result = fields::number(
+                    ui,
+                    (tab, id),
+                    label,
+                    value,
+                    range,
+                    unit,
+                    Some(reset),
+                    FieldState {
+                        mixed: mixed_controls
+                            .iter()
+                            .any(|c| control_value(id, *c) != control_value(id, before)),
+                        locked: state.locked
+                            || if id == "timeline-gain" {
+                                !(clip.audio_only || clip.linked.is_some())
+                            } else {
+                                clip.audio_only
+                            },
+                        ..state
+                    },
+                );
+                preview.observe_control(id, &result.response, ui);
+                if result.changed {
+                    changed = true;
+                    changed_fields.push(id);
+                }
+                finished |= result.response.drag_stopped()
+                    || result.response.lost_focus()
+                    || (result.changed
+                        && !result.response.dragged()
+                        && !result.response.has_focus());
+                outcome.cancelled |= result.cancelled;
+            };
+        let columns = if ui.available_width() < 220. || !matches!(kind, InspectorKind::All) {
+            1
+        } else {
+            2
+        };
+        let width = ((ui.available_width() - 8. * (columns - 1) as f32) / columns as f32).max(76.);
+        let [scale_x, scale_y] = &mut selected.controls.scale;
+        let [position_x, position_y] = &mut selected.controls.translation;
+        let entries = [
+            (
+                "timeline-gain",
+                "Sound level",
+                &mut selected.controls.gain,
+                0.,
+                16.,
+                " ×",
+                1.,
+            ),
+            (
+                "timeline-opacity",
+                "Opacity",
+                &mut selected.controls.opacity,
+                0.,
+                1.,
+                " ×",
+                1.,
+            ),
+            (
+                "timeline-scale-X",
+                "Scale X",
+                scale_x,
+                -100.,
+                100.,
+                " ×",
+                1.,
+            ),
+            (
+                "timeline-scale-Y",
+                "Scale Y",
+                scale_y,
+                -100.,
+                100.,
+                " ×",
+                1.,
+            ),
+            (
+                "timeline-position-X",
+                "Position X",
+                position_x,
+                -1_000_000.,
+                1_000_000.,
+                " px",
+                0.,
+            ),
+            (
+                "timeline-position-Y",
+                "Position Y",
+                position_y,
+                -1_000_000.,
+                1_000_000.,
+                " px",
+                0.,
+            ),
+            (
+                "timeline-rotation",
+                "Rotation",
+                &mut selected.controls.rotation,
+                -36000.,
+                36000.,
+                "°",
+                0.,
+            ),
+            (
+                "timeline-exposure",
+                "Exposure",
+                &mut selected.controls.exposure,
+                -10.,
+                10.,
+                " stops",
+                0.,
+            ),
+            (
+                "timeline-contrast",
+                "Contrast",
+                &mut selected.controls.contrast,
+                0.,
+                4.,
+                " ×",
+                1.,
+            ),
+            (
+                "timeline-saturation",
+                "Saturation",
+                &mut selected.controls.saturation,
+                0.,
+                4.,
+                " ×",
+                1.,
+            ),
+        ];
+        egui::Grid::new(("clip-properties", tab))
+            .num_columns(columns)
+            .min_col_width(width)
+            .max_col_width(width)
+            .spacing([8., 8.])
+            .show(ui, |ui| {
+                for (index, (id, label, value, min, max, unit, reset)) in entries
+                    .into_iter()
+                    .filter(|entry| match kind {
+                        InspectorKind::All => true,
+                        InspectorKind::Color => matches!(
+                            entry.0,
+                            "timeline-exposure" | "timeline-contrast" | "timeline-saturation"
+                        ),
+                        InspectorKind::Audio => entry.0 == "timeline-gain",
+                    })
+                    .enumerate()
+                {
+                    ui.scope(|ui| {
+                        ui.set_width(width);
+                        field(ui, id, label, value, min..=max, unit, reset);
+                    });
+                    if (index + 1) % columns == 0 {
+                        ui.end_row();
+                    }
+                }
+            });
+        if changed && selected.controls != before {
+            outcome.action = Some(TimelineAction::SetControls {
+                composition,
+                clip: clip.id,
+                controls: selected.controls,
+            });
+        }
+        if changed && selected.multiple.len() > 1 {
+            outcome.action = None;
+            outcome.actions = Some(
+                assembly
+                    .clips
+                    .iter()
+                    .filter(|c| selected.multiple.contains(&c.id))
+                    .map(|c| TimelineAction::SetControls {
+                        composition,
+                        clip: c.id,
+                        controls: patch_controls(selected.controls, c.controls, &changed_fields),
+                    })
+                    .collect(),
+            );
+        }
+        outcome.finished |= finished;
+        ui.horizontal_wrapped(|ui| {
+            if fields::action(ui, "Reset clip properties", !locked).clicked() {
+                selected.controls = TimelineControls::default();
+                outcome.action = Some(TimelineAction::SetControls {
+                    composition,
+                    clip: clip.id,
+                    controls: selected.controls,
+                });
+                if selected.multiple.len() > 1 {
+                    outcome.action = None;
+                    outcome.actions = Some(
+                        assembly
+                            .clips
+                            .iter()
+                            .filter(|c| selected.multiple.contains(&c.id))
+                            .map(|c| TimelineAction::SetControls {
+                                composition,
+                                clip: c.id,
+                                controls: TimelineControls::default(),
+                            })
+                            .collect(),
+                    );
+                }
+                outcome.finished = true;
+            }
+        });
+    });
+    outcome
 }
 
 fn control_value(id: &str, c: TimelineControls) -> f64 {
@@ -2021,7 +2166,7 @@ mod tests {
         );
     }
     #[test]
-    fn direct_handle_actions_preview_commit_and_undo_through_existing_commands() {
+    fn craft_direct_handle_actions_preview_commit_and_undo_through_existing_commands() {
         use crate::timeline_handles::{Tool, actions};
         for tool in [
             Tool::Move,
@@ -2090,7 +2235,7 @@ mod tests {
     }
 
     #[test]
-    fn compact_inspector_draws_empty_single_mixed_and_locked_at_three_scales() {
+    fn craft_compact_inspector_draws_empty_single_mixed_and_locked_at_three_scales() {
         for scale in [1., 1.5, 2.] {
             let (_dir, mut workspace, tab, source) = workspace();
             let mut pane = TimelinePane::default();
@@ -2153,6 +2298,153 @@ mod tests {
                     pane.error
                 );
                 assert_eq!(workspace.tabs[0].editor.project().revision, 2);
+            }
+        }
+    }
+    #[test]
+    fn craft_keyboard_nudge_escape_and_enter_route_to_transactional_actions() {
+        let (_dir, mut workspace, tab, source) = workspace();
+        let mut pane = TimelinePane::default();
+        let (composition, clip) = cut(&mut pane, &mut workspace, tab, source);
+        let ctx = egui::Context::default();
+        let mut preview = PreviewPane::default();
+        let (owner, editor) = workspace.edit_snapshot(tab).unwrap();
+        pane.refresh(owner, editor.snapshot()).unwrap();
+        finish(&mut pane, &mut workspace, true);
+        let event = |key| egui::RawInput {
+            screen_rect: Some(egui::Rect::from_min_size(
+                egui::Pos2::ZERO,
+                egui::vec2(600., 1600.),
+            )),
+            events: vec![egui::Event::Key {
+                key,
+                physical_key: Some(key),
+                pressed: true,
+                repeat: false,
+                modifiers: egui::Modifiers::NONE,
+            }],
+            ..Default::default()
+        };
+        ctx.run_ui(event(egui::Key::ArrowRight), |ui| {
+            pane.show(ui, &workspace, &mut preview, tab, editor.snapshot(), true)
+        })
+        .drop_without_applying_deltas();
+        finish(&mut pane, &mut workspace, true);
+        assert_eq!(
+            editbay_core::timeline_clips(workspace.tabs[0].editor.project(), composition).unwrap()
+                [0]
+            .range
+            .start,
+            1
+        );
+        let (owner, editor) = workspace.edit_snapshot(tab).unwrap();
+        pane.refresh(owner, editor.snapshot()).unwrap();
+        finish(&mut pane, &mut workspace, true);
+        let original = editor.snapshot();
+        pane.update_draft(
+            &workspace,
+            tab,
+            TimelineAction::SetControls {
+                composition,
+                clip,
+                controls: TimelineControls {
+                    gain: 0.2,
+                    ..Default::default()
+                },
+            },
+            false,
+        );
+        finish(&mut pane, &mut workspace, true);
+        ctx.run_ui(event(egui::Key::Escape), |ui| {
+            pane.show(ui, &workspace, &mut preview, tab, original.clone(), true)
+        })
+        .drop_without_applying_deltas();
+        assert!(pane.draft.is_none());
+        assert_eq!(
+            workspace.tabs[0].editor.project().compositions,
+            original.compositions
+        );
+        pane.update_draft(
+            &workspace,
+            tab,
+            TimelineAction::SetControls {
+                composition,
+                clip,
+                controls: TimelineControls {
+                    gain: 0.6,
+                    ..Default::default()
+                },
+            },
+            false,
+        );
+        finish(&mut pane, &mut workspace, true);
+        ctx.run_ui(event(egui::Key::Enter), |ui| {
+            pane.show(ui, &workspace, &mut preview, tab, original.clone(), true)
+        })
+        .drop_without_applying_deltas();
+        pane.poll(&mut workspace, &mut preview, true, &ctx);
+        assert_eq!(
+            workspace.tabs[0].editor.project().revision,
+            original.revision + 1
+        );
+        assert_eq!(
+            editbay_core::timeline_clips(workspace.tabs[0].editor.project(), composition).unwrap()
+                [0]
+            .controls
+            .gain,
+            0.6
+        );
+    }
+
+    #[test]
+    fn craft_property_fields_fit_narrow_docks_and_keep_mixed_locked_error_states() {
+        for scale in [1.0, 1.5, 2.0] {
+            let ctx = egui::Context::default();
+            ctx.set_pixels_per_point(scale);
+            for (mixed, locked, error) in [
+                (false, false, None),
+                (true, false, None),
+                (false, true, None),
+                (false, false, Some("Outside the supported range")),
+            ] {
+                let mut value = 0.5;
+                let mut focus = None;
+                ctx.run_ui(
+                    egui::RawInput {
+                        screen_rect: Some(egui::Rect::from_min_size(
+                            egui::Pos2::ZERO,
+                            egui::vec2(240., 320.),
+                        )),
+                        ..Default::default()
+                    },
+                    |ui| {
+                        let max = ui.max_rect().right();
+                        let response = fields::number(
+                            ui,
+                            "property-scale",
+                            "Exposure compensation",
+                            &mut value,
+                            -10. ..=10.,
+                            " stops",
+                            Some(0.),
+                            FieldState {
+                                mixed,
+                                locked,
+                                error,
+                            },
+                        );
+                        assert!(
+                            response.response.rect.right() <= max + 1.0,
+                            "scale {scale}: {:?} exceeds {max}",
+                            response.response.rect
+                        );
+                        assert_eq!(response.response.enabled(), !locked);
+                        focus = Some(response.response.id);
+                    },
+                )
+                .drop_without_applying_deltas();
+                assert!(focus.is_some());
+                assert_eq!(value, 0.5);
             }
         }
     }

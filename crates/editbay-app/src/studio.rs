@@ -24,6 +24,37 @@ use std::{
 };
 use uuid::Uuid;
 
+const PANEL_REGISTRY: &[(&str, &str)] = &[
+    ("media", "Media"),
+    ("timeline", "Timeline"),
+    ("properties", "Properties"),
+    ("color", "Color"),
+    ("audio", "Audio"),
+    ("delivery", "Delivery"),
+];
+fn task_presets() -> Vec<(&'static str, crate::panels::Workspace)> {
+    use crate::panels::{Place, Workspace};
+    vec![
+        (
+            "Edit",
+            Workspace::preset(&[
+                ("media", Place::Left),
+                ("timeline", Place::Bottom),
+                ("properties", Place::Right),
+            ]),
+        ),
+        (
+            "Color",
+            Workspace::preset(&[("timeline", Place::Bottom), ("color", Place::Right)]),
+        ),
+        (
+            "Audio",
+            Workspace::preset(&[("timeline", Place::Bottom), ("audio", Place::Right)]),
+        ),
+        ("Delivery", Workspace::preset(&[("delivery", Place::Right)])),
+    ]
+}
+
 enum DialogAction {
     Open,
     Delivery {
@@ -88,6 +119,7 @@ pub struct Studio {
     dialog_template: rfd::AsyncFileDialog,
     dialog_runtime: Result<Arc<tokio::runtime::Runtime>, String>,
     preferences: PreferenceStore,
+    layouts: crate::panels::Book,
     settings: Option<Preferences>,
     bank: BankPane,
     media: MediaPane,
@@ -178,6 +210,7 @@ impl Studio {
             dialog_runtime,
             preferences,
             settings: None,
+            layouts: crate::panels::Book::default(),
             bank: BankPane::default(),
             media: MediaPane::default(),
             preview: PreviewPane::new(state.join("picture-cache")),
@@ -218,6 +251,7 @@ impl Studio {
         self.theme.poll(ctx);
         self.bank.poll();
         if self.preferences.poll() {
+            self.layouts = self.preferences.current.layouts.clone();
             if let Some(root) = &self.preferences.current.catalog_root {
                 self.root = root.clone();
                 self.rescan();
@@ -1358,36 +1392,7 @@ impl Studio {
             });
     }
 
-    fn document(&mut self, ui: &mut Ui) {
-        let Some(id) = self.workspace.active else {
-            self.welcome = true;
-            return;
-        };
-        let Some(tab) = self.workspace.tabs.iter().find(|tab| tab.id == id) else {
-            return;
-        };
-        let project = tab.editor.snapshot();
-        let dirty = tab.dirty();
-        let path = tab.path.clone();
-        let recovery = tab.recovery_revision;
-        let error = tab.recovery_error.clone();
-        ui.horizontal(|ui| {
-            ui.heading(&project.name);
-            let rename = ui.button("Rename…");
-            self.preview.observe_control("rename-project", &rename, ui);
-            if rename.clicked() {
-                self.rename = Some((id, DocumentVersion::of(&project), project.name.clone()));
-                self.focus_name = true;
-            }
-            ui.weak(if dirty { "Unsaved changes" } else { "Saved" });
-        });
-        let location = path.map_or_else(
-            || "Untitled local work".into(),
-            |path| path.display().to_string(),
-        );
-        ui.add(egui::Label::new(egui::RichText::new(&location).weak()).truncate())
-            .on_hover_text(location);
-        ui.add_space(12.);
+    fn source_media(&mut self, ui: &mut Ui, id: Uuid, project: &Arc<Project>) {
         self.media.show(ui);
         if !project.compositions.is_empty() || !project.sources.is_empty() {
             let count = |size, name| format!("{size} {name}{}", if size == 1 { "" } else { "s" });
@@ -1492,6 +1497,38 @@ impl Studio {
             self.preview
                 .observe_control("source-media", &header.header_response, ui);
         }
+    }
+
+    fn document(&mut self, ui: &mut Ui) {
+        let Some(id) = self.workspace.active else {
+            self.welcome = true;
+            return;
+        };
+        let Some(tab) = self.workspace.tabs.iter().find(|tab| tab.id == id) else {
+            return;
+        };
+        let project = tab.editor.snapshot();
+        let dirty = tab.dirty();
+        let path = tab.path.clone();
+        let recovery = tab.recovery_revision;
+        let error = tab.recovery_error.clone();
+        ui.horizontal(|ui| {
+            ui.heading(&project.name);
+            let rename = ui.button("Rename…");
+            self.preview.observe_control("rename-project", &rename, ui);
+            if rename.clicked() {
+                self.rename = Some((id, DocumentVersion::of(&project), project.name.clone()));
+                self.focus_name = true;
+            }
+            ui.weak(if dirty { "Unsaved changes" } else { "Saved" });
+        });
+        let location = path.map_or_else(
+            || "Untitled local work".into(),
+            |path| path.display().to_string(),
+        );
+        ui.add(egui::Label::new(egui::RichText::new(&location).weak()).truncate())
+            .on_hover_text(location);
+        ui.add_space(12.);
         egui::ScrollArea::vertical()
             .id_salt("document")
             .show(ui, |ui| {
@@ -1502,47 +1539,106 @@ impl Studio {
                     && self.settings.is_none()
                     && !self.manual
                     && !self.bank.opened;
-                if ui.available_width() >= 640. {
-                    ui.columns(2, |columns| {
-                        let height = columns[1].available_height();
-                        egui::ScrollArea::vertical()
-                            .id_salt("timeline-controls")
-                            .max_height(height)
-                            .show(&mut columns[1], |ui| {
-                                self.timeline.show(
-                                    ui,
-                                    &self.workspace,
-                                    &mut self.preview,
-                                    id,
-                                    project.clone(),
-                                    interactive,
-                                );
-                            });
-                        self.preview
-                            .show(&mut columns[0], &self.workspace, id, project.clone());
-                    });
-                } else {
-                    let edit_height = (ui.available_height() * 0.2).clamp(48., 120.);
-                    let controls = egui::CollapsingHeader::new("Edit controls")
-                        .default_open(true)
-                        .show(ui, |ui| {
+                let presets = task_presets();
+                self.layouts.toolbar(ui, &presets, PANEL_REGISTRY);
+                let active = self.layouts.active.clone();
+                let mut layout = self.layouts.tasks.remove(&active).unwrap_or_default();
+                layout.normalize(&PANEL_REGISTRY.iter().map(|p| p.0).collect::<Vec<_>>());
+                ui.weak("Panel tabs: right-click to move, tab, float or close · F6: next panel");
+                let available = ui.available_rect_before_wrap();
+                let area = egui::Rect::from_min_size(
+                    available.min,
+                    vec2(
+                        available.width(),
+                        (ui.ctx()
+                            .input(|i| i.viewport().inner_rect)
+                            .unwrap_or(ui.max_rect())
+                            .bottom()
+                            - available.top()
+                            - 20.)
+                            .max(240.),
+                    ),
+                );
+                #[allow(deprecated)]
+                ui.scope_builder(egui::UiBuilder::new().max_rect(area), |ui| {
+                    let center = layout.show(
+                        ui,
+                        &format!("editbay-{active}"),
+                        PANEL_REGISTRY,
+                        |ui, panel| {
                             egui::ScrollArea::vertical()
-                                .id_salt("compact-edit-controls")
-                                .max_height(edit_height)
-                                .show(ui, |ui| {
-                                    self.timeline.show(
+                                .id_salt(("task-panel", panel))
+                                .show(ui, |ui| match panel {
+                                    "media" => self.source_media(ui, id, &project),
+                                    "timeline" => self.timeline.show_timeline(
                                         ui,
                                         &self.workspace,
                                         &mut self.preview,
                                         id,
                                         project.clone(),
                                         interactive,
-                                    );
+                                    ),
+                                    "properties" | "color" | "audio" => self.timeline.inspector(
+                                        ui,
+                                        &self.workspace,
+                                        &mut self.preview,
+                                        id,
+                                        project.clone(),
+                                        interactive,
+                                        match panel {
+                                            "color" => crate::timeline_ui::InspectorKind::Color,
+                                            "audio" => crate::timeline_ui::InspectorKind::Audio,
+                                            _ => crate::timeline_ui::InspectorKind::All,
+                                        },
+                                    ),
+                                    "delivery" => {
+                                        let composition =
+                                            self.preview.selected_composition(id, &project);
+                                        if ui
+                                            .add_enabled(
+                                                composition.is_some() && interactive,
+                                                egui::Button::new("Export sequence…"),
+                                            )
+                                            .clicked()
+                                            && let Some(composition) = composition
+                                            && let Some(scene) = project
+                                                .compositions
+                                                .iter()
+                                                .find(|c| c.id == composition)
+                                            && let Ok((owner, _)) = self.workspace.edit_snapshot(id)
+                                        {
+                                            self.delivery.choose(
+                                                owner,
+                                                composition,
+                                                project.name.clone(),
+                                                scene.duration,
+                                            );
+                                        }
+                                        if let Err(error) = self.delivery.panel(
+                                            ui,
+                                            &mut self.workspace,
+                                            &mut self.preview,
+                                        ) {
+                                            self.message = Some(error);
+                                        }
+                                    }
+                                    _ => {}
                                 });
-                        });
-                    self.preview
-                        .observe_control("edit-controls", &controls.header_response, ui);
-                    self.preview.show(ui, &self.workspace, id, project.clone());
+                        },
+                    );
+                    ui.scope_builder(egui::UiBuilder::new().max_rect(center.shrink(4.)), |ui| {
+                        ui.set_clip_rect(center.intersect(ui.clip_rect()));
+                        self.preview.show(ui, &self.workspace, id, project.clone());
+                    });
+                });
+                ui.allocate_space(area.size());
+                self.layouts.tasks.insert(active, layout);
+                if self.preferences.ready && self.preferences.current.layouts != self.layouts {
+                    let mut preferences = self.preferences.current.clone();
+                    preferences.layouts = self.layouts.clone();
+                    if let Err(error) = self.preferences.update(preferences) {
+                        self.message = Some(error);
+                    }
                 }
                 for sequence in project
                     .sequences
@@ -2339,5 +2435,86 @@ mod tests {
         .drop_without_applying_deltas();
         assert_eq!(studio.workspace.tabs[0].editor.project().name, "Revised");
         assert_eq!(studio.workspace.tabs[0].editor.project().revision, 3);
+    }
+    #[test]
+    fn craft_task_layouts_preserve_canvas_focus_and_job_ownership_at_display_scales() {
+        use crate::panels::{Book, Place, safe_rect};
+        for scale in [1.0, 1.5, 2.0] {
+            let ctx = egui::Context::default();
+            let viewport =
+                egui::Rect::from_min_size(egui::Pos2::ZERO, vec2(1280.0 / scale, 720.0 / scale));
+            let mut book = Book::default();
+            let presets = task_presets();
+            let mut layout = presets[0].1.clone();
+            layout.move_panel("properties", Place::Floating);
+            layout
+                .groups
+                .iter_mut()
+                .find(|g| g.place == Place::Floating)
+                .unwrap()
+                .rect = [8000., -300., 900., 700.];
+            assert!(layout.tab_with("media", "properties"));
+            layout.close("media");
+            layout.restore("media");
+            layout.normalize(&PANEL_REGISTRY.iter().map(|p| p.0).collect::<Vec<_>>());
+            ctx.run_ui(
+                egui::RawInput {
+                    screen_rect: Some(viewport),
+                    ..Default::default()
+                },
+                |ui| {
+                    let center = layout.show(ui, "editbay-scale", PANEL_REGISTRY, |ui, panel| {
+                        ui.label(panel);
+                    });
+                    assert!(center.width() >= 240.0, "{scale}: {center:?}");
+                    assert!(center.height() >= 160.0, "{scale}: {center:?}");
+                },
+            )
+            .drop_without_applying_deltas();
+            let group = layout
+                .groups
+                .iter()
+                .find(|g| g.place == Place::Floating)
+                .unwrap();
+            assert!(viewport.contains_rect(safe_rect(group.rect, viewport)));
+            book.tasks.insert("Edit".into(), layout.clone());
+            book.active = "Edit".into();
+            let json = serde_json::to_vec(&book).unwrap();
+            assert_eq!(book, serde_json::from_slice(&json).unwrap());
+            ctx.run_ui(
+                egui::RawInput {
+                    screen_rect: Some(viewport),
+                    events: vec![egui::Event::Key {
+                        key: egui::Key::F6,
+                        physical_key: Some(egui::Key::F6),
+                        pressed: true,
+                        repeat: false,
+                        modifiers: egui::Modifiers::NONE,
+                    }],
+                    ..Default::default()
+                },
+                |ui| {
+                    layout.show(ui, "editbay-scale", PANEL_REGISTRY, |ui, panel| {
+                        ui.label(panel);
+                    });
+                },
+            )
+            .drop_without_applying_deltas();
+            assert!(layout.focus.is_some());
+            let directory = tempfile::tempdir().unwrap();
+            let mut workspace = Workspace::new(directory.path().join("recovery"), ctx.clone());
+            let tab = workspace
+                .create(Project::new("Immutable ownership").unwrap())
+                .unwrap();
+            let (owner, _) = workspace.edit_snapshot(tab).unwrap();
+            let control = editbay_delivery::DeliveryControl::new().unwrap();
+            workspace.guard_export(owner, control.clone()).unwrap();
+            for (_, mut layout) in task_presets() {
+                layout.close("timeline");
+                layout.restore("timeline");
+            }
+            assert!(workspace.owns(owner));
+            assert!(control.cancellable());
+        }
     }
 }

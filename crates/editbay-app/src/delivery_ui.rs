@@ -382,15 +382,31 @@ impl DeliveryPane {
         if self.jobs.is_empty() || !self.history_open {
             return Ok(());
         }
+        let mut open = self.history_open;
+        let mut result = Ok(());
+        egui::Window::new("Exports")
+            .open(&mut open)
+            .default_pos(egui::pos2(600., 140.))
+            .default_width(440.)
+            .resizable(true)
+            .show(ui.ctx(), |ui| {
+                result = self.panel(ui, workspace, preview);
+            });
+        self.history_open = open;
+        result
+    }
+
+    /// Draw the real export queue inside a movable workspace panel.
+    /// Args: UI, live workspace and preview diagnostics. Returns a visible retry error; ownership stays captured per job.
+    pub fn panel(
+        &mut self,
+        ui: &mut egui::Ui,
+        workspace: &mut Workspace,
+        preview: &mut PreviewPane,
+    ) -> Result<(), String> {
         let busy = self.busy();
         let mut retry = None;
-        let mut open = self.history_open;
-        let mut hide = false;
-        egui::Window::new("Exports").open(&mut open).default_pos(egui::pos2(600.,140.)).default_width(440.).resizable(true).show(ui.ctx(), |ui| {
-            let close = ui.button("Close");
-            preview.observe_control("close-exports", &close, ui);
-            hide = close.clicked();
-            egui::ScrollArea::vertical().id_salt("export-history").max_height(400.).show(ui, |ui| {
+        egui::ScrollArea::vertical().id_salt("export-history").max_height(400.).show(ui, |ui| {
             for (index, job) in self.jobs.iter_mut().enumerate().rev() {
                 ui.group(|ui| {
                     ui.label(job.destination.file_name().unwrap_or_default().to_string_lossy());
@@ -442,8 +458,6 @@ impl DeliveryPane {
                 });
             }
             });
-        });
-        self.history_open = open && !hide;
         if let Some(index) = retry {
             let job = &self.jobs[index];
             let (owner, _) = workspace.edit_snapshot(job.owner.tab)?;
