@@ -102,7 +102,13 @@ impl WorkflowPane {
                 ));
                 workspace.create(project).map(|_| ())
             }
-            Completion::Edited(editor) => workspace.commit_edit(owner, editor),
+            Completion::Edited(editor) => {
+                if DocumentVersion::of(editor.project()) == owner.version {
+                    Ok(())
+                } else {
+                    workspace.commit_edit(owner, editor)
+                }
+            }
             Completion::Exported(message) => {
                 self.status = Some(message);
                 Ok(())
@@ -578,22 +584,24 @@ mod tests {
 
     #[test]
     fn craft_video_completed_authoring_rejects_hidden_switched_and_changed_owners() {
-        for change in 0..4 {
+        for change in 0..5 {
             let directory = tempfile::tempdir().unwrap();
             let mut workspace =
                 Workspace::new(directory.path().join("recovery"), egui::Context::default());
             let tab = workspace.create(Project::new("Original").unwrap()).unwrap();
             let (owner, mut editor) = workspace.edit_snapshot(tab).unwrap();
             let activation = workspace.activation_generation;
-            editor
-                .apply(
-                    owner.version,
-                    "Worker edit".into(),
-                    &[DocumentCommand::RenameProject {
-                        name: "Worker result".into(),
-                    }],
-                )
-                .unwrap();
+            if change != 4 {
+                editor
+                    .apply(
+                        owner.version,
+                        "Worker edit".into(),
+                        &[DocumentCommand::RenameProject {
+                            name: "Worker result".into(),
+                        }],
+                    )
+                    .unwrap();
+            }
             let (sender, result) = mpsc::sync_channel(1);
             assert!(sender.send(Ok(Completion::Edited(editor))).is_ok());
             let mut pane = WorkflowPane {
@@ -639,8 +647,13 @@ mod tests {
                     _ => "Original",
                 }
             );
-            if change > 0 {
+            if (1..4).contains(&change) {
                 assert!(pane.status.as_ref().unwrap().contains("discarded"));
+            } else {
+                assert!(pane.status.is_none());
+                if change == 4 {
+                    assert!(workspace.owns(owner));
+                }
             }
         }
     }
