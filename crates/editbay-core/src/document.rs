@@ -161,6 +161,9 @@ impl Project {
                 .ok_or_else(|| Error::Invalid("Multicam output is absent".into()))?;
             let compiled = crate::multicam::compile(self, session)?;
             if scene.tracks != compiled.tracks
+                || scene.nodes != compiled.nodes
+                || scene.picture != compiled.picture
+                || scene.audio != compiled.audio
                 || scene.duration != compiled.duration
                 || scene.frame_rate != compiled.frame_rate
                 || scene.width != compiled.width

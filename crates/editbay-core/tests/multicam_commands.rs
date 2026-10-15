@@ -70,6 +70,27 @@ fn retained_multicam_command_is_atomic_reversible_and_reopenable() {
             .is_err()
     );
     let saved = editor.project().clone();
+    let mut tampered = saved.clone();
+    let scene = tampered
+        .compositions
+        .iter_mut()
+        .find(|c| c.id == output)
+        .unwrap();
+    let node = scene
+        .nodes
+        .iter_mut()
+        .find(|n| Some(n.id) == scene.picture)
+        .unwrap();
+    node.operation = NodeOperation::Solid {
+        rgba: [1., 0., 0., 1.],
+    };
+    assert!(
+        tampered.validate().is_err(),
+        "retained cuts must determine the actual delivered graph"
+    );
+    let first = compile(&saved, &saved.multicam[0]).unwrap();
+    let second = compile(&saved, &saved.multicam[0]).unwrap();
+    assert_eq!(first, second);
     editor.undo(DocumentVersion::of(editor.project())).unwrap();
     assert_eq!(editor.project().multicam[0].cuts.len(), 1);
     editor.redo(DocumentVersion::of(editor.project())).unwrap();

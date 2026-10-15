@@ -607,6 +607,40 @@ pub fn compile(project: &Project, session: &MulticamSession) -> Result<Compositi
     scene.tracks.push(video);
     scene.tracks.extend(audio);
     crate::editorial::rebuild_editorial(&mut scene, &[])?;
+    let nodes: std::collections::HashMap<_, _> = scene
+        .nodes
+        .iter()
+        .enumerate()
+        .map(|(index, node)| {
+            (
+                node.id,
+                stable_id(session.id, "compiled-node", index as u64, None),
+            )
+        })
+        .collect();
+    for node in &mut scene.nodes {
+        node.id = nodes[&node.id];
+        match &mut node.operation {
+            crate::NodeOperation::Source { .. } => {}
+            crate::NodeOperation::Over {
+                foreground,
+                background,
+                mask,
+            } => {
+                *foreground = nodes[foreground];
+                *background = nodes[background];
+                *mask = mask.map(|id| nodes[&id]);
+            }
+            crate::NodeOperation::Mix { inputs } => {
+                for id in inputs {
+                    *id = nodes[id];
+                }
+            }
+            _ => return invalid("multicam compiler produced an unexpected graph operation"),
+        }
+    }
+    scene.picture = scene.picture.map(|id| nodes[&id]);
+    scene.audio = scene.audio.map(|id| nodes[&id]);
     Ok(scene)
 }
 
