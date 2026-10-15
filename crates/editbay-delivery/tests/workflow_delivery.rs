@@ -86,6 +86,7 @@ struct DeadlineGuard {
     started: Instant,
     expired: Arc<AtomicBool>,
     controls: Arc<Mutex<Vec<DeliveryControl>>>,
+    media_tokens: Arc<Mutex<Vec<Cancellation>>>,
     done: Option<mpsc::Sender<()>>,
     worker: Option<JoinHandle<()>>,
 }
@@ -96,15 +97,21 @@ impl DeadlineGuard {
     fn new(media: Cancellation) -> TestResult<Self> {
         let expired = Arc::new(AtomicBool::new(false));
         let controls = Arc::new(Mutex::new(Vec::<DeliveryControl>::new()));
+        let media_tokens = Arc::new(Mutex::new(vec![media]));
         let (done, completion) = mpsc::channel();
         let state = expired.clone();
         let jobs = controls.clone();
+        let native = media_tokens.clone();
         let worker = std::thread::Builder::new()
             .name("workflow-delivery-deadline".into())
             .spawn(move || {
                 if completion.recv_timeout(DEADLINE).is_err() {
                     state.store(true, Ordering::Release);
-                    media.cancel();
+                    if let Ok(tokens) = native.lock() {
+                        for token in tokens.iter() {
+                            token.cancel();
+                        }
+                    }
                     if let Ok(jobs) = jobs.lock() {
                         for job in jobs.iter() {
                             job.cancel();
@@ -116,6 +123,7 @@ impl DeadlineGuard {
             started: Instant::now(),
             expired,
             controls,
+            media_tokens,
             done: Some(done),
             worker: Some(worker),
         })
@@ -134,6 +142,21 @@ impl DeadlineGuard {
             control.cancel();
         }
         Ok(control)
+    }
+
+    /// Register fresh native work without sharing an obsolete render generation's token.
+    /// Takes no arguments; returns deadline-owned cancellation or fails after expiry.
+    fn media(&self) -> TestResult<Cancellation> {
+        assert!(
+            !self.expired.load(Ordering::Acquire),
+            "Workflow delivery exceeded 30 seconds"
+        );
+        let cancel = Cancellation::new()?;
+        self.media_tokens.lock().unwrap().push(cancel.clone());
+        if self.expired.load(Ordering::Acquire) {
+            cancel.cancel();
+        }
+        Ok(cancel)
     }
 }
 
@@ -651,7 +674,7 @@ fn craft_video_multicam_and_captions_deliver_verified_lossless_media_on_cpu_vulk
         Arc::new(EvaluationSnapshot::new(Arc::new(optional.clone()))?),
         PictureBudget::default(),
         GraphBudget::default(),
-        cancel.clone(),
+        deadline.media()?,
     )?;
     assert_eq!(optional.color, editbay_core::ColorConfiguration::default());
     let scope_settings = ScopeSettings {
@@ -735,7 +758,7 @@ fn craft_video_multicam_and_captions_deliver_verified_lossless_media_on_cpu_vulk
     optional.captions[0].delivery = CaptionDelivery::BurnIn;
     graph.rebind(
         Arc::new(EvaluationSnapshot::new(Arc::new(optional))?),
-        cancel.clone(),
+        deadline.media()?,
     )?;
     assert!(
         graph
