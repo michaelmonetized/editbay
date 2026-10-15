@@ -1095,116 +1095,122 @@ impl TimelinePane {
                                 && !result.response.has_focus());
                         cancel_gesture |= result.cancelled;
                     };
+
+                    let columns = if ui.available_width() < 220. { 1 } else { 2 };
+                    let width = ((ui.available_width() - 8. * (columns - 1) as f32)
+                        / columns as f32)
+                        .max(76.);
+                    let [scale_x, scale_y] = &mut selected.controls.scale;
+                    let [position_x, position_y] = &mut selected.controls.translation;
+                    let entries = [
+                        (
+                            "timeline-gain",
+                            "Sound level",
+                            &mut selected.controls.gain,
+                            0.,
+                            16.,
+                            " ×",
+                            1.,
+                        ),
+                        (
+                            "timeline-opacity",
+                            "Opacity",
+                            &mut selected.controls.opacity,
+                            0.,
+                            1.,
+                            " ×",
+                            1.,
+                        ),
+                        (
+                            "timeline-scale-X",
+                            "Scale X",
+                            scale_x,
+                            -100.,
+                            100.,
+                            " ×",
+                            1.,
+                        ),
+                        (
+                            "timeline-scale-Y",
+                            "Scale Y",
+                            scale_y,
+                            -100.,
+                            100.,
+                            " ×",
+                            1.,
+                        ),
+                        (
+                            "timeline-position-X",
+                            "Position X",
+                            position_x,
+                            -1_000_000.,
+                            1_000_000.,
+                            " px",
+                            0.,
+                        ),
+                        (
+                            "timeline-position-Y",
+                            "Position Y",
+                            position_y,
+                            -1_000_000.,
+                            1_000_000.,
+                            " px",
+                            0.,
+                        ),
+                        (
+                            "timeline-rotation",
+                            "Rotation",
+                            &mut selected.controls.rotation,
+                            -36000.,
+                            36000.,
+                            "°",
+                            0.,
+                        ),
+                        (
+                            "timeline-exposure",
+                            "Exposure",
+                            &mut selected.controls.exposure,
+                            -10.,
+                            10.,
+                            " stops",
+                            0.,
+                        ),
+                        (
+                            "timeline-contrast",
+                            "Contrast",
+                            &mut selected.controls.contrast,
+                            0.,
+                            4.,
+                            " ×",
+                            1.,
+                        ),
+                        (
+                            "timeline-saturation",
+                            "Saturation",
+                            &mut selected.controls.saturation,
+                            0.,
+                            4.,
+                            " ×",
+                            1.,
+                        ),
+                    ];
                     egui::Grid::new(("clip-properties", tab))
-                        .num_columns(2)
+                        .num_columns(columns)
+                        .min_col_width(width)
+                        .max_col_width(width)
                         .spacing([8., 8.])
                         .show(ui, |ui| {
-                            let width = ((ui.available_width() - 8.) / 2.).max(50.);
-                            ui.scope(|ui| {
-                                ui.set_width(width);
-                                field(
-                                    ui,
-                                    "timeline-gain",
-                                    "Sound level",
-                                    &mut selected.controls.gain,
-                                    0. ..=16.,
-                                    " ×",
-                                    1.,
-                                );
-                            });
-                            ui.scope(|ui| {
-                                ui.set_width(width);
-                                field(
-                                    ui,
-                                    "timeline-opacity",
-                                    "Opacity",
-                                    &mut selected.controls.opacity,
-                                    0. ..=1.,
-                                    " ×",
-                                    1.,
-                                );
-                            });
-                            ui.end_row();
-                            for (index, axis) in ["X", "Y"].iter().enumerate() {
+                            for (index, (id, label, value, min, max, unit, reset)) in
+                                entries.into_iter().enumerate()
+                            {
                                 ui.scope(|ui| {
                                     ui.set_width(width);
-                                    field(
-                                        ui,
-                                        &format!("timeline-scale-{axis}"),
-                                        &format!("Scale {axis}"),
-                                        &mut selected.controls.scale[index],
-                                        -1000. ..=1000.,
-                                        " ×",
-                                        1.,
-                                    );
+                                    field(ui, id, label, value, min..=max, unit, reset);
                                 });
+                                if (index + 1) % columns == 0 {
+                                    ui.end_row();
+                                }
                             }
-                            ui.end_row();
-                            for (index, axis) in ["X", "Y"].iter().enumerate() {
-                                ui.scope(|ui| {
-                                    ui.set_width(width);
-                                    field(
-                                        ui,
-                                        &format!("timeline-position-{axis}"),
-                                        &format!("Position {axis}"),
-                                        &mut selected.controls.translation[index],
-                                        -1_000_000. ..=1_000_000.,
-                                        " px",
-                                        0.,
-                                    );
-                                });
-                            }
-                            ui.end_row();
-                            ui.scope(|ui| {
-                                ui.set_width(width);
-                                field(
-                                    ui,
-                                    "timeline-rotation",
-                                    "Rotation",
-                                    &mut selected.controls.rotation,
-                                    -36000. ..=36000.,
-                                    "°",
-                                    0.,
-                                );
-                            });
-                            ui.scope(|ui| {
-                                ui.set_width(width);
-                                field(
-                                    ui,
-                                    "timeline-exposure",
-                                    "Exposure",
-                                    &mut selected.controls.exposure,
-                                    -10. ..=10.,
-                                    " stops",
-                                    0.,
-                                );
-                            });
-                            ui.end_row();
-                            ui.scope(|ui| {
-                                ui.set_width(width);
-                                field(
-                                    ui,
-                                    "timeline-contrast",
-                                    "Contrast",
-                                    &mut selected.controls.contrast,
-                                    0. ..=4.,
-                                    " ×",
-                                    1.,
-                                );
-                            });
-                            ui.scope(|ui| {
-                                ui.set_width(width);
-                                field(
-                                    ui,
-                                    "timeline-saturation",
-                                    "Saturation",
-                                    &mut selected.controls.saturation,
-                                    0. ..=4.,
-                                    " ×",
-                                    1.,
-                                );
-                            });
-                            ui.end_row();
                         });
                     if changed && selected.controls != before {
                         draft_action = Some(TimelineAction::SetControls {
@@ -1792,6 +1798,125 @@ mod tests {
                         "mixed={mixed} locked={locked} enabled={enabled}"
                     );
                 }
+            }
+        }
+    }
+    #[test]
+    fn craft_real_inspector_labels_fit_at_display_scales_for_selection_states() {
+        fn labels(shape: &egui::epaint::Shape, clip: egui::Rect, count: &mut usize) {
+            match shape {
+                egui::epaint::Shape::Vec(children) => {
+                    for child in children {
+                        labels(child, clip, count);
+                    }
+                }
+                egui::epaint::Shape::Text(text)
+                    if [
+                        "Sound level",
+                        "Opacity",
+                        "Scale X",
+                        "Scale Y",
+                        "Position X",
+                        "Position Y",
+                        "Rotation",
+                        "Exposure",
+                        "Contrast",
+                        "Saturation",
+                    ]
+                    .contains(&text.galley.text()) =>
+                {
+                    let bounds = shape.visual_bounding_rect();
+                    assert!(
+                        clip.expand(1.).contains_rect(bounds),
+                        "{} clipped: {bounds:?} outside {clip:?}",
+                        text.galley.text()
+                    );
+                    *count += 1;
+                }
+                _ => {}
+            }
+        }
+        for scale in [1., 1.5, 2.] {
+            let (_dir, mut workspace, tab, source) = workspace();
+            let mut pane = TimelinePane::default();
+            let (composition, first) = cut(&mut pane, &mut workspace, tab, source);
+            pane.edit(
+                &workspace,
+                tab,
+                TimelineAction::Insert {
+                    composition,
+                    at: 16,
+                    source: SourceSelection {
+                        composition: source,
+                        range: FrameRange { start: 4, end: 20 },
+                    },
+                },
+            )
+            .unwrap();
+            finish(&mut pane, &mut workspace, true);
+            let clips =
+                editbay_core::timeline_clips(workspace.tabs[0].editor.project(), composition)
+                    .unwrap();
+            let second = clips.iter().find(|c| c.id != first).unwrap().id;
+            pane.edit(
+                &workspace,
+                tab,
+                TimelineAction::SetControls {
+                    composition,
+                    clip: second,
+                    controls: TimelineControls {
+                        gain: 0.5,
+                        ..Default::default()
+                    },
+                },
+            )
+            .unwrap();
+            finish(&mut pane, &mut workspace, true);
+            let (owner, editor) = workspace.edit_snapshot(tab).unwrap();
+            pane.refresh(owner, editor.snapshot()).unwrap();
+            finish(&mut pane, &mut workspace, true);
+            let ctx = egui::Context::default();
+            ctx.set_pixels_per_point(scale);
+            for state in 0..4 {
+                let selected = pane.selections.get_mut(&tab).unwrap();
+                selected.clip = if state == 0 { None } else { Some(first) };
+                selected.controls = TimelineControls::default();
+                selected.multiple = if state == 2 {
+                    vec![first, second]
+                } else {
+                    vec![]
+                };
+                let mut preview = PreviewPane::default();
+                for _ in 0..3 {
+                    let output = ctx.run_ui(
+                        egui::RawInput {
+                            screen_rect: Some(egui::Rect::from_min_size(
+                                egui::Pos2::ZERO,
+                                egui::vec2(480. / scale, 4000. / scale),
+                            )),
+                            ..Default::default()
+                        },
+                        |ui| {
+                            pane.show(
+                                ui,
+                                &workspace,
+                                &mut preview,
+                                tab,
+                                editor.snapshot(),
+                                state != 3,
+                            )
+                        },
+                    );
+                    let mut count = 0;
+                    for clipped in &output.shapes {
+                        labels(&clipped.shape, clipped.clip_rect, &mut count);
+                    }
+                    if state != 0 && count > 0 {
+                        assert_eq!(count, 10, "scale {scale} state {state}");
+                    }
+                    output.drop_without_applying_deltas();
+                }
+                assert_eq!(workspace.tabs[0].editor.project().revision, 3);
             }
         }
     }
