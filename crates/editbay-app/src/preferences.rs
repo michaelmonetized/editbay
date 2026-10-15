@@ -43,7 +43,7 @@ impl Default for Shortcuts {
     }
 }
 
-#[derive(Clone, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Clone, Debug, Default, PartialEq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct Preferences {
     pub startup: Startup,
@@ -51,6 +51,8 @@ pub struct Preferences {
     pub active_path: Option<PathBuf>,
     pub catalog_root: Option<PathBuf>,
     pub shortcuts: Shortcuts,
+    #[serde(default)]
+    pub layouts: crate::panels::Book,
 }
 
 impl Preferences {
@@ -65,6 +67,29 @@ impl Preferences {
                 .any(|path| path.as_os_str().is_empty())
         {
             return Err("Preferences support up to 128 nonempty project paths".into());
+        }
+        if self.layouts.tasks.len() > 4
+            || self
+                .layouts
+                .tasks
+                .keys()
+                .any(|key| !["Edit", "Color", "Audio", "Delivery"].contains(&key.as_str()))
+            || self.layouts.tasks.values().any(|layout| {
+                layout.groups.len() > 16
+                    || layout.hidden.len() > 16
+                    || layout
+                        .groups
+                        .iter()
+                        .chain(layout.hidden.values())
+                        .any(|group| {
+                            group.panels.len() > 16
+                                || group.panels.iter().any(|panel| panel.len() > 64)
+                                || !group.extent.is_finite()
+                                || !group.rect.iter().all(|v| v.is_finite())
+                        })
+            })
+        {
+            return Err("Workspace layouts contain unsupported panels or geometry".into());
         }
         let s = &self.shortcuts;
         let mut chords = HashSet::new();
@@ -438,5 +463,41 @@ mod tests {
         assert!(read(&path).is_err());
         assert!(write(&path, &Preferences::default(), None).is_err());
         assert_eq!(fs::read(outside).unwrap(), b"untouched");
+    }
+    #[test]
+    fn craft_task_layouts_save_reopen_and_legacy_preferences_get_defaults() {
+        use crate::panels::{Place, Workspace};
+        let directory = tempfile::tempdir().unwrap();
+        let path = directory.path().join("workspace.json");
+        let mut legacy = serde_json::to_value(Preferences::default()).unwrap();
+        legacy.as_object_mut().unwrap().remove("layouts");
+        let legacy: Preferences = serde_json::from_value(legacy).unwrap();
+        assert!(legacy.layouts.tasks.is_empty());
+        let mut store = PreferenceStore::new(path.clone(), egui::Context::default());
+        settle(&mut store);
+        let mut preferences = store.current.clone();
+        preferences.layouts.active = "Color".into();
+        for task in ["Edit", "Color", "Audio", "Delivery"] {
+            let mut layout =
+                Workspace::preset(&[("timeline", Place::Bottom), ("properties", Place::Right)]);
+            layout.move_panel("properties", Place::Floating);
+            layout.close("timeline");
+            preferences.layouts.tasks.insert(task.into(), layout);
+        }
+        store.update(preferences.clone()).unwrap();
+        settle(&mut store);
+        assert!(store.error.is_none());
+        let mut reopened = PreferenceStore::new(path, egui::Context::default());
+        settle(&mut reopened);
+        assert_eq!(reopened.current, preferences);
+        for layout in reopened.current.layouts.tasks.values_mut() {
+            layout.restore("timeline");
+            assert!(
+                layout
+                    .groups
+                    .iter()
+                    .any(|g| g.panels.iter().any(|p| p == "timeline"))
+            );
+        }
     }
 }

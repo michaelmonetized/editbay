@@ -17,3 +17,6 @@ pub mod workspace;
 pub mod fields;
 
 pub mod timeline_handles;
+
+#[path = "../../../vendor/oma-ui/workspace.rs"]
+pub mod panels;

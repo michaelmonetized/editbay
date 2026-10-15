@@ -322,13 +322,13 @@ impl Handles {
 mod tests {
     use super::*;
     #[test]
-    fn snapping_is_bounded_and_deterministic() {
+    fn craft_snapping_is_bounded_and_deterministic() {
         assert_eq!(snap(12, &[14, 10, 60], 2), 10);
         assert_eq!(snap(12, &[14, 10, 60], 1), 12);
         assert_eq!(snap(u64::MAX, &[0, u64::MAX - 1], 2), u64::MAX - 1);
     }
     #[test]
-    fn direct_trim_and_move_keep_source_range_and_typed_ripple_semantics() {
+    fn craft_direct_trim_and_move_keep_source_range_and_typed_ripple_semantics() {
         let clip = TimelineClip {
             track: Uuid::new_v4(),
             audio_only: false,
