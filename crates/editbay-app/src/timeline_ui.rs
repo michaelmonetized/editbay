@@ -1077,6 +1077,12 @@ impl TimelinePane {
                                 mixed: mixed_controls
                                     .iter()
                                     .any(|c| control_value(id, *c) != control_value(id, before)),
+                                locked: state.locked
+                                    || if id == "timeline-gain" {
+                                        !(clip.audio_only || clip.linked.is_some())
+                                    } else {
+                                        clip.audio_only
+                                    },
                                 ..state
                             },
                         );
@@ -1376,6 +1382,59 @@ mod tests {
         let composition = Uuid::new_v4();
         let node = Uuid::new_v4();
         let rate = FrameRate::new(24, 1).unwrap();
+        use sha2::Digest;
+        let path = directory.path().join("source.wav");
+        let sample_bytes = 192000u32;
+        let mut wav = Vec::with_capacity(sample_bytes as usize + 44);
+        wav.extend_from_slice(b"RIFF");
+        wav.extend_from_slice(&(sample_bytes + 36).to_le_bytes());
+        wav.extend_from_slice(b"WAVEfmt ");
+        wav.extend_from_slice(&16u32.to_le_bytes());
+        wav.extend_from_slice(&1u16.to_le_bytes());
+        wav.extend_from_slice(&1u16.to_le_bytes());
+        wav.extend_from_slice(&48000u32.to_le_bytes());
+        wav.extend_from_slice(&96000u32.to_le_bytes());
+        wav.extend_from_slice(&2u16.to_le_bytes());
+        wav.extend_from_slice(&16u16.to_le_bytes());
+        wav.extend_from_slice(b"data");
+        wav.extend_from_slice(&sample_bytes.to_le_bytes());
+        wav.resize(sample_bytes as usize + 44, 0);
+        std::fs::write(&path, &wav).unwrap();
+        let asset = Uuid::new_v4();
+        let source = Uuid::new_v4();
+        let audio_clip = Uuid::new_v4();
+        let audio_node = Uuid::new_v4();
+        project.assets.push(editbay_core::AssetReference {
+            id: asset,
+            kind: editbay_core::AssetKind::Media,
+            path,
+            sha256: format!("{:x}", sha2::Sha256::digest(&wav)),
+            bytes: wav.len() as u64,
+            provenance: "Generated PCM source for typed command tests; no device playback claim"
+                .into(),
+        });
+        project.sources.push(editbay_core::MediaSource {
+            id: source,
+            name: "Generated PCM".into(),
+            asset,
+            metadata: Default::default(),
+            streams: vec![editbay_core::SourceStream {
+                index: 0,
+                codec: "pcm_s16le".into(),
+                time_base: editbay_core::TimeBase {
+                    numerator: 1,
+                    denominator: 48000,
+                },
+                start_tick: 0,
+                duration_ticks: Some(96000),
+                format: editbay_core::StreamFormat::Audio {
+                    sample_rate: 48000,
+                    channels: vec!["FC".into()],
+                },
+                metadata: Default::default(),
+            }],
+        });
+
         project.compositions.push(Composition {
             id: composition,
             name: "Solid source".into(),
@@ -1384,14 +1443,47 @@ mod tests {
             frame_rate: rate,
             duration: 48,
             picture: Some(node),
-            audio: None,
-            tracks: vec![],
-            nodes: vec![TimedNode {
-                id: node,
-                range: FrameRange { start: 0, end: 48 },
-                operation: NodeOperation::Solid { rgba: [1.; 4] },
-                animation: vec![],
+            audio: Some(audio_node),
+            tracks: vec![editbay_core::Track {
+                id: Uuid::new_v4(),
+                name: "Source sound".into(),
+                kind: editbay_core::TrackKind::Audio,
+                enabled: true,
+                clips: vec![editbay_core::Clip {
+                    id: audio_clip,
+                    name: "PCM".into(),
+                    range: FrameRange { start: 0, end: 48 },
+                    source: editbay_core::ClipSource::Media { source, stream: 0 },
+                    time_map: editbay_core::TimeMap {
+                        source_denominator: 1,
+                        points: vec![
+                            editbay_core::TimePoint {
+                                frame: 0,
+                                source_tick: 0,
+                            },
+                            editbay_core::TimePoint {
+                                frame: 48,
+                                source_tick: 96000,
+                            },
+                        ],
+                    },
+                    linked: None,
+                }],
             }],
+            nodes: vec![
+                TimedNode {
+                    id: audio_node,
+                    range: FrameRange { start: 0, end: 48 },
+                    operation: NodeOperation::Source { clip: audio_clip },
+                    animation: vec![],
+                },
+                TimedNode {
+                    id: node,
+                    range: FrameRange { start: 0, end: 48 },
+                    operation: NodeOperation::Solid { rgba: [1.; 4] },
+                    animation: vec![],
+                },
+            ],
         });
         project.sequences = vec![Sequence {
             id: Uuid::new_v4(),
