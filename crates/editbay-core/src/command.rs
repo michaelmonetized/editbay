@@ -127,8 +127,40 @@ impl DocumentCommand {
             }
             Self::RemoveComposition { id } => remove(&mut project.compositions, *id)?,
             Self::SetColor { configuration } => project.color = *configuration,
-            Self::SetTransition { transition } => set(&mut project.transitions, transition.clone()),
-            Self::RemoveTransition { id } => remove(&mut project.transitions, *id)?,
+            Self::SetTransition { transition } => {
+                let previous = project
+                    .transitions
+                    .iter()
+                    .find(|t| t.id == transition.id)
+                    .map(|t| t.composition);
+                set(&mut project.transitions, transition.clone());
+                for composition in [previous, Some(transition.composition)]
+                    .into_iter()
+                    .flatten()
+                {
+                    let scene = project
+                        .compositions
+                        .iter_mut()
+                        .find(|c| c.id == composition)
+                        .ok_or_else(|| Error::Invalid("Transition composition is absent".into()))?;
+                    crate::editorial::rebuild_editorial(scene, &project.transitions)?;
+                }
+            }
+            Self::RemoveTransition { id } => {
+                let composition = project
+                    .transitions
+                    .iter()
+                    .find(|t| t.id == *id)
+                    .ok_or_else(|| Error::Invalid("Transition is absent".into()))?
+                    .composition;
+                remove(&mut project.transitions, *id)?;
+                let scene = project
+                    .compositions
+                    .iter_mut()
+                    .find(|c| c.id == composition)
+                    .ok_or_else(|| Error::Invalid("Transition composition is absent".into()))?;
+                crate::editorial::rebuild_editorial(scene, &project.transitions)?;
+            }
         }
         project.validate()
     }
