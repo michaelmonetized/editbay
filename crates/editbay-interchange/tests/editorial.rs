@@ -255,6 +255,23 @@ fn real_audio_all_formats_and_saved_relinked_source() {
                 .unwrap_or_else(|| panic!("{format:?} retained no audio clip: {loss:?}"));
             assert_eq!(clip.range.start, 6, "{format:?}");
             assert_eq!(clip.range.end, 30, "{format:?}");
+            if format != Format::Aaf {
+                assert_eq!(
+                    clip.time_map.direction_at(0).unwrap(),
+                    -1,
+                    "{format:?} audio reverse"
+                );
+                assert_eq!(
+                    clip.time_map.position(0).unwrap(),
+                    eb::SourcePosition::new(48048, 1).unwrap(),
+                    "{format:?} audio source start"
+                );
+                assert_eq!(
+                    clip.time_map.position(24).unwrap(),
+                    eb::SourcePosition::new(0, 1).unwrap(),
+                    "{format:?} audio source end"
+                );
+            }
         }
         let reopened = dir.path().join(format!("{:?}.editbay", format));
         eb::save_new(&imported, &reopened).unwrap();
@@ -409,6 +426,18 @@ fn linked_av_reverse_internal_and_trailing_gaps_reopen_exactly_in_capable_format
             assert_eq!(clips[1].range, eb::FrameRange { start: 16, end: 24 });
         }
         if !matches!(format, Format::Aaf | Format::Omf) {
+            let audio = scene
+                .tracks
+                .iter()
+                .filter(|t| t.kind == eb::TrackKind::Audio)
+                .flat_map(|t| &t.clips)
+                .collect::<Vec<_>>();
+            assert_eq!(audio.len(), 2, "{format:?} audio clips");
+            assert_eq!(
+                audio[1].time_map.direction_at(0).unwrap(),
+                -1,
+                "{format:?} linked audio reverse"
+            );
             assert!(
                 scene
                     .tracks

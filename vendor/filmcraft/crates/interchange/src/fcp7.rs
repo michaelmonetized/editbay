@@ -1178,6 +1178,18 @@ impl Exp<'_, '_> {
             Some(ItemKind::Sequence(s)) => (s.settings.width as f64, s.settings.height as f64),
             _ => (fw, fh),
         };
+        if c.speed != 1.0 || c.reverse || c.frame_hold.is_some() {
+            if param(c, "time_remap", "speed").is_some_and(|p| p.is_animated()) {
+                self.report.warn("speed ramps (time remapping keyframes) are not exported to FCP7 XML");
+            }
+            self.open_effect("Time Remap", "timeremap", "motion", "motion", if kind == TrackKind::Video { "video" } else { "audio" }, true);
+            let sp = if c.frame_hold.is_some() { 0.0 } else { c.speed * 100.0 };
+            self.simple_param("variablespeed", "variablespeed", "0");
+            self.simple_param("speed", "speed", &num(sp));
+            self.simple_param("reverse", "reverse", bool_str(c.reverse));
+            self.simple_param("frameblending", "frameblending", "FALSE");
+            self.close_effect();
+        }
         if kind == TrackKind::Video {
             let motion_changed = ["position", "scale", "scale_width", "rotation", "anchor", "anti_flicker"].iter().any(|p| param_modified(c, "motion", p));
             if motion_changed {
@@ -1198,18 +1210,6 @@ impl Exp<'_, '_> {
             if param_modified(c, "opacity", "opacity") {
                 self.open_effect("Opacity", "opacity", "motion", "motion", "video", true);
                 self.float_param(c, "opacity", "opacity", "opacity", 0.0, 100.0, rate, |v| v, "opacity");
-                self.close_effect();
-            }
-            if c.speed != 1.0 || c.reverse || c.frame_hold.is_some() {
-                if param(c, "time_remap", "speed").is_some_and(|p| p.is_animated()) {
-                    self.report.warn("speed ramps (time remapping keyframes) are not exported to FCP7 XML");
-                }
-                self.open_effect("Time Remap", "timeremap", "motion", "motion", "video", true);
-                let sp = if c.frame_hold.is_some() { 0.0 } else { c.speed * 100.0 };
-                self.simple_param("variablespeed", "variablespeed", "0");
-                self.simple_param("speed", "speed", &num(sp));
-                self.simple_param("reverse", "reverse", bool_str(c.reverse));
-                self.simple_param("frameblending", "frameblending", "FALSE");
                 self.close_effect();
             }
         } else {
