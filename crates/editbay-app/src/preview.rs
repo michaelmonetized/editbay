@@ -327,6 +327,7 @@ struct Picture {
     selected_us: AtomicU64,
     incompatible: AtomicBool,
     stats: GraphStats,
+    scopes: Option<editbay_render::scopes::ScopeReport>,
     worker_pid: Option<u32>,
 }
 enum Event {
@@ -400,6 +401,7 @@ impl Task {
         gpu: Gpu,
         ctx: egui::Context,
         store: Option<editbay_media::picture_store::PreparedStore>,
+        scope_settings: Option<editbay_render::scopes::ScopeSettings>,
     ) -> Result<Self, String> {
         if owner.version != DocumentVersion::of(&project) {
             return Err("Viewer document ownership changed before startup".into());
@@ -450,6 +452,7 @@ impl Task {
                     }
                     let display = DisplayRenderer::new(gpu.device.clone(), gpu.format)
                         .map_err(|e| e.to_string())?;
+                    let color = snapshot.project().color;
                     let mut graph = GraphRenderer::with_device(
                         snapshot,
                         provider,
@@ -514,6 +517,25 @@ impl Task {
                                     false,
                                 )
                                 .map_err(|e| e.to_string())?;
+                            let scopes = if let Some(settings) = scope_settings {
+                                let pixels = graph.readback(&working).map_err(|e| e.to_string())?;
+                                Some(
+                                    editbay_render::scopes::sample_program_frame(
+                                        &pixels,
+                                        working.image().dimensions(),
+                                        editbay_render::scopes::ScopeIdentity {
+                                            version: owner.version,
+                                            composition,
+                                            frame: request.frame,
+                                        },
+                                        color,
+                                        settings,
+                                    )
+                                    .map_err(|e| e.to_string())?,
+                                )
+                            } else {
+                                None
+                            };
                             let render_us = began.elapsed().as_micros() as u64;
                             let began = Instant::now();
                             let converted = graph
@@ -548,6 +570,7 @@ impl Task {
                                     selected_us: AtomicU64::new(0),
                                     incompatible: AtomicBool::new(false),
                                     stats: graph.stats(),
+                                    scopes,
                                     worker_pid: graph.picture_provider().process_id(),
                                 });
                                 if let Some((pictures, reservation)) = preparation {
@@ -650,6 +673,7 @@ struct Creation {
 #[derive(Default)]
 pub struct PreviewPane {
     cached: cached::Cache,
+    color: crate::color_ui::ScopePanel,
     view_owner: Option<DocumentOwner>,
     gpu: Option<Gpu>,
     selections: HashMap<Uuid, Selection>,
@@ -1551,6 +1575,7 @@ impl PreviewPane {
                     gpu,
                     ui.ctx().clone(),
                     self.cached.ready(owner, selected.sequence),
+                    self.color.enabled.then_some(self.color.settings),
                 )
             });
             match started {
@@ -1634,6 +1659,78 @@ impl PreviewPane {
             } else {
                 "Stopping the previous viewer…"
             });
+        }
+        if let Some(picture) = &self.picture {
+            for track in project
+                .captions
+                .iter()
+                .filter(|t| t.enabled && t.composition == composition.id)
+            {
+                if let Ok(area) = track
+                    .style
+                    .safe_area
+                    .bounds(composition.width, composition.height)
+                {
+                    let safe = egui::Rect::from_min_max(
+                        rect.min + egui::vec2(area[0] * scale, area[1] * scale),
+                        rect.min + egui::vec2(area[2] * scale, area[3] * scale),
+                    );
+                    ui.painter().rect_stroke(
+                        safe,
+                        0.,
+                        egui::Stroke::new(1., egui::Color32::from_white_alpha(60)),
+                        egui::StrokeKind::Inside,
+                    );
+                    if !track.delivery.burns_in() {
+                        if let Ok(cues) =
+                            track.active_at_frame(picture.frame, composition.frame_rate)
+                        {
+                            let text = cues
+                                .iter()
+                                .map(|c| c.text.as_str())
+                                .collect::<Vec<_>>()
+                                .join("\n");
+                            if !text.is_empty() {
+                                let galley = ui.painter().layout(
+                                    text,
+                                    egui::FontId::proportional(track.style.font_size * scale),
+                                    egui::Color32::WHITE,
+                                    safe.width(),
+                                );
+                                let pos = egui::pos2(
+                                    safe.center().x - galley.size().x / 2.,
+                                    safe.bottom() - galley.size().y,
+                                );
+                                let painter = ui.painter().with_clip_rect(safe);
+                                painter.rect_filled(
+                                    egui::Rect::from_min_size(pos, galley.size()),
+                                    0.,
+                                    egui::Color32::from_black_alpha(180),
+                                );
+                                painter.galley(pos, galley, egui::Color32::WHITE);
+                            }
+                        }
+                    }
+                }
+            }
+        }
+        let mut scope_changed = false;
+        ui.collapsing("Color workspace", |ui| {
+            let report = self
+                .picture
+                .as_ref()
+                .and_then(|p| p.scopes.as_ref())
+                .filter(|r| {
+                    r.identity.version == DocumentVersion::of(&project)
+                        && r.identity.composition == composition.id
+                });
+            scope_changed = self.color.show(ui, report);
+        });
+        if scope_changed {
+            self.stop();
+            self.stopped = false;
+            self.error = None;
+            ui.ctx().request_repaint();
         }
         if self.creation.is_some() {
             ui.weak("Creating sequence…");

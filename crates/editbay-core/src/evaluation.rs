@@ -130,6 +130,19 @@ impl Project {
                     masks.insert(asset);
                 }
             }
+            let captions: Vec<_> = self
+                .captions
+                .iter()
+                .filter(|t| t.composition == id && t.enabled && t.delivery.burns_in())
+                .collect();
+            for track in &captions {
+                if let Some(font) = track.style.font {
+                    masks.insert(font);
+                }
+            }
+            if !captions.is_empty() {
+                semantic.push(serde_json::to_value(captions)?);
+            }
             semantic.push(serde_json::to_value((
                 id,
                 composition.width,

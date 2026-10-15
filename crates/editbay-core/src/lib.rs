@@ -6,12 +6,14 @@ mod authoring;
 pub use authoring::{
     conform_sequence, sequence_from_audio, sequence_from_video, sequence_from_video_with_audio,
 };
+pub mod captions;
 mod command;
 mod composition;
 mod document;
 mod editorial;
 pub use editorial::{EditorialTransition, rebuild_editorial};
 mod evaluation;
+pub mod multicam;
 mod prepared;
 mod sound;
 mod storage;

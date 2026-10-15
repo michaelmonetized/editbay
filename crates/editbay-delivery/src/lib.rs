@@ -1,6 +1,8 @@
 //! Supervised, verified delivery of the saved picture and sound graph.
 
+mod captions;
 mod engine;
+pub use captions::caption_sidecars;
 mod job;
 mod worker;
 
@@ -85,6 +87,8 @@ pub struct Receipt {
     pub file_bytes: u64,
     pub clipped_picture_values: u64,
     pub adapter: String,
+    #[serde(default)]
+    pub caption_sidecars: Vec<std::path::PathBuf>,
 }
 
 /// Measured decoded error against the shared graph, without hiding codec loss.

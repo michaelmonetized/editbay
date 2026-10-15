@@ -94,6 +94,8 @@ pub struct Studio {
     preview: PreviewPane,
     delivery: DeliveryPane,
     timeline: TimelinePane,
+    workflows: crate::workflow_ui::WorkflowPane,
+    multicam: crate::multicam_ui::MulticamPane,
     preferences_applied: bool,
     explicit_paths: bool,
     restoring: bool,
@@ -183,6 +185,8 @@ impl Studio {
             preview: PreviewPane::new(state.join("picture-cache")),
             delivery: DeliveryPane::default(),
             timeline: TimelinePane::default(),
+            workflows: crate::workflow_ui::WorkflowPane::new(state.join("interchange-loss")),
+            multicam: Default::default(),
             preferences_applied: false,
             explicit_paths,
             restoring: false,
@@ -239,6 +243,8 @@ impl Studio {
         if self.workspace.activation_generation != previous && self.workspace.active.is_some() {
             self.welcome = false;
         }
+        self.workflows.poll(&mut self.workspace, !self.welcome);
+        self.multicam.poll(&mut self.workspace, !self.welcome);
         self.preview.poll(&mut self.workspace, !self.welcome, ctx);
         self.timeline
             .poll(&mut self.workspace, &mut self.preview, !self.welcome, ctx);
@@ -1544,6 +1550,20 @@ impl Studio {
                         .observe_control("edit-controls", &controls.header_response, ui);
                     self.preview.show(ui, &self.workspace, id, project.clone());
                 }
+                self.multicam.show(
+                    ui,
+                    &mut self.workspace,
+                    &mut self.preview,
+                    id,
+                    project.clone(),
+                );
+                self.workflows.show(
+                    ui,
+                    &mut self.workspace,
+                    &mut self.preview,
+                    id,
+                    project.clone(),
+                );
                 for sequence in project
                     .sequences
                     .iter()

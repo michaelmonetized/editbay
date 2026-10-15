@@ -428,6 +428,7 @@ impl Session {
                 file_bytes: source.fingerprint().bytes,
                 clipped_picture_values: self.clipped,
                 adapter: format!("{:?}", self.picture.adapter),
+                caption_sidecars: Vec::new(),
             });
             self.phase = Phase::Complete;
         }
