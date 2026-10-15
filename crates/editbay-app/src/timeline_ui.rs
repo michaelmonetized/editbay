@@ -1271,8 +1271,10 @@ impl TimelinePane {
                         busy,
                         InspectorKind::All,
                     );
-                    draft_action = outcome.action;
-                    draft_actions = outcome.actions;
+                    if outcome.action.is_some() || outcome.actions.is_some() {
+                        draft_action = outcome.action;
+                        draft_actions = outcome.actions;
+                    }
                     finish_gesture |= outcome.finished;
                     cancel_gesture |= outcome.cancelled;
                 }
