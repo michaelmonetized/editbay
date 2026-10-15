@@ -420,15 +420,18 @@ impl<P: PictureProvider> GraphRenderer<P> {
     }
 
     /// Preview retained sidecar captions with the delivery font and shaping.
-    /// `image` is the rendered program, `composition` and `position` own its clock.
+    /// `frame` is the rendered program, `composition` and `position` own its clock.
     /// Returns viewer pixels; scopes and deliveries keep the original program.
     pub fn preview_captions(
         &mut self,
-        image: Arc<ResidentImage>,
+        frame: &RenderedFrame,
         composition: Uuid,
         position: SourcePosition,
-    ) -> Result<Arc<ResidentImage>> {
-        self.caption_overlay(image, composition, position, false, true)
+    ) -> Result<RenderedFrame> {
+        self.validate_result(frame)?;
+        let image =
+            self.caption_overlay(frame.image.clone(), composition, position, false, true)?;
+        Ok(self.receipt(image))
     }
 
     fn caption_overlay(

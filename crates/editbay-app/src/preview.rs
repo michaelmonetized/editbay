@@ -342,6 +342,7 @@ struct Task {
     mailbox: Arc<(Mutex<Mailbox>, Condvar)>,
     result: Arc<Mutex<Option<Event>>>,
     coalesced: Arc<AtomicU64>,
+    scope_settings: Arc<Mutex<Option<editbay_render::scopes::ScopeSettings>>>,
     thread: Option<JoinHandle<()>>,
 }
 
@@ -414,6 +415,8 @@ impl Task {
         let input = mailbox.clone();
         let output = result.clone();
         let token = cancel.clone();
+        let scope_settings = Arc::new(Mutex::new(scope_settings));
+        let scope_options = scope_settings.clone();
         let thread = std::thread::Builder::new()
             .name("editbay-native-picture".into())
             .spawn(move || {
@@ -517,7 +520,9 @@ impl Task {
                                     false,
                                 )
                                 .map_err(|e| e.to_string())?;
-                            let scopes = if let Some(settings) = scope_settings {
+                            let scopes = if let Some(settings) =
+                                *scope_options.lock().map_err(|e| e.to_string())?
+                            {
                                 let pixels = graph.readback(&working).map_err(|e| e.to_string())?;
                                 Some(
                                     editbay_render::scopes::sample_program_frame(
@@ -540,7 +545,7 @@ impl Task {
                             let began = Instant::now();
                             let preview = graph
                                 .preview_captions(
-                                    working,
+                                    &working,
                                     composition,
                                     SourcePosition::new(
                                         i64::try_from(request.frame).map_err(|e| e.to_string())?,
@@ -610,6 +615,7 @@ impl Task {
             mailbox,
             result,
             coalesced,
+            scope_settings,
             thread: Some(thread),
         })
     }
@@ -1711,13 +1717,20 @@ impl PreviewPane {
                 .filter(|r| {
                     r.identity.version == DocumentVersion::of(&project)
                         && r.identity.composition == composition.id
+                        && r.settings == self.color.settings
                 });
             scope_changed = self.color.show(ui, report);
         });
         if scope_changed {
-            self.stop();
-            self.stopped = false;
-            self.error = None;
+            if let Some(task) = &self.task {
+                match task.scope_settings.lock() {
+                    Ok(mut settings) => {
+                        *settings = self.color.enabled.then_some(self.color.settings)
+                    }
+                    Err(error) => self.error = Some(error.to_string()),
+                }
+            }
+            self.requested_frame = None;
             ui.ctx().request_repaint();
         }
         if self.creation.is_some() {
