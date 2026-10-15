@@ -33,17 +33,45 @@ impl DocumentVersion {
 #[cfg_attr(feature = "json-schema", derive(schemars::JsonSchema))]
 #[serde(tag = "kind", rename_all = "snake_case", deny_unknown_fields)]
 pub enum DocumentCommand {
-    RenameProject { name: String },
-    SetSequence { sequence: Sequence },
-    SetPrimarySequence { id: Uuid },
-    RemoveSequence { id: Uuid },
-    SetAsset { asset: AssetReference },
-    RemoveAsset { id: Uuid },
-    SetSource { source: MediaSource },
-    RemoveSource { id: Uuid },
-    SetComposition { composition: Composition },
-    RemoveComposition { id: Uuid },
-    SetColor { configuration: ColorConfiguration },
+    RenameProject {
+        name: String,
+    },
+    SetSequence {
+        sequence: Sequence,
+    },
+    SetPrimarySequence {
+        id: Uuid,
+    },
+    RemoveSequence {
+        id: Uuid,
+    },
+    SetAsset {
+        asset: AssetReference,
+    },
+    RemoveAsset {
+        id: Uuid,
+    },
+    SetSource {
+        source: MediaSource,
+    },
+    RemoveSource {
+        id: Uuid,
+    },
+    SetComposition {
+        composition: Composition,
+    },
+    RemoveComposition {
+        id: Uuid,
+    },
+    SetColor {
+        configuration: ColorConfiguration,
+    },
+    SetTransition {
+        transition: crate::EditorialTransition,
+    },
+    RemoveTransition {
+        id: Uuid,
+    },
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
@@ -71,6 +99,8 @@ impl DocumentCommand {
             "set_composition",
             "remove_composition",
             "set_color",
+            "set_transition",
+            "remove_transition",
         ]
     }
 
@@ -97,6 +127,40 @@ impl DocumentCommand {
             }
             Self::RemoveComposition { id } => remove(&mut project.compositions, *id)?,
             Self::SetColor { configuration } => project.color = *configuration,
+            Self::SetTransition { transition } => {
+                let previous = project
+                    .transitions
+                    .iter()
+                    .find(|t| t.id == transition.id)
+                    .map(|t| t.composition);
+                set(&mut project.transitions, transition.clone());
+                for composition in [previous, Some(transition.composition)]
+                    .into_iter()
+                    .flatten()
+                {
+                    let scene = project
+                        .compositions
+                        .iter_mut()
+                        .find(|c| c.id == composition)
+                        .ok_or_else(|| Error::Invalid("Transition composition is absent".into()))?;
+                    crate::editorial::rebuild_editorial(scene, &project.transitions)?;
+                }
+            }
+            Self::RemoveTransition { id } => {
+                let composition = project
+                    .transitions
+                    .iter()
+                    .find(|t| t.id == *id)
+                    .ok_or_else(|| Error::Invalid("Transition is absent".into()))?
+                    .composition;
+                remove(&mut project.transitions, *id)?;
+                let scene = project
+                    .compositions
+                    .iter_mut()
+                    .find(|c| c.id == composition)
+                    .ok_or_else(|| Error::Invalid("Transition composition is absent".into()))?;
+                crate::editorial::rebuild_editorial(scene, &project.transitions)?;
+            }
         }
         project.validate()
     }
@@ -119,6 +183,11 @@ pub struct CommandReceipt {
 
 trait Identified {
     fn id(&self) -> Uuid;
+}
+impl Identified for crate::EditorialTransition {
+    fn id(&self) -> Uuid {
+        self.id
+    }
 }
 impl Identified for Sequence {
     fn id(&self) -> Uuid {
@@ -223,6 +292,7 @@ struct GroupChange {
     assets: Vec<Delta<AssetReference>>,
     sources: Vec<Delta<MediaSource>>,
     compositions: Vec<Delta<Composition>>,
+    transitions: Vec<Delta<crate::EditorialTransition>>,
     impact: ChangeImpact,
     label: String,
     bytes: usize,
@@ -237,6 +307,7 @@ impl GroupChange {
             assets: differences(&before.assets, &after.assets),
             sources: differences(&before.sources, &after.sources),
             compositions: differences(&before.compositions, &after.compositions),
+            transitions: differences(&before.transitions, &after.transitions),
             impact: ChangeImpact::default(),
             label,
             bytes: 0,
@@ -262,6 +333,7 @@ impl GroupChange {
         restore(&mut project.assets, &self.assets, forward);
         restore(&mut project.sources, &self.sources, forward);
         restore(&mut project.compositions, &self.compositions, forward);
+        restore(&mut project.transitions, &self.transitions, forward);
     }
 
     fn impact_for(&self, before: &Project, after: &Project) -> ChangeImpact {
@@ -293,6 +365,15 @@ impl GroupChange {
                 }
             }
         }
+        for transition in before.transitions.iter().chain(&after.transitions) {
+            if self
+                .transitions
+                .iter()
+                .any(|delta| delta.id == transition.id)
+            {
+                affected.insert(transition.composition);
+            }
+        }
         let mut pending: Vec<_> = affected.iter().copied().collect();
         while let Some(child) = pending.pop() {
             for parent in parents.get(&child).into_iter().flatten() {
@@ -306,6 +387,7 @@ impl GroupChange {
             .chain(sources)
             .chain(self.sequences.iter().map(|delta| delta.id))
             .chain(self.compositions.iter().map(|delta| delta.id))
+            .chain(self.transitions.iter().map(|delta| delta.id))
             .collect();
         if self.name.is_some() || self.color.is_some() {
             entities.insert(before.id);

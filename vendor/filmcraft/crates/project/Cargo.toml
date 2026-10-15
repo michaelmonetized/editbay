@@ -1,0 +1,15 @@
+[package]
+name = "filmcraft-project"
+version = "0.8.0"
+edition = "2024"
+rust-version = "1.95"
+license = "MIT"
+
+[dependencies]
+filmcraft-time = { path = "../time" }
+filmcraft-geom = { path = "../geom" }
+filmcraft-color = { path = "../color" }
+filmcraft-media = { path = "../media" }
+serde = { version = "1", features = ["derive", "rc"] }
+serde_json = "1"
+thiserror = "2"

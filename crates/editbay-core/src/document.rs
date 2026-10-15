@@ -73,6 +73,8 @@ pub struct Project {
     pub compositions: Vec<crate::Composition>,
     #[serde(default, skip_serializing_if = "crate::ColorConfiguration::is_default")]
     pub color: crate::ColorConfiguration,
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub transitions: Vec<crate::EditorialTransition>,
 }
 
 impl Project {
@@ -83,6 +85,7 @@ impl Project {
             revision: 0,
             name: name.into(),
             recovered_from: None,
+            transitions: Vec::new(),
             assets: Vec::new(),
             sources: Vec::new(),
             compositions: Vec::new(),
@@ -138,6 +141,12 @@ impl Project {
             sequence.frame_rate.validate()?;
         }
         crate::composition::validate_model(self, &mut identities)?;
+        for transition in &self.transitions {
+            if !identities.insert(transition.id) {
+                return Err(Error::Invalid("Duplicate transition identity".into()));
+            }
+            transition.validate(self)?;
+        }
         Ok(())
     }
 
@@ -146,7 +155,8 @@ impl Project {
     /// and sequence profiles retained. Recovery callers verify integrity first.
     pub fn migrate(mut self) -> Result<Self> {
         if self.schema == 1 {
-            if !self.assets.is_empty()
+            if !self.transitions.is_empty()
+                || !self.assets.is_empty()
                 || !self.sources.is_empty()
                 || !self.compositions.is_empty()
                 || self

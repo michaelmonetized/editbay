@@ -1,0 +1,25 @@
+[package]
+name = "editbay-interchange"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+
+[dependencies]
+editbay-core = { path = "../editbay-core" }
+editbay-media = { path = "../editbay-media" }
+filmcraft-interchange = { path = "../../vendor/filmcraft/crates/interchange" }
+filmcraft-project = { path = "../../vendor/filmcraft/crates/project" }
+filmcraft-time = { path = "../../vendor/filmcraft/crates/time" }
+filmcraft-media = { path = "../../vendor/filmcraft/crates/media" }
+filmcraft-color = { path = "../../vendor/filmcraft/crates/color" }
+serde.workspace = true
+serde_json.workspace = true
+uuid.workspace = true
+sha2.workspace = true
+
+[dev-dependencies]
+tempfile.workspace = true
+
+[lints]
+workspace = true
