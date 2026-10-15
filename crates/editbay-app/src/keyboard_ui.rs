@@ -6,7 +6,7 @@ use eframe::egui::{self, Response, Ui};
 /// Returns the native combo response; arrows and Home/End select without a pointer.
 pub fn choice<T: Copy + PartialEq>(
     ui: &mut Ui,
-    id: impl std::hash::Hash,
+    id: impl std::hash::Hash + std::fmt::Debug,
     label: &str,
     selected: &mut T,
     choices: &[(T, String)],
@@ -86,7 +86,7 @@ pub fn choice<T: Copy + PartialEq>(
 
 /// Draw a named action with stable native focus.
 /// Args: UI, stable identity and visible label. Returns its actual button response.
-pub fn button(ui: &mut Ui, id: impl std::hash::Hash, label: &str) -> Response {
+pub fn button(ui: &mut Ui, id: impl std::hash::Hash + std::fmt::Debug, label: &str) -> Response {
     let response =
         crate::fields::native_scope(ui, egui::Id::new(("editbay-native-button", id)), |ui| {
             ui.button(label)
@@ -100,7 +100,7 @@ pub fn button(ui: &mut Ui, id: impl std::hash::Hash, label: &str) -> Response {
 /// Args: UI, stable identity, label, draft and multiline mode. Returns its native response.
 pub fn text(
     ui: &mut Ui,
-    id: impl std::hash::Hash,
+    id: impl std::hash::Hash + std::fmt::Debug,
     label: &str,
     value: &mut String,
     multiline: bool,
@@ -172,7 +172,7 @@ mod tests {
         let choices = [(17, "Camera".into()), (42, "Title".into())];
         let mut selected = 17;
         let mut focused = false;
-        let mut frame = |key, enabled| {
+        let mut frame = |key: Option<egui::Key>, enabled: bool| {
             ctx.run_ui(
                 egui::RawInput {
                     events: key
@@ -213,7 +213,7 @@ mod tests {
         let mut selected = 17;
         let mut preceding = String::new();
         let mut native_id = None;
-        let mut draw = |conditional, key| {
+        let mut draw = |conditional: bool, key: Option<egui::Key>| {
             ctx.run_ui(
                 egui::RawInput {
                     events: key

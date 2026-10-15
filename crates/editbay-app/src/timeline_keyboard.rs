@@ -384,7 +384,7 @@ mod tests {
                 },
             );
             for event in &output.platform_output.events {
-                if let egui::OutputEvent::FocusGained(info) = event {
+                if let egui::output::OutputEvent::FocusGained(info) = event {
                     self.focus = info.label.clone().unwrap_or_default();
                 }
             }

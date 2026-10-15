@@ -30,7 +30,7 @@ fn frame(ctx: &egui::Context, studio: &mut Studio, events: Vec<egui::Event>) -> 
         .events
         .iter()
         .filter_map(|event| {
-            if let egui::OutputEvent::FocusGained(info) = event {
+            if let egui::output::OutputEvent::FocusGained(info) = event {
                 info.label.clone()
             } else {
                 None

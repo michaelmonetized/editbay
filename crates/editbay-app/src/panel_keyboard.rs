@@ -310,7 +310,7 @@ mod tests {
             .events
             .iter()
             .filter_map(|event| {
-                if let egui::OutputEvent::FocusGained(info) = event {
+                if let egui::output::OutputEvent::FocusGained(info) = event {
                     info.label.clone()
                 } else {
                     None
