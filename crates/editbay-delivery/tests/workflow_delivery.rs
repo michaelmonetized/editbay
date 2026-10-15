@@ -871,14 +871,39 @@ fn bound_cli() -> TestResult<(PathBuf, Value)> {
     let binding_path = PathBuf::from(std::env::var_os("EDITBAY_TEST_CLI_BUILD_RECEIPT").ok_or(
         "EDITBAY_TEST_CLI_BUILD_RECEIPT must identify the exact-current serialized CLI build",
     )?);
-    let binding: Value = serde_json::from_slice(&fs::read(&binding_path)?)?;
+    let mut binding: Value = serde_json::from_slice(&fs::read(&binding_path)?)?;
     let git = Command::new("git")
         .args(["-C", env!("CARGO_MANIFEST_DIR"), "rev-parse", "HEAD"])
         .output()?;
     assert!(git.status.success());
     let revision = String::from_utf8(git.stdout)?;
     assert_eq!(binding["repository"], "editbay");
-    assert_eq!(binding["revision"], revision.trim());
+    let compiled = binding["revision"]
+        .as_str()
+        .ok_or("Compiler source revision absent")?;
+    if compiled != revision.trim() {
+        assert!(compiled.len() == 40 && compiled.bytes().all(|v| v.is_ascii_hexdigit()));
+        let changes = Command::new("git")
+            .args([
+                "-C",
+                env!("CARGO_MANIFEST_DIR"),
+                "diff",
+                "--name-only",
+                compiled,
+                revision.trim(),
+                "--",
+            ])
+            .output()?;
+        assert!(changes.status.success());
+        let changed = String::from_utf8(changes.stdout)?;
+        assert!(
+            changed
+                .lines()
+                .all(|p| p.starts_with("crates/editbay-delivery/tests/")
+                    || p.starts_with("crates/editbay-media/tests/")),
+            "CLI product source changed since compiler receipt: {changed}"
+        );
+    }
     assert_eq!(binding["exit_code"], 0);
     assert_eq!(binding["dirty_before"], false);
     assert_eq!(binding["dirty_after"], false);
@@ -901,6 +926,9 @@ fn bound_cli() -> TestResult<(PathBuf, Value)> {
         .ok_or("serialized receipt does not bind this CLI")?;
     assert_eq!(executable["sha256"], cli_file.fingerprint().sha256);
     assert_eq!(executable["size"], cli_file.fingerprint().bytes);
+    binding["test_source_revision"] = json!(revision.trim());
+    binding["actual_cli_fingerprint"] = json!(cli_file.fingerprint());
+    binding["actual_cli_compiler_packet"] = json!(binding_path);
     Ok((cli, binding))
 }
 
@@ -1308,7 +1336,7 @@ fn craft_video_precision_decode_worker_store_float_graph_and_atomic_master() -> 
         deadline.media()?,
     )?;
     let frame = renderer.render(composition, SourcePosition::new(0, 1)?, false)?;
-    let linear = renderer.readback(frame.image())?;
+    let linear = renderer.readback(&frame)?;
     let mut max_linear_error = 0_f64;
     for (index, actual) in linear.as_chunks::<4>().0.iter().enumerate() {
         let expected = precision_pixel(index);
@@ -1416,7 +1444,7 @@ fn craft_video_precision_decode_worker_store_float_graph_and_atomic_master() -> 
     write_new(
         &directory.path.join("precision-pipeline.json"),
         &serde_json::to_vec_pretty(&json!({
-            "schema":"editbay.native-precision.v1", "status":"passed", "source_revision":binding["revision"],
+            "schema":"editbay.native-precision.v1", "status":"passed", "source_revision":binding["test_source_revision"], "cli_source_revision":binding["revision"], "cli_build_receipt":binding["actual_cli_compiler_packet"], "cli_fingerprint":binding["actual_cli_fingerprint"],
             "input":input, "native_project":native, "master":master, "receipt":receipt,
             "pixel_encoding":"rgba16_le", "maximum_working_linear_error":max_linear_error,
             "maximum_encoded_code_error":max_code_error, "retained_non8bit_components":retained_low_bits,
