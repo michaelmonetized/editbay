@@ -1887,8 +1887,9 @@ mod tests {
                     vec![]
                 };
                 let mut preview = PreviewPane::default();
+                let mut observed = 0;
                 for _ in 0..3 {
-                    let output = ctx.run_ui(
+                    let mut output = ctx.run_ui(
                         egui::RawInput {
                             screen_rect: Some(egui::Rect::from_min_size(
                                 egui::Pos2::ZERO,
@@ -1907,15 +1908,22 @@ mod tests {
                             )
                         },
                     );
+                    output.textures_delta.clear();
                     let mut count = 0;
                     for clipped in &output.shapes {
                         labels(&clipped.shape, clipped.clip_rect, &mut count);
                     }
+                    observed = count;
                     if state != 0 && count > 0 {
                         assert_eq!(count, 10, "scale {scale} state {state}");
                     }
                     output.drop_without_applying_deltas();
                 }
+                assert_eq!(
+                    observed,
+                    if state == 0 { 0 } else { 10 },
+                    "scale {scale} state {state}: missing property labels"
+                );
                 assert_eq!(workspace.tabs[0].editor.project().revision, 3);
             }
         }
