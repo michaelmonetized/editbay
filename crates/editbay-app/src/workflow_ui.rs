@@ -113,6 +113,8 @@ pub struct WorkflowPane {
     path: String,
     loss_root: PathBuf,
     format: editbay_interchange::Format,
+    edl_rate: [u32; 2],
+    relink_asset: Option<Uuid>,
     font: String,
     selected: Option<Uuid>,
     drafts: CaptionDrafts,
@@ -128,6 +130,8 @@ impl Default for WorkflowPane {
             path: String::new(),
             loss_root: PathBuf::new(),
             format: editbay_interchange::Format::Otio,
+            edl_rate: [24, 1],
+            relink_asset: None,
             font: String::new(),
             selected: None,
             drafts: CaptionDrafts::default(),
@@ -227,16 +231,29 @@ impl WorkflowPane {
                         ui.selectable_value(&mut self.format, format, format.name());
                     }
                 });
+            if self.format == editbay_interchange::Format::Edl {
+                ui.horizontal(|ui| {
+                    ui.label("EDL frame rate");
+                    ui.add(egui::DragValue::new(&mut self.edl_rate[0]).range(1..=u32::MAX));
+                    ui.label("/");
+                    ui.add(egui::DragValue::new(&mut self.edl_rate[1]).range(1..=u32::MAX));
+                });
+                ui.weak("EDL files do not store their frame rate. Set the exact source rate before importing.");
+            }
             ui.add_enabled_ui(self.task.is_none(), |ui| {
                 ui.horizontal(|ui| {
                     if ui.button("Import timeline").clicked() {
                         let path = PathBuf::from(&self.path);
                         let format = self.format;
+                        let edl_rate = self.edl_rate;
                         let loss_root = self.loss_root.clone();
                         self.start(workspace, tab, ui.ctx(), move |_, _, cancel| {
                             let bytes = read(&path, 32 * 1024 * 1024)?;
                             let options = editbay_interchange::ImportOptions {
                                 base_dir: path.parent().map(|p| p.to_string_lossy().into()),
+                                edl_frame_rate: (format == editbay_interchange::Format::Edl)
+                                    .then(|| editbay_core::FrameRate::new(edl_rate[0], edl_rate[1]))
+                                    .transpose().map_err(|error| error.to_string())?,
                                 ..Default::default()
                             };
                             let (project, report) = editbay_interchange::import_document(
@@ -281,6 +298,28 @@ impl WorkflowPane {
                         });
                     }
                 });
+                let assets: Vec<_> = project.assets.iter().filter(|asset| asset.kind == editbay_core::AssetKind::Media).collect();
+                if !assets.iter().any(|asset| Some(asset.id) == self.relink_asset) {
+                    self.relink_asset = assets.first().map(|asset| asset.id);
+                }
+                egui::ComboBox::from_id_salt("editorial-relink-asset")
+                    .selected_text(assets.iter().find(|asset| Some(asset.id) == self.relink_asset)
+                        .map_or_else(|| "Choose original media".into(), |asset| asset.path.display().to_string()))
+                    .show_ui(ui, |ui| {
+                        for asset in assets {
+                            ui.selectable_value(&mut self.relink_asset, Some(asset.id), asset.path.display().to_string());
+                        }
+                    });
+                if ui.add_enabled(self.relink_asset.is_some(), egui::Button::new("Relink moved original to path")).clicked()
+                    && let Some(asset) = self.relink_asset
+                {
+                    let path = PathBuf::from(&self.path);
+                    self.start(workspace, tab, ui.ctx(), move |mut editor, project, cancel| {
+                        let command = editbay_interchange::relink(&project, asset, &path, &cancel).map_err(|error| error.to_string())?;
+                        editor.apply(DocumentVersion::of(editor.project()), "Relink moved original".into(), &[command]).map_err(|error| error.to_string())?;
+                        Ok(Completion::Edited(editor))
+                    });
+                }
             });
             ui.weak(
                 "Imports open an editable project. Exports retain format losses beside the file.",
