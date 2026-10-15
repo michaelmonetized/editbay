@@ -520,9 +520,9 @@ impl Task {
                                     false,
                                 )
                                 .map_err(|e| e.to_string())?;
-                            let scopes = if let Some(settings) =
-                                *scope_options.lock().map_err(|e| e.to_string())?
-                            {
+                            let scope_settings =
+                                *scope_options.lock().map_err(|e| e.to_string())?;
+                            let scopes = if let Some(settings) = scope_settings {
                                 let pixels = graph.readback(&working).map_err(|e| e.to_string())?;
                                 Some(
                                     editbay_render::scopes::sample_program_frame(
