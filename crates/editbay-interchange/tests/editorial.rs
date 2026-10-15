@@ -424,6 +424,11 @@ fn linked_av_reverse_internal_and_trailing_gaps_reopen_exactly_in_capable_format
             assert_eq!(clips.len(), 2, "{format:?}");
             assert_eq!(clips[0].range, eb::FrameRange { start: 4, end: 12 });
             assert_eq!(clips[1].range, eb::FrameRange { start: 16, end: 24 });
+        } else {
+            assert!(
+                report.mentions("picture tracks"),
+                "OMF picture loss must be declared: {report:?}"
+            );
         }
         if !matches!(format, Format::Aaf | Format::Omf) {
             let audio = scene

@@ -1,3 +1,4 @@
+// Modified by EditBay: report omitted picture tracks and transitions.
 //! OMF Interchange 2.0 export (and import of the same structures) for audio post.
 //!
 //! Written from the public *OMF Interchange Specification Version 2.0* (Avid Technology, 1995/97)
@@ -40,6 +41,9 @@ pub struct OmfOptions {
 /// Export the audio of `sequence` as an OMF 2.0 file.
 pub fn export(project: &Project, sequence: ItemId, opts: &OmfOptions) -> Result<(Vec<u8>, Report)> {
     let mut report = Report::default();
+    if project.sequence(sequence).is_some_and(|s| s.video_tracks.iter().any(|t| !t.items.is_empty())) {
+        report.warn("OMF exports audio only; picture tracks and picture transitions are not exported");
+    }
     let name = opts.name.clone().or_else(|| project.item(sequence).map(|i| i.name.clone())).unwrap_or_else(|| "Sequence".into());
     let mut media = opts.media.clone();
     media.audio_only = true;
