@@ -284,6 +284,17 @@ mod tests {
         mut keyboard: Option<&mut PanelKeyboard>,
     ) -> (egui::Rect, Option<egui::Id>, Vec<String>) {
         let mut body = egui::Rect::NOTHING;
+        let modifiers = events
+            .iter()
+            .rev()
+            .find_map(|event| {
+                if let egui::Event::Key { modifiers, .. } = event {
+                    Some(*modifiers)
+                } else {
+                    None
+                }
+            })
+            .unwrap_or_default();
         let output = ctx.run_ui(
             egui::RawInput {
                 screen_rect: Some(egui::Rect::from_min_size(
@@ -291,6 +302,7 @@ mod tests {
                     egui::vec2(1280., 900.),
                 )),
                 events,
+                modifiers,
                 ..Default::default()
             },
             |ui| {

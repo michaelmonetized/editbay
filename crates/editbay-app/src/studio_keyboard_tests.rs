@@ -11,6 +11,17 @@ fn input(key: egui::Key, modifiers: egui::Modifiers) -> egui::Event {
 }
 
 fn frame(ctx: &egui::Context, studio: &mut Studio, events: Vec<egui::Event>) -> Vec<String> {
+    let modifiers = events
+        .iter()
+        .rev()
+        .find_map(|event| {
+            if let egui::Event::Key { modifiers, .. } = event {
+                Some(*modifiers)
+            } else {
+                None
+            }
+        })
+        .unwrap_or_default();
     let output = ctx.run_ui(
         egui::RawInput {
             screen_rect: Some(egui::Rect::from_min_size(
@@ -18,6 +29,7 @@ fn frame(ctx: &egui::Context, studio: &mut Studio, events: Vec<egui::Event>) -> 
                 vec2(1440., 1000.),
             )),
             events,
+            modifiers,
             ..Default::default()
         },
         |ui| {
