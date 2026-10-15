@@ -67,7 +67,7 @@ fn real_audio_all_formats_and_saved_relinked_source() {
     let composition = scene.id;
     p.validate().unwrap();
     let saved = dir.path().join("cut.editbay");
-    eb::save_new(&saved, &p).unwrap();
+    eb::save_new(&p, &saved).unwrap();
     let p = eb::load(&saved).unwrap();
     let moved = dir.path().join("Moved.wav");
     std::fs::rename(&source, &moved).unwrap();
@@ -141,7 +141,7 @@ fn real_audio_all_formats_and_saved_relinked_source() {
             assert_eq!(clip.range.end, 30, "{format:?}");
         }
         let reopened = dir.path().join(format!("{:?}.editbay", format));
-        eb::save_new(&reopened, &imported).unwrap();
+        eb::save_new(&imported, &reopened).unwrap();
         assert_eq!(eb::load(&reopened).unwrap(), imported);
     }
 }

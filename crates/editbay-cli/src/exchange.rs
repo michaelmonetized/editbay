@@ -50,7 +50,7 @@ pub(super) fn run(args: &[OsString]) -> Result<()> {
                 return Err("Import project or loss report destination exists".into());
             }
             write_new(&report_path, &serde_json::to_vec_pretty(&report)?)?;
-            editbay_core::save_new(destination, &project)?;
+            editbay_core::save_new(&project, destination)?;
             super::print(
                 serde_json::json!({"project":destination,"loss_report":report_path,"sequences":project.sequences,"report":report}),
             )
@@ -93,7 +93,7 @@ pub(super) fn run(args: &[OsString]) -> Result<()> {
                 "Relink original".into(),
                 &[command],
             )?;
-            editbay_core::save_if_unchanged(path, editor.project(), Some(&project))?;
+            editbay_core::save_if_unchanged(editor.project(), path, &project)?;
             super::print(receipt)
         }
         _ => Err("Unknown interchange command".into()),
