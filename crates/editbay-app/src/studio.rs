@@ -120,6 +120,7 @@ pub struct Studio {
     dialog_runtime: Result<Arc<tokio::runtime::Runtime>, String>,
     preferences: PreferenceStore,
     layouts: crate::panels::Book,
+    panel_keyboard: crate::panel_keyboard::PanelKeyboard,
     settings: Option<Preferences>,
     bank: BankPane,
     media: MediaPane,
@@ -134,6 +135,7 @@ pub struct Studio {
     name_events: Vec<egui::Event>,
     create_name: Option<String>,
     new_profile: [u32; 4],
+    new_profile_instance: Option<Uuid>,
     rename: Option<(Uuid, DocumentVersion, String)>,
     close_guard: Option<Uuid>,
     close_after_save: bool,
@@ -211,6 +213,7 @@ impl Studio {
             preferences,
             settings: None,
             layouts: crate::panels::Book::default(),
+            panel_keyboard: crate::panel_keyboard::PanelKeyboard::default(),
             bank: BankPane::default(),
             media: MediaPane::default(),
             preview: PreviewPane::new(state.join("picture-cache")),
@@ -224,6 +227,7 @@ impl Studio {
             name_events: Vec::new(),
             create_name: None,
             new_profile: [1920, 1080, 24, 1],
+            new_profile_instance: None,
             rename: None,
             close_guard: None,
             close_after_save: false,
@@ -777,6 +781,7 @@ impl Studio {
             || self.manual
             || self.settings.is_some()
             || self.bank.opened
+            || self.panel_keyboard.opened()
         {
             return;
         }
@@ -1109,12 +1114,19 @@ impl Studio {
             self.recovery_browser(ui);
             return;
         }
-        ui.add(
+        let find = ui.add(
             egui::TextEdit::singleline(&mut self.query)
                 .id(egui::Id::new("find-work"))
                 .hint_text("Find work…")
                 .desired_width(f32::INFINITY),
         );
+        find.widget_info(|| {
+            let mut info =
+                egui::WidgetInfo::text_edit(find.enabled(), &self.query, &self.query, "Find work…");
+            info.label = Some("Find work".into());
+            info
+        });
+        crate::keyboard_ui::focus(ui, &find);
         ui.horizontal_wrapped(|ui| {
             for (label, value) in [
                 ("All", None),
@@ -1206,6 +1218,13 @@ impl Studio {
                     }
                     let selected = self.selection.contains(&doc.path);
                     let response = ui.interact(rect, ui.id().with(&doc.path), Sense::click());
+                    response.widget_info(|| {
+                        egui::WidgetInfo::labeled(
+                            egui::WidgetType::Button,
+                            response.enabled(),
+                            &doc.name,
+                        )
+                    });
                     ui.painter().rect_filled(rect, 6., pal.canvas);
                     ui.painter().rect_stroke(
                         rect,
@@ -1232,7 +1251,7 @@ impl Studio {
                             pal.warning,
                         );
                     }
-                    if response.hovered() || selected {
+                    if response.hovered() || response.has_focus() || selected {
                         let bar = egui::Rect::from_min_size(
                             rect.left_bottom() - vec2(0., 28.),
                             vec2(card_width, 28.),
@@ -1246,6 +1265,7 @@ impl Studio {
                             pal.foreground,
                         );
                     }
+                    crate::keyboard_ui::focus(ui, &response);
                     if response.clicked() {
                         if ui.input(|i| i.modifiers.shift) || !self.selection.is_empty() {
                             if !self.selection.insert(doc.path.clone()) {
@@ -1539,14 +1559,47 @@ impl Studio {
                     && self.settings.is_none()
                     && !self.manual
                     && !self.bank.opened;
-                self.timeline
-                    .shortcuts(ui.ctx(), &self.workspace, &mut self.preview, interactive);
+                self.timeline.shortcuts(
+                    ui.ctx(),
+                    &self.workspace,
+                    &mut self.preview,
+                    interactive && !self.panel_keyboard.opened(),
+                );
                 let presets = task_presets();
-                self.layouts.toolbar(ui, &presets, PANEL_REGISTRY);
+                if !presets.iter().any(|preset| preset.0 == self.layouts.active) {
+                    self.layouts.active = presets[0].0.into();
+                }
+                for (name, preset) in &presets {
+                    self.layouts
+                        .tasks
+                        .entry((*name).into())
+                        .or_insert_with(|| preset.clone())
+                        .normalize(
+                            &PANEL_REGISTRY
+                                .iter()
+                                .map(|panel| panel.0)
+                                .collect::<Vec<_>>(),
+                        );
+                }
+                self.layouts.toolbar_for(
+                    ui,
+                    &format!("editbay-{}", self.layouts.active),
+                    &presets,
+                    PANEL_REGISTRY,
+                );
                 let active = self.layouts.active.clone();
                 let mut layout = self.layouts.tasks.remove(&active).unwrap_or_default();
                 layout.normalize(&PANEL_REGISTRY.iter().map(|p| p.0).collect::<Vec<_>>());
-                ui.weak("Panel tabs: right-click to move, tab, float or close · F6: next panel");
+                let arranging = self.panel_keyboard.opened();
+                self.panel_keyboard.show(
+                    ui,
+                    &format!("editbay-{active}"),
+                    &mut layout,
+                    PANEL_REGISTRY,
+                    interactive,
+                );
+                let interactive = interactive && !arranging && !self.panel_keyboard.opened();
+                ui.weak("F6: next panel · Ctrl+F6: arrange panels · F8: timeline clips");
                 let available = ui.available_rect_before_wrap();
                 let area = egui::Rect::from_min_size(
                     available.min,
@@ -1739,9 +1792,10 @@ impl Studio {
         }
         if let Some(mut name) = self.create_name.take() {
             let mut keep = true;
+            let profile_instance = *self.new_profile_instance.get_or_insert_with(Uuid::new_v4);
             let modal = egui::Modal::new(egui::Id::new("new-project")).show(ctx, |ui| {
                 ui.heading("New project");
-                ui.label("Name");
+                let name_label = ui.label("Name");
                 preserve_name_input(ui, &mut self.name_events);
                 let name_id = egui::Id::new("new-project-name");
                 let focus_name = self.focus_name && !ui.is_sizing_pass();
@@ -1749,11 +1803,18 @@ impl Studio {
                     ui.memory_mut(|memory| memory.request_focus(name_id));
                 }
                 let focused = ui.memory(|memory| memory.has_focus(name_id));
-                let input = ui.add(
-                    egui::TextEdit::singleline(&mut name)
-                        .id(name_id)
-                        .char_limit(256),
-                );
+                let input = ui
+                    .add(
+                        egui::TextEdit::singleline(&mut name)
+                            .id(name_id)
+                            .char_limit(256),
+                    )
+                    .labelled_by(name_label.id);
+                input.widget_info(|| {
+                    let mut info = egui::WidgetInfo::text_edit(input.enabled(), &name, &name, "");
+                    info.label = Some("New project name".into());
+                    info
+                });
                 let enter = (focused || input.lost_focus())
                     && ui.input(|input| input.key_pressed(egui::Key::Enter));
                 if focus_name {
@@ -1762,11 +1823,29 @@ impl Studio {
                         input.request_focus();
                     }
                 }
-                ui.horizontal(|ui| {
-                    ui.label("Picture");
-                    ui.add(egui::DragValue::new(&mut self.new_profile[0]).range(1..=16_384));
-                    ui.label("×");
-                    ui.add(egui::DragValue::new(&mut self.new_profile[1]).range(1..=16_384));
+                let profile_valid = ui.columns(2, |columns| {
+                    let width = crate::fields::number(
+                        &mut columns[0],
+                        ("new-project-width", profile_instance),
+                        "Picture width",
+                        &mut self.new_profile[0],
+                        1..=16_384,
+                        " px",
+                        None,
+                        Default::default(),
+                    );
+                    let height = crate::fields::number(
+                        &mut columns[1],
+                        ("new-project-height", profile_instance),
+                        "Picture height",
+                        &mut self.new_profile[1],
+                        1..=16_384,
+                        " px",
+                        None,
+                        Default::default(),
+                    );
+                    crate::fields::number_is_valid(&width)
+                        && crate::fields::number_is_valid(&height)
                 });
                 ui.horizontal(|ui| {
                     if ui.small_button("1080p").clicked() {
@@ -1782,40 +1861,36 @@ impl Studio {
                         self.new_profile[1] = 2160;
                     }
                 });
-                egui::ComboBox::from_label("Frame rate")
-                    .selected_text(format!(
-                        "{}/{} fps",
-                        self.new_profile[2], self.new_profile[3]
-                    ))
-                    .show_ui(ui, |ui| {
-                        for (label, numerator, denominator) in [
-                            ("23.976", 24_000, 1_001),
-                            ("24", 24, 1),
-                            ("25", 25, 1),
-                            ("29.97", 30_000, 1_001),
-                            ("30", 30, 1),
-                            ("50", 50, 1),
-                            ("59.94", 60_000, 1_001),
-                            ("60", 60, 1),
-                        ] {
-                            if ui
-                                .selectable_label(
-                                    (self.new_profile[2], self.new_profile[3])
-                                        == (numerator, denominator),
-                                    label,
-                                )
-                                .clicked()
-                            {
-                                self.new_profile[2] = numerator;
-                                self.new_profile[3] = denominator;
-                            }
-                        }
-                    });
+                let mut rate = (self.new_profile[2], self.new_profile[3]);
+                if crate::keyboard_ui::choice(
+                    ui,
+                    "new-project-rate",
+                    "Frame rate",
+                    &mut rate,
+                    &[
+                        ((24_000, 1_001), "23.976".into()),
+                        ((24, 1), "24".into()),
+                        ((25, 1), "25".into()),
+                        ((30_000, 1_001), "29.97".into()),
+                        ((30, 1), "30".into()),
+                        ((50, 1), "50".into()),
+                        ((60_000, 1_001), "59.94".into()),
+                        ((60, 1), "60".into()),
+                    ],
+                )
+                .changed()
+                {
+                    self.new_profile[2] = rate.0;
+                    self.new_profile[3] = rate.1;
+                }
                 ui.horizontal(|ui| {
                     if ui
-                        .add_enabled(!name.trim().is_empty(), egui::Button::new("Create"))
+                        .add_enabled(
+                            profile_valid && !name.trim().is_empty(),
+                            egui::Button::new("Create"),
+                        )
                         .clicked()
-                        || (enter && !name.trim().is_empty())
+                        || (profile_valid && enter && !name.trim().is_empty())
                     {
                         match Project::new(name.clone())
                             .map(|mut project| {
@@ -1844,6 +1919,7 @@ impl Studio {
             if keep {
                 self.create_name = Some(name);
             } else {
+                self.new_profile_instance = None;
                 self.name_events.clear();
                 ctx.memory_mut(|memory| memory.surrender_focus(egui::Id::new("new-project-name")));
             }
@@ -1852,6 +1928,7 @@ impl Studio {
             let mut keep = true;
             let modal = egui::Modal::new(egui::Id::new("rename-project")).show(ctx, |ui| {
                 ui.heading("Rename project");
+                let name_label = ui.label("Project name");
                 preserve_name_input(ui, &mut self.name_events);
                 let name_id = egui::Id::new("rename-project-name");
                 let focus_name = self.focus_name && !ui.is_sizing_pass();
@@ -1859,11 +1936,18 @@ impl Studio {
                     ui.memory_mut(|memory| memory.request_focus(name_id));
                 }
                 let focused = ui.memory(|memory| memory.has_focus(name_id));
-                let input = ui.add(
-                    egui::TextEdit::singleline(&mut name)
-                        .id(name_id)
-                        .char_limit(256),
-                );
+                let input = ui
+                    .add(
+                        egui::TextEdit::singleline(&mut name)
+                            .id(name_id)
+                            .char_limit(256),
+                    )
+                    .labelled_by(name_label.id);
+                input.widget_info(|| {
+                    let mut info = egui::WidgetInfo::text_edit(input.enabled(), &name, &name, "");
+                    info.label = Some("Project name".into());
+                    info
+                });
                 let enter = (focused || input.lost_focus())
                     && ui.input(|input| input.key_pressed(egui::Key::Enter));
                 if focus_name {
@@ -2025,6 +2109,7 @@ impl Studio {
                 }
                 ui.separator();
                 ui.label("Shortcuts");
+                let mut shortcut_responses = Vec::new();
                 egui::Grid::new("shortcut-settings")
                     .spacing([16., 8.])
                     .show(ui, |ui| {
@@ -2035,20 +2120,32 @@ impl Studio {
                             ("Undo", &mut settings.shortcuts.undo),
                             ("Redo", &mut settings.shortcuts.redo),
                         ] {
-                            ui.label(label);
+                            let label_response = ui.label(label);
                             ui.label("Ctrl +");
                             let mut text = key.to_string();
-                            if ui
+                            let response = ui
                                 .add(
                                     egui::TextEdit::singleline(&mut text)
                                         .id(egui::Id::new(("shortcut-key", label)))
                                         .char_limit(1)
                                         .desired_width(40.),
                                 )
-                                .changed()
-                            {
+                                .labelled_by(label_response.id);
+                            response.widget_info(|| {
+                                let mut info = egui::WidgetInfo::text_edit(
+                                    response.enabled(),
+                                    &text,
+                                    &text,
+                                    "",
+                                );
+                                info.label = Some(format!("Shortcut for {label}"));
+                                info
+                            });
+                            crate::keyboard_ui::focus(ui, &response);
+                            if response.changed() {
                                 *key = text.chars().next().unwrap_or(' ').to_ascii_uppercase();
                             }
+                            shortcut_responses.push(response);
                             ui.end_row();
                         }
                     });
@@ -2056,7 +2153,10 @@ impl Studio {
                 ui.weak("Save as uses Ctrl + Shift + your Save key.");
                 let valid = settings.validate();
                 if let Err(error) = &valid {
-                    ui.colored_label(self.theme.palette.warning, error);
+                    let error = ui.colored_label(self.theme.palette.warning, error);
+                    for response in shortcut_responses {
+                        response.labelled_by(error.id);
+                    }
                 }
                 if let Some(error) = self.preferences.error.clone() {
                     ui.colored_label(self.theme.palette.error, error);
@@ -2265,6 +2365,10 @@ fn icon(ui: &mut Ui, glyph: &str, tip: &str) -> egui::Response {
     ))
     .on_hover_text(tip)
 }
+
+#[cfg(test)]
+#[path = "studio_keyboard_tests.rs"]
+mod keyboard_tests;
 
 #[cfg(test)]
 mod tests {

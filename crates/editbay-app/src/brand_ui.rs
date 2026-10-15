@@ -241,10 +241,12 @@ impl BankPane {
                 ui.columns(2, |columns| {
                     let ui = &mut columns[0];
                     ui.label("Stored assets");
-                    ui.add(egui::TextEdit::singleline(&mut self.query).id(egui::Id::new(("bank-query", &catalog.root))).hint_text("Find an asset…"));
-                    egui::ComboBox::from_id_salt("asset-category").selected_text(self.category.unwrap_or(Category::Artwork).label()).show_ui(ui, |ui| {
-                        for category in [Category::Font, Category::Logo, Category::Artwork, Category::Title, Category::Lut] { ui.selectable_value(&mut self.category, Some(category), category.label()); }
-                    });
+                    crate::keyboard_ui::text_with_id(ui, egui::Id::new(("bank-query", &catalog.root)), "Find an asset", &mut self.query, false, usize::MAX);
+                    let mut category = self.category.unwrap_or(Category::Artwork);
+                    if crate::keyboard_ui::choice(ui, "asset-category", "Asset category", &mut category,
+                        &[Category::Font, Category::Logo, Category::Artwork, Category::Title, Category::Lut].map(|category| (category, category.label().into()))).changed() {
+                        self.category = Some(category);
+                    }
                     if ui.add_enabled(!busy && catalog.version.is_some(), egui::Button::new("Add asset…")).clicked() && let Some(version) = &catalog.version { action = Some(Action::Import { root: catalog.root.clone(), version: version.clone(), category: self.category.unwrap_or(Category::Artwork) }); }
                     ui.weak("Files keep their original bytes. Names never overwrite existing assets.");
                     for asset in &catalog.assets {
@@ -258,9 +260,9 @@ impl BankPane {
                     let ui = &mut columns[1];
                     ui.label("Client and project");
                     if let Some(draft) = &mut self.draft {
-                        ui.add(egui::TextEdit::singleline(&mut draft.client).id(egui::Id::new(("bank-client", &catalog.root))).hint_text("Client").char_limit(256));
-                        ui.add(egui::TextEdit::singleline(&mut draft.project).id(egui::Id::new(("bank-project", &catalog.root))).hint_text("Project").char_limit(256));
-                        ui.add(egui::TextEdit::multiline(&mut draft.notes).id(egui::Id::new(("bank-notes", &catalog.root))).hint_text("Notes").char_limit(8192).desired_rows(3));
+                        crate::keyboard_ui::text_with_id(ui, egui::Id::new(("bank-client", &catalog.root)), "Client", &mut draft.client, false, 256);
+                        crate::keyboard_ui::text_with_id(ui, egui::Id::new(("bank-project", &catalog.root)), "Project", &mut draft.project, false, 256);
+                        crate::keyboard_ui::text_with_id(ui, egui::Id::new(("bank-notes", &catalog.root)), "Notes", &mut draft.notes, true, 8192);
                         ui.separator();
                         ui.label("Palettes");
                         let mut remove = None;
@@ -279,8 +281,8 @@ impl BankPane {
                             });
                         }
                         if let Some(index) = remove { draft.palettes.remove(index); }
-                        ui.add(egui::TextEdit::singleline(&mut self.new_palette_name).id(egui::Id::new(("bank-palette-name", &catalog.root))).hint_text("Palette name").char_limit(128));
-                        ui.add(egui::TextEdit::singleline(&mut self.new_palette_colors).id(egui::Id::new(("bank-palette-colors", &catalog.root))).hint_text("#ff5c00 #161616").char_limit(512));
+                        crate::keyboard_ui::text_with_id(ui, egui::Id::new(("bank-palette-name", &catalog.root)), "Palette name", &mut self.new_palette_name, false, 128);
+                        crate::keyboard_ui::text_with_id(ui, egui::Id::new(("bank-palette-colors", &catalog.root)), "Palette colors (#RRGGBB)", &mut self.new_palette_colors, false, 512);
                         if ui.button("Add palette").clicked() {
                             let mut updated = draft.clone();
                             updated.palettes.push(Palette { name: self.new_palette_name.trim().to_owned(), colors: self.new_palette_colors.split_whitespace().map(str::to_owned).collect() });

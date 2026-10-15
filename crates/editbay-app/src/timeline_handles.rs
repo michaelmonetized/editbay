@@ -138,21 +138,23 @@ impl Handles {
         ripple: bool,
     ) -> Option<Change> {
         ui.horizontal_wrapped(|ui| {
-            egui::ComboBox::from_id_salt(("timeline-tool", composition))
-                .selected_text(format!("{:?}", self.tool))
-                .show_ui(ui, |ui| {
-                    for (tool, label) in [
-                        (Tool::Move, "Move / edge trim"),
-                        (Tool::Slip, "Slip"),
-                        (Tool::Roll, "Roll outgoing cut"),
-                        (Tool::Slide, "Slide"),
-                    ] {
-                        ui.selectable_value(&mut self.tool, tool, label);
-                    }
-                });
+            crate::keyboard_ui::choice(
+                ui,
+                ("timeline-tool", composition),
+                "Clip tool",
+                &mut self.tool,
+                &[
+                    (Tool::Move, "Move".into()),
+                    (Tool::TrimStart, "Trim start".into()),
+                    (Tool::TrimEnd, "Trim end".into()),
+                    (Tool::Slip, "Slip".into()),
+                    (Tool::Roll, "Roll outgoing cut".into()),
+                    (Tool::Slide, "Slide".into()),
+                ],
+            );
             ui.checkbox(&mut self.snapping, "Snap to cuts / playhead");
         });
-        ui.weak("Drag a clip or its edges · Alt: slip · Shift: slide · Ctrl: roll · arrows: nudge · Enter: commit · Esc: cancel");
+        ui.weak("F8: timeline clips · Page Up/Down: select · Shift: extend · arrows: nudge · Enter: commit · Esc: cancel");
         let end = clips
             .iter()
             .map(|c| c.range.end)
@@ -166,13 +168,40 @@ impl Handles {
         let mut tracks: Vec<_> = clips.iter().map(|clip| clip.track).collect();
         tracks.sort();
         tracks.dedup();
-        let (area, _) = ui.allocate_exact_size(
-            vec2(
-                ui.available_width(),
-                (tracks.len().max(1) as f32 * 38.) + 24.,
-            ),
-            Sense::hover(),
+        let (_, area) = ui.allocate_space(vec2(
+            ui.available_width(),
+            (tracks.len().max(1) as f32 * 38.) + 24.,
+        ));
+        let content = ui.interact(
+            area,
+            egui::Id::new(("timeline-content", composition)),
+            Sense::click(),
         );
+        content.widget_info(|| {
+            egui::WidgetInfo::labeled(
+                egui::WidgetType::Other,
+                content.enabled(),
+                "Timeline clips · F8",
+            )
+        });
+        if ui.is_enabled()
+            && ui.input_mut(|input| input.consume_key(egui::Modifiers::NONE, egui::Key::F8))
+        {
+            content.request_focus();
+        }
+        if content.has_focus() {
+            ui.memory_mut(|memory| {
+                memory.set_focus_lock_filter(
+                    content.id,
+                    egui::EventFilter {
+                        horizontal_arrows: true,
+                        vertical_arrows: true,
+                        ..Default::default()
+                    },
+                )
+            });
+            crate::keyboard_ui::focus(ui, &content);
+        }
         let ruler = Rect::from_min_max(area.min, pos2(area.right(), area.top() + 20.));
         ui.painter()
             .rect_filled(area, 3., ui.visuals().extreme_bg_color);
