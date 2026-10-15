@@ -288,6 +288,7 @@ mod tests {
         Vec<String>,
         Vec<egui::Rect>,
         Vec<String>,
+        Option<(egui::accesskit::NodeId, Option<String>)>,
     ) {
         let mut body = egui::Rect::NOTHING;
         let mut focus_trace = vec![];
@@ -349,6 +350,19 @@ mod tests {
         for shape in &output.shapes {
             painted_rectangles(&shape.shape, &mut painted);
         }
+        let native_focus = output
+            .platform_output
+            .accesskit_update
+            .as_ref()
+            .map(|tree| {
+                (
+                    tree.focus,
+                    tree.nodes
+                        .iter()
+                        .find(|(id, _)| *id == tree.focus)
+                        .and_then(|(_, node)| node.label().map(str::to_owned)),
+                )
+            });
         output.drop_without_applying_deltas();
         (
             body,
@@ -356,12 +370,14 @@ mod tests {
             labels,
             painted,
             focus_trace,
+            native_focus,
         )
     }
 
     #[test]
     fn craft_keyboard_panel_modal_tab_arrows_restore_close_and_repeated_native_focus() {
         let ctx = egui::Context::default();
+        ctx.enable_accesskit();
         let mut layout = Workspace::preset(&[("media", Place::Left), ("timeline", Place::Bottom)]);
         layout.normalize(&["media", "timeline"]);
         layout.close("media");
@@ -408,10 +424,12 @@ mod tests {
             );
             let mut native_labels = applied.2;
             let mut focus_trace = applied.4;
+            let mut native_focus = applied.5;
             for _ in 0..3 {
                 let next = render(&ctx, &mut layout, vec![], Some(&mut keyboard));
                 native_labels.extend(next.2);
                 focus_trace.extend(next.4);
+                native_focus = next.5;
             }
             assert!(!keyboard.opened());
             assert_eq!(layout.focus.as_deref(), Some("media"));
@@ -421,10 +439,22 @@ mod tests {
                 focused.is_some(),
                 "explicit same-panel request must focus its actual tab: {focus_trace:?}"
             );
+            let focused = focused.unwrap();
+            let native = ctx
+                .read_response(focused)
+                .expect("focused native tab disappeared");
+            assert!(native.enabled() && native.has_focus());
+            assert!(ctx.memory(|memory| memory.allows_interaction(native.layer_id)));
+            assert_eq!(
+                native_focus,
+                Some((
+                    egui::accesskit::NodeId(focused.value()),
+                    Some("Media".into())
+                ))
+            );
             assert!(
                 native_labels.iter().any(|label| label == "Media"),
-                "native focus did not return to Media: {:?}",
-                native_labels
+                "native focus did not return to Media: {native_labels:?}; {focus_trace:?}"
             );
         }
     }
