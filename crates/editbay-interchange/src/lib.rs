@@ -57,7 +57,13 @@ pub fn import_document(
             let streams: Vec<_> = probe
                 .streams
                 .iter()
-                .filter(|s| s.decoder_available)
+                .filter(|s| {
+                    s.decoder_available
+                        && matches!(
+                            s.kind,
+                            editbay_media::StreamType::Video | editbay_media::StreamType::Audio
+                        )
+                })
                 .map(|s| s.index)
                 .collect();
             let ingested = source.ingest(item.name.clone(), &streams, cancel.clone(), |_, _| {})?;
@@ -78,6 +84,9 @@ pub fn import_document(
         let fp::ItemKind::Sequence(sequence) = &item.kind else {
             continue;
         };
+        if sequence.master_volume_db != 0. || !sequence.master_effects.is_empty() {
+            report.warn(format!("{} master mix/effects are not mapped", item.name));
+        }
         let rate = eb::FrameRate::new(
             sequence.settings.frame_rate.num.try_into()?,
             sequence.settings.frame_rate.den.try_into()?,
@@ -99,6 +108,12 @@ pub fn import_document(
         let mut clip_ids = HashMap::new();
         let mut links: HashMap<u64, Vec<Uuid>> = HashMap::new();
         for track in sequence.video_tracks.iter().chain(&sequence.audio_tracks) {
+            if track.volume_db != 0. || track.pan != 0. || track.solo || !track.effects.is_empty() {
+                report.warn(format!(
+                    "{} track routing/volume/pan/effects are not mapped",
+                    track.name
+                ));
+            }
             let kind = if track.kind == fp::TrackKind::Video {
                 eb::TrackKind::Video
             } else {
@@ -141,7 +156,7 @@ pub fn import_document(
                         stream.time_base,
                         stream.start_tick,
                     )
-                } else if let Some(child) = sequence_ids.get(&c.item) {
+                } else if sequence_ids.contains_key(&c.item) {
                     let child = imported
                         .project
                         .sequence(c.item)
@@ -197,9 +212,10 @@ pub fn import_document(
                     } else {
                         fraction(
                             offset
-                                * i128::from(rate.denominator)
-                                * i128::from(TICKS_PER_SECOND)
-                                * i128::from(sn),
+                                .checked_mul(i128::from(rate.denominator))
+                                .and_then(|v| v.checked_mul(i128::from(TICKS_PER_SECOND)))
+                                .and_then(|v| v.checked_mul(i128::from(sn)))
+                                .ok_or("Editorial retime exceeds its integer range")?,
                             u64::from(rate.numerator)
                                 .checked_mul(sd)
                                 .ok_or("Speed denominator overflow")?,
@@ -232,6 +248,15 @@ pub fn import_document(
                     time_map: map,
                     linked: None,
                 });
+                if !c.source_channels.is_empty() {
+                    report.warn(format!("{} source channel selection is not mapped", c.name));
+                }
+                if c.has_modified_intrinsics() {
+                    report.warn(format!(
+                        "{} modified intrinsic effects are not mapped",
+                        c.name
+                    ));
+                }
                 if c.effects
                     .iter()
                     .any(|e| e.enabled && e.def().is_none_or(|d| !d.intrinsic))
@@ -321,8 +346,48 @@ pub fn export_document(
     project.validate()?;
     let (external, ids, mut report) = to_external(project)?;
     let id = *ids.get(&composition).ok_or("Export composition absent")?;
-    let (bytes, loss) = filmcraft_interchange::export(&external, id, format, options)?;
+    let (mut bytes, loss) = filmcraft_interchange::export(&external, id, format, options)?;
     report.entries.extend(loss.entries);
+    if format == Format::Edl {
+        let scene = project
+            .compositions
+            .iter()
+            .find(|c| c.id == composition)
+            .ok_or("Composition absent")?;
+        let sequence = external.sequence(id).ok_or("Export sequence absent")?;
+        let end = sequence
+            .video_tracks
+            .iter()
+            .chain(&sequence.audio_tracks)
+            .map(|t| t.end())
+            .max()
+            .unwrap_or(Tick::ZERO);
+        if frame_tick(scene.duration, scene.frame_rate)? > end {
+            let start = frames(end, scene.frame_rate)?;
+            let tc = |f: u64| {
+                filmcraft_time::format_timecode_frames(f as i64, rate_out(scene.frame_rate), false)
+            };
+            let count = String::from_utf8_lossy(&bytes)
+                .lines()
+                .filter(|line| {
+                    line.split_whitespace()
+                        .next()
+                        .is_some_and(|w| w.parse::<u64>().is_ok())
+                })
+                .count()
+                + 1;
+            bytes.extend_from_slice(
+                format!(
+                    "\n{count:03}  BL       V     C        {} {} {} {}\n",
+                    tc(0),
+                    tc(scene.duration - start),
+                    tc(start),
+                    tc(scene.duration)
+                )
+                .as_bytes(),
+            );
+        }
+    }
     Ok((bytes, report))
 }
 
@@ -379,10 +444,11 @@ fn to_external(project: &eb::Project) -> Result<(fp::Project, HashMap<Uuid, fp::
                     alpha,
                     ..
                 } => {
-                    let rate = match timing {
-                        eb::PictureTiming::Constant { rate } => *rate,
-                        _ => project.sequences[0].frame_rate,
-                    };
+                    if video.is_some() {
+                        report.warn(format!("{} has multiple picture streams; only the first stream descriptor is exported", source.name));
+                        continue;
+                    }
+                    let rate = source_rate(s, timing, &mut report)?;
                     video = Some(filmcraft_media::VideoStreamInfo {
                         width: *width,
                         height: *height,
@@ -459,6 +525,8 @@ fn to_external(project: &eb::Project) -> Result<(fp::Project, HashMap<Uuid, fp::
         ids.insert(scene.id, id);
     }
     let mut native_clips = HashMap::new();
+    let mut link_ids = HashMap::new();
+    let mut next_link = 1u64;
     for scene in &project.compositions {
         let mut tracks = vec![];
         for track in &scene.tracks {
@@ -557,9 +625,15 @@ fn to_external(project: &eb::Project) -> Result<(fp::Project, HashMap<Uuid, fp::
                     ));
                 }
                 if let Some(link) = clip.linked {
-                    c.link = Some(u64::from_le_bytes(
-                        clip.id.min(link).as_bytes()[..8].try_into()?,
-                    ));
+                    c.link = Some(
+                        *link_ids
+                            .entry((clip.id.min(link), clip.id.max(link)))
+                            .or_insert_with(|| {
+                                let id = next_link;
+                                next_link += 1;
+                                id
+                            }),
+                    );
                 }
                 native_clips.insert(clip.id, c.id);
                 t.items.push(c);
@@ -599,6 +673,7 @@ fn to_external(project: &eb::Project) -> Result<(fp::Project, HashMap<Uuid, fp::
             });
         }
         let external = out.sequence_mut(ids[&scene.id]).ok_or("Sequence absent")?;
+        external.editorial_duration = frame_tick(scene.duration, scene.frame_rate)?;
         for t in tracks {
             if t.kind == fp::TrackKind::Video {
                 external.video_tracks.push(t);
@@ -630,6 +705,53 @@ fn to_external(project: &eb::Project) -> Result<(fp::Project, HashMap<Uuid, fp::
 fn rate_out(rate: eb::FrameRate) -> filmcraft_time::FrameRate {
     filmcraft_time::FrameRate::new(i64::from(rate.numerator), i64::from(rate.denominator))
 }
+/// Describe the retained picture clock without substituting the sequence rate.
+/// `stream`, `timing` and `report` select source timestamps and explicit VFR loss.
+/// Returns the exact uniform rate, or the declared exact average for indexed VFR.
+fn source_rate(
+    stream: &eb::SourceStream,
+    timing: &eb::PictureTiming,
+    report: &mut Report,
+) -> Result<eb::FrameRate> {
+    if let eb::PictureTiming::Constant { rate } = timing {
+        return Ok(*rate);
+    }
+    let eb::PictureTiming::Variable {
+        presentation_ticks,
+        end_tick,
+    } = timing
+    else {
+        return Err("Picture timing absent".into());
+    };
+    let count = presentation_ticks.len();
+    let step = presentation_ticks
+        .get(1)
+        .map_or(*end_tick - stream.start_tick, |second| {
+            *second - stream.start_tick
+        });
+    let uniform = step > 0
+        && presentation_ticks.windows(2).all(|p| p[1] - p[0] == step)
+        && presentation_ticks
+            .last()
+            .is_some_and(|last| *end_tick - *last == step);
+    let (n, d) = if uniform {
+        (
+            u128::from(stream.time_base.denominator),
+            u128::from(stream.time_base.numerator) * u128::try_from(step)?,
+        )
+    } else {
+        report.warn("Variable source frame timestamps are represented by an average descriptor; exact source-time endpoints are retained");
+        (
+            count as u128 * u128::from(stream.time_base.denominator),
+            u128::from(stream.time_base.numerator) * u128::try_from(*end_tick - stream.start_tick)?,
+        )
+    };
+    let factor = gcd(n, d);
+    Ok(eb::FrameRate::new(
+        (n / factor).try_into()?,
+        (d / factor).try_into()?,
+    )?)
+}
 fn frames(t: Tick, rate: eb::FrameRate) -> Result<u64> {
     let n = i128::from(t.0) * i128::from(rate.numerator);
     let d = i128::from(TICKS_PER_SECOND) * i128::from(rate.denominator);
@@ -651,7 +773,10 @@ fn frame_tick(frame: u64, rate: eb::FrameRate) -> Result<Tick> {
     )
 }
 fn tick(p: eb::SourcePosition, base: eb::TimeBase) -> Result<Tick> {
-    let n = i128::from(p.numerator) * i128::from(base.numerator) * i128::from(TICKS_PER_SECOND);
+    let n = i128::from(p.numerator)
+        .checked_mul(i128::from(base.numerator))
+        .and_then(|v| v.checked_mul(i128::from(TICKS_PER_SECOND)))
+        .ok_or("Source timestamp exceeds its integer range")?;
     let d = i128::from(p.denominator) * i128::from(base.denominator);
     if n % d != 0 {
         return Err("Exact source time is not representable in the interchange tick clock".into());
@@ -671,8 +796,9 @@ fn add(a: eb::SourcePosition, b: eb::SourcePosition) -> Result<eb::SourcePositio
         .checked_mul(b.denominator)
         .ok_or("Rational time overflow")?;
     fraction(
-        i128::from(a.numerator) * i128::from(d / a.denominator)
-            + i128::from(b.numerator) * i128::from(d / b.denominator),
+        (i128::from(a.numerator) * i128::from(d / a.denominator))
+            .checked_add(i128::from(b.numerator) * i128::from(d / b.denominator))
+            .ok_or("Rational sum exceeds its integer range")?,
         d,
     )
 }
@@ -704,30 +830,40 @@ fn time_map(duration: u64, a: eb::SourcePosition, b: eb::SourcePosition) -> Resu
         ],
     })
 }
+/// Recover a bounded rational speed from the format's decimal representation.
+/// `v` is a finite rate; returns a reduced fraction or an explicit precision error.
 fn decimal(v: f64) -> Result<(i64, u64)> {
     if !v.is_finite() || v.abs() > 1000. {
         return Err("Unsupported editorial speed".into());
     }
-    let s = v.to_string();
-    let (m, e) = s.split_once(['e', 'E']).map_or((s.as_str(), 0), |(m, e)| {
-        (m, e.parse::<i32>().unwrap_or(100))
-    });
-    let (whole, frac) = m.split_once('.').unwrap_or((m, ""));
-    let digits = format!("{whole}{frac}").parse::<i64>()?;
-    let power = frac.len() as i32 - e;
-    if power >= 0 {
-        Ok((
-            digits,
-            10u64
-                .checked_pow(power as u32)
-                .ok_or("Speed precision overflow")?,
-        ))
-    } else {
-        Ok((
-            digits
-                .checked_mul(10i64.checked_pow((-power) as u32).ok_or("Speed overflow")?)
-                .ok_or("Speed overflow")?,
-            1,
-        ))
+    if v == 0. {
+        return Ok((0, 1));
     }
+    let sign = if v < 0. { -1 } else { 1 };
+    let mut x = v.abs();
+    let (mut p0, mut p1, mut q0, mut q1) = (0i128, 1i128, 1i128, 0i128);
+    for _ in 0..32 {
+        let a = x.floor() as i128;
+        let p = a
+            .checked_mul(p1)
+            .and_then(|n| n.checked_add(p0))
+            .ok_or("Speed overflow")?;
+        let q = a
+            .checked_mul(q1)
+            .and_then(|n| n.checked_add(q0))
+            .ok_or("Speed overflow")?;
+        if q > 1_000_000 {
+            break;
+        }
+        if ((p as f64 / q as f64) - v.abs()).abs() <= 1e-12 {
+            return Ok((i64::try_from(p)? * sign, u64::try_from(q)?));
+        }
+        let rest = x - a as f64;
+        if rest <= f64::EPSILON {
+            break;
+        }
+        (p0, p1, q0, q1) = (p1, p, q1, q);
+        x = 1. / rest;
+    }
+    Err("Editorial speed cannot be represented within the rational precision budget".into())
 }

@@ -42,7 +42,9 @@ pub(crate) fn read(bytes: &[u8], report: &mut Report) -> Result<Document> {
     let md = r.refs(head, "OMFI:HEAD:MediaData");
     let md = if md.is_empty() { c.objects.keys().copied().filter(|&o| matches!(class_of(o).as_ref(), Some(b"WAVE" | b"AIFC"))).collect() } else { md };
     for m in md {
-        let Some(id) = r.uid(m, "OMFI:MDAT:MobID") else { continue };
+        let Some(id) = r.uid(m, "OMFI:MDAT:MobID") else {
+            continue;
+        };
         if let Some(d) = c.get(m, "OMFI:WAVE:Data") {
             r.media.insert(id, d);
         } else if let Some(d) = c.get(m, "OMFI:AIFC:Data") {
@@ -108,7 +110,9 @@ impl R<'_, '_> {
         Some(self.c.resolve(o, key))
     }
     fn refs(&self, o: u32, p: &str) -> Vec<u32> {
-        let Some(v) = self.c.get(o, p) else { return Vec::new() };
+        let Some(v) = self.c.get(o, p) else {
+            return Vec::new();
+        };
         if v.len() < 2 {
             return Vec::new();
         }
@@ -159,7 +163,9 @@ impl R<'_, '_> {
         let slots = self.refs(m, "OMFI:MOBJ:Slots");
         let mut na = 0;
         for s in slots {
-            let Some(seg) = self.r#ref(s, "OMFI:MSLT:Segment") else { continue };
+            let Some(seg) = self.r#ref(s, "OMFI:MSLT:Segment") else {
+                continue;
+            };
             let rate = self.rational(s, "OMFI:MSLT:EditRate").filter(|r| r.0 > 0 && r.1 > 0).unwrap_or((25, 1));
             let kind = self.data_kind(seg);
             if self.class(seg) == *b"TCCP" || kind == "omfi:data:Timecode" {
@@ -280,12 +286,14 @@ impl R<'_, '_> {
         let len = units_to_ticks(self.len(c), rate.0, rate.1);
         let start = units_to_ticks(self.i32(c, "OMFI:SCLP:StartTime").unwrap_or(0), rate.0, rate.1);
         let name = self.string(c, "FilmCraft:SCLP:ClipName").unwrap_or_default();
-        let (Some(id), Some(track)) = (self.uid(c, "OMFI:SCLP:SourceID"), self.u32(c, "OMFI:SCLP:SourceTrackID")) else { return CItem::Filler(len) };
+        let (Some(id), Some(track)) = (self.uid(c, "OMFI:SCLP:SourceID"), self.u32(c, "OMFI:SCLP:SourceTrackID")) else {
+            return CItem::Filler(len);
+        };
         if id == [0; 12] {
             return CItem::Filler(len);
         }
         match self.resolve(id, track, start, None, 0) {
-            Some((source, t)) => CItem::Clip(CClip { len, source, start: t, gain: None, name }),
+            Some((source, t)) => CItem::Clip(CClip { len, source, start: t, gain: None, retime: None, name }),
             None => CItem::Filler(len),
         }
     }

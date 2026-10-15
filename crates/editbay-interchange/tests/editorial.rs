@@ -171,3 +171,339 @@ fn relink_rejects_changed_bytes_and_missing_original() {
         .is_err()
     );
 }
+
+fn av_project(path: &std::path::Path) -> eb::Project {
+    let profile = editbay_media::LosslessMovProfile {
+        width: 16,
+        height: 16,
+        frame_rate: eb::FrameRate::new(24, 1).unwrap(),
+        first_frame: 0,
+        frames: 48,
+        sample_rate: 48000,
+        channels: vec!["FC".into()],
+    };
+    let file = std::fs::File::create(path).unwrap();
+    let token = editbay_media::Cancellation::new().unwrap();
+    let mut writer =
+        editbay_media::LosslessMovWriter::new(&file, profile.clone(), token.clone()).unwrap();
+    let mut first = 0;
+    for frame in 0..48 {
+        writer
+            .picture(frame, &[64, 128, 192, 255].repeat(256))
+            .unwrap();
+        let end = profile.samples_through(frame + 1).unwrap();
+        writer
+            .sound(first, &vec![0.; (end - first) as usize])
+            .unwrap();
+        first = end;
+    }
+    writer.finish().unwrap();
+    file.sync_all().unwrap();
+    let source = editbay_media::SourceFile::open(path, &token)
+        .unwrap()
+        .ingest("Linked original".into(), &[0, 1], token, |_, _| {})
+        .unwrap();
+    let mut p = eb::Project::new("Two linked camera edits").unwrap();
+    p.assets.push(source.asset);
+    p.sources.push(source.source);
+    let commands = eb::sequence_from_video_with_audio(
+        &p,
+        p.sources[0].id,
+        0,
+        1,
+        eb::FrameRate::new(24, 1).unwrap(),
+    )
+    .unwrap();
+    let mut editor = eb::DocumentEditor::new(p).unwrap();
+    editor
+        .apply(
+            eb::DocumentVersion::of(editor.project()),
+            "Original".into(),
+            &commands,
+        )
+        .unwrap();
+    let mut p = editor.project().clone();
+    let scene = &mut p.compositions[0];
+    scene.duration = 28;
+    for (index, track) in scene.tracks.iter_mut().enumerate() {
+        let template = track.clips[0].clone();
+        track.clips.clear();
+        for (cut, range) in [
+            eb::FrameRange { start: 4, end: 12 },
+            eb::FrameRange { start: 16, end: 24 },
+        ]
+        .into_iter()
+        .enumerate()
+        {
+            let mut c = template.clone();
+            c.id = uuid::Uuid::from_u128(1000 + cut as u128 * 2 + index as u128);
+            c.linked = Some(uuid::Uuid::from_u128(
+                1000 + cut as u128 * 2 + (1 - index) as u128,
+            ));
+            c.range = range;
+            let (a, b) = if cut == 0 { (4, 12) } else { (32, 24) };
+            let a = template.time_map.position(a).unwrap();
+            let b = template.time_map.position(b).unwrap();
+            let d = a.denominator.max(b.denominator);
+            c.time_map = eb::TimeMap {
+                source_denominator: d.try_into().unwrap(),
+                points: vec![
+                    eb::TimePoint {
+                        frame: 0,
+                        source_tick: a.numerator * (d / a.denominator) as i64,
+                    },
+                    eb::TimePoint {
+                        frame: 8,
+                        source_tick: b.numerator * (d / b.denominator) as i64,
+                    },
+                ],
+            };
+            track.clips.push(c);
+        }
+    }
+    eb::rebuild_editorial(scene, &[]).unwrap();
+    p.validate().unwrap();
+    p
+}
+#[test]
+fn linked_av_reverse_internal_and_trailing_gaps_reopen_exactly_in_capable_formats() {
+    let dir = tempfile::tempdir().unwrap();
+    let original = dir.path().join("linked.mov");
+    let p = av_project(&original);
+    let composition = p.compositions[0].id;
+    for format in [
+        Format::Edl,
+        Format::Fcp7Xml,
+        Format::Fcpxml,
+        Format::Otio,
+        Format::Aaf,
+        Format::Omf,
+    ] {
+        let (bytes, report) =
+            export_document(&p, composition, format, &ExportOptions::default()).unwrap();
+        let options = ImportOptions {
+            base_dir: Some(dir.path().to_str().unwrap().into()),
+            edl_frame_rate: Some(eb::FrameRate::new(24, 1).unwrap()),
+            ..Default::default()
+        };
+        let (imported, loss) = import_document(
+            &bytes,
+            format,
+            &options,
+            &editbay_media::Cancellation::new().unwrap(),
+        )
+        .unwrap_or_else(|e| panic!("{format:?}: {e}; {report:?}"));
+        let scene = imported
+            .compositions
+            .iter()
+            .find(|c| Some(c.id) == imported.sequences[0].composition)
+            .unwrap();
+        assert_eq!(scene.duration, 28, "{format:?} dropped trailing gap");
+        let clips: Vec<_> = scene
+            .tracks
+            .iter()
+            .filter(|t| t.kind == eb::TrackKind::Video)
+            .flat_map(|t| &t.clips)
+            .collect();
+        if format != Format::Omf {
+            assert_eq!(clips.len(), 2, "{format:?}");
+            assert_eq!(clips[0].range, eb::FrameRange { start: 4, end: 12 });
+            assert_eq!(clips[1].range, eb::FrameRange { start: 16, end: 24 });
+        }
+        if !matches!(format, Format::Aaf | Format::Omf) {
+            assert!(
+                scene
+                    .tracks
+                    .iter()
+                    .flat_map(|t| &t.clips)
+                    .all(|c| c.linked.is_some()),
+                "{format:?} links: {loss:?}"
+            );
+            assert_eq!(
+                clips[1].time_map.direction_at(0).unwrap(),
+                -1,
+                "{format:?} reverse"
+            );
+            let stream = match clips[1].source {
+                eb::ClipSource::Media { source, stream } => &imported
+                    .sources
+                    .iter()
+                    .find(|s| s.id == source)
+                    .unwrap()
+                    .streams
+                    .iter()
+                    .find(|s| s.index == stream)
+                    .unwrap(),
+                _ => panic!("media expected"),
+            };
+            for (local, expected) in [(0, 32), (8, 24)] {
+                assert_eq!(
+                    stream
+                        .time_base
+                        .at_rate(
+                            clips[1]
+                                .time_map
+                                .position(local)
+                                .unwrap()
+                                .relative_to(stream.start_tick)
+                                .unwrap(),
+                            eb::FrameRate::new(24, 1).unwrap()
+                        )
+                        .unwrap(),
+                    eb::SourcePosition::new(expected, 1).unwrap(),
+                    "{format:?} source boundary"
+                );
+            }
+        } else {
+            assert!(
+                report.has_warnings(),
+                "Binary audio retiming loss must be reported"
+            );
+        }
+        if let Some(root) = std::env::var_os("EDITBAY_WORKFLOW_RECEIPTS_DIR") {
+            let root = std::path::PathBuf::from(root);
+            std::fs::create_dir_all(&root).unwrap();
+            std::fs::write(root.join(format!("linked.{}", format.extension())), &bytes).unwrap();
+            std::fs::write(
+                root.join(format!("linked.{}.loss.json", format.extension())),
+                serde_json::to_vec_pretty(&report).unwrap(),
+            )
+            .unwrap();
+        }
+    }
+}
+
+#[test]
+fn aaf_picture_speed_reverse_repeat_use_standard_operations_and_exact_source_boundaries() {
+    let dir = tempfile::tempdir().unwrap();
+    let path = dir.path().join("camera.mov");
+    let original = av_project(&path);
+    for (a, b) in [(4, 20), (20, 4), (12, 12)] {
+        let mut project = original.clone();
+        let scene = &mut project.compositions[0];
+        let video = scene
+            .tracks
+            .iter_mut()
+            .find(|t| t.kind == eb::TrackKind::Video)
+            .unwrap();
+        let clip = &mut video.clips[1];
+        let map = clip.time_map.clone();
+        let source = match clip.source {
+            eb::ClipSource::Media { source, stream } => project
+                .sources
+                .iter()
+                .find(|s| s.id == source)
+                .unwrap()
+                .streams
+                .iter()
+                .find(|s| s.index == stream)
+                .unwrap(),
+            _ => unreachable!(),
+        };
+        let position = |frame: i64| {
+            eb::TimeBase {
+                numerator: 1,
+                denominator: 24,
+            }
+            .at_rate(
+                eb::SourcePosition::new(frame, 1).unwrap(),
+                eb::FrameRate::new(source.time_base.denominator, source.time_base.numerator)
+                    .unwrap(),
+            )
+            .unwrap()
+        };
+        let (start, end) = (position(a), position(b));
+        let denominator = start.denominator.max(end.denominator);
+        clip.time_map = eb::TimeMap {
+            source_denominator: denominator.try_into().unwrap(),
+            points: vec![
+                eb::TimePoint {
+                    frame: 0,
+                    source_tick: start.numerator * (denominator / start.denominator) as i64
+                        + source.start_tick * denominator as i64,
+                },
+                eb::TimePoint {
+                    frame: 8,
+                    source_tick: end.numerator * (denominator / end.denominator) as i64
+                        + source.start_tick * denominator as i64,
+                },
+            ],
+        };
+        assert_ne!(clip.time_map, map);
+        let composition = scene.id;
+        eb::rebuild_editorial(scene, &[]).unwrap();
+        project.validate().unwrap();
+        let (bytes, _) =
+            export_document(&project, composition, Format::Aaf, &Default::default()).unwrap();
+        let op = [
+            if a == b { 0x91 } else { 0x90 },
+            0xa8,
+            0x2e,
+            0x9d,
+            0x68,
+            0x09,
+            0xd3,
+            0x11,
+            0x8a,
+            0x38,
+            0x00,
+            0x50,
+            0x04,
+            0x0e,
+            0xf7,
+            0xd2,
+        ];
+        assert!(
+            bytes.windows(16).any(|w| w == op),
+            "AAF must contain standard operation AUID"
+        );
+        let (imported, report) = import_document(
+            &bytes,
+            Format::Aaf,
+            &ImportOptions::default(),
+            &editbay_media::Cancellation::new().unwrap(),
+        )
+        .unwrap();
+        let scene = imported
+            .compositions
+            .iter()
+            .find(|c| Some(c.id) == imported.sequences[0].composition)
+            .unwrap();
+        let video = scene
+            .tracks
+            .iter()
+            .find(|t| t.kind == eb::TrackKind::Video)
+            .unwrap();
+        let clip = &video.clips[1];
+        let source = match clip.source {
+            eb::ClipSource::Media { source, stream } => imported
+                .sources
+                .iter()
+                .find(|s| s.id == source)
+                .unwrap()
+                .streams
+                .iter()
+                .find(|s| s.index == stream)
+                .unwrap(),
+            _ => unreachable!(),
+        };
+        for (local, expected) in [(0, a), (8, b)] {
+            let time = source
+                .time_base
+                .at_rate(
+                    clip.time_map
+                        .position(local)
+                        .unwrap()
+                        .relative_to(source.start_tick)
+                        .unwrap(),
+                    eb::FrameRate::new(24, 1).unwrap(),
+                )
+                .unwrap();
+            assert_eq!(
+                time,
+                eb::SourcePosition::new(expected, 1).unwrap(),
+                "AAF {a}→{b}: {report:?}"
+            );
+        }
+    }
+}

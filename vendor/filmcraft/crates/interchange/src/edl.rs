@@ -1,3 +1,4 @@
+// Modified by EditBay: retain record duration of black filler events.
 //! CMX 3600 edit decision lists.
 //!
 //! Supported: `TITLE:`, `FCM:` (drop/non-drop, may change mid-list), cut / dissolve (`D nnn`) /
@@ -426,6 +427,7 @@ pub(crate) fn import(text: &str, opts: &ImportOptions, report: &mut Report) -> R
     }
 
     for ev in &parsed.events {
+        for line in &ev.lines {ctx.seq.editorial_duration=ctx.seq.editorial_duration.max(ctx.rec(line.tcs[3],ev.df));}
         import_event(&mut ctx, ev, report);
         for (tc, color, name) in &ev.locs {
             let t = ctx.rec(*tc, ev.df);

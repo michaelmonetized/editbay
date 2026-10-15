@@ -1,4 +1,5 @@
 //! Composition model → AAF objects.
+//! EditBay modifications write standard rational VideoSpeedControl and VideoRepeat operations.
 
 use std::collections::HashMap;
 
@@ -6,7 +7,7 @@ use filmcraft_time::Tick;
 
 use super::ids::{META_DICTIONARY, ROOT, cls, ddef, def, path, pid};
 use super::store::{self, Auid, Obj, Value, rational, utf16z};
-use crate::comp::{CItem, CKind, CMarker, Composition, Document, Gain, Source, ticks_to_units};
+use crate::comp::{CItem, CKind, CMarker, Composition, Document, Gain, Retime, Source, ticks_to_units};
 use crate::{Error, Report, Result};
 
 /// UMID-style mob id (SMPTE 330 basic UMID): label, length 0x13, instance 0, material number.
@@ -98,6 +99,18 @@ fn source_rate(s: &Source) -> (i64, i64) {
 /// Serialise a composition document.
 pub(crate) fn write(doc: &Document, version: filmcraft_cfb::Version, report: &mut Report) -> Result<Vec<u8>> {
     let comp = doc.compositions.first().ok_or(Error::Empty)?;
+    for scene in doc.compositions.iter().chain(&doc.nested) {
+        for track in &scene.tracks {
+            for item in &track.items {
+                if let CItem::Clip(clip) = item
+                    && let Some(retime) = clip.retime
+                    && (track.kind != CKind::Picture || retime.scale(clip.len).is_none())
+                {
+                    return Err(Error::Other("AAF picture retime has an invalid rate or source span".into()));
+                }
+            }
+        }
+    }
     let mut w = W { report, inexact: false };
     let mut seed = fnv(comp.name.as_bytes(), 0xCBF2_9CE4_8422_2325);
     for s in &doc.sources {
@@ -245,12 +258,16 @@ pub(crate) fn write(doc: &Document, version: filmcraft_cfb::Version, report: &mu
 
     // ---- nested compositions: a clip refers to one as it does to a master mob, through the
     // composition's first track of the clip's kind (a broken-out channel: that channel's track)
-    let mut refs = Refs { mobs: master_ref, rates: HashMap::new() };
+    let mut refs = Refs { mobs: master_ref, rates: doc.sources.iter().enumerate().map(|(index, source)| (index, source_rate(source))).collect() };
     let nested_ids: Vec<[u8; 32]> = doc.nested.iter().map(|_| new_id()).collect();
     for (si, s) in doc.sources.iter().enumerate() {
-        let Some((comp, id)) = s.nested.and_then(|n| Some((doc.nested.get(n)?, nested_ids.get(n)?))) else { continue };
+        let Some((comp, id)) = s.nested.and_then(|n| Some((doc.nested.get(n)?, nested_ids.get(n)?))) else {
+            continue;
+        };
         let of_kind: Vec<usize> = comp.tracks.iter().enumerate().filter(|(_, t)| t.kind == s.kind).map(|(i, _)| i).collect();
-        let Some(&track) = s.channel.and_then(|c| of_kind.get(c as usize)).or(of_kind.first()) else { continue };
+        let Some(&track) = s.channel.and_then(|c| of_kind.get(c as usize)).or(of_kind.first()) else {
+            continue;
+        };
         let rate = match s.kind {
             CKind::Picture => (comp.rate.num, comp.rate.den),
             CKind::Sound => (comp.sample_rate.max(1) as i64, 1),
@@ -283,10 +300,14 @@ pub(crate) fn write(doc: &Document, version: filmcraft_cfb::Version, report: &mu
             x if x == def::VIDEO_FADE_TO_BLACK => ("Video Fade To Black", ddef::PICTURE, 1),
             x if x == def::SMPTE_VIDEO_WIPE => ("SMPTE Video Wipe", ddef::PICTURE, 2),
             x if x == def::MONO_AUDIO_DISSOLVE => ("Mono Audio Dissolve", ddef::SOUND, 2),
+            x if x == def::VIDEO_SPEED_CONTROL => ("Video Speed Control", ddef::PICTURE, 1),
+            x if x == def::VIDEO_REPEAT => ("Video Repeat", ddef::PICTURE, 1),
             _ => ("Mono Audio Gain", ddef::SOUND, 1i32),
         };
         let params: Vec<Vec<u8>> = if *op == def::MONO_AUDIO_GAIN {
             vec![def::PARAM_AMPLITUDE.to_vec()]
+        } else if *op == def::VIDEO_SPEED_CONTROL {
+            vec![def::PARAM_SPEED_RATIO.to_vec()]
         } else if *op == def::VIDEO_DISSOLVE {
             vec![def::PARAM_LEVEL.to_vec()]
         } else {
@@ -294,8 +315,11 @@ pub(crate) fn write(doc: &Document, version: filmcraft_cfb::Version, report: &mu
         };
         let mut o = definition(cls::OPERATION_DEFINITION, *op, name)
             .with(pid::OPDEF_DATA_DEFINITION, weak(path::DATA_DEFS, dd))
-            .data_prop(pid::OPDEF_IS_TIME_WARP, vec![0])
+            .data_prop(pid::OPDEF_IS_TIME_WARP, vec![u8::from(*op == def::VIDEO_SPEED_CONTROL || *op == def::VIDEO_REPEAT)])
             .data_prop(pid::OPDEF_NUMBER_INPUTS, inputs.to_le_bytes().to_vec());
+        if *op == def::VIDEO_SPEED_CONTROL || *op == def::VIDEO_REPEAT {
+            o.set(pid::OPDEF_BYPASS, Value::Data(1u32.to_le_bytes().to_vec()));
+        }
         if !params.is_empty() {
             o.set(pid::OPDEF_PARAMETERS_DEFINED, Value::WeakVec(path::PARAMETER_DEFS.to_vec(), pid::IDENTIFICATION, params));
         }
@@ -303,6 +327,7 @@ pub(crate) fn write(doc: &Document, version: filmcraft_cfb::Version, report: &mu
     }
     let pdefs = vec![
         definition(cls::PARAMETER_DEFINITION, def::PARAM_LEVEL, "Level").data_prop(pid::PARAMDEF_DISPLAY_UNITS, utf16z("")),
+        definition(cls::PARAMETER_DEFINITION, def::PARAM_SPEED_RATIO, "Speed Ratio").data_prop(pid::PARAMDEF_DISPLAY_UNITS, utf16z("")),
         definition(cls::PARAMETER_DEFINITION, def::PARAM_AMPLITUDE, "Amplitude").data_prop(pid::PARAMDEF_DISPLAY_UNITS, utf16z("")),
     ];
     let idefs = if uses_varying || !used_ops.is_empty() {
@@ -431,9 +456,40 @@ fn composition_mob(
                     let (mid, mslot) = refs.mobs.get(&c.source).copied().unwrap_or(([0; 32], 0));
                     // (a nested composition counts the start in its own slot's edit units)
                     let start = w.u(c.start, refs.rates.get(&c.source).copied().unwrap_or(rate));
-                    let mut sc = source_clip(t.kind, n, mid, mslot, start);
+                    let input_length = match c.retime {
+                        Some(Retime::Repeat) => 1,
+                        Some(retime) => retime.scale(c.len).map_or(n, |span| {
+                            let units = i128::from(span.0) * i128::from(rate.0);
+                            let divisor = i128::from(filmcraft_time::TICKS_PER_SECOND) * i128::from(rate.1);
+                            i64::try_from((units + divisor - 1) / divisor).unwrap_or(i64::MAX).max(1)
+                        }),
+                        None => n,
+                    };
+                    let mut sc = source_clip(t.kind, input_length, mid, mslot, start);
                     if !c.name.is_empty() && c.name != s.name {
                         sc.set(pid::COMPONENT_USER_COMMENTS, Value::StrongVec(vec![tagged("Clip Name", &c.name)]));
+                    }
+                    if let Some(retime) = c.retime {
+                        let op = if retime == Retime::Repeat { def::VIDEO_REPEAT } else { def::VIDEO_SPEED_CONTROL };
+                        if !used_ops.contains(&op) {
+                            used_ops.push(op);
+                        }
+                        let mut operation = Obj::new(cls::OPERATION_GROUP)
+                            .with(pid::DATA_DEFINITION, weak(path::DATA_DEFS, dd))
+                            .data_prop(pid::LENGTH, n.to_le_bytes().to_vec())
+                            .with(pid::OPERATION, weak(path::OPERATION_DEFS, op))
+                            .with(pid::INPUT_SEGMENTS, Value::StrongVec(vec![sc]));
+                        if let Retime::Speed { numerator, denominator } = retime {
+                            operation.set(
+                                pid::PARAMETERS,
+                                Value::StrongVec(vec![
+                                    Obj::new(cls::CONSTANT_VALUE)
+                                        .data_prop(pid::PARAMETER_DEFINITION, def::PARAM_SPEED_RATIO.to_vec())
+                                        .data_prop(pid::CONSTANT_VALUE, indirect(def::TYPE_RATIONAL, &rational(i64::from(denominator), i64::from(numerator)))),
+                                ]),
+                            );
+                        }
+                        sc = operation;
                     }
                     let seg = match (&c.gain, t.kind) {
                         (Some(g), CKind::Sound) => {

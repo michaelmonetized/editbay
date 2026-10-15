@@ -1,4 +1,5 @@
 //! A format-neutral mob-style composition model shared by AAF and OMF.
+//! EditBay modifications retain rational picture retimes and declared trailing gaps.
 //!
 //! Both formats describe a timeline as a composition of slots (tracks) whose segments are
 //! sequences of fillers, source clips and transitions, where a transition *overlaps* the end of
@@ -98,10 +99,114 @@ pub(crate) struct CClip {
     pub len: Tick,
     /// Index into [`Document::sources`].
     pub source: usize,
-    /// Source (file) time of the segment's first frame.
+    /// Lowest consumed source boundary; a repeated frame holds this source point.
     pub start: Tick,
     pub gain: Option<Gain>,
+    pub retime: Option<Retime>,
     pub name: String,
+}
+
+/// Exact source units consumed per record unit, or one retained frame.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(crate) enum Retime {
+    Speed { numerator: i32, denominator: i32 },
+    Repeat,
+}
+
+impl Retime {
+    /// Recover a bounded rational from a declared constant playback rate.
+    /// `speed` supplies magnitude and `reverse` supplies direction. Returns no
+    /// value if an AAF Rational cannot represent the rate within float precision.
+    fn from_speed(speed: f64, reverse: bool) -> Option<Self> {
+        if !speed.is_finite() || speed == 0.0 {
+            return None;
+        }
+        let value = speed.abs();
+        let mut rest = value;
+        let (mut pn, mut n, mut pd, mut d) = (0i64, 1i64, 1i64, 0i64);
+        for _ in 0..64 {
+            let whole = rest.floor();
+            if whole > f64::from(i32::MAX) {
+                return None;
+            }
+            let nn = (whole as i64).checked_mul(n)?.checked_add(pn)?;
+            let dd = (whole as i64).checked_mul(d)?.checked_add(pd)?;
+            if nn > i64::from(i32::MAX) || dd > i64::from(i32::MAX) {
+                return None;
+            }
+            (pn, n, pd, d) = (n, nn, d, dd);
+            if n > 0 && d > 0 && (n as f64 / d as f64 - value).abs() <= value * f64::EPSILON * 8.0 {
+                let numerator = i32::try_from(n).ok()? * if reverse || speed < 0.0 { -1 } else { 1 };
+                return Some(Self::Speed { numerator, denominator: i32::try_from(d).ok()? });
+            }
+            let fraction = rest - whole;
+            if fraction == 0.0 {
+                return None;
+            }
+            rest = fraction.recip();
+        }
+        None
+    }
+
+    /// Decode AAF's output-length/input-length ratio without floating-point math.
+    /// `numerator` and `denominator` are the SpeedRatio parameter. Returns a
+    /// reduced signed source-rate ratio; zero or unrepresentable values fail.
+    pub(crate) fn from_output_ratio(numerator: i64, denominator: i64) -> Option<Self> {
+        if numerator == 0 || denominator == 0 {
+            return None;
+        }
+        let mut a = numerator.unsigned_abs();
+        let mut b = denominator.unsigned_abs();
+        while b != 0 {
+            (a, b) = (b, a % b);
+        }
+        let sign = if (numerator < 0) != (denominator < 0) { -1 } else { 1 };
+        let n = i32::try_from(denominator.unsigned_abs() / a).ok()?.checked_mul(sign)?;
+        let d = i32::try_from(numerator.unsigned_abs() / a).ok()?;
+        Some(Self::Speed { numerator: n, denominator: d })
+    }
+
+    /// Scale record ticks to source ticks with an exact supported-clock result.
+    /// `time` is a signed record offset. Returns no value for a fractional tick
+    /// or overflow; reverse direction is represented by the caller's source origin.
+    pub(crate) fn scale(self, time: Tick) -> Option<Tick> {
+        match self {
+            Self::Repeat => Some(Tick::ZERO),
+            Self::Speed { numerator, denominator } => {
+                let n = i128::from(time.0) * i128::from(numerator.unsigned_abs());
+                let d = i128::from(denominator);
+                if numerator == 0 || d <= 0 || n % d != 0 {
+                    return None;
+                }
+                Some(Tick(i64::try_from(n / d).ok()?))
+            }
+        }
+    }
+
+    /// Inspect the signed playback rate for the portable project model.
+    /// Takes this exact ratio. Returns zero for a repeated frame.
+    fn speed(self) -> f64 {
+        match self {
+            Self::Speed { numerator, denominator } => f64::from(numerator) / f64::from(denominator),
+            Self::Repeat => 0.0,
+        }
+    }
+}
+
+/// Measure a mob-style track including overlapping transitions and trailing fillers.
+/// `items` is the retained ordered segment list. Returns its nonnegative duration.
+pub(crate) fn track_duration(items: &[CItem]) -> Tick {
+    Tick(
+        items
+            .iter()
+            .fold(
+                0i64,
+                |length, item| {
+                    if matches!(item, CItem::Transition(_)) { length.saturating_sub(item.len().0) } else { length.saturating_add(item.len().0) }
+                },
+            )
+            .max(0),
+    )
 }
 
 /// Clip gain (linear amplitude).
@@ -199,15 +304,29 @@ struct Exporter<'a> {
     nested: HashMap<ItemId, usize>,
     /// The sequences being written, outermost first.
     open: Vec<ItemId>,
+    retime_error: Option<String>,
 }
 
 pub(crate) fn from_project(p: &Project, seq_id: ItemId, name: &str, media: &MediaOptions, nests: Nests, report: &mut Report) -> crate::Result<Document> {
     let seq = p.sequence(seq_id).ok_or(crate::Error::NoSequence(seq_id))?;
     let rate = seq.settings.frame_rate;
-    let mut ex =
-        Exporter { p, media, doc: Document::default(), memo: HashMap::new(), report, seq_rate: rate, nests, nested: HashMap::new(), open: vec![seq_id] };
+    let mut ex = Exporter {
+        p,
+        media,
+        doc: Document::default(),
+        memo: HashMap::new(),
+        report,
+        seq_rate: rate,
+        nests,
+        nested: HashMap::new(),
+        open: vec![seq_id],
+        retime_error: None,
+    };
     let comp = ex.composition(seq, name, true);
     ex.doc.compositions.push(comp);
+    if let Some(error) = ex.retime_error {
+        return Err(crate::Error::Other(error));
+    }
     Ok(ex.doc)
 }
 
@@ -267,7 +386,14 @@ impl Exporter<'_> {
                 if mix.start > Tick::ZERO {
                     items.push(CItem::Filler(mix.start));
                 }
-                items.push(CItem::Clip(CClip { len: mix.duration, source: src, start: Tick::ZERO, gain: None, name: format!("{name} (video mixdown)") }));
+                items.push(CItem::Clip(CClip {
+                    len: mix.duration,
+                    source: src,
+                    start: Tick::ZERO,
+                    gain: None,
+                    retime: None,
+                    name: format!("{name} (video mixdown)"),
+                }));
                 comp.tracks.push(CTrack { kind: CKind::Picture, name: "V1".into(), number: 1, channels: 0, items });
             } else if media.mixdown_video.is_none() {
                 for (i, t) in seq.video_tracks.iter().enumerate() {
@@ -293,6 +419,22 @@ impl Exporter<'_> {
                 n += 1;
                 let items = self.track(t, TrackKind::Audio, None);
                 comp.tracks.push(CTrack { kind: CKind::Sound, name: format!("A{n}"), number: n, channels: ch, items });
+            }
+        }
+        let duration = seq.duration();
+        if comp.tracks.is_empty() && duration > Tick::ZERO {
+            comp.tracks.push(CTrack {
+                kind: if media.audio_only { CKind::Sound } else { CKind::Picture },
+                name: if media.audio_only { "A1".into() } else { "V1".into() },
+                number: 1,
+                channels: if media.audio_only { 2 } else { 0 },
+                items: Vec::new(),
+            });
+        }
+        for track in &mut comp.tracks {
+            let remaining = duration - track_duration(&track.items);
+            if remaining > Tick::ZERO {
+                track.items.push(CItem::Filler(remaining));
             }
         }
         self.seq_rate = outer_rate;
@@ -436,7 +578,9 @@ impl Exporter<'_> {
             .cloned();
         let key = match &ess {
             Some(e) if e.key == clip_key => format!("clip:{}", c.id.0),
-            _ if ckind == CKind::Sound && c.audio_stream > 0 => format!("item:{}:stream:{}", item.0, c.audio_stream),
+            _ if ckind == CKind::Sound && c.audio_stream > 0 => {
+                format!("item:{}:stream:{}", item.0, c.audio_stream)
+            }
             _ => format!("item:{}", item.0),
         };
         // Original linked file locators cannot name a container stream. Leave an explicit
@@ -609,12 +753,41 @@ impl Exporter<'_> {
                 Some((Side::TwoSided(_, te), _)) => te,
                 _ => e,
             };
-            if c.speed != 1.0 || c.reverse || c.frame_hold.is_some() {
-                self.report.warn("speed changes, reverse playback and frame holds are not exported (clips play at 100%)");
-            }
+            let changed_speed = c.speed != 1.0 || c.reverse || c.frame_hold.is_some();
+            let retime = if kind == TrackKind::Video && changed_speed {
+                if c.frame_hold.is_some() || c.speed == 0.0 {
+                    Some(Retime::Repeat)
+                } else {
+                    match Retime::from_speed(c.speed, c.reverse) {
+                        Some(retime) => Some(retime),
+                        None => {
+                            self.retime_error = Some(format!("{} speed cannot be represented as an exact AAF rational", c.name));
+                            continue;
+                        }
+                    }
+                }
+            } else {
+                if changed_speed {
+                    self.report.warn("audio speed changes, reverse playback and frame holds are not exported (audio clips play at 100%)");
+                }
+                None
+            };
             let source = self.doc.sources[src].clone();
-            // clips play at 100% here, so timeline and media advance together
-            let start = c.source_in + (seg_start - s) - source.offset;
+            let offset = match retime {
+                Some(Retime::Repeat) => Some(Tick::ZERO),
+                Some(rate) if rate.speed() < 0.0 => rate.scale(e - seg_end),
+                Some(rate) => rate.scale(seg_start - s),
+                None => Some(seg_start - s),
+            };
+            let Some(offset) = offset else {
+                self.retime_error = Some(format!("{} retime source boundary is not exact in the interchange clock", c.name));
+                continue;
+            };
+            if retime.is_some_and(|rate| rate.scale(seg_end - seg_start).is_none()) {
+                self.retime_error = Some(format!("{} retime source span is not exact in the interchange clock", c.name));
+                continue;
+            }
+            let start = c.frame_hold.filter(|_| retime == Some(Retime::Repeat)).unwrap_or(c.source_in) + offset - source.offset;
             if start < Tick::ZERO {
                 self.report.warn("a clip uses media before the start of its (trimmed) essence");
             }
@@ -624,7 +797,7 @@ impl Exporter<'_> {
                     p.0 += s - seg_start;
                 }
             }
-            out.push(CItem::Clip(CClip { len: seg_end - seg_start, source: src, start, gain, name: c.name.clone() }));
+            out.push(CItem::Clip(CClip { len: seg_end - seg_start, source: src, start, gain, retime, name: c.name.clone() }));
             cursor = seg_end;
             match tout[i] {
                 Some((Side::TwoSided(ts, _), tr)) => {
@@ -798,6 +971,7 @@ fn build_sequence(
 ) -> Sequence {
     let mut seq = crate::common::empty_sequence(settings);
     seq.start_timecode = comp.start_tc;
+    seq.editorial_duration = comp.tracks.iter().map(|track| track_duration(&track.items)).max().unwrap_or(Tick::ZERO);
     seq.markers = comp.markers.iter().map(|m| marker_in(b, m)).collect();
     for t in &comp.tracks {
         let kind = if t.kind == CKind::Picture { TrackKind::Video } else { TrackKind::Audio };
@@ -835,6 +1009,7 @@ fn build_track(b: &mut Builder, track: &mut Track, kind: TrackKind, t: &CTrack, 
     let mut pos = Tick::ZERO;
     let mut placed: Vec<Placed> = Vec::new();
     let mut clips: Vec<TrackItem> = Vec::new();
+    let mut retimes = Vec::new();
     for it in &t.items {
         if pos.0.abs() > 4 * MAX_TIME.0 {
             report.warn("a track longer than FilmCraft supports was cut short");
@@ -856,6 +1031,15 @@ fn build_track(b: &mut Builder, track: &mut Track, kind: TrackKind, t: &CTrack, 
                     continue;
                 };
                 let mut ti = b.clip(item, kind, if c.name.is_empty() { &sources[c.source].name } else { &c.name }, pos, c.len, c.start);
+                if let Some(retime) = c.retime {
+                    match retime {
+                        Retime::Repeat => ti.frame_hold = Some(c.start),
+                        Retime::Speed { .. } => {
+                            ti.speed = retime.speed().abs();
+                            ti.reverse = retime.speed() < 0.0;
+                        }
+                    }
+                }
                 if kind == TrackKind::Audio {
                     let src = &sources[c.source];
                     if t.channels == 1 && src.nested.is_none() {
@@ -867,6 +1051,7 @@ fn build_track(b: &mut Builder, track: &mut Track, kind: TrackKind, t: &CTrack, 
                 }
                 placed.push(Placed::Clip(clips.len()));
                 clips.push(ti);
+                retimes.push(c.retime);
                 pos += c.len;
             }
         }
@@ -874,7 +1059,9 @@ fn build_track(b: &mut Builder, track: &mut Track, kind: TrackKind, t: &CTrack, 
     // resolve transitions against their neighbours
     let mut transitions = Vec::new();
     for k in 0..placed.len() {
-        let Placed::Tr { start, len, cut, effect } = &placed[k] else { continue };
+        let Placed::Tr { start, len, cut, effect } = &placed[k] else {
+            continue;
+        };
         let prev = k.checked_sub(1).and_then(|i| match placed[i] {
             Placed::Clip(c) => Some(c),
             _ => None,
@@ -889,13 +1076,19 @@ fn build_track(b: &mut Builder, track: &mut Track, kind: TrackKind, t: &CTrack, 
             (Some(a), Some(bi)) => {
                 let a_end = clips[a].end();
                 if a_end > cut_at {
+                    if clips[a].reverse && clips[a].frame_hold.is_none() {
+                        let delta = transition_source_shift(retimes[a], a_end - cut_at, report);
+                        clips[a].source_in += delta;
+                    }
                     clips[a].duration = cut_at - clips[a].start;
                 }
                 let shift = cut_at - clips[bi].start;
                 if shift > Tick::ZERO {
                     // keyframes are in media time: unaffected
                     clips[bi].start += shift;
-                    clips[bi].source_in += shift;
+                    if !clips[bi].reverse && clips[bi].frame_hold.is_none() {
+                        clips[bi].source_in += transition_source_shift(retimes[bi], shift, report);
+                    }
                     clips[bi].duration -= shift;
                 }
             }
@@ -934,6 +1127,19 @@ fn build_track(b: &mut Builder, track: &mut Track, kind: TrackKind, t: &CTrack, 
     track.items = clips;
     track.transitions = transitions;
     track.sort();
+}
+
+/// Convert a transition handle offset through an imported exact retime.
+/// `retime`, `offset` and `report` retain rate and any clock-rounding loss.
+/// Returns the source offset; ordinary record-frame boundaries remain exact.
+fn transition_source_shift(retime: Option<Retime>, offset: Tick, report: &mut Report) -> Tick {
+    match retime {
+        None => offset,
+        Some(rate) => rate.scale(offset).unwrap_or_else(|| {
+            report.warn("a retimed transition source boundary was rounded to the interchange tick clock");
+            Tick((offset.0 as f64 * rate.speed().abs()).round() as i64)
+        }),
+    }
 }
 
 fn apply_gain(ti: &mut TrackItem, g: &Gain) {

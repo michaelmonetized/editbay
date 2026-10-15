@@ -1,4 +1,5 @@
 //! AAF objects → composition model.
+//! EditBay modifications retain standard rational picture retimes and source-slot timing.
 
 use std::collections::{HashMap, HashSet};
 
@@ -6,7 +7,7 @@ use filmcraft_time::{FrameRate, Tick};
 
 use super::ids::{cls, ddef, def, pid};
 use super::store::{self, Auid, Obj, Value, rational_of, utf16_of};
-use crate::comp::{CClip, CItem, CKind, CMarker, CTrack, CTransition, Composition, Document, Gain, Source, units_to_ticks};
+use crate::comp::{CClip, CItem, CKind, CMarker, CTrack, CTransition, Composition, Document, Gain, Retime, Source, units_to_ticks};
 use crate::{Error, Report, Result};
 
 type MobId = [u8; 32];
@@ -63,6 +64,27 @@ fn indirect_f64(d: &[u8]) -> Option<f64> {
         4 => Some(i32::from_le_bytes(v.try_into().ok()?) as f64),
         _ => None,
     }
+}
+
+/// Decode one constant rational AAF picture speed parameter.
+/// `operation` supplies parameters. Returns the exact source/record ratio;
+/// malformed, zero, varying and unrelated indirect values are unsupported.
+fn picture_speed(operation: &Obj) -> Option<Retime> {
+    let parameter = operation.objs(pid::PARAMETERS).iter().find(|parameter| parameter.auid(pid::PARAMETER_DEFINITION) == Some(def::PARAM_SPEED_RATIO))?;
+    if parameter.class != cls::CONSTANT_VALUE {
+        return None;
+    }
+    let data = parameter.data(pid::CONSTANT_VALUE)?;
+    let (kind, value) = indirect(data)?;
+    if kind != def::TYPE_RATIONAL || value.len() != 8 {
+        return None;
+    }
+    let (numerator, denominator) = if data.first() == Some(&0x42) {
+        (i64::from(i32::from_be_bytes(value[..4].try_into().ok()?)), i64::from(i32::from_be_bytes(value[4..].try_into().ok()?)))
+    } else {
+        rational_of(value)?
+    };
+    Retime::from_output_ratio(numerator, denominator)
 }
 
 struct R<'a> {
@@ -163,7 +185,9 @@ impl R<'_> {
             Composition { name, rate, sample_rate: 48_000, width: 1920, height: 1080, start_tc: 0, drop: false, tracks: Vec::new(), markers: Vec::new() };
         let (mut nv, mut na) = (0, 0);
         for s in slots {
-            let Some(seg) = s.strong(pid::SEGMENT) else { continue };
+            let Some(seg) = s.strong(pid::SEGMENT) else {
+                continue;
+            };
             if s.class == cls::EVENT_MOB_SLOT {
                 let er = rate_of(s, pid::EVENT_EDIT_RATE).unwrap_or(pic_rate);
                 comp.markers.extend(markers_of(seg, er));
@@ -292,10 +316,37 @@ impl R<'_> {
                     self.report.info("an effect without input was imported as a gap");
                     return vec![CItem::Filler(len)];
                 };
+                if kind == CKind::Picture && matches!(op, Some(op) if op == def::VIDEO_SPEED_CONTROL || op == def::VIDEO_REPEAT) {
+                    if inputs.len() != 1 {
+                        self.report.warn("a picture retime with multiple inputs was imported as a gap");
+                        return vec![CItem::Filler(len)];
+                    }
+                    let retime = if op == Some(def::VIDEO_REPEAT) { Some(Retime::Repeat) } else { picture_speed(c) };
+                    let Some(retime) = retime else {
+                        self.report.warn("an invalid or varying picture SpeedRatio was imported as a gap");
+                        return vec![CItem::Filler(len)];
+                    };
+                    if retime.scale(len).is_none() {
+                        self.report.warn("a picture retime outside the exact interchange clock was imported as a gap");
+                        return vec![CItem::Filler(len)];
+                    }
+                    let mut items = self.segment(input, rate, kind, depth);
+                    match items.as_mut_slice() {
+                        [CItem::Clip(clip)] if clip.retime.is_none() => {
+                            clip.len = len;
+                            clip.retime = Some(retime);
+                            return items;
+                        }
+                        _ => {
+                            self.report.warn("a picture retime around multiple or already retimed segments was imported as a gap");
+                            return vec![CItem::Filler(len)];
+                        }
+                    }
+                }
                 let gain = if op == Some(def::MONO_AUDIO_GAIN) {
                     self.gain(c, len, rate)
                 } else {
-                    self.report.warn("effects other than audio gain are not imported (their first input is used)");
+                    self.report.warn("effects other than supported picture retimes and audio gain are not imported (their first input is used)");
                     None
                 };
                 let mut items = self.segment(input, rate, kind, depth);
@@ -359,9 +410,13 @@ impl R<'_> {
 
     fn clip(&mut self, c: &Obj, rate: (i64, i64), kind: CKind, master_key: Option<String>) -> CItem {
         let len = units_to_ticks(len_of(c), rate.0, rate.1);
-        let start = units_to_ticks(c.i64(pid::START_TIME).unwrap_or(0), rate.0, rate.1);
+
         let name = tagged_values(c, pid::COMPONENT_USER_COMMENTS).into_iter().find(|(k, _)| k == "Clip Name").map(|(_, v)| v).unwrap_or_default();
-        let (Some(id), Some(slot)) = (c.mob_id(pid::SOURCE_ID), c.u32(pid::SOURCE_MOB_SLOT_ID)) else { return CItem::Filler(len) };
+        let (Some(id), Some(slot)) = (c.mob_id(pid::SOURCE_ID), c.u32(pid::SOURCE_MOB_SLOT_ID)) else {
+            return CItem::Filler(len);
+        };
+        let source_rate = self.reference_rate(id, slot, rate);
+        let start = units_to_ticks(c.i64(pid::START_TIME).unwrap_or(0), source_rate.0, source_rate.1);
         if id == [0; 32] {
             return CItem::Filler(len);
         }
@@ -369,7 +424,7 @@ impl R<'_> {
             return self.nest_clip(c, mob, id, slot, rate, kind, name);
         }
         match self.resolve(id, slot, start, kind, master_key, 0) {
-            Some((source, t)) => CItem::Clip(CClip { len, source, start: t, gain: None, name }),
+            Some((source, t)) => CItem::Clip(CClip { len, source, start: t, gain: None, retime: None, name }),
             None => CItem::Filler(len),
         }
     }
@@ -402,7 +457,9 @@ impl R<'_> {
             match self.sources.get(&skey) {
                 Some(&i) => i,
                 None => {
-                    let Some(comp) = self.doc.nested.get(index) else { return CItem::Filler(len) };
+                    let Some(comp) = self.doc.nested.get(index) else {
+                        return CItem::Filler(len);
+                    };
                     let length =
                         comp.tracks
                             .iter()
@@ -441,7 +498,18 @@ impl R<'_> {
                     i
                 }
             };
-        CItem::Clip(CClip { len, source, start, gain: None, name })
+        CItem::Clip(CClip { len, source, start, gain: None, retime: None, name })
+    }
+
+    /// Inspect the edit units used by a referenced source slot.
+    /// `id`, `slot` and `fallback` select the referenced mob and rate. Returns
+    /// that slot's declared frame/sample rate without borrowing it across reads.
+    fn reference_rate(&self, id: MobId, slot: u32, fallback: (i64, i64)) -> (i64, i64) {
+        self.mobs
+            .get(&id)
+            .and_then(|mob| mob.objs(pid::SLOTS).iter().find(|candidate| candidate.u32(pid::SLOT_ID) == Some(slot)))
+            .and_then(|slot| rate_of(slot, pid::EDIT_RATE))
+            .unwrap_or(fallback)
     }
 
     /// Follow a source reference to a file source mob: (source index, file time).
@@ -463,9 +531,11 @@ impl R<'_> {
         if mob.class == cls::MASTER_MOB {
             let key = master_key.unwrap_or_else(|| hex(&id));
             let clip = first_clip(seg)?;
-            let inner = units_to_ticks(clip.i64(pid::START_TIME).unwrap_or(0), rate.0, rate.1);
+
             let next = clip.mob_id(pid::SOURCE_ID)?;
             let next_slot = clip.u32(pid::SOURCE_MOB_SLOT_ID)?;
+            let inner_rate = self.reference_rate(next, next_slot, rate);
+            let inner = units_to_ticks(clip.i64(pid::START_TIME).unwrap_or(0), inner_rate.0, inner_rate.1);
             if next == [0; 32] {
                 return None;
             }

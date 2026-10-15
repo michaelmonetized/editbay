@@ -73,7 +73,7 @@ pub fn rebuild_editorial(
     let mut audio = Vec::new();
     for track in scene.tracks.iter().filter(|t| t.enabled) {
         let mut clips: Vec<_> = track.clips.iter().collect();
-        clips.sort_by_key(|c| (c.range.start, c.id));
+        clips.sort_by_key(|c| c.range.start);
         for clip in clips {
             let source = Uuid::new_v4();
             nodes.push(TimedNode {
@@ -119,6 +119,7 @@ pub fn rebuild_editorial(
                     range: clip.range,
                     operation,
                     animation: vec![AnimationChannel {
+                        id: Uuid::new_v4(),
                         property,
                         interpolation: Interpolation::Linear,
                         keys: vec![

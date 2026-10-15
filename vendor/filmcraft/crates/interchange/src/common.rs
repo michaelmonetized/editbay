@@ -1,3 +1,4 @@
+// Modified by EditBay: initialize retained editorial duration.
 //! Shared helpers: fragment builder, track placement, media paths/URLs, effect and transition
 //! mapping, frame/tick conversion.
 
@@ -503,6 +504,7 @@ impl Builder {
 
 pub(crate) fn empty_sequence(settings: SequenceSettings) -> Sequence {
     Sequence {
+        editorial_duration: Tick::ZERO,
         settings,
         video_tracks: Vec::new(),
         audio_tracks: Vec::new(),

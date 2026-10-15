@@ -1,3 +1,4 @@
+// Modified by EditBay: retain explicit editorial duration, including trailing gaps.
 //! The FilmCraft document model.
 //!
 //! A [`Project`] owns a tree of bins and a flat map of [`ProjectItem`]s (media clips, sequences,
@@ -963,6 +964,8 @@ impl SequenceSettings {
 
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 pub struct Sequence {
+    #[serde(default)]
+    pub editorial_duration: Tick,
     pub settings: SequenceSettings,
     pub video_tracks: Vec<Track>,
     pub audio_tracks: Vec<Track>,
@@ -1033,7 +1036,7 @@ impl SplitMarks {
 impl Sequence {
     pub fn duration(&self) -> Tick {
         let media = self.video_tracks.iter().chain(&self.audio_tracks).map(Track::end).max().unwrap_or(Tick::ZERO);
-        media.max(self.caption_tracks.iter().map(CaptionTrack::end).max().unwrap_or(Tick::ZERO))
+        media.max(self.editorial_duration).max(self.caption_tracks.iter().map(CaptionTrack::end).max().unwrap_or(Tick::ZERO))
     }
     pub fn caption_track(&self, id: TrackId) -> Option<&CaptionTrack> {
         self.caption_tracks.iter().find(|t| t.id == id)
@@ -1506,6 +1509,7 @@ impl Project {
     /// Create an empty sequence with `v` video and `a` audio tracks.
     pub fn new_sequence(&mut self, name: &str, settings: SequenceSettings, v: usize, a: usize, bin: Option<BinId>) -> ItemId {
         let mut seq = Sequence {
+            editorial_duration: Tick::ZERO,
             settings,
             video_tracks: Vec::new(),
             audio_tracks: Vec::new(),

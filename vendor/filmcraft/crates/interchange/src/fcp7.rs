@@ -1,3 +1,4 @@
+// Modified by EditBay: retain the declared sequence duration.
 //! Final Cut Pro 7 XML interchange (`xmeml` versions 4 and 5), the dialect Premiere Pro imports
 //! and exports.
 //!
@@ -337,6 +338,7 @@ impl<'a, 'i> Imp<'a, 'i, '_> {
         }
         self.seq_items.insert(key.clone(), id);
         let mut seq = empty_sequence(settings);
+        seq.editorial_duration=child_i64(def,"duration").map(|d|rate.tick_of(d)).unwrap_or(Tick::ZERO);
         seq.start_timecode = tc.and_then(|t| child_i64(t, "frame")).unwrap_or(0);
         seq.markers = read_markers(def, rate, &mut self.b);
         let media = child(def, "media");

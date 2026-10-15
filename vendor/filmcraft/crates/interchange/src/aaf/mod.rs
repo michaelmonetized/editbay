@@ -14,6 +14,9 @@
 //!   `MonoAudioDissolve`; the FilmCraft effect id is kept in a tagged value),
 //! - clip volume as a `MonoAudioGain` **OperationGroup** around the source clip with an
 //!   `Amplitude` **ConstantValue** or **VaryingValue** (keyframes as control points),
+//! - constant picture speed and reverse as a standard `VideoSpeedControl`
+//!   **OperationGroup** with an exact rational `SpeedRatio`, and a held picture
+//!   as `VideoRepeat` with a single-frame source input (EditBay additions),
 //! - sequence markers as **CommentMarker**s in an event slot;
 //!
 //! a **CompositionMob** without a usage code for every nested sequence, built the same way (a

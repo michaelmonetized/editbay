@@ -2,6 +2,7 @@
 //! writes (AAF Object Specification v1.1, AAF Edit Protocol). Class and data definition AUIDs are
 //! SMPTE labels (RP 224 / RP 210 registers) in AUID byte order; property ids are the AAF / ST 377-1
 //! local tags.
+//! EditBay modifications add standard picture retime ids and correct operation identifiers.
 
 use super::store::Auid;
 
@@ -120,6 +121,7 @@ pub(crate) mod pid {
     pub const OPDEF_DATA_DEFINITION: u16 = 0x1E01;
     pub const OPDEF_IS_TIME_WARP: u16 = 0x1E02;
     pub const OPDEF_NUMBER_INPUTS: u16 = 0x1E07;
+    pub const OPDEF_BYPASS: u16 = 0x1E08;
     pub const OPDEF_PARAMETERS_DEFINED: u16 = 0x1E09;
     // ParameterDefinition
     pub const PARAMDEF_DISPLAY_UNITS: u16 = 0x1F03;
@@ -223,13 +225,16 @@ pub(crate) mod ddef {
 pub(crate) mod def {
     use super::guid;
     use crate::aaf::store::Auid;
-    const AV: [u8; 8] = [0x8A, 0x09, 0x00, 0x60, 0x08, 0x14, 0x3E, 0x6F];
-    pub const VIDEO_DISSOLVE: Auid = guid(0x0C3BEA41, 0xFC05, 0x11D2, AV);
-    pub const VIDEO_FADE_TO_BLACK: Auid = guid(0x0C3BEA40, 0xFC05, 0x11D2, AV);
-    pub const SMPTE_VIDEO_WIPE: Auid = guid(0x0C3BEA43, 0xFC05, 0x11D2, AV);
-    pub const MONO_AUDIO_DISSOLVE: Auid = guid(0x0C3BEA44, 0xFC05, 0x11D2, AV);
+    const AV: [u8; 8] = [0x8A, 0x29, 0x00, 0x50, 0x04, 0x0E, 0xF7, 0xD2];
+    pub const VIDEO_DISSOLVE: Auid = guid(0x0C3BEA40, 0xFC05, 0x11D2, AV);
+    pub const VIDEO_FADE_TO_BLACK: Auid = guid(0x0C3BEA43, 0xFC05, 0x11D2, AV);
+    pub const SMPTE_VIDEO_WIPE: Auid = guid(0x0C3BEA44, 0xFC05, 0x11D2, AV);
+    pub const MONO_AUDIO_DISSOLVE: Auid = guid(0x0C3BEA41, 0xFC05, 0x11D2, AV);
     const AG: [u8; 8] = [0x8A, 0x38, 0x00, 0x50, 0x04, 0x0E, 0xF7, 0xD2];
-    pub const MONO_AUDIO_GAIN: Auid = guid(0x9D2EA893, 0x0968, 0x11D3, AG);
+    pub const MONO_AUDIO_GAIN: Auid = guid(0x9D2EA894, 0x0968, 0x11D3, AG);
+    pub const VIDEO_SPEED_CONTROL: Auid = guid(0x9D2EA890, 0x0968, 0x11D3, AG);
+    pub const VIDEO_REPEAT: Auid = guid(0x9D2EA891, 0x0968, 0x11D3, AG);
+    pub const PARAM_SPEED_RATIO: Auid = guid(0x72559A80, 0x24D7, 0x11D3, [0x8A, 0x50, 0x00, 0x50, 0x04, 0x0E, 0xF7, 0xD2]);
     const PD: [u8; 8] = [0x8A, 0x4C, 0x00, 0x50, 0x04, 0x0E, 0xF7, 0xD2];
     pub const PARAM_LEVEL: Auid = guid(0xE4962320, 0x2267, 0x11D3, PD);
     pub const PARAM_AMPLITUDE: Auid = guid(0xE4962321, 0x2267, 0x11D3, PD);
