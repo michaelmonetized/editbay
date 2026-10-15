@@ -707,6 +707,15 @@ impl PreviewPane {
             ..Default::default()
         }
     }
+    /// Read a gesture's immutable picture snapshot for timeline feedback.
+    /// Args: captured document owner. Returns a draft only for the exact live owner.
+    pub fn draft_snapshot(&self, owner: DocumentOwner) -> Option<Arc<Project>> {
+        self.draft
+            .as_ref()
+            .filter(|(base, _)| *base == owner)
+            .map(|(_, project)| project.clone())
+    }
+
     /// Select an authored composition and exact frame in the shared viewer.
     /// `tab`, `project`, `composition` and `frame` identify document content.
     /// Returns an error if absent; changing selection stops current playback.

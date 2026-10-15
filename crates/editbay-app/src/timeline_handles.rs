@@ -17,7 +17,7 @@ pub enum Tool {
 pub struct Handles {
     pub tool: Tool,
     pub snapping: bool,
-    drag: Option<(TimelineClip, Tool)>,
+    drag: Option<(TimelineClip, Tool, f32)>,
 }
 
 impl Default for Handles {
@@ -153,7 +153,10 @@ impl Handles {
             .max()
             .unwrap_or(48)
             .max(48);
-        let pixels = ui.available_width().max(1.) / (end as f32 * 1.15);
+        let pixels = self.drag.as_ref().map_or(
+            ui.available_width().max(1.) / (end as f32 * 1.15),
+            |(_, _, pixels)| *pixels,
+        );
         let mut tracks: Vec<_> = clips.iter().map(|clip| clip.track).collect();
         tracks.sort();
         tracks.dedup();
@@ -243,10 +246,10 @@ impl Handles {
                     } else {
                         base_tool
                     };
-                    self.drag = Some((clip.clone(), tool));
+                    self.drag = Some((clip.clone(), tool, pixels));
                 }
                 if (response.dragged() || response.drag_stopped())
-                    && let Some((original, tool)) = &self.drag
+                    && let Some((original, tool, _)) = &self.drag
                 {
                     let delta = (response.drag_delta().x / pixels).round() as i64;
                     let anchor = match tool {

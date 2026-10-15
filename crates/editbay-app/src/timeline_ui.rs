@@ -527,6 +527,7 @@ impl TimelinePane {
                 .map(|assembly| assembly.composition);
             selected.clip = None;
         }
+        let draft_project = preview.draft_snapshot(owner);
         let busy = self.task.as_ref().is_some_and(|task| task.draft.is_none());
         let mut draft_action = None;
         let mut draft_actions = None;
@@ -900,10 +901,26 @@ impl TimelinePane {
                 }
                 ui.checkbox(&mut selected.ripple, "Ripple following clips");
             });
+            let mut visual_clips = assembly.clips.clone();
+            if let Some(scene) = draft_project
+                .as_ref()
+                .and_then(|p| p.compositions.iter().find(|c| c.id == composition))
+            {
+                for clip in &mut visual_clips {
+                    if let Some(raw) = scene
+                        .tracks
+                        .iter()
+                        .flat_map(|t| &t.clips)
+                        .find(|c| c.id == clip.id)
+                    {
+                        clip.range = raw.range;
+                    }
+                }
+            }
             if let Some(change) = self.handles.show(
                 ui,
                 composition,
-                &assembly.clips,
+                &visual_clips,
                 |id| {
                     project
                         .compositions
