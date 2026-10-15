@@ -88,100 +88,132 @@ pub(super) fn title_controls(
     tab: Uuid,
 ) -> Option<TimelineAction> {
     let mut action = None;
-    ui.push_id(("title-authoring", tab), |ui| {
-        let text = keyboard_ui::text(ui, "text", "Title text", &mut selected.title, true);
-        let valid =
-            !selected.title.is_empty() && selected.title.len() <= 1024 && selected.title.is_ascii();
-        if !valid {
-            let error = ui.colored_label(
-                ui.visuals().error_fg_color,
-                "Enter 1–1024 ASCII characters.",
+    fields::native_scope(
+        ui,
+        egui::Id::new(("title-authoring", tab, source.id)),
+        |ui| {
+            let text = keyboard_ui::text(
+                ui,
+                ("title-text", tab, source.id),
+                "Title text",
+                &mut selected.title,
+                true,
             );
-            text.labelled_by(error.id);
-        }
-        let mut path = selected.font.to_string_lossy().into_owned();
-        let response = keyboard_ui::text(ui, "font", "Font file", &mut path, false);
-        if response.changed() {
-            selected.font = path.into();
-        }
-        fields::number(
-            ui,
-            "size",
-            "Title size",
-            &mut selected.size,
-            1. ..=512.,
-            " px",
-            None,
-            FieldState::default(),
-        );
-        fields::number(
-            ui,
-            "x",
-            "Title baseline X",
-            &mut selected.baseline[0],
-            -1e6..=1e6,
-            " px",
-            None,
-            FieldState::default(),
-        );
-        fields::number(
-            ui,
-            "y",
-            "Title baseline Y",
-            &mut selected.baseline[1],
-            -1e6..=1e6,
-            " px",
-            None,
-            FieldState::default(),
-        );
-        fields::number(
-            ui,
-            "duration",
-            "Title duration",
-            &mut selected.title_duration,
-            1..=u64::MAX,
-            " frames",
-            None,
-            FieldState::default(),
-        );
-        if ui
-            .add_enabled_ui(valid, |ui| {
-                keyboard_ui::button(ui, "create-title", "Create title source")
-            })
-            .inner
-            .clicked()
-        {
-            action = Some(TimelineAction::Title {
-                profile: selected.record.unwrap_or(source.id),
-                name: selected.name.clone(),
-                text: selected.title.clone(),
-                font: selected.font.clone(),
-                size: selected.size,
-                position: selected.baseline,
-                rgba: [1.; 4],
-                duration: selected.title_duration,
-            });
-        }
-        if source
-            .nodes
-            .iter()
-            .any(|node| matches!(node.operation, NodeOperation::Text { .. }))
-            && ui
-                .add_enabled_ui(valid, |ui| {
-                    keyboard_ui::button(ui, "edit-title", "Update selected title")
-                })
+            let valid = !selected.title.is_empty()
+                && selected.title.len() <= 1024
+                && selected.title.is_ascii();
+            if !valid {
+                let error = ui.colored_label(
+                    ui.visuals().error_fg_color,
+                    "Enter 1–1024 ASCII characters.",
+                );
+                text.labelled_by(error.id);
+            }
+            let mut path = selected.font.to_string_lossy().into_owned();
+            let response = keyboard_ui::text(
+                ui,
+                ("title-font", tab, source.id),
+                "Font file",
+                &mut path,
+                false,
+            );
+            if response.changed() {
+                selected.font = path.into();
+            }
+            let size = fields::number(
+                ui,
+                "size",
+                "Title size",
+                &mut selected.size,
+                1. ..=512.,
+                " px",
+                None,
+                FieldState::default(),
+            );
+            let x = fields::number(
+                ui,
+                "x",
+                "Title baseline X",
+                &mut selected.baseline[0],
+                -1e6..=1e6,
+                " px",
+                None,
+                FieldState::default(),
+            );
+            let y = fields::number(
+                ui,
+                "y",
+                "Title baseline Y",
+                &mut selected.baseline[1],
+                -1e6..=1e6,
+                " px",
+                None,
+                FieldState::default(),
+            );
+            let duration = fields::number(
+                ui,
+                "duration",
+                "Title duration",
+                &mut selected.title_duration,
+                1..=u64::MAX,
+                " frames",
+                None,
+                FieldState::default(),
+            );
+            let properties_valid = valid
+                && fields::number_is_valid(&size)
+                && fields::number_is_valid(&x)
+                && fields::number_is_valid(&y);
+            if ui
+                .add_enabled_ui(
+                    properties_valid && fields::number_is_valid(&duration),
+                    |ui| {
+                        keyboard_ui::button(
+                            ui,
+                            ("create-title", tab, source.id),
+                            "Create title source",
+                        )
+                    },
+                )
                 .inner
                 .clicked()
-        {
-            action = Some(TimelineAction::EditTitle {
-                composition: source.id,
-                text: selected.title.clone(),
-                size: selected.size,
-                position: selected.baseline,
-                rgba: [1.; 4],
-            });
-        }
-    });
+            {
+                action = Some(TimelineAction::Title {
+                    profile: selected.record.unwrap_or(source.id),
+                    name: selected.name.clone(),
+                    text: selected.title.clone(),
+                    font: selected.font.clone(),
+                    size: selected.size,
+                    position: selected.baseline,
+                    rgba: [1.; 4],
+                    duration: selected.title_duration,
+                });
+            }
+            if source
+                .nodes
+                .iter()
+                .any(|node| matches!(node.operation, NodeOperation::Text { .. }))
+                && ui
+                    .add_enabled_ui(properties_valid, |ui| {
+                        keyboard_ui::button(
+                            ui,
+                            ("edit-title", tab, source.id),
+                            "Update selected title",
+                        )
+                    })
+                    .inner
+                    .clicked()
+            {
+                action = Some(TimelineAction::EditTitle {
+                    composition: source.id,
+                    text: selected.title.clone(),
+                    size: selected.size,
+                    position: selected.baseline,
+                    rgba: [1.; 4],
+                });
+            }
+        },
+    );
     action
 }
 
@@ -780,6 +812,50 @@ mod tests {
         assert_eq!(
             author.workspace.tabs[0].editor.project().compositions,
             before.compositions
+        );
+    }
+
+    #[test]
+    fn craft_keyboard_title_creation_rejects_malformed_native_size_and_recovers_after_correction() {
+        let directory = tempfile::tempdir().unwrap();
+        let mut author = Author::new(directory.path());
+        author.empty();
+        author.tab_to("Titles and fades");
+        author.press(egui::Key::Enter);
+        author.tab_to("Title size");
+        author.replace("-");
+        let mut reached_fade = false;
+        for _ in 0..16 {
+            author.press(egui::Key::Tab);
+            author.frame(vec![]);
+            assert_ne!(
+                author.focus, "Create title source",
+                "invalid native size left title creation enabled"
+            );
+            if author.focus == "Fade in" {
+                reached_fade = true;
+                break;
+            }
+        }
+        assert!(reached_fade);
+        assert_eq!(author.workspace.tabs[0].editor.project().revision, 1);
+        assert!(author.pane.task.is_none());
+        author.tab_to("Title size");
+        author.replace("64");
+        author.press(egui::Key::Enter);
+        author.tab_to("Create title source");
+        author.press(egui::Key::Enter);
+        author.settled(2);
+        assert!(
+            author.workspace.tabs[0]
+                .editor
+                .project()
+                .compositions
+                .iter()
+                .any(|scene| scene
+                    .nodes
+                    .iter()
+                    .any(|node| matches!(node.operation, NodeOperation::Text { size: 64., .. })))
         );
     }
 }

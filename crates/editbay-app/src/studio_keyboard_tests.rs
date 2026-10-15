@@ -156,3 +156,86 @@ fn craft_keyboard_new_project_numeric_profile_and_rate_use_actual_focused_contro
     assert!(project.compositions.is_empty());
     assert!(!ctx.text_edit_focused());
 }
+
+#[test]
+fn craft_keyboard_new_project_rejects_malformed_width_and_cancel_reopens_fresh_native_draft() {
+    let directory = tempfile::tempdir().unwrap();
+    let ctx = egui::Context::default();
+    let mut studio = Studio::new(
+        ctx.clone(),
+        directory.path().into(),
+        directory.path().into(),
+        directory.path().join("state"),
+        Vec::new(),
+        rfd::AsyncFileDialog::new(),
+    );
+    let new = || {
+        vec![input(
+            egui::Key::N,
+            egui::Modifiers::CTRL | egui::Modifiers::COMMAND,
+        )]
+    };
+    frame(&ctx, &mut studio, new());
+    frame(&ctx, &mut studio, vec![]);
+    tab_to(&ctx, &mut studio, "Picture width");
+    frame(
+        &ctx,
+        &mut studio,
+        vec![
+            input(
+                egui::Key::A,
+                egui::Modifiers::CTRL | egui::Modifiers::COMMAND,
+            ),
+            egui::Event::Text("-".into()),
+        ],
+    );
+    let mut cancel = false;
+    for _ in 0..16 {
+        let labels = frame(
+            &ctx,
+            &mut studio,
+            vec![input(egui::Key::Tab, egui::Modifiers::NONE)],
+        );
+        assert!(
+            !labels.iter().any(|label| label == "Create"),
+            "malformed width left Create enabled"
+        );
+        if labels.iter().any(|label| label == "Cancel") {
+            cancel = true;
+            break;
+        }
+    }
+    assert!(cancel);
+    assert!(studio.workspace.tabs.is_empty());
+    frame(
+        &ctx,
+        &mut studio,
+        vec![input(egui::Key::Enter, egui::Modifiers::NONE)],
+    );
+    assert!(studio.create_name.is_none());
+    frame(&ctx, &mut studio, new());
+    frame(&ctx, &mut studio, vec![]);
+    tab_to(&ctx, &mut studio, "Picture width");
+    frame(
+        &ctx,
+        &mut studio,
+        vec![
+            input(
+                egui::Key::A,
+                egui::Modifiers::CTRL | egui::Modifiers::COMMAND,
+            ),
+            egui::Event::Text("1080".into()),
+            input(egui::Key::Enter, egui::Modifiers::NONE),
+        ],
+    );
+    tab_to(&ctx, &mut studio, "Create");
+    frame(
+        &ctx,
+        &mut studio,
+        vec![input(egui::Key::Enter, egui::Modifiers::NONE)],
+    );
+    assert_eq!(
+        studio.workspace.tabs[0].editor.project().sequences[0].width,
+        1080
+    );
+}

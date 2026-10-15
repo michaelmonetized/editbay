@@ -135,6 +135,7 @@ pub struct Studio {
     name_events: Vec<egui::Event>,
     create_name: Option<String>,
     new_profile: [u32; 4],
+    new_profile_instance: Option<Uuid>,
     rename: Option<(Uuid, DocumentVersion, String)>,
     close_guard: Option<Uuid>,
     close_after_save: bool,
@@ -226,6 +227,7 @@ impl Studio {
             name_events: Vec::new(),
             create_name: None,
             new_profile: [1920, 1080, 24, 1],
+            new_profile_instance: None,
             rename: None,
             close_guard: None,
             close_after_save: false,
@@ -1790,6 +1792,7 @@ impl Studio {
         }
         if let Some(mut name) = self.create_name.take() {
             let mut keep = true;
+            let profile_instance = *self.new_profile_instance.get_or_insert_with(Uuid::new_v4);
             let modal = egui::Modal::new(egui::Id::new("new-project")).show(ctx, |ui| {
                 ui.heading("New project");
                 let name_label = ui.label("Name");
@@ -1820,10 +1823,10 @@ impl Studio {
                         input.request_focus();
                     }
                 }
-                ui.columns(2, |columns| {
-                    crate::fields::number(
+                let profile_valid = ui.columns(2, |columns| {
+                    let width = crate::fields::number(
                         &mut columns[0],
-                        "new-project-width",
+                        ("new-project-width", profile_instance),
                         "Picture width",
                         &mut self.new_profile[0],
                         1..=16_384,
@@ -1831,9 +1834,9 @@ impl Studio {
                         None,
                         Default::default(),
                     );
-                    crate::fields::number(
+                    let height = crate::fields::number(
                         &mut columns[1],
-                        "new-project-height",
+                        ("new-project-height", profile_instance),
                         "Picture height",
                         &mut self.new_profile[1],
                         1..=16_384,
@@ -1841,6 +1844,8 @@ impl Studio {
                         None,
                         Default::default(),
                     );
+                    crate::fields::number_is_valid(&width)
+                        && crate::fields::number_is_valid(&height)
                 });
                 ui.horizontal(|ui| {
                     if ui.small_button("1080p").clicked() {
@@ -1880,9 +1885,12 @@ impl Studio {
                 }
                 ui.horizontal(|ui| {
                     if ui
-                        .add_enabled(!name.trim().is_empty(), egui::Button::new("Create"))
+                        .add_enabled(
+                            profile_valid && !name.trim().is_empty(),
+                            egui::Button::new("Create"),
+                        )
                         .clicked()
-                        || (enter && !name.trim().is_empty())
+                        || (profile_valid && enter && !name.trim().is_empty())
                     {
                         match Project::new(name.clone())
                             .map(|mut project| {
@@ -1911,6 +1919,7 @@ impl Studio {
             if keep {
                 self.create_name = Some(name);
             } else {
+                self.new_profile_instance = None;
                 self.name_events.clear();
                 ctx.memory_mut(|memory| memory.surrender_focus(egui::Id::new("new-project-name")));
             }
