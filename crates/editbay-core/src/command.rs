@@ -147,6 +147,16 @@ impl DocumentCommand {
                 let composition = crate::multicam::compile(project, session)?;
                 set(&mut project.compositions, composition);
                 set(&mut project.multicam, session.clone());
+                let snapshot = Arc::new(crate::EvaluationSnapshot::new(Arc::new(project.clone()))?);
+                crate::SoundSnapshot::at_output_rate(
+                    snapshot,
+                    session.composition,
+                    48_000,
+                    crate::SoundBudget::default(),
+                )
+                .map_err(|error| Error::Invalid(format!(
+                    "Multicam audio requires matching channel identities; select a fixed audio camera or conform its routing: {error}"
+                )))?;
             }
             Self::RemoveMulticamSession { id } => remove(&mut project.multicam, *id)?,
             Self::SetCaptionTrack { track } => set(&mut project.captions, track.clone()),

@@ -121,6 +121,44 @@ fn session(project: &Project) -> MulticamSession {
     MulticamSession::new(project, "Two-camera interview", &[id(100), id(200)]).unwrap()
 }
 
+#[test]
+fn incompatible_sound_policy_is_rejected_atomically_before_a_cut_is_published() {
+    let mut p = project();
+    let StreamFormat::Audio { channels, .. } = &mut p.sources[1].streams[0].format else {
+        unreachable!()
+    };
+    *channels = vec!["FC".into()];
+    let mut session = session(&p);
+    session.cut_at(&p, 24, session.angles[1].id).unwrap();
+    let mut editor = DocumentEditor::new(p.clone()).unwrap();
+    let version = DocumentVersion::of(editor.project());
+    assert!(
+        editor
+            .apply(
+                version,
+                "Invalid follow audio".into(),
+                &[DocumentCommand::SetMulticamSession {
+                    session: session.clone()
+                }]
+            )
+            .unwrap_err()
+            .to_string()
+            .contains("fixed audio camera")
+    );
+    assert_eq!(editor.project(), &p);
+    assert_eq!(editor.history_usage(), (0, 0));
+    session.audio_policy = MulticamAudioPolicy::Fixed {
+        angle: session.angles[0].id,
+    };
+    editor
+        .apply(
+            version,
+            "Fixed compatible audio".into(),
+            &[DocumentCommand::SetMulticamSession { session }],
+        )
+        .unwrap();
+}
+
 fn compile_project(mut project: Project, session: &MulticamSession) -> Project {
     let output = compile(&project, session).unwrap();
     project.sequences[0].composition = Some(output.id);
