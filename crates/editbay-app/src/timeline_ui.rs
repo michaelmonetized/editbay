@@ -1057,9 +1057,10 @@ impl TimelinePane {
                         .map(|c| c.controls)
                         .collect();
                     let mut changed = false;
+                    let mut changed_fields = Vec::new();
                     let mut finished = false;
                     let mut field = |ui: &mut Ui,
-                                     id: &str,
+                                     id: &'static str,
                                      label: &str,
                                      value: &mut f64,
                                      range,
@@ -1087,7 +1088,10 @@ impl TimelinePane {
                             },
                         );
                         preview.observe_control(id, &result.response, ui);
-                        changed |= result.changed;
+                        if result.changed {
+                            changed = true;
+                            changed_fields.push(id);
+                        }
                         finished |= result.response.drag_stopped()
                             || result.response.lost_focus()
                             || (result.changed
@@ -1229,7 +1233,11 @@ impl TimelinePane {
                                 .map(|c| TimelineAction::SetControls {
                                     composition,
                                     clip: c.id,
-                                    controls: merge_controls(before, selected.controls, c.controls),
+                                    controls: patch_controls(
+                                        selected.controls,
+                                        c.controls,
+                                        &changed_fields,
+                                    ),
                                 })
                                 .collect(),
                         );
@@ -1319,35 +1327,24 @@ fn control_value(id: &str, c: TimelineControls) -> f64 {
     }
 }
 
-fn merge_controls(
-    before: TimelineControls,
+fn patch_controls(
     after: TimelineControls,
     mut current: TimelineControls,
+    fields: &[&str],
 ) -> TimelineControls {
-    if before.gain != after.gain {
-        current.gain = after.gain;
-    }
-    if before.opacity != after.opacity {
-        current.opacity = after.opacity;
-    }
-    if before.rotation != after.rotation {
-        current.rotation = after.rotation;
-    }
-    if before.exposure != after.exposure {
-        current.exposure = after.exposure;
-    }
-    if before.contrast != after.contrast {
-        current.contrast = after.contrast;
-    }
-    if before.saturation != after.saturation {
-        current.saturation = after.saturation;
-    }
-    for i in 0..2 {
-        if before.scale[i] != after.scale[i] {
-            current.scale[i] = after.scale[i];
-        }
-        if before.translation[i] != after.translation[i] {
-            current.translation[i] = after.translation[i];
+    for field in fields {
+        match *field {
+            "timeline-gain" => current.gain = after.gain,
+            "timeline-opacity" => current.opacity = after.opacity,
+            "timeline-scale-X" => current.scale[0] = after.scale[0],
+            "timeline-scale-Y" => current.scale[1] = after.scale[1],
+            "timeline-position-X" => current.translation[0] = after.translation[0],
+            "timeline-position-Y" => current.translation[1] = after.translation[1],
+            "timeline-rotation" => current.rotation = after.rotation,
+            "timeline-exposure" => current.exposure = after.exposure,
+            "timeline-contrast" => current.contrast = after.contrast,
+            "timeline-saturation" => current.saturation = after.saturation,
+            _ => unreachable!("Unknown clip property field"),
         }
     }
     current
@@ -1732,6 +1729,192 @@ mod tests {
     }
 
     #[test]
+    fn craft_actual_mixed_field_reset_persists_and_undoes_when_primary_is_default() {
+        fn text_bounds(shape: &egui::epaint::Shape, output: &mut Vec<(String, egui::Rect)>) {
+            match shape {
+                egui::epaint::Shape::Vec(children) => {
+                    for child in children {
+                        text_bounds(child, output);
+                    }
+                }
+                egui::epaint::Shape::Text(text) => {
+                    output.push((text.galley.text().into(), shape.visual_bounding_rect()))
+                }
+                _ => {}
+            }
+        }
+        let (directory, mut workspace, tab, source) = workspace();
+        let mut pane = TimelinePane::default();
+        let (composition, first) = cut(&mut pane, &mut workspace, tab, source);
+        pane.edit(
+            &workspace,
+            tab,
+            TimelineAction::Insert {
+                composition,
+                at: 16,
+                source: SourceSelection {
+                    composition: source,
+                    range: FrameRange { start: 4, end: 20 },
+                },
+            },
+        )
+        .unwrap();
+        finish(&mut pane, &mut workspace, true);
+        let clips =
+            editbay_core::timeline_clips(workspace.tabs[0].editor.project(), composition).unwrap();
+        let second = clips.iter().find(|clip| clip.id != first).unwrap().id;
+        let other = TimelineControls {
+            opacity: 0.25,
+            gain: 2.0,
+            translation: [12.0, 24.0],
+            ..Default::default()
+        };
+        pane.edit(
+            &workspace,
+            tab,
+            TimelineAction::SetControls {
+                composition,
+                clip: second,
+                controls: other,
+            },
+        )
+        .unwrap();
+        finish(&mut pane, &mut workspace, true);
+        let (owner, editor) = workspace.edit_snapshot(tab).unwrap();
+        pane.refresh(owner, editor.snapshot()).unwrap();
+        finish(&mut pane, &mut workspace, true);
+        let selected = pane.selections.get_mut(&tab).unwrap();
+        selected.clip = Some(first);
+        selected.controls = TimelineControls::default();
+        selected.multiple = vec![first, second];
+        let before = editor.snapshot();
+        let ctx = egui::Context::default();
+        let mut preview = PreviewPane::default();
+        let raw = |events| egui::RawInput {
+            screen_rect: Some(egui::Rect::from_min_size(
+                egui::Pos2::ZERO,
+                egui::vec2(900., 4000.),
+            )),
+            events,
+            ..Default::default()
+        };
+        let mut bounds = Vec::new();
+        for _ in 0..3 {
+            let mut output = ctx.run_ui(raw(vec![]), |ui| {
+                pane.show(ui, &workspace, &mut preview, tab, before.clone(), true);
+            });
+            output.textures_delta.clear();
+            bounds.clear();
+            for shape in &output.shapes {
+                text_bounds(&shape.shape, &mut bounds);
+            }
+            output.drop_without_applying_deltas();
+        }
+        let opacity = bounds
+            .iter()
+            .find(|(label, _)| label == "Opacity")
+            .unwrap()
+            .1;
+        let reset = bounds
+            .iter()
+            .filter(|(label, rect)| {
+                label == "Reset"
+                    && rect.left() >= opacity.left()
+                    && rect.top() >= opacity.bottom()
+                    && rect.top() < opacity.bottom() + 45.
+            })
+            .min_by(|a, b| a.1.top().total_cmp(&b.1.top()))
+            .expect("The actual opacity Reset widget must be visible")
+            .1;
+        let point = reset.center();
+        for pressed in [true, false] {
+            ctx.run_ui(
+                raw(vec![
+                    egui::Event::PointerMoved(point),
+                    egui::Event::PointerButton {
+                        pos: point,
+                        button: egui::PointerButton::Primary,
+                        pressed,
+                        modifiers: egui::Modifiers::NONE,
+                    },
+                ]),
+                |ui| pane.show(ui, &workspace, &mut preview, tab, before.clone(), true),
+            )
+            .drop_without_applying_deltas();
+        }
+        finish(&mut pane, &mut workspace, true);
+        assert!(pane.error.is_none(), "{:?}", pane.error);
+        assert_eq!(
+            workspace.tabs[0].editor.project().revision,
+            before.revision + 1
+        );
+        let expected = TimelineControls {
+            opacity: 1.0,
+            ..other
+        };
+        let controls = |project: &Project, id| {
+            editbay_core::timeline_clips(project, composition)
+                .unwrap()
+                .into_iter()
+                .find(|clip| clip.id == id)
+                .unwrap()
+                .controls
+        };
+        assert_eq!(
+            controls(workspace.tabs[0].editor.project(), first),
+            TimelineControls::default()
+        );
+        assert_eq!(
+            controls(workspace.tabs[0].editor.project(), second),
+            expected
+        );
+        let file = directory.path().join("Mixed reset.editbay");
+        editbay_core::save_new(workspace.tabs[0].editor.project(), &file).unwrap();
+        let reopened = editbay_core::load(&file).unwrap();
+        assert_eq!(controls(&reopened, second), expected);
+        workspace.history(tab, false).unwrap();
+        assert_eq!(
+            workspace.tabs[0].editor.project().compositions,
+            before.compositions
+        );
+        workspace.history(tab, true).unwrap();
+        assert_eq!(
+            controls(workspace.tabs[0].editor.project(), second),
+            expected
+        );
+        if let Some(destination) = std::env::var_os("EDITBAY_CRAFT_EVIDENCE") {
+            use sha2::Digest;
+            let destination = std::path::PathBuf::from(destination);
+            std::fs::create_dir_all(&destination).unwrap();
+            let mut saved = reopened.clone();
+            for asset in &mut saved.assets {
+                let target = destination.join("generated-source.wav");
+                std::fs::copy(&asset.path, &target).unwrap();
+                asset.path = target;
+            }
+            let file = destination.join("mixed-reset.editbay");
+            editbay_core::save(&saved, &file).unwrap();
+            let bytes = std::fs::read(&file).unwrap();
+            let fixture = serde_json::json!({
+                "app":"EditBay", "kind":"actual headless widget observations",
+                "revision":std::env::var("EDITBAY_CRAFT_REVISION").ok(),
+                "viewport_logical":[900,4000], "scale":1.0,
+                "selection":[first,second], "primary_before":TimelineControls::default(),
+                "secondary_before":other, "secondary_after":expected,
+                "widget":{"label":"Reset Opacity", "pointer":[point.x,point.y], "pressed_then_released":true},
+                "observed":{"typed_edit":true,"one_undo":true,"redo":true,"native_save_reopen":true,"unrelated_fields_preserved":true},
+                "native_document":{"path":file,"sha256":format!("{:x}",sha2::Sha256::digest(&bytes))},
+                "boundary":"Observed real egui widget pointer events and native-format persistence; no desktop, GPU, physical audio or appearance golden proof. Retained document assets are relocated to the retained identical PCM source."
+            });
+            std::fs::write(
+                destination.join("ui-fixture.json"),
+                serde_json::to_vec_pretty(&fixture).unwrap(),
+            )
+            .unwrap();
+        }
+    }
+
+    #[test]
     fn craft_mixed_property_patch_preserves_unedited_clip_values() {
         let before = TimelineControls::default();
         let after = TimelineControls {
@@ -1744,7 +1927,7 @@ mod tests {
             ..before
         };
         assert_eq!(
-            merge_controls(before, after, other),
+            patch_controls(after, other, &["timeline-opacity"]),
             TimelineControls {
                 opacity: 0.5,
                 ..other
