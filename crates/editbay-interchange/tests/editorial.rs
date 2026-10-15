@@ -205,8 +205,11 @@ fn real_audio_all_formats_and_saved_relinked_source() {
                 .iter()
                 .find(|c| c.id == imported.sequences[0].composition.unwrap())
                 .unwrap()
-                .tracks[0]
-                .clips[0];
+                .tracks
+                .iter()
+                .flat_map(|t| &t.clips)
+                .next()
+                .unwrap_or_else(|| panic!("{format:?} retained no audio clip: {loss:?}"));
             assert_eq!(clip.range.start, 6, "{format:?}");
             assert_eq!(clip.range.end, 30, "{format:?}");
         }

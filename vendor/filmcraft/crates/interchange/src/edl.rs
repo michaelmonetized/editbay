@@ -1,4 +1,4 @@
-// Modified by EditBay: retain record duration of black filler events.
+// Modified by EditBay: retain black filler duration, exact motion ratios and linked multi-channel events.
 //! CMX 3600 edit decision lists.
 //!
 //! Supported: `TITLE:`, `FCM:` (drop/non-drop, may change mid-list), cut / dissolve (`D nnn`) /
@@ -371,7 +371,7 @@ impl Ctx<'_> {
                 if fps == 0.0 {
                     ti.frame_hold = Some(src_in);
                 } else {
-                    ti.speed = (fps.abs() / base * 10_000.0).round() / 10_000.0;
+                    ti.speed = fps.abs() / base;
                     ti.reverse = fps < 0.0;
                 }
             }
@@ -612,12 +612,30 @@ struct OutLine {
     rec: (Tick, Tick),
 }
 
+#[derive(PartialEq, Eq)]
+struct MergeLine {
+    item: Option<ItemId>,
+    reel: String,
+    transition: String,
+    duration: Option<i64>,
+    source: (Tick, Tick),
+    record: (Tick, Tick),
+}
+
+#[derive(PartialEq, Eq)]
+struct MergeKey {
+    link: u64,
+    enabled: bool,
+    lines: Vec<MergeLine>,
+    motion: Option<(u64, Tick)>,
+}
+
 struct OutEvent {
     lines: Vec<OutLine>,
     comments: Vec<String>,
     m2: Option<(String, f64, Tick)>,
-    /// Merge key for combining linked V/A cut events: (link, item, rec, src, speed bits).
-    merge: Option<(u64, ItemId, Tick, Tick, Tick, u64, bool)>,
+    /// Identical source/record/transition/motion data can share one multi-channel event.
+    merge: Option<MergeKey>,
     channels: BTreeSet<Ch>,
     order: (Tick, u8),
 }
@@ -874,9 +892,24 @@ pub(crate) fn export(p: &Project, seq_id: ItemId, opts: &ExportOptions, report: 
             if let Some(ef) = crate::common::standard_effects(it).next() {
                 report.warn(format!("effect \"{}\" cannot be represented in an EDL", ef.def().map(|d| d.name).unwrap_or(&ef.effect)));
             }
-            let simple = tr_in.is_none() && m2.is_none();
+            let merge = it.link.map(|link| MergeKey {
+                link,
+                enabled: it.enabled,
+                lines: lines
+                    .iter()
+                    .map(|line| MergeLine {
+                        item: line.item,
+                        reel: line.reel.clone(),
+                        transition: line.trans.clone(),
+                        duration: line.dur,
+                        source: line.src,
+                        record: line.rec,
+                    })
+                    .collect(),
+                motion: m2.as_ref().map(|(_, speed, source)| (speed.to_bits(), *source)),
+            });
             events.push(OutEvent {
-                merge: if simple { it.link.map(|l| (l, it.item, rec0, rec1, src0, 0, it.enabled)) } else { None },
+                merge,
                 lines,
                 comments,
                 m2,
@@ -922,8 +955,8 @@ pub(crate) fn export(p: &Project, seq_id: ItemId, opts: &ExportOptions, report: 
     // Merge identical linked cut events across channels (V + A → B, A + A2 → AA …).
     let mut merged: Vec<OutEvent> = Vec::new();
     for ev in events {
-        if let Some(key) = ev.merge
-            && let Some(prev) = merged.iter_mut().find(|m| m.merge == Some(key))
+        if let Some(key) = &ev.merge
+            && let Some(prev) = merged.iter_mut().find(|m| m.merge.as_ref() == Some(key))
         {
             let mut set = prev.channels.clone();
             set.extend(ev.channels.iter().copied());
