@@ -538,8 +538,19 @@ impl Task {
                             };
                             let render_us = began.elapsed().as_micros() as u64;
                             let began = Instant::now();
+                            let preview = graph
+                                .preview_captions(
+                                    working,
+                                    composition,
+                                    SourcePosition::new(
+                                        i64::try_from(request.frame).map_err(|e| e.to_string())?,
+                                        1,
+                                    )
+                                    .map_err(|e| e.to_string())?,
+                                )
+                                .map_err(|e| e.to_string())?;
                             let converted = graph
-                                .convert(&working, ImageBoundary::Display)
+                                .convert(&preview, ImageBoundary::Display)
                                 .map_err(|e| e.to_string())?;
                             let convert_us = began.elapsed().as_micros() as u64;
                             let began = Instant::now();
@@ -1681,38 +1692,15 @@ impl PreviewPane {
                         egui::Stroke::new(1., egui::Color32::from_white_alpha(60)),
                         egui::StrokeKind::Inside,
                     );
-                    if !track.delivery.burns_in() {
-                        if let Ok(cues) =
-                            track.active_at_frame(picture.frame, composition.frame_rate)
-                        {
-                            let text = cues
-                                .iter()
-                                .map(|c| c.text.as_str())
-                                .collect::<Vec<_>>()
-                                .join("\n");
-                            if !text.is_empty() {
-                                let galley = ui.painter().layout(
-                                    text,
-                                    egui::FontId::proportional(track.style.font_size * scale),
-                                    egui::Color32::WHITE,
-                                    safe.width(),
-                                );
-                                let pos = egui::pos2(
-                                    safe.center().x - galley.size().x / 2.,
-                                    safe.bottom() - galley.size().y,
-                                );
-                                let painter = ui.painter().with_clip_rect(safe);
-                                painter.rect_filled(
-                                    egui::Rect::from_min_size(pos, galley.size()),
-                                    0.,
-                                    egui::Color32::from_black_alpha(180),
-                                );
-                                painter.galley(pos, galley, egui::Color32::WHITE);
-                            }
-                        }
-                    }
                 }
             }
+        }
+        if project
+            .captions
+            .iter()
+            .any(|t| t.enabled && t.composition == composition.id && t.style.font.is_none())
+        {
+            ui.weak("Choose a retained font for exact caption preview and burn-in.");
         }
         let mut scope_changed = false;
         ui.collapsing("Color workspace", |ui| {

@@ -24,6 +24,9 @@ fn project() -> Project {
     let mut scene = scene;
     scene.picture = Some(scene.nodes[0].id);
     p.sequences[0].composition = Some(scene.id);
+    p.sequences[0].width = scene.width;
+    p.sequences[0].height = scene.height;
+    p.sequences[0].frame_rate = scene.frame_rate;
     p.compositions.push(scene);
     p
 }

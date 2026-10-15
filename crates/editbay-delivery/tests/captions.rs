@@ -36,6 +36,12 @@ fn range_sidecar_exact_clipping_and_no_overwrite() {
     assert!(!text.contains("After"));
     let parsed = CaptionTrack::import_vtt(composition, "Independent reopen", text).unwrap();
     assert_eq!(parsed.cues.len(), 2);
+    if let Some(root) = std::env::var_os("EDITBAY_WORKFLOW_RECEIPTS_DIR") {
+        let root = std::path::PathBuf::from(root);
+        std::fs::create_dir_all(&root).unwrap();
+        std::fs::write(root.join("range.vtt"), &outputs[0].1).unwrap();
+        std::fs::write(root.join("range.srt"), parsed.export_srt().unwrap()).unwrap();
+    }
     std::fs::write(&outputs[0].0, b"owner output").unwrap();
     assert!(caption_sidecars(&p, &req, &destination).is_err());
     assert_eq!(std::fs::read(&outputs[0].0).unwrap(), b"owner output");

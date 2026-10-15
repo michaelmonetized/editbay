@@ -365,6 +365,7 @@ impl WorkflowPane {
             });
             let playhead = preview.position(tab, &project).map_or(0, |(_, f)| f);
             let mut remove = None;
+            let mut retime = None;
             for cue in &mut edited.cues {
                 ui.push_id(cue.id, |ui| {
                     ui.weak(format!(
@@ -377,15 +378,23 @@ impl WorkflowPane {
                     changed |= ui.text_edit_multiline(&mut cue.text).changed();
                     ui.horizontal(|ui| {
                         if ui.button("Retime to fields").clicked() {
-                            cue.start = CaptionTime::from_milliseconds(self.start);
-                            cue.end = CaptionTime::from_milliseconds(self.end);
-                            changed = true;
+                            retime = Some(cue.id);
                         }
                         if ui.button("Remove").clicked() {
                             remove = Some(cue.id);
                         }
                     });
                 });
+            }
+            if let Some(id) = retime {
+                match edited.retime_cue(
+                    id,
+                    CaptionTime::from_milliseconds(self.start),
+                    CaptionTime::from_milliseconds(self.end),
+                ) {
+                    Ok(()) => changed = true,
+                    Err(e) => self.status = Some(e.to_string()),
+                }
             }
             if let Some(id) = remove {
                 edited.cues.retain(|c| c.id != id);

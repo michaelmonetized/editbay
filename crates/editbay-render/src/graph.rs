@@ -419,12 +419,25 @@ impl<P: PictureProvider> GraphRenderer<P> {
         Ok(self.receipt(image))
     }
 
+    /// Preview retained sidecar captions with the delivery font and shaping.
+    /// `image` is the rendered program, `composition` and `position` own its clock.
+    /// Returns viewer pixels; scopes and deliveries keep the original program.
+    pub fn preview_captions(
+        &mut self,
+        image: Arc<ResidentImage>,
+        composition: Uuid,
+        position: SourcePosition,
+    ) -> Result<Arc<ResidentImage>> {
+        self.caption_overlay(image, composition, position, false, true)
+    }
+
     fn caption_overlay(
         &mut self,
         mut image: Arc<ResidentImage>,
         composition: Uuid,
         position: SourcePosition,
         before: bool,
+        preview_only: bool,
     ) -> Result<Arc<ResidentImage>> {
         use editbay_core::captions::CaptionTime;
         let snapshot = self.snapshot.clone();
@@ -443,11 +456,15 @@ impl<P: PictureProvider> GraphRenderer<P> {
                 .checked_mul(u64::from(scene.frame_rate.numerator))
                 .ok_or("Caption time overflow")?,
         )?;
-        for track in project
-            .captions
-            .iter()
-            .filter(|t| t.composition == composition && t.enabled && t.delivery.burns_in())
-        {
+        for track in project.captions.iter().filter(|t| {
+            t.composition == composition
+                && t.enabled
+                && if preview_only {
+                    !t.delivery.burns_in() && t.style.font.is_some()
+                } else {
+                    t.delivery.burns_in()
+                }
+        }) {
             let cues = if before {
                 track
                     .cues
@@ -979,7 +996,7 @@ impl<P: PictureProvider> GraphRenderer<P> {
                 .image(),
             None => self.blank(&frame),
         }?;
-        self.caption_overlay(image, composition, position, before)
+        self.caption_overlay(image, composition, position, before, false)
     }
 
     /// Convert a working receipt into its explicit display or output encoding.
