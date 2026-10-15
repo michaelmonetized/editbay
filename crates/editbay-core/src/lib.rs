@@ -13,6 +13,7 @@ mod document;
 mod editorial;
 pub use editorial::{EditorialTransition, rebuild_editorial};
 mod evaluation;
+pub mod multicam;
 mod prepared;
 mod sound;
 mod storage;
