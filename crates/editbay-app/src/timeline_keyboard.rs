@@ -4,6 +4,8 @@ use crate::keyboard_ui;
 use editbay_core::{Composition, DocumentCommand, NodeOperation, TimedNode, Track, TrackKind};
 
 impl TimelinePane {
+    /// Create the document's empty sequence through its captured editor.
+    /// Args: live workspace and tab. Returns after dispatch; stale ownership rejects publication.
     pub(super) fn create_empty(&mut self, workspace: &Workspace, tab: Uuid) -> Result<(), String> {
         if self.task.is_some() || self.draft.is_some() {
             return Err("Finish the current timeline edit first".into());
@@ -87,7 +89,16 @@ pub(super) fn title_controls(
 ) -> Option<TimelineAction> {
     let mut action = None;
     ui.push_id(("title-authoring", tab), |ui| {
-        keyboard_ui::text(ui, "text", "Title text", &mut selected.title, true);
+        let text = keyboard_ui::text(ui, "text", "Title text", &mut selected.title, true);
+        let valid =
+            !selected.title.is_empty() && selected.title.len() <= 1024 && selected.title.is_ascii();
+        if !valid {
+            let error = ui.colored_label(
+                ui.visuals().error_fg_color,
+                "Enter 1–1024 ASCII characters.",
+            );
+            text.labelled_by(error.id);
+        }
         let mut path = selected.font.to_string_lossy().into_owned();
         let response = keyboard_ui::text(ui, "font", "Font file", &mut path, false);
         if response.changed() {
@@ -133,7 +144,13 @@ pub(super) fn title_controls(
             None,
             FieldState::default(),
         );
-        if keyboard_ui::button(ui, "create-title", "Create title source").clicked() {
+        if ui
+            .add_enabled_ui(valid, |ui| {
+                keyboard_ui::button(ui, "create-title", "Create title source")
+            })
+            .inner
+            .clicked()
+        {
             action = Some(TimelineAction::Title {
                 profile: selected.record.unwrap_or(source.id),
                 name: selected.name.clone(),
@@ -149,7 +166,12 @@ pub(super) fn title_controls(
             .nodes
             .iter()
             .any(|node| matches!(node.operation, NodeOperation::Text { .. }))
-            && keyboard_ui::button(ui, "edit-title", "Update selected title").clicked()
+            && ui
+                .add_enabled_ui(valid, |ui| {
+                    keyboard_ui::button(ui, "edit-title", "Update selected title")
+                })
+                .inner
+                .clicked()
         {
             action = Some(TimelineAction::EditTitle {
                 composition: source.id,
@@ -626,5 +648,77 @@ mod tests {
                 assert_eq!(author.workspace.tabs[0].editor.project().name, "Newer work");
             }
         }
+    }
+
+    #[test]
+    fn craft_keyboard_existing_marks_append_insert_split_and_delete_author_without_pointer_setup() {
+        let directory = tempfile::tempdir().unwrap();
+        let mut author = Author::new(directory.path());
+        author.empty();
+        let source = author.title();
+        author.tab_to("View source");
+        author.press(egui::Key::Enter);
+        author.press(egui::Key::F8);
+        author.press(egui::Key::I);
+        author.press(egui::Key::O);
+        assert_eq!(
+            author.pane.selections[&author.tab].source_range,
+            FrameRange { start: 0, end: 1 }
+        );
+        author.tab_to("Out exclusive");
+        author.replace("12");
+        author.press(egui::Key::Enter);
+        assert_eq!(author.pane.selections[&author.tab].source_range.end, 12);
+        author.press(egui::Key::F8);
+        author.press(egui::Key::E);
+        author.settled(3);
+        let record = author.pane.selections[&author.tab].record.unwrap();
+        author.press(egui::Key::F8);
+        author.press(egui::Key::E);
+        author.settled(4);
+        author.press(egui::Key::F8);
+        author.press(egui::Key::W);
+        author.settled(5);
+        let clips = editbay_core::timeline_clips(author.workspace.tabs[0].editor.project(), record)
+            .unwrap();
+        assert_eq!(clips.len(), 3);
+        assert!(clips.iter().all(|clip| clip.source
+            == SourceSelection {
+                composition: source,
+                range: FrameRange { start: 0, end: 12 }
+            }));
+        assert_eq!(
+            clips
+                .iter()
+                .map(|clip| clip.range.start)
+                .collect::<Vec<_>>(),
+            vec![0, 12, 24]
+        );
+        author.press(egui::Key::F8);
+        author.press(egui::Key::PageUp);
+        author.tab_to("Record frame");
+        author.replace("6");
+        author.press(egui::Key::Enter);
+        author.press(egui::Key::F8);
+        author.press(egui::Key::S);
+        author.settled(6);
+        let split = author.workspace.tabs[0].editor.snapshot();
+        assert_eq!(
+            editbay_core::timeline_clips(&split, record).unwrap().len(),
+            4
+        );
+        author.press(egui::Key::F8);
+        author.press(egui::Key::Delete);
+        author.settled(7);
+        let remaining =
+            editbay_core::timeline_clips(author.workspace.tabs[0].editor.project(), record)
+                .unwrap();
+        assert_eq!(remaining.len(), 3);
+        assert_eq!(remaining.iter().map(|clip| clip.range.end).max(), Some(30));
+        author.workspace.history(author.tab, false).unwrap();
+        assert_eq!(
+            author.workspace.tabs[0].editor.project().compositions,
+            split.compositions
+        );
     }
 }

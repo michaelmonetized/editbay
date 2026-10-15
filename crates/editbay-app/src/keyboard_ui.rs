@@ -11,7 +11,7 @@ pub fn choice<T: Copy + PartialEq>(
     selected: &mut T,
     choices: &[(T, String)],
 ) -> Response {
-    ui.push_id(id, |ui| {
+    crate::fields::native_scope(ui, egui::Id::new(("editbay-native-choice", id)), |ui| {
         let label_response = ui.label(label);
         let before = *selected;
         let mut response = egui::ComboBox::from_id_salt("choice")
@@ -87,7 +87,11 @@ pub fn choice<T: Copy + PartialEq>(
 /// Draw a named action with stable native focus.
 /// Args: UI, stable identity and visible label. Returns its actual button response.
 pub fn button(ui: &mut Ui, id: impl std::hash::Hash, label: &str) -> Response {
-    let response = ui.push_id(id, |ui| ui.button(label)).inner;
+    let response =
+        crate::fields::native_scope(ui, egui::Id::new(("editbay-native-button", id)), |ui| {
+            ui.button(label)
+        })
+        .inner;
     focus(ui, &response);
     response
 }
@@ -101,24 +105,47 @@ pub fn text(
     value: &mut String,
     multiline: bool,
 ) -> Response {
-    ui.push_id(id, |ui| {
-        let label_response = ui.label(label);
-        let edit = if multiline {
-            egui::TextEdit::multiline(value)
-        } else {
-            egui::TextEdit::singleline(value)
-        };
-        let response = ui.add(edit.id_salt("text")).labelled_by(label_response.id);
-        response.widget_info(|| {
-            let mut info =
-                egui::WidgetInfo::text_edit(response.enabled(), value.as_str(), value.as_str(), "");
-            info.label = Some(label.into());
-            info
-        });
-        focus(ui, &response);
-        response
+    crate::fields::native_scope(ui, egui::Id::new(("editbay-native-text", id)), |ui| {
+        text_with_id(
+            ui,
+            ui.make_persistent_id("text"),
+            label,
+            value,
+            multiline,
+            usize::MAX,
+        )
     })
     .inner
+}
+
+/// Edit a named draft while retaining an existing application identity.
+/// Args: UI, native ID, label, draft, multiline mode and character limit.
+/// Returns the actual text response; document and text history ownership stay unchanged.
+pub fn text_with_id(
+    ui: &mut Ui,
+    id: egui::Id,
+    label: &str,
+    value: &mut String,
+    multiline: bool,
+    limit: usize,
+) -> Response {
+    let label_response = ui.label(label);
+    let edit = if multiline {
+        egui::TextEdit::multiline(value)
+    } else {
+        egui::TextEdit::singleline(value)
+    };
+    let response = ui
+        .add(edit.id(id).char_limit(limit))
+        .labelled_by(label_response.id);
+    response.widget_info(|| {
+        let mut info =
+            egui::WidgetInfo::text_edit(response.enabled(), value.as_str(), value.as_str(), "");
+        info.label = Some(label.into());
+        info
+    });
+    focus(ui, &response);
+    response
 }
 
 /// Show native keyboard focus.
@@ -177,5 +204,48 @@ mod tests {
         assert_eq!(frame(Some(egui::Key::Home), true), (17, true));
         assert_eq!(frame(Some(egui::Key::End), true), (42, true));
         assert_eq!(frame(Some(egui::Key::ArrowUp), false).0, 42);
+    }
+
+    #[test]
+    fn craft_keyboard_conditional_preceding_control_preserves_actual_native_id_and_focus() {
+        let ctx = egui::Context::default();
+        let choices = [(17, "Camera".into()), (42, "Title".into())];
+        let mut selected = 17;
+        let mut preceding = String::new();
+        let mut native_id = None;
+        let mut draw = |conditional, key| {
+            ctx.run_ui(
+                egui::RawInput {
+                    events: key
+                        .map(|key| egui::Event::Key {
+                            key,
+                            physical_key: Some(key),
+                            pressed: true,
+                            repeat: false,
+                            modifiers: egui::Modifiers::NONE,
+                        })
+                        .into_iter()
+                        .collect(),
+                    ..Default::default()
+                },
+                |ui| {
+                    if conditional {
+                        ui.text_edit_singleline(&mut preceding);
+                    }
+                    let response = choice(ui, "stable-source", "Source", &mut selected, &choices);
+                    if let Some(id) = native_id {
+                        assert_eq!(response.id, id);
+                    }
+                    native_id = Some(response.id);
+                },
+            )
+            .drop_without_applying_deltas();
+            (selected, ctx.memory(|memory| memory.focused()) == native_id)
+        };
+        draw(false, None);
+        draw(false, Some(egui::Key::Tab));
+        assert_eq!(draw(false, None), (17, true));
+        assert_eq!(draw(true, Some(egui::Key::ArrowDown)), (42, true));
+        assert_eq!(draw(false, Some(egui::Key::ArrowUp)), (17, true));
     }
 }

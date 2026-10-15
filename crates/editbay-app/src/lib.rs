@@ -7,6 +7,7 @@ pub mod delivery_ui;
 pub mod diagnostics;
 pub mod keyboard_ui;
 pub mod media_ui;
+pub mod panel_keyboard;
 pub mod preferences;
 pub mod preview;
 pub mod studio;

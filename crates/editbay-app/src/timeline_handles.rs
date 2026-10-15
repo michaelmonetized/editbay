@@ -138,18 +138,20 @@ impl Handles {
         ripple: bool,
     ) -> Option<Change> {
         ui.horizontal_wrapped(|ui| {
-            egui::ComboBox::from_id_salt(("timeline-tool", composition))
-                .selected_text(format!("{:?}", self.tool))
-                .show_ui(ui, |ui| {
-                    for (tool, label) in [
-                        (Tool::Move, "Move / edge trim"),
-                        (Tool::Slip, "Slip"),
-                        (Tool::Roll, "Roll outgoing cut"),
-                        (Tool::Slide, "Slide"),
-                    ] {
-                        ui.selectable_value(&mut self.tool, tool, label);
-                    }
-                });
+            crate::keyboard_ui::choice(
+                ui,
+                ("timeline-tool", composition),
+                "Clip tool",
+                &mut self.tool,
+                &[
+                    (Tool::Move, "Move".into()),
+                    (Tool::TrimStart, "Trim start".into()),
+                    (Tool::TrimEnd, "Trim end".into()),
+                    (Tool::Slip, "Slip".into()),
+                    (Tool::Roll, "Roll outgoing cut".into()),
+                    (Tool::Slide, "Slide".into()),
+                ],
+            );
             ui.checkbox(&mut self.snapping, "Snap to cuts / playhead");
         });
         ui.weak("F8: timeline clips · Page Up/Down: select · Shift: extend · arrows: nudge · Enter: commit · Esc: cancel");

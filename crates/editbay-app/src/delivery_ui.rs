@@ -162,20 +162,19 @@ impl DeliveryPane {
         let modal = egui::Modal::new(egui::Id::new("export-options")).show(ctx, |ui| {
             ui.set_min_width(360.);
             ui.heading("Export sequence");
-            let formats = egui::ComboBox::from_id_salt("export-format")
-                .selected_text(format_name(choice.format))
-                .show_ui(ui, |ui| {
-                    for format in [
-                        DeliveryFormat::H264Mp4,
-                        DeliveryFormat::ProresMov,
-                        DeliveryFormat::LosslessMov,
-                    ] {
-                        let option =
-                            ui.selectable_value(&mut choice.format, format, format_name(format));
-                        preview.observe_control(&format!("export-format:{format:?}"), &option, ui);
-                    }
-                });
-            preview.observe_control("export-format", &formats.response, ui);
+            let formats = crate::keyboard_ui::choice(
+                ui,
+                "export-format",
+                "Export format",
+                &mut choice.format,
+                &[
+                    DeliveryFormat::H264Mp4,
+                    DeliveryFormat::ProresMov,
+                    DeliveryFormat::LosslessMov,
+                ]
+                .map(|format| (format, format_name(format).into())),
+            );
+            preview.observe_control("export-format", &formats, ui);
             ui.weak(match choice.format {
                 DeliveryFormat::H264Mp4 => "48 kHz AAC · mono/stereo · transparency over black",
                 DeliveryFormat::ProresMov => {
@@ -190,16 +189,28 @@ impl DeliveryPane {
             preview.observe_control("export-full", &whole, ui);
             let range = ui.radio_value(&mut choice.full, false, "Frame range");
             preview.observe_control("export-range", &range, ui);
+            let mut range_responses = Vec::new();
             ui.add_enabled_ui(!choice.full, |ui| {
-                ui.horizontal(|ui| {
-                    ui.label("Start");
-                    let start =
-                        ui.add(egui::TextEdit::singleline(&mut choice.start).desired_width(85.));
-                    preview.observe_control("export-start", &start, ui);
-                    ui.label("End");
-                    let end =
-                        ui.add(egui::TextEdit::singleline(&mut choice.end).desired_width(85.));
-                    preview.observe_control("export-end", &end, ui);
+                ui.columns(2, |columns| {
+                    let start = crate::keyboard_ui::text_with_id(
+                        &mut columns[0],
+                        egui::Id::new("export-start"),
+                        "Start frame",
+                        &mut choice.start,
+                        false,
+                        20,
+                    );
+                    preview.observe_control("export-start", &start, &columns[0]);
+                    let end = crate::keyboard_ui::text_with_id(
+                        &mut columns[1],
+                        egui::Id::new("export-end"),
+                        "End frame (exclusive)",
+                        &mut choice.end,
+                        false,
+                        20,
+                    );
+                    preview.observe_control("export-end", &end, &columns[1]);
+                    range_responses.extend([start, end]);
                 });
                 ui.weak(format!(
                     "Frames start at 0. End is excluded. Sequence ends at {}.",
@@ -209,12 +220,18 @@ impl DeliveryPane {
             let request = choice.request();
             let owned = workspace.owns(choice.owner);
             if !owned {
-                ui.colored_label(
+                let error = ui.colored_label(
                     ui.visuals().error_fg_color,
                     "The project changed. Close these options and choose the sequence again.",
                 );
+                for response in &range_responses {
+                    response.clone().labelled_by(error.id);
+                }
             } else if let Err(error) = &request {
-                ui.colored_label(ui.visuals().error_fg_color, error);
+                let error = ui.colored_label(ui.visuals().error_fg_color, error);
+                for response in &range_responses {
+                    response.clone().labelled_by(error.id);
+                }
             } else if let Ok(request) = &request
                 && let Ok(range) = request.frame_range(choice.duration)
             {

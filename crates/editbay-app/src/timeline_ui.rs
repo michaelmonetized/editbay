@@ -817,9 +817,26 @@ impl TimelinePane {
                     action = Some(title);
                 }
                 ui.horizontal_wrapped(|ui| {
-                    ui.label("Picture and sound fade in / out frames");
-                    ui.add(egui::DragValue::new(&mut selected.fade_in).range(0..=source.duration));
-                    ui.add(egui::DragValue::new(&mut selected.fade_out).range(0..=source.duration));
+                    fields::number(
+                        ui,
+                        ("fade-in", tab),
+                        "Fade in",
+                        &mut selected.fade_in,
+                        0..=source.duration,
+                        " frames",
+                        None,
+                        FieldState::default(),
+                    );
+                    fields::number(
+                        ui,
+                        ("fade-out", tab),
+                        "Fade out",
+                        &mut selected.fade_out,
+                        0..=source.duration,
+                        " frames",
+                        None,
+                        FieldState::default(),
+                    );
                     if ui.button("Create faded source").clicked() {
                         action = Some(TimelineAction::Fade {
                             source: source.id,
@@ -1201,8 +1218,16 @@ impl TimelinePane {
                     }
                 });
                 ui.horizontal_wrapped(|ui| {
-                    ui.label("Slip frames");
-                    ui.add(egui::DragValue::new(&mut selected.slip).speed(1));
+                    fields::number(
+                        ui,
+                        ("slip", tab),
+                        "Slip frames",
+                        &mut selected.slip,
+                        i64::MIN..=i64::MAX,
+                        " frames",
+                        None,
+                        FieldState::default(),
+                    );
                     if button(ui, preview, "timeline-slip", "Slip source") {
                         action = Some(TimelineAction::Slip {
                             composition,
