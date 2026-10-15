@@ -119,7 +119,7 @@ fn little_endian16(samples: &[u16]) -> Vec<u8> {
 fn normalized_floats(bytes: &[u8], expected: &[u16]) -> TestResult<f32> {
     assert_eq!(bytes.len(), expected.len() * 4);
     let mut maximum = 0_f32;
-    for (bytes, sample) in bytes.chunks_exact(4).zip(expected) {
+    for (bytes, sample) in bytes.as_chunks::<4>().0.iter().zip(expected) {
         let value = f32::from_le_bytes(bytes.try_into()?);
         let wanted = f32::from(*sample) / 65535.0;
         let error = (value - wanted).abs();
@@ -459,7 +459,13 @@ fn craft_video_precision_independent_png16_preserves_low_bits_straight_alpha_and
     let expected = samples16(0);
     assert!(expected.iter().any(|value| value % 257 != 0));
     for alpha in [0, 1, 257, 32767, 32768, 65534, 65535] {
-        assert!(expected.chunks_exact(4).any(|pixel| pixel[3] == alpha));
+        assert!(
+            expected
+                .as_chunks::<4>()
+                .0
+                .iter()
+                .any(|pixel| pixel[3] == alpha)
+        );
     }
     let expected_bytes = little_endian16(&expected);
     let mut native = VideoReader::open_with_encoding(&path, PixelEncoding::Rgba16Le)?;
@@ -675,7 +681,7 @@ fn independent_float_exr(path: &Path, samples: &[f32]) -> TestResult<()> {
     exr.extend_from_slice(&20_000_630_u32.to_le_bytes());
     exr.extend_from_slice(&2_u32.to_le_bytes());
     let mut channels = Vec::new();
-    for name in [b'A', b'B', b'G', b'R'] {
+    for name in *b"ABGR" {
         channels.extend_from_slice(&[name, 0]);
         channels.extend_from_slice(&2_i32.to_le_bytes());
         channels.extend_from_slice(&[0; 4]);
@@ -723,7 +729,7 @@ fn independent_float_exr(path: &Path, samples: &[f32]) -> TestResult<()> {
 fn source_floats(bytes: &[u8], expected: &[f32]) -> TestResult<f32> {
     assert_eq!(bytes.len(), expected.len() * 4);
     let mut maximum = 0_f32;
-    for (index, (bytes, wanted)) in bytes.chunks_exact(4).zip(expected).enumerate() {
+    for (index, (bytes, wanted)) in bytes.as_chunks::<4>().0.iter().zip(expected).enumerate() {
         let value = f32::from_le_bytes(bytes.try_into()?);
         let error = (value - wanted).abs();
         assert!(
@@ -783,7 +789,7 @@ fn craft_video_precision_float_source_preserves_signed_headroom_straight_alpha_a
     let fixture = Fixture::new("independent-float-exr")?;
     let path = fixture.directory.join("original-signed-headroom-float.exr");
     let expected = samples_float();
-    let pixels: Vec<_> = expected.chunks_exact(4).collect();
+    let pixels: Vec<_> = expected.as_chunks::<4>().0.iter().collect();
     for alpha in [0.0, 0.25, 0.5, 1.0] {
         assert!(pixels.iter().any(|pixel| pixel[3] == alpha));
     }

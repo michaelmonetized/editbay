@@ -304,7 +304,8 @@ impl Session {
                     false,
                 )?;
                 let output = self.picture.convert(&working, ImageBoundary::Output)?;
-                let (mut reference, _) = rgba8(&self.picture.readback(&output)?)?;
+                let (mut reference, _) =
+                    rgba(&self.picture.readback(&output)?, self.request.format)?;
                 flatten(&mut reference, self.request.format);
                 if reference.len() != frame.rgba.len() {
                     return Err("Decoded delivery picture has the wrong geometry".into());
