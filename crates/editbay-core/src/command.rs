@@ -66,6 +66,12 @@ pub enum DocumentCommand {
     SetColor {
         configuration: ColorConfiguration,
     },
+    SetMulticamSession {
+        session: crate::multicam::MulticamSession,
+    },
+    RemoveMulticamSession {
+        id: Uuid,
+    },
     SetCaptionTrack {
         track: crate::captions::CaptionTrack,
     },
@@ -105,6 +111,8 @@ impl DocumentCommand {
             "set_composition",
             "remove_composition",
             "set_color",
+            "set_multicam_session",
+            "remove_multicam_session",
             "set_caption_track",
             "remove_caption_track",
             "set_transition",
@@ -135,6 +143,12 @@ impl DocumentCommand {
             }
             Self::RemoveComposition { id } => remove(&mut project.compositions, *id)?,
             Self::SetColor { configuration } => project.color = *configuration,
+            Self::SetMulticamSession { session } => {
+                let composition = crate::multicam::compile(project, session)?;
+                set(&mut project.compositions, composition);
+                set(&mut project.multicam, session.clone());
+            }
+            Self::RemoveMulticamSession { id } => remove(&mut project.multicam, *id)?,
             Self::SetCaptionTrack { track } => set(&mut project.captions, track.clone()),
             Self::RemoveCaptionTrack { id } => remove(&mut project.captions, *id)?,
             Self::SetTransition { transition } => {
@@ -193,6 +207,11 @@ pub struct CommandReceipt {
 
 trait Identified {
     fn id(&self) -> Uuid;
+}
+impl Identified for crate::multicam::MulticamSession {
+    fn id(&self) -> Uuid {
+        self.id
+    }
 }
 impl Identified for crate::captions::CaptionTrack {
     fn id(&self) -> Uuid {
@@ -309,6 +328,7 @@ struct GroupChange {
     compositions: Vec<Delta<Composition>>,
     transitions: Vec<Delta<crate::EditorialTransition>>,
     captions: Vec<Delta<crate::captions::CaptionTrack>>,
+    multicam: Vec<Delta<crate::multicam::MulticamSession>>,
     impact: ChangeImpact,
     label: String,
     bytes: usize,
@@ -325,6 +345,7 @@ impl GroupChange {
             compositions: differences(&before.compositions, &after.compositions),
             transitions: differences(&before.transitions, &after.transitions),
             captions: differences(&before.captions, &after.captions),
+            multicam: differences(&before.multicam, &after.multicam),
             impact: ChangeImpact::default(),
             label,
             bytes: 0,
@@ -352,6 +373,7 @@ impl GroupChange {
         restore(&mut project.compositions, &self.compositions, forward);
         restore(&mut project.transitions, &self.transitions, forward);
         restore(&mut project.captions, &self.captions, forward);
+        restore(&mut project.multicam, &self.multicam, forward);
     }
 
     fn impact_for(&self, before: &Project, after: &Project) -> ChangeImpact {
@@ -413,6 +435,7 @@ impl GroupChange {
             .chain(self.compositions.iter().map(|delta| delta.id))
             .chain(self.transitions.iter().map(|delta| delta.id))
             .chain(self.captions.iter().map(|delta| delta.id))
+            .chain(self.multicam.iter().map(|delta| delta.id))
             .collect();
         if self.name.is_some() || self.color.is_some() {
             entities.insert(before.id);

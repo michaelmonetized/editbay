@@ -7,6 +7,7 @@ pub mod color_ui;
 pub mod delivery_ui;
 pub mod diagnostics;
 pub mod media_ui;
+pub mod multicam_ui;
 pub mod preferences;
 pub mod preview;
 pub mod studio;
