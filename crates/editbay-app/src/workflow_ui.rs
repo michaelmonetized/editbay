@@ -5,7 +5,8 @@ use crate::{
 use editbay_core::{DocumentCommand, DocumentEditor, DocumentVersion, Project, captions::*};
 use eframe::egui::{self, Ui};
 use std::{
-    io::{Read, Write},
+    collections::{HashMap, HashSet},
+    io::Read,
     path::PathBuf,
     sync::{
         Arc,
@@ -29,12 +30,92 @@ struct Task {
     result: Receiver<Result<Completion, String>>,
 }
 
+struct CaptionTextDraft {
+    baseline: String,
+    text: String,
+    error: Option<String>,
+}
+
+impl CaptionTextDraft {
+    /// Retain editable text independently of the validated source cue.
+    /// `text` supplies the source baseline; returns an initially clean draft.
+    fn new(text: &str) -> Self {
+        Self {
+            baseline: text.into(),
+            text: text.into(),
+            error: None,
+        }
+    }
+
+    /// Keep typing through unrelated edits and replace externally changed text.
+    /// `text` is the current validated source; returns without committing a draft.
+    fn rebase(&mut self, text: &str) {
+        if self.baseline != text {
+            *self = Self::new(text);
+        }
+    }
+
+    /// Validate one complete proposed cue without changing its source or baseline.
+    /// `cue` supplies retained identity/timing; returns changed valid text or an inline error.
+    fn validated_text(&mut self, cue: &CaptionCue) -> Option<String> {
+        let mut candidate = cue.clone();
+        candidate.text = self.text.clone();
+        match candidate.validate() {
+            Ok(()) => {
+                self.error = None;
+                (candidate.text != cue.text).then_some(candidate.text)
+            }
+            Err(error) => {
+                self.error = Some(error.to_string());
+                None
+            }
+        }
+    }
+}
+
+#[derive(Default)]
+struct CaptionDrafts {
+    owner: Option<(Uuid, Uuid, Uuid)>,
+    cues: HashMap<Uuid, CaptionTextDraft>,
+}
+
+impl CaptionDrafts {
+    /// Drop drafts when the visible document owner changes, without using revision.
+    /// `tab` and `project` identify the document; returns no value and changes no source.
+    fn observe_document(&mut self, tab: Uuid, project: Uuid) {
+        if self.owner.is_some_and(|(owner_tab, owner_project, _)| {
+            owner_tab != tab || owner_project != project
+        }) {
+            *self = Self::default();
+        }
+    }
+
+    /// Rebase one selected track while preserving unfinished text through other edits.
+    /// `tab`, `project` and `track` identify current source cues; returns synchronized drafts.
+    fn sync(&mut self, tab: Uuid, project: Uuid, track: &CaptionTrack) {
+        let owner = Some((tab, project, track.id));
+        if self.owner != owner {
+            self.cues.clear();
+            self.owner = owner;
+        }
+        let ids: HashSet<_> = track.cues.iter().map(|cue| cue.id).collect();
+        self.cues.retain(|id, _| ids.contains(id));
+        for cue in &track.cues {
+            self.cues
+                .entry(cue.id)
+                .or_insert_with(|| CaptionTextDraft::new(&cue.text))
+                .rebase(&cue.text);
+        }
+    }
+}
+
 pub struct WorkflowPane {
     path: String,
     loss_root: PathBuf,
     format: editbay_interchange::Format,
     font: String,
     selected: Option<Uuid>,
+    drafts: CaptionDrafts,
     start: u64,
     end: u64,
     split_offset: usize,
@@ -49,6 +130,7 @@ impl Default for WorkflowPane {
             format: editbay_interchange::Format::Otio,
             font: String::new(),
             selected: None,
+            drafts: CaptionDrafts::default(),
             start: 0,
             end: 1000,
             split_offset: 1,
@@ -130,6 +212,7 @@ impl WorkflowPane {
         tab: Uuid,
         project: Arc<Project>,
     ) {
+        self.drafts.observe_document(tab, project.id);
         let composition = preview
             .selected_composition(tab, &project)
             .unwrap_or(Uuid::nil());
@@ -215,12 +298,10 @@ impl WorkflowPane {
             {
                 let path = PathBuf::from(&self.path);
                 self.start(workspace, tab, ui.ctx(), move |mut editor, _, _cancel| {
+                    let vtt = caption_vtt(&path)?;
                     let bytes = read(&path, 8 * 1024 * 1024)?;
                     let text = std::str::from_utf8(&bytes).map_err(|e| e.to_string())?;
-                    let track = if path
-                        .extension()
-                        .is_some_and(|e| e.eq_ignore_ascii_case("vtt"))
-                    {
+                    let track = if vtt {
                         CaptionTrack::import_vtt(composition, "Captions", text)
                     } else {
                         CaptionTrack::import_srt(composition, "Captions", text)
@@ -271,8 +352,10 @@ impl WorkflowPane {
                 }
             }
             let Some(track) = tracks.into_iter().find(|t| Some(t.id) == self.selected) else {
+                self.drafts = CaptionDrafts::default();
                 return;
             };
+            self.drafts.sync(tab, project.id, track);
             let mut edited = track.clone();
             let mut changed = ui.checkbox(&mut edited.enabled, "Visible").changed();
             egui::ComboBox::from_id_salt("caption-delivery")
@@ -315,6 +398,7 @@ impl WorkflowPane {
                     changed = true;
                 }
             });
+            let mut font_request = None;
             ui.text_edit_singleline(&mut self.font)
                 .on_hover_text("Retained TrueType/OpenType font path for burn-in");
             if ui
@@ -324,32 +408,7 @@ impl WorkflowPane {
                 )
                 .clicked()
             {
-                let font = PathBuf::from(&self.font);
-                let mut track = edited.clone();
-                self.start(workspace, tab, ui.ctx(), move |mut editor, _, cancel| {
-                    let file = editbay_media::SourceFile::open(&font, &cancel)
-                        .map_err(|e| e.to_string())?;
-                    let asset = editbay_core::AssetReference {
-                        id: Uuid::new_v4(),
-                        kind: editbay_core::AssetKind::Font,
-                        path: file.path().into(),
-                        sha256: file.fingerprint().sha256.clone(),
-                        bytes: file.fingerprint().bytes,
-                        provenance: "Caption font selected by owner".into(),
-                    };
-                    track.style.font = Some(asset.id);
-                    editor
-                        .apply(
-                            DocumentVersion::of(editor.project()),
-                            "Caption font".into(),
-                            &[
-                                DocumentCommand::SetAsset { asset },
-                                DocumentCommand::SetCaptionTrack { track },
-                            ],
-                        )
-                        .map_err(|e| e.to_string())?;
-                    Ok(Completion::Edited(editor))
-                });
+                font_request = Some(PathBuf::from(&self.font));
             }
             ui.horizontal(|ui| {
                 ui.label("Start ms");
@@ -373,7 +432,12 @@ impl WorkflowPane {
             let mut remove = None;
             let mut retime = None;
             for cue in &mut edited.cues {
-                ui.push_id(cue.id, |ui| {
+                let draft = self
+                    .drafts
+                    .cues
+                    .entry(cue.id)
+                    .or_insert_with(|| CaptionTextDraft::new(&cue.text));
+                ui.push_id((tab, track.id, cue.id), |ui| {
                     ui.weak(format!(
                         "{}/{}s → {}/{}s",
                         cue.start.numerator,
@@ -381,8 +445,15 @@ impl WorkflowPane {
                         cue.end.numerator,
                         cue.end.denominator
                     ));
-                    changed |= ui.text_edit_multiline(&mut cue.text).changed();
+                    let response = ui.text_edit_multiline(&mut draft.text);
+                    if response.changed() {
+                        draft.error = None;
+                    }
+                    let mut apply_text = response.lost_focus();
                     ui.horizontal(|ui| {
+                        apply_text |= ui
+                            .add_enabled(draft.text != cue.text, egui::Button::new("Apply text"))
+                            .clicked();
                         if ui.button("Retime to fields").clicked() {
                             retime = Some(cue.id);
                         }
@@ -390,6 +461,13 @@ impl WorkflowPane {
                             remove = Some(cue.id);
                         }
                     });
+                    if apply_text && let Some(text) = draft.validated_text(cue) {
+                        cue.text = text;
+                        changed = true;
+                    }
+                    if let Some(error) = &draft.error {
+                        ui.colored_label(egui::Color32::RED, error);
+                    }
                 });
             }
             if let Some(id) = retime {
@@ -427,14 +505,48 @@ impl WorkflowPane {
                     }
                 }
             });
+            if changed {
+                self.apply(
+                    workspace,
+                    tab,
+                    vec![DocumentCommand::SetCaptionTrack {
+                        track: edited.clone(),
+                    }],
+                    "Edit captions",
+                );
+            }
+            if let Some(font) = font_request {
+                let mut track = edited.clone();
+                self.start(workspace, tab, ui.ctx(), move |mut editor, _, cancel| {
+                    let file = editbay_media::SourceFile::open(&font, &cancel)
+                        .map_err(|e| e.to_string())?;
+                    let asset = editbay_core::AssetReference {
+                        id: Uuid::new_v4(),
+                        kind: editbay_core::AssetKind::Font,
+                        path: file.path().into(),
+                        sha256: file.fingerprint().sha256.clone(),
+                        bytes: file.fingerprint().bytes,
+                        provenance: "Caption font selected by owner".into(),
+                    };
+                    track.style.font = Some(asset.id);
+                    editor
+                        .apply(
+                            DocumentVersion::of(editor.project()),
+                            "Caption font".into(),
+                            &[
+                                DocumentCommand::SetAsset { asset },
+                                DocumentCommand::SetCaptionTrack { track },
+                            ],
+                        )
+                        .map_err(|e| e.to_string())?;
+                    Ok(Completion::Edited(editor))
+                });
+            }
             if ui.button("Export selected sidecar").clicked() {
                 let path = PathBuf::from(&self.path);
                 let track = edited.clone();
                 self.start(workspace, tab, ui.ctx(), move |_, _, _cancel| {
-                    let text = if path
-                        .extension()
-                        .is_some_and(|e| e.eq_ignore_ascii_case("vtt"))
-                    {
+                    let text = if caption_vtt(&path)? {
                         track.export_vtt()
                     } else {
                         track.export_srt()
@@ -443,14 +555,6 @@ impl WorkflowPane {
                     write_new(&path, text.as_bytes())?;
                     Ok(Completion::Exported(format!("Saved {}", path.display())))
                 });
-            }
-            if changed {
-                self.apply(
-                    workspace,
-                    tab,
-                    vec![DocumentCommand::SetCaptionTrack { track: edited }],
-                    "Edit captions",
-                );
             }
         });
         if self.task.is_some() {
@@ -557,17 +661,20 @@ fn read(path: &std::path::Path, limit: u64) -> Result<Vec<u8>, String> {
     }
     Ok(bytes)
 }
+/// Require an explicit caption format before reading or creating a file.
+/// `path` supplies its suffix; returns true for VTT, false for SRT or a visible error.
+fn caption_vtt(path: &std::path::Path) -> Result<bool, String> {
+    match path.extension() {
+        Some(extension) if extension.eq_ignore_ascii_case("srt") => Ok(false),
+        Some(extension) if extension.eq_ignore_ascii_case("vtt") => Ok(true),
+        _ => Err("Caption path must end in .srt or .vtt".into()),
+    }
+}
+
 /// Write and synchronize one new workflow output.
 /// `path` and `bytes` select content; returns an error if user output already exists.
 fn write_new(path: &std::path::Path, bytes: &[u8]) -> Result<(), String> {
-    let mut file = std::fs::OpenOptions::new()
-        .create_new(true)
-        .write(true)
-        .open(path)
-        .map_err(|e| e.to_string())?;
-    file.write_all(bytes)
-        .and_then(|_| file.sync_all())
-        .map_err(|e| e.to_string())
+    editbay_core::write_new_bytes(path, bytes).map_err(|error| error.to_string())
 }
 
 impl Drop for WorkflowPane {
@@ -581,6 +688,133 @@ impl Drop for WorkflowPane {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn craft_video_caption_draft_allows_clearing_retyping_and_a_second_line() {
+        let mut cue = CaptionCue::new(
+            CaptionTime::from_milliseconds(0),
+            CaptionTime::from_milliseconds(1000),
+            "Original",
+        )
+        .unwrap();
+        let mut draft = CaptionTextDraft::new(&cue.text);
+        for incomplete in ["", "First line\n", "First line\n\nSecond line"] {
+            draft.text = incomplete.into();
+            assert!(draft.validated_text(&cue).is_none());
+            assert!(draft.error.is_some());
+            assert_eq!(draft.text, incomplete);
+            assert_eq!(draft.baseline, "Original");
+            assert_eq!(cue.text, "Original");
+        }
+        draft.text = "First line\nSecond line".into();
+        let text = draft.validated_text(&cue).unwrap();
+        assert_eq!(text, "First line\nSecond line");
+        assert!(draft.error.is_none());
+        assert_eq!(cue.text, "Original");
+        assert_eq!(draft.baseline, "Original");
+        cue.text = text;
+        draft.rebase(&cue.text);
+        assert_eq!(draft.baseline, cue.text);
+        assert!(
+            draft.validated_text(&cue).is_none(),
+            "an unchanged draft adds no command"
+        );
+    }
+
+    #[test]
+    fn craft_video_caption_drafts_preserve_unrelated_edits_and_reset_changed_baselines() {
+        let tab = Uuid::new_v4();
+        let project = Uuid::new_v4();
+        let mut track = CaptionTrack::new(Uuid::new_v4(), "Captions").unwrap();
+        track
+            .insert_cue(
+                CaptionCue::new(
+                    CaptionTime::from_milliseconds(0),
+                    CaptionTime::from_milliseconds(1000),
+                    "Original",
+                )
+                .unwrap(),
+            )
+            .unwrap();
+        let cue = track.cues[0].id;
+        let mut drafts = CaptionDrafts::default();
+        drafts.sync(tab, project, &track);
+        drafts.cues.get_mut(&cue).unwrap().text = "Typing\n".into();
+        track.style.font_size = 72.0;
+        track.cues[0].end = CaptionTime::from_milliseconds(2000);
+        drafts.sync(tab, project, &track);
+        assert_eq!(drafts.cues[&cue].text, "Typing\n");
+        assert_eq!(drafts.cues[&cue].baseline, "Original");
+        assert!(
+            drafts
+                .cues
+                .get_mut(&cue)
+                .unwrap()
+                .validated_text(&track.cues[0])
+                .is_none()
+        );
+        assert!(drafts.cues[&cue].error.is_some());
+        track.cues[0].text = "External text".into();
+        drafts.sync(tab, project, &track);
+        assert_eq!(drafts.cues[&cue].text, "External text");
+        assert_eq!(drafts.cues[&cue].baseline, "External text");
+        assert!(drafts.cues[&cue].error.is_none());
+        drafts.cues.get_mut(&cue).unwrap().text = "Other unfinished input".into();
+        drafts.observe_document(Uuid::new_v4(), project);
+        assert!(drafts.cues.is_empty());
+        drafts.sync(tab, project, &track);
+        drafts.cues.get_mut(&cue).unwrap().text = "Pending".into();
+        drafts.sync(tab, Uuid::new_v4(), &track);
+        assert_eq!(drafts.cues[&cue].text, "External text");
+        drafts.cues.get_mut(&cue).unwrap().text = "Pending".into();
+        track.id = Uuid::new_v4();
+        drafts.sync(tab, project, &track);
+        assert_eq!(drafts.cues[&cue].text, "External text");
+    }
+
+    #[test]
+    fn craft_video_caption_drafts_prune_removed_cues_and_initialize_inserted_cues() {
+        let mut track = CaptionTrack::new(Uuid::new_v4(), "Captions").unwrap();
+        let cue = CaptionCue::new(
+            CaptionTime::from_milliseconds(0),
+            CaptionTime::from_milliseconds(1000),
+            "First",
+        )
+        .unwrap();
+        let first = cue.id;
+        track.insert_cue(cue).unwrap();
+        let owner = (Uuid::new_v4(), Uuid::new_v4());
+        let mut drafts = CaptionDrafts::default();
+        drafts.sync(owner.0, owner.1, &track);
+        drafts.cues.get_mut(&first).unwrap().text.clear();
+        track.cues.clear();
+        let cue = CaptionCue::new(
+            CaptionTime::from_milliseconds(1000),
+            CaptionTime::from_milliseconds(2000),
+            "Second",
+        )
+        .unwrap();
+        let second = cue.id;
+        track.insert_cue(cue).unwrap();
+        drafts.sync(owner.0, owner.1, &track);
+        assert!(!drafts.cues.contains_key(&first));
+        assert_eq!(drafts.cues[&second].text, "Second");
+        assert_eq!(drafts.cues[&second].baseline, "Second");
+    }
+
+    #[test]
+    fn craft_video_caption_ui_paths_require_explicit_srt_or_vtt_extensions() {
+        for (path, vtt) in [
+            ("caption.srt", false),
+            ("caption.SRT", false),
+            ("caption.VtT", true),
+        ] {
+            assert_eq!(caption_vtt(std::path::Path::new(path)).unwrap(), vtt);
+        }
+        for path in ["caption", "caption.txt", "caption.vtt.bak", "caption."] {
+            assert!(caption_vtt(std::path::Path::new(path)).is_err());
+        }
+    }
 
     #[test]
     fn craft_video_completed_authoring_rejects_hidden_switched_and_changed_owners() {

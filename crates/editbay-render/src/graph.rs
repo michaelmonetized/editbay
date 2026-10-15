@@ -217,6 +217,7 @@ pub struct GraphRenderer<P: PictureProvider = PictureCache> {
     pub adapter: wgpu::AdapterInfo,
     fonts: crate::text::FontCache,
     caption_fonts: crate::caption_text::CaptionFontCache,
+    caption_preview_warnings: Vec<String>,
 }
 impl GraphRenderer {
     /// Create a headless native GPU worker over one immutable document.
@@ -395,6 +396,7 @@ impl<P: PictureProvider> GraphRenderer<P> {
             adapter: info,
             fonts: crate::text::FontCache::default(),
             caption_fonts: Default::default(),
+            caption_preview_warnings: Vec::new(),
         })
     }
 
@@ -421,17 +423,20 @@ impl<P: PictureProvider> GraphRenderer<P> {
 
     /// Preview retained sidecar captions with the delivery font and shaping.
     /// `frame` is the rendered program, `composition` and `position` own its clock.
-    /// Returns viewer pixels; scopes and deliveries keep the original program.
+    /// Returns viewer pixels and caption warnings; invalid optional overlays leave
+    /// the program visible, while required burn-in still fails rendering.
     pub fn preview_captions(
         &mut self,
         frame: &RenderedFrame,
         composition: Uuid,
         position: SourcePosition,
-    ) -> Result<RenderedFrame> {
+    ) -> Result<(RenderedFrame, Vec<String>)> {
         self.validate_result(frame)?;
+        self.caption_preview_warnings.clear();
         let image =
             self.caption_overlay(frame.image.clone(), composition, position, false, true)?;
-        Ok(self.receipt(image))
+        let warnings = std::mem::take(&mut self.caption_preview_warnings);
+        Ok((self.receipt(image), warnings))
     }
 
     fn caption_overlay(
@@ -486,7 +491,14 @@ impl<P: PictureProvider> GraphRenderer<P> {
             if cues.is_empty() {
                 continue;
             }
-            track.validate_burn_in()?;
+            if let Err(error) = track.validate_burn_in() {
+                if preview_only {
+                    self.caption_preview_warnings
+                        .push(format!("{}: {error}", track.name));
+                    continue;
+                }
+                return Err(error.into());
+            }
             let asset = project
                 .assets
                 .iter()
@@ -497,14 +509,22 @@ impl<P: PictureProvider> GraphRenderer<P> {
                 image = hit;
                 continue;
             }
-            let pixels = crate::caption_text::rasterize(
+            let pixels = match crate::caption_text::rasterize(
                 &mut self.caption_fonts,
                 asset,
                 track,
                 &cues,
                 scene.width,
                 scene.height,
-            )?;
+            ) {
+                Ok(pixels) => pixels,
+                Err(error) if preview_only => {
+                    self.caption_preview_warnings
+                        .push(format!("{}: {error}", track.name));
+                    continue;
+                }
+                Err(error) => return Err(error),
+            };
             let upload = self.allocate(
                 scene.width,
                 scene.height,

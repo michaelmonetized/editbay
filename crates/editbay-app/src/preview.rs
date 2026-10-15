@@ -327,6 +327,7 @@ struct Picture {
     selected_us: AtomicU64,
     incompatible: AtomicBool,
     stats: GraphStats,
+    caption_warnings: Vec<String>,
     worker_pid: Option<u32>,
 }
 enum Event {
@@ -516,7 +517,7 @@ impl Task {
                                 .map_err(|e| e.to_string())?;
                             let render_us = began.elapsed().as_micros() as u64;
                             let began = Instant::now();
-                            let preview = graph
+                            let (preview, caption_warnings) = graph
                                 .preview_captions(
                                     &working,
                                     composition,
@@ -559,6 +560,7 @@ impl Task {
                                     selected_us: AtomicU64::new(0),
                                     incompatible: AtomicBool::new(false),
                                     stats: graph.stats(),
+                                    caption_warnings,
                                     worker_pid: graph.picture_provider().process_id(),
                                 });
                                 if let Some((pictures, reservation)) = preparation {
@@ -1647,6 +1649,17 @@ impl PreviewPane {
             });
         }
         if self.picture.is_some() {
+            for warning in self
+                .picture
+                .as_ref()
+                .into_iter()
+                .flat_map(|picture| &picture.caption_warnings)
+            {
+                ui.colored_label(
+                    ui.visuals().warn_fg_color,
+                    format!("Caption preview unavailable: {warning}"),
+                );
+            }
             for track in project
                 .captions
                 .iter()
