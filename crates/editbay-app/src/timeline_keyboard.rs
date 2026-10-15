@@ -721,4 +721,53 @@ mod tests {
             split.compositions
         );
     }
+
+    #[test]
+    fn craft_keyboard_shift_clip_selection_edits_actual_mixed_property_in_one_undo_group() {
+        let directory = tempfile::tempdir().unwrap();
+        let mut author = Author::new(directory.path());
+        author.empty();
+        author.title();
+        author.tab_to("Create cut");
+        author.press(egui::Key::Enter);
+        author.settled(3);
+        author.press(egui::Key::F8);
+        author.press(egui::Key::E);
+        author.settled(4);
+        author.tab_to("Opacity");
+        author.replace("0.6");
+        author.press(egui::Key::Enter);
+        author.settled(5);
+        let record = author.pane.selections[&author.tab].record.unwrap();
+        let before = author.workspace.tabs[0].editor.snapshot();
+        let originals = editbay_core::timeline_clips(&before, record).unwrap();
+        assert_ne!(originals[0].controls.opacity, originals[1].controls.opacity);
+        author.press(egui::Key::F8);
+        author.press(egui::Key::PageUp);
+        author.frame(vec![key(egui::Key::PageDown, egui::Modifiers::SHIFT)]);
+        assert_eq!(author.pane.selections[&author.tab].multiple.len(), 2);
+        author.tab_to("Opacity");
+        author.replace("0.4");
+        author.press(egui::Key::Enter);
+        author.settled(6);
+        let edited = author.workspace.tabs[0].editor.snapshot();
+        let clips = editbay_core::timeline_clips(&edited, record).unwrap();
+        for (clip, original) in clips.iter().zip(&originals) {
+            assert_eq!(
+                (clip.id, clip.track, clip.range, clip.source),
+                (original.id, original.track, original.range, original.source)
+            );
+            assert_eq!(clip.controls.opacity, 0.4);
+            assert_eq!(clip.controls.gain, original.controls.gain);
+            assert_eq!(clip.controls.translation, original.controls.translation);
+        }
+        let path = directory.path().join("mixed-keyboard.editbay");
+        editbay_core::save_new(&edited, &path).unwrap();
+        assert_eq!(editbay_core::load(&path).unwrap(), *edited);
+        author.workspace.history(author.tab, false).unwrap();
+        assert_eq!(
+            author.workspace.tabs[0].editor.project().compositions,
+            before.compositions
+        );
+    }
 }
