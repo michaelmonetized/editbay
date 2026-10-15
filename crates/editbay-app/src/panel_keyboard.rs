@@ -69,7 +69,12 @@ impl PanelKeyboard {
                         .map_or(panel, |entry| entry.0)
                         .into(),
                     operation: Operation::Focus,
-                    size: [320., 420.],
+                    size: layout
+                        .groups
+                        .iter()
+                        .find(|group| group.panels.iter().any(|id| id == panel))
+                        .or_else(|| layout.hidden.get(panel))
+                        .map_or([320., 420.], |group| [group.rect[2], group.rect[3]]),
                     focus: true,
                     error: None,
                 });
@@ -88,6 +93,7 @@ impl PanelKeyboard {
         };
         let mut close = false;
         let mut apply = false;
+        let mut dimensions_valid = true;
         egui::Modal::new(egui::Id::new("editbay-panel-arrangement")).show(ui.ctx(), |ui| {
             ui.set_max_width(360.);
             ui.heading("Arrange panels");
@@ -107,6 +113,12 @@ impl PanelKeyboard {
             }
             if response.changed() {
                 draft.panel = registry[panel].0.into();
+                draft.size = layout
+                    .groups
+                    .iter()
+                    .find(|group| group.panels.iter().any(|id| id == &draft.panel))
+                    .or_else(|| layout.hidden.get(&draft.panel))
+                    .map_or([320., 420.], |group| [group.rect[2], group.rect[3]]);
             }
             keyboard_ui::choice(
                 ui,
@@ -148,9 +160,9 @@ impl PanelKeyboard {
                 }
             }
             if matches!(draft.operation, Operation::Float | Operation::Resize) {
-                fields::number(
+                let width = fields::number(
                     ui,
-                    "width",
+                    ("width", workspace_id, &draft.panel),
                     "Floating width",
                     &mut draft.size[0],
                     120. ..=4096.,
@@ -158,9 +170,9 @@ impl PanelKeyboard {
                     None,
                     fields::FieldState::default(),
                 );
-                fields::number(
+                let height = fields::number(
                     ui,
-                    "height",
+                    ("height", workspace_id, &draft.panel),
                     "Floating height",
                     &mut draft.size[1],
                     80. ..=4096.,
@@ -168,18 +180,25 @@ impl PanelKeyboard {
                     None,
                     fields::FieldState::default(),
                 );
+                dimensions_valid =
+                    fields::number_is_valid(&width) && fields::number_is_valid(&height);
             }
             if let Some(error) = &draft.error {
                 ui.colored_label(ui.visuals().error_fg_color, error);
             }
             ui.horizontal(|ui| {
-                apply = keyboard_ui::button(ui, "apply", "Apply").clicked();
+                apply = ui
+                    .add_enabled_ui(dimensions_valid, |ui| {
+                        keyboard_ui::button(ui, "apply", "Apply")
+                    })
+                    .inner
+                    .clicked();
                 close = keyboard_ui::button(ui, "cancel", "Cancel").clicked();
             });
             close |=
                 ui.input_mut(|input| input.consume_key(egui::Modifiers::NONE, egui::Key::Escape));
         });
-        if apply {
+        if apply && dimensions_valid {
             let panel = draft.panel.as_str();
             let success = match draft.operation {
                 Operation::Close => {
@@ -482,5 +501,75 @@ mod tests {
             layout.groups[0].rect
         );
         assert!(layout.groups[0].rect[3] > before.height() + 20.);
+    }
+
+    #[test]
+    fn craft_keyboard_malformed_floating_dimension_skips_disabled_apply_and_preserves_geometry() {
+        let ctx = egui::Context::default();
+        let mut layout = Workspace::preset(&[("media", Place::Floating)]);
+        layout.normalize(&["media", "timeline"]);
+        let mut keyboard = PanelKeyboard::default();
+        for _ in 0..3 {
+            render(&ctx, &mut layout, vec![], Some(&mut keyboard));
+        }
+        let before = layout.groups[0].rect;
+        render(
+            &ctx,
+            &mut layout,
+            vec![key(egui::Key::F6, egui::Modifiers::CTRL)],
+            Some(&mut keyboard),
+        );
+        render(&ctx, &mut layout, vec![], Some(&mut keyboard));
+        render(
+            &ctx,
+            &mut layout,
+            vec![key(egui::Key::Tab, egui::Modifiers::NONE)],
+            Some(&mut keyboard),
+        );
+        render(
+            &ctx,
+            &mut layout,
+            vec![key(egui::Key::End, egui::Modifiers::NONE)],
+            Some(&mut keyboard),
+        );
+        let width = render(
+            &ctx,
+            &mut layout,
+            vec![key(egui::Key::Tab, egui::Modifiers::NONE)],
+            Some(&mut keyboard),
+        );
+        assert!(width.2.iter().any(|label| label == "Floating width"));
+        render(
+            &ctx,
+            &mut layout,
+            vec![
+                key(
+                    egui::Key::A,
+                    egui::Modifiers::CTRL | egui::Modifiers::COMMAND,
+                ),
+                egui::Event::Text("-".into()),
+            ],
+            Some(&mut keyboard),
+        );
+        render(
+            &ctx,
+            &mut layout,
+            vec![key(egui::Key::Tab, egui::Modifiers::NONE)],
+            Some(&mut keyboard),
+        );
+        let next = render(
+            &ctx,
+            &mut layout,
+            vec![key(egui::Key::Tab, egui::Modifiers::NONE)],
+            Some(&mut keyboard),
+        );
+        assert!(
+            next.2.iter().any(|label| label == "Cancel"),
+            "malformed field left Apply focusable: {:?}",
+            next.2
+        );
+        assert!(!next.2.iter().any(|label| label == "Apply"));
+        assert!(keyboard.opened());
+        assert_eq!(layout.groups[0].rect, before);
     }
 }

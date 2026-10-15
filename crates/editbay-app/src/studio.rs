@@ -1112,12 +1112,19 @@ impl Studio {
             self.recovery_browser(ui);
             return;
         }
-        ui.add(
+        let find = ui.add(
             egui::TextEdit::singleline(&mut self.query)
                 .id(egui::Id::new("find-work"))
                 .hint_text("Find work…")
                 .desired_width(f32::INFINITY),
         );
+        find.widget_info(|| {
+            let mut info =
+                egui::WidgetInfo::text_edit(find.enabled(), &self.query, &self.query, "Find work…");
+            info.label = Some("Find work".into());
+            info
+        });
+        crate::keyboard_ui::focus(ui, &find);
         ui.horizontal_wrapped(|ui| {
             for (label, value) in [
                 ("All", None),
@@ -1911,6 +1918,7 @@ impl Studio {
             let mut keep = true;
             let modal = egui::Modal::new(egui::Id::new("rename-project")).show(ctx, |ui| {
                 ui.heading("Rename project");
+                let name_label = ui.label("Project name");
                 preserve_name_input(ui, &mut self.name_events);
                 let name_id = egui::Id::new("rename-project-name");
                 let focus_name = self.focus_name && !ui.is_sizing_pass();
@@ -1918,11 +1926,18 @@ impl Studio {
                     ui.memory_mut(|memory| memory.request_focus(name_id));
                 }
                 let focused = ui.memory(|memory| memory.has_focus(name_id));
-                let input = ui.add(
-                    egui::TextEdit::singleline(&mut name)
-                        .id(name_id)
-                        .char_limit(256),
-                );
+                let input = ui
+                    .add(
+                        egui::TextEdit::singleline(&mut name)
+                            .id(name_id)
+                            .char_limit(256),
+                    )
+                    .labelled_by(name_label.id);
+                input.widget_info(|| {
+                    let mut info = egui::WidgetInfo::text_edit(input.enabled(), &name, &name, "");
+                    info.label = Some("Project name".into());
+                    info
+                });
                 let enter = (focused || input.lost_focus())
                     && ui.input(|input| input.key_pressed(egui::Key::Enter));
                 if focus_name {
@@ -2084,6 +2099,7 @@ impl Studio {
                 }
                 ui.separator();
                 ui.label("Shortcuts");
+                let mut shortcut_responses = Vec::new();
                 egui::Grid::new("shortcut-settings")
                     .spacing([16., 8.])
                     .show(ui, |ui| {
@@ -2094,20 +2110,32 @@ impl Studio {
                             ("Undo", &mut settings.shortcuts.undo),
                             ("Redo", &mut settings.shortcuts.redo),
                         ] {
-                            ui.label(label);
+                            let label_response = ui.label(label);
                             ui.label("Ctrl +");
                             let mut text = key.to_string();
-                            if ui
+                            let response = ui
                                 .add(
                                     egui::TextEdit::singleline(&mut text)
                                         .id(egui::Id::new(("shortcut-key", label)))
                                         .char_limit(1)
                                         .desired_width(40.),
                                 )
-                                .changed()
-                            {
+                                .labelled_by(label_response.id);
+                            response.widget_info(|| {
+                                let mut info = egui::WidgetInfo::text_edit(
+                                    response.enabled(),
+                                    &text,
+                                    &text,
+                                    "",
+                                );
+                                info.label = Some(format!("Shortcut for {label}"));
+                                info
+                            });
+                            crate::keyboard_ui::focus(ui, &response);
+                            if response.changed() {
                                 *key = text.chars().next().unwrap_or(' ').to_ascii_uppercase();
                             }
+                            shortcut_responses.push(response);
                             ui.end_row();
                         }
                     });
@@ -2115,7 +2143,10 @@ impl Studio {
                 ui.weak("Save as uses Ctrl + Shift + your Save key.");
                 let valid = settings.validate();
                 if let Err(error) = &valid {
-                    ui.colored_label(self.theme.palette.warning, error);
+                    let error = ui.colored_label(self.theme.palette.warning, error);
+                    for response in shortcut_responses {
+                        response.labelled_by(error.id);
+                    }
                 }
                 if let Some(error) = self.preferences.error.clone() {
                     ui.colored_label(self.theme.palette.error, error);
