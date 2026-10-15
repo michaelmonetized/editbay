@@ -1517,6 +1517,10 @@ fn property_controls(
         let mut changed = false;
         let mut changed_fields = Vec::new();
         let mut finished = false;
+        let mut targets = selected.multiple.clone();
+        targets.push(clip.id);
+        targets.sort_unstable();
+        targets.dedup();
         let mut field =
             |ui: &mut Ui, id: &'static str, label: &str, value: &mut f64, range, unit, reset| {
                 let color = matches!(
@@ -1528,27 +1532,34 @@ fn property_controls(
                 {
                     return;
                 }
-                let result = fields::number(
+                let result = fields::native_scope(
                     ui,
-                    (tab, id),
-                    label,
-                    value,
-                    range,
-                    unit,
-                    Some(reset),
-                    FieldState {
-                        mixed: mixed_controls
-                            .iter()
-                            .any(|c| control_value(id, *c) != control_value(id, before)),
-                        locked: state.locked
-                            || if id == "timeline-gain" {
-                                !(clip.audio_only || clip.linked.is_some())
-                            } else {
-                                clip.audio_only
+                    egui::Id::new(("clip-property", tab, composition, &targets, id)),
+                    |ui| {
+                        fields::number(
+                            ui,
+                            "value",
+                            label,
+                            value,
+                            range,
+                            unit,
+                            Some(reset),
+                            FieldState {
+                                mixed: mixed_controls
+                                    .iter()
+                                    .any(|c| control_value(id, *c) != control_value(id, before)),
+                                locked: state.locked
+                                    || if id == "timeline-gain" {
+                                        !(clip.audio_only || clip.linked.is_some())
+                                    } else {
+                                        clip.audio_only
+                                    },
+                                ..state
                             },
-                        ..state
+                        )
                     },
-                );
+                )
+                .inner;
                 preview.observe_control(id, &result.response, ui);
                 if result.changed {
                     changed = true;
@@ -1829,12 +1840,7 @@ fn enabled_button(
 /// Associate a domain error with its actual native field.
 /// Args: UI, actual field response and message. Returns no value; draws one error.
 fn field_error(ui: &mut Ui, field: &egui::Response, message: &str) {
-    let error = ui.colored_label(ui.visuals().error_fg_color, message);
-    ui.ctx().accesskit_node_builder(field.id, |node| {
-        node.set_invalid(egui::accesskit::Invalid::True);
-        node.set_error_message(error.id.accesskit_id());
-        node.push_described_by(error.id.accesskit_id());
-    });
+    crate::keyboard_ui::error(ui, std::slice::from_ref(field), message);
 }
 
 #[cfg(test)]

@@ -32,6 +32,7 @@ struct Job {
 }
 
 struct ExportChoice {
+    draft: Uuid,
     format: DeliveryFormat,
     owner: DocumentOwner,
     composition: Uuid,
@@ -136,6 +137,7 @@ impl DeliveryPane {
     /// Returns immediately; destination choice follows a validated frame range.
     pub fn choose(&mut self, owner: DocumentOwner, composition: Uuid, name: String, duration: u64) {
         self.choice = Some(ExportChoice {
+            draft: Uuid::new_v4(),
             format: DeliveryFormat::default(),
             owner,
             composition,
@@ -164,7 +166,12 @@ impl DeliveryPane {
             ui.heading("Export sequence");
             let formats = crate::keyboard_ui::choice(
                 ui,
-                "export-format",
+                (
+                    "export-format",
+                    choice.owner.tab,
+                    choice.composition,
+                    choice.draft,
+                ),
                 "Export format",
                 &mut choice.format,
                 &[
@@ -194,7 +201,12 @@ impl DeliveryPane {
                 ui.columns(2, |columns| {
                     let start = crate::keyboard_ui::text_with_id(
                         &mut columns[0],
-                        egui::Id::new("export-start"),
+                        egui::Id::new((
+                            "export-start",
+                            choice.owner.tab,
+                            choice.composition,
+                            choice.draft,
+                        )),
                         "Start frame",
                         &mut choice.start,
                         false,
@@ -203,7 +215,12 @@ impl DeliveryPane {
                     preview.observe_control("export-start", &start, &columns[0]);
                     let end = crate::keyboard_ui::text_with_id(
                         &mut columns[1],
-                        egui::Id::new("export-end"),
+                        egui::Id::new((
+                            "export-end",
+                            choice.owner.tab,
+                            choice.composition,
+                            choice.draft,
+                        )),
                         "End frame (exclusive)",
                         &mut choice.end,
                         false,
@@ -220,18 +237,13 @@ impl DeliveryPane {
             let request = choice.request();
             let owned = workspace.owns(choice.owner);
             if !owned {
-                let error = ui.colored_label(
-                    ui.visuals().error_fg_color,
+                crate::keyboard_ui::error(
+                    ui,
+                    &range_responses,
                     "The project changed. Close these options and choose the sequence again.",
                 );
-                for response in &range_responses {
-                    response.clone().labelled_by(error.id);
-                }
             } else if let Err(error) = &request {
-                let error = ui.colored_label(ui.visuals().error_fg_color, error);
-                for response in &range_responses {
-                    response.clone().labelled_by(error.id);
-                }
+                crate::keyboard_ui::error(ui, &range_responses, error);
             } else if let Ok(request) = &request
                 && let Ok(range) = request.frame_range(choice.duration)
             {

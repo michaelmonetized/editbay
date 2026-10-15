@@ -1,6 +1,19 @@
 //! Native keyboard controls retain the application's typed targets.
 use eframe::egui::{self, Response, Ui};
 
+/// Associate one visible error with its actual native controls.
+/// Args: UI, rendered field responses and message. Returns no value.
+pub fn error(ui: &mut Ui, responses: &[Response], message: &str) {
+    let error = ui.colored_label(ui.visuals().error_fg_color, message);
+    for response in responses {
+        ui.ctx().accesskit_node_builder(response.id, |node| {
+            node.set_invalid(egui::accesskit::Invalid::True);
+            node.set_error_message(error.id.accesskit_id());
+            node.push_described_by(error.id.accesskit_id());
+        });
+    }
+}
+
 /// Choose an existing target by name.
 /// Args: UI, stable identity, visible label, selected value and live choices.
 /// Returns the native combo response; arrows and Home/End select without a pointer.

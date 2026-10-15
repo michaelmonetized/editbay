@@ -103,11 +103,7 @@ pub(super) fn title_controls(
                 && selected.title.len() <= 1024
                 && selected.title.is_ascii();
             if !valid {
-                let error = ui.colored_label(
-                    ui.visuals().error_fg_color,
-                    "Enter 1–1024 ASCII characters.",
-                );
-                text.labelled_by(error.id);
+                field_error(ui, &text, "Enter 1–1024 ASCII characters.");
             }
             let mut path = selected.font.to_string_lossy().into_owned();
             let response = keyboard_ui::text(
@@ -364,6 +360,8 @@ mod tests {
         focus: String,
         viewer: bool,
         values: Vec<String>,
+        export: Option<crate::delivery_ui::DeliveryPane>,
+        exported: Option<editbay_delivery::DeliveryRequest>,
     }
 
     fn key(key: egui::Key, modifiers: egui::Modifiers) -> egui::Event {
@@ -392,6 +390,8 @@ mod tests {
                 focus: String::new(),
                 viewer: false,
                 values: vec![],
+                export: None,
+                exported: None,
             }
         }
 
@@ -421,7 +421,13 @@ mod tests {
                     ..Default::default()
                 },
                 |ui| {
-                    if self.viewer {
+                    if let Some(export) = &mut self.export {
+                        if let Some((_, request, _)) =
+                            export.show_choice(ui.ctx(), &self.workspace, &mut self.preview)
+                        {
+                            self.exported = Some(request);
+                        }
+                    } else if self.viewer {
                         self.preview
                             .show(ui, &self.workspace, self.tab, project.clone());
                     } else {
@@ -1008,6 +1014,121 @@ mod tests {
                 .values
                 .iter()
                 .any(|label| label == "Monitor route: Original channels")
+        );
+        assert_eq!(author.workspace.tabs[0].editor.project().revision, 2);
+    }
+
+    #[test]
+    fn craft_keyboard_fades_create_retained_animation_and_preserve_source_undo_and_native_reopen() {
+        let directory = tempfile::tempdir().unwrap();
+        let mut author = Author::new(directory.path());
+        author.empty();
+        let source = author.title();
+        let before = author.workspace.tabs[0].editor.snapshot();
+        author.tab_to("Fade in");
+        author.replace("50");
+        author.press(egui::Key::Enter);
+        author.tab_to("Fade out");
+        author.replace("30");
+        author.press(egui::Key::Enter);
+        author.press(egui::Key::Tab);
+        author.frame(vec![]);
+        assert_ne!(author.focus, "Create faded source");
+        assert_eq!(author.workspace.tabs[0].editor.project().revision, 2);
+        author.tab_to("Fade in");
+        author.replace("5");
+        author.press(egui::Key::Enter);
+        author.tab_to("Fade out");
+        author.replace("-");
+        author.press(egui::Key::Tab);
+        author.frame(vec![]);
+        assert_ne!(author.focus, "Create faded source");
+        author.tab_to("Fade out");
+        author.replace("6");
+        author.press(egui::Key::Enter);
+        author.tab_to("Create faded source");
+        author.press(egui::Key::Enter);
+        author.settled(3);
+        let saved = author.workspace.tabs[0].editor.snapshot();
+        assert_eq!(
+            saved.compositions.iter().find(|scene| scene.id == source),
+            before.compositions.iter().find(|scene| scene.id == source)
+        );
+        let faded = saved
+            .compositions
+            .iter()
+            .find(|scene| {
+                scene.nodes.iter().any(|node| {
+                    node.animation
+                        .iter()
+                        .any(|channel| channel.property == editbay_core::AnimatedProperty::Opacity)
+                })
+            })
+            .unwrap();
+        assert_eq!(faded.duration, 72);
+        assert!(faded.tracks.iter().flat_map(|track| &track.clips).any(|clip|
+            matches!(clip.source, editbay_core::ClipSource::Composition { composition } if composition == source)));
+        let channel = faded
+            .nodes
+            .iter()
+            .flat_map(|node| &node.animation)
+            .find(|channel| channel.property == editbay_core::AnimatedProperty::Opacity)
+            .unwrap();
+        assert_eq!(
+            channel
+                .keys
+                .iter()
+                .map(|key| (key.frame, key.value))
+                .collect::<Vec<_>>(),
+            vec![(0, 0.), (5, 1.), (66, 1.), (72, 0.)]
+        );
+        let path = directory.path().join("keyboard-fades.editbay");
+        editbay_core::save_new(&saved, &path).unwrap();
+        assert_eq!(*saved, editbay_core::load(&path).unwrap());
+        author.workspace.history(author.tab, false).unwrap();
+        assert_eq!(
+            author.workspace.tabs[0].editor.project().compositions,
+            before.compositions
+        );
+    }
+
+    #[test]
+    fn craft_keyboard_authored_export_dialog_rejects_invalid_range_before_returning_typed_request()
+    {
+        let directory = tempfile::tempdir().unwrap();
+        let mut author = Author::new(directory.path());
+        author.empty();
+        let title = author.title();
+        let (owner, _) = author.workspace.edit_snapshot(author.tab).unwrap();
+        let mut export = crate::delivery_ui::DeliveryPane::default();
+        export.choose(owner, title, "Keyboard title".into(), 72);
+        author.export = Some(export);
+        author.frame(vec![]);
+        author.frame(vec![]);
+        author.tab_to("Frame range");
+        author.press(egui::Key::Enter);
+        author.tab_to("Start frame");
+        author.replace("-");
+        author.press(egui::Key::Tab);
+        author.frame(vec![]);
+        author.press(egui::Key::Tab);
+        author.frame(vec![]);
+        assert_ne!(author.focus, "Choose destination…");
+        assert!(author.exported.is_none());
+        author.tab_to("Start frame");
+        author.replace("1");
+        author.tab_to("End frame (exclusive)");
+        author.replace("10");
+        author.tab_to("Choose destination…");
+        author.press(egui::Key::Enter);
+        let request = author
+            .exported
+            .as_ref()
+            .expect("native dialog did not accept valid range");
+        assert_eq!(request.composition, title);
+        assert_eq!(
+            request.frame_range(72).unwrap(),
+            FrameRange { start: 1, end: 10 }
         );
         assert_eq!(author.workspace.tabs[0].editor.project().revision, 2);
     }
