@@ -591,11 +591,10 @@ fn craft_video_multicam_and_captions_deliver_verified_lossless_media_on_cpu_vulk
         let measured = inspect_master(&master, &receipt, name, false, &cancel)?;
         write_new(
             &directory.path.join(format!("{name}.receipt.json")),
-            &serde_json::to_vec_pretty(&json!({"receipt":receipt,"independent_decode":measured}))?,
+            &serde_json::to_vec_pretty(&json!({"receipt":receipt,"numeric_oracle":measured}))?,
         )?;
-        observations.push(
-            json!({"policy":name,"native":native,"master":master,"independent_decode":measured}),
-        );
+        observations
+            .push(json!({"policy":name,"native":native,"master":master,"numeric_oracle":measured}));
     }
 
     let font_path = PathBuf::from(env!("CARGO_MANIFEST_DIR"))
@@ -729,8 +728,9 @@ fn craft_video_multicam_and_captions_deliver_verified_lossless_media_on_cpu_vulk
     assert_eq!(parsed.cues[0].end.to_milliseconds()?, 250);
     write_new(
         &directory.path.join("captioned.receipt.json"),
-        &serde_json::to_vec_pretty(&json!({"receipt":receipt,"independent_decode":measured}))?,
+        &serde_json::to_vec_pretty(&json!({"receipt":receipt,"numeric_oracle":measured}))?,
     )?;
+    cli_file.verify(&cancel)?;
     for asset in &reopened.assets {
         let file = SourceFile::open(&asset.path, &cancel)?;
         assert_eq!(file.fingerprint().sha256, asset.sha256);
@@ -751,9 +751,9 @@ fn craft_video_multicam_and_captions_deliver_verified_lossless_media_on_cpu_vulk
             "cli":{"path":cli,"fingerprint":cli_file.fingerprint(),"build_receipt":binding_path,"source_revision":revision.trim()},
             "version":DocumentVersion::of(&reopened),"input_assets":reopened.assets,
             "program":program,"markers":[2,4],"camera_b_offset_frames":-2,"cut_frame":CUT_FRAME,
-            "policy_deliveries":observations,"captioned_decode":measured,
+            "policy_deliveries":observations,"captioned_numeric_oracle":measured,
             "preservation":{"original_camera_compositions":true,"undo_redo":true,"save_reopen":true,"source_hashes":true,"existing_master":true,"existing_sidecar":true,"cancel_before_publication":true},
-            "proof_boundary":"Actual CPU lavapipe/Vulkan render, native MOV/PCM encode and decode with the CLI worker. No desktop, audio output, physical display, audio alignment from a device, external NLE or physical hardware acceptance is claimed."
+            "proof_boundary":"Actual CPU lavapipe/Vulkan render, native MOV/PCM encode and decode with independent numeric frame/sample oracles and the CLI worker. Encode and decode share FFmpeg; this does not prove independent codec conformance. No desktop, audio output, physical display, audio alignment from a device, external NLE or physical hardware acceptance is claimed."
         }))?,
     )?;
     Ok(())
