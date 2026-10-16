@@ -34,6 +34,24 @@ output codes. The separate float fixture writes original FLOAT EXR bytes directl
 and checks signed/headroom samples without an encoder oracle. These checks need
 exact-source compiler/runtime receipts before being treated as passes.
 
-Mastering-display/content-light metadata and ICC profile handling are separate
-pending cuts. Container color tags alone do not establish those fields or physical
-HDR display accuracy. No desktop, audio-device or physical timing run is implied.
+`SourceStream.hdr_metadata` retains complete static mastering-display/content-light
+declarations from actual native frame/container side data. Effective changes during
+the stream are rejected. Chromaticities use integer units of 1/50000 and mastering
+luminance uses 1/10000 nit, matching MOV `mdcv` delivery tags; native rational values
+are normalized to those units. Content-light values are integer nits. Missing fields
+in existing projects and receipts default to absent declarations.
+
+`ColorConfiguration.hdr.metadata` declares the output metadata independently of
+source tags. Shared SetColor commands, Undo and persistence retain it. High-depth
+PQ/HLG delivery writes real `mdcv` and `clli` container data, and native QC compares
+the requested values with the delivered file. Original sources are preserved.
+These are saved declarations, not inferred or measured content/display luminance.
+Unsupported partial mastering data, invalid values or changed source metadata fail
+explicitly; general HDR metadata and codec-family conformance remain unqualified.
+
+The integer layout follows the native muxer's [pinned MOV implementation](https://raw.githubusercontent.com/FFmpeg/FFmpeg/n9.0.1/libavformat/movenc.c).
+Independent output inspection reads the actual MOV boxes and checks their values,
+color tags, clock and 16-bit samples without running FFmpeg or the product binary.
+Native UI field integration and output ICC embedding remain separate work. Container
+tags do not establish physical HDR display accuracy. No desktop, audio-device or
+physical timing run is implied.

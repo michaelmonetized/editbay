@@ -1,10 +1,12 @@
 #ifndef EDITBAY_COLOR_METADATA_H
 #define EDITBAY_COLOR_METADATA_H
+#include <errno.h>
 #include <stdint.h>
 #include <string.h>
 #include <libavcodec/avcodec.h>
 #include <libavutil/mastering_display_metadata.h>
 #include <libavutil/mathematics.h>
+#include <libavutil/mem.h>
 
 typedef struct {
     int mastering, light;

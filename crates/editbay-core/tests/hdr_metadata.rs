@@ -64,6 +64,10 @@ fn hdr_static_metadata_rejects_impossible_units_and_preserves_unknown_light_valu
             ..valid
         },
         MasteringDisplay {
+            primaries_xy_50000: [[0, u32::MAX], [u32::MAX, 0], [u32::MAX, u32::MAX]],
+            ..valid
+        },
+        MasteringDisplay {
             minimum_luminance_10000: 10_000_000,
             ..valid
         },

@@ -46,7 +46,7 @@ impl HdrMetadata {
             let valid_xy = |xy: [u32; 2]| {
                 xy[0] <= 50000 && xy[1] > 0 && xy[1] <= 50000 && xy[0] + xy[1] <= 50000
             };
-            let [r, g, b] = display.primaries_xy_50000.map(|xy| xy.map(i64::from));
+            let [r, g, b] = display.primaries_xy_50000.map(|xy| xy.map(i128::from));
             let area = (g[0] - r[0]) * (b[1] - r[1]) - (g[1] - r[1]) * (b[0] - r[0]);
             if !display.primaries_xy_50000.into_iter().all(valid_xy)
                 || !valid_xy(display.white_xy_50000)
@@ -61,16 +61,15 @@ impl HdrMetadata {
                 ));
             }
         }
-        if let Some(light) = self.content_light {
-            if light.maximum_content_light_nits > 10000
+        if let Some(light) = self.content_light
+            && (light.maximum_content_light_nits > 10000
                 || light.maximum_frame_average_light_nits > 10000
                 || (light.maximum_content_light_nits != 0
-                    && light.maximum_frame_average_light_nits > light.maximum_content_light_nits)
-            {
-                return Err(Error::Invalid(
-                    "HDR content-light levels exceed their supported nit bounds".into(),
-                ));
-            }
+                    && light.maximum_frame_average_light_nits > light.maximum_content_light_nits))
+        {
+            return Err(Error::Invalid(
+                "HDR content-light levels exceed their supported nit bounds".into(),
+            ));
         }
         Ok(())
     }

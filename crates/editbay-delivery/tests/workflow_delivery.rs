@@ -45,6 +45,18 @@ const CAMERA_B_OFFSET: u64 = 2 * SAMPLES_PER_FRAME;
 const COLORS: [[u8; 4]; 2] = [[255, 0, 0, 255], [0, 255, 0, 255]];
 const DEADLINE: Duration = Duration::from_secs(30);
 
+/// Require the measured software adapter for a native rendering claim.
+/// `description` is actual graph/receipt adapter info; returns only for CPU Vulkan.
+fn assert_cpu_adapter(description: &str) {
+    let adapter = description.to_ascii_lowercase();
+    assert!(
+        adapter.contains("device_type: cpu")
+            && adapter.contains("backend: vulkan")
+            && (adapter.contains("llvmpipe") || adapter.contains("lavapipe")),
+        "Expected CPU lavapipe, got {description}"
+    );
+}
+
 struct FixtureDirectory {
     path: PathBuf,
     _temporary: Option<tempfile::TempDir>,
@@ -323,14 +335,7 @@ fn inspect_master(
     captioned: bool,
     cancel: &Cancellation,
 ) -> TestResult<Value> {
-    let adapter = receipt.adapter.to_ascii_lowercase();
-    assert!(
-        adapter.contains("device_type: cpu")
-            && adapter.contains("backend: vulkan")
-            && (adapter.contains("llvmpipe") || adapter.contains("lavapipe")),
-        "Expected CPU lavapipe, got {}",
-        receipt.adapter
-    );
+    assert_cpu_adapter(&receipt.adapter);
     assert_eq!(receipt.profile.frames, OUTPUT_FRAMES);
     assert_eq!(receipt.profile.first_frame, 0);
     assert_eq!(receipt.profile.channels, ["FC"]);
@@ -1025,6 +1030,8 @@ fn craft_video_icc_source_float_graph_assignment_reopen_and_atomic_master() -> T
         GraphBudget::default(),
         deadline.media()?,
     )?;
+    let graph_adapter = format!("{:?}", graph.adapter);
+    assert_cpu_adapter(&graph_adapter);
     let frame = graph.render(composition, SourcePosition::new(0, 1)?, false)?;
     let actual = graph.readback(&frame)?;
     assert_eq!(
@@ -1122,6 +1129,7 @@ fn craft_video_icc_source_float_graph_assignment_reopen_and_atomic_master() -> T
         &deadline.control()?,
         |_, _| {},
     )?;
+    assert_cpu_adapter(&receipt.adapter);
     assert_eq!(receipt.pixel_sha256, receipt.decoded_pixel_sha256);
     let output = SourceFile::open(&master, &cancel)?;
     let probe = output.probe(cancel.clone())?;
@@ -1217,7 +1225,7 @@ fn craft_video_icc_source_float_graph_assignment_reopen_and_atomic_master() -> T
         &serde_json::to_vec_pretty(&json!({
             "schema":"editbay.icc-pipeline.v1","status":"passed","source_revision":binding["test_source_revision"],
             "cli_source_revision":binding["revision"],"cli_build_receipt":binding["actual_cli_compiler_packet"],"cli_fingerprint":binding["actual_cli_fingerprint"],
-            "input":input,"input_fingerprint":source.fingerprint(),"profile":profile_path,"profile_sha256":profile.sha256,
+        "input":input,"input_fingerprint":source.fingerprint(),"profile":profile_path,"profile_sha256":profile.sha256,"graph_adapter":graph_adapter,
             "native":native,"master":master,"receipt":receipt,"probe":probe,"dimensions":[icc_fixture::WIDTH,icc_fixture::HEIGHT],
             "maximum_working_error":maximum_working_error,"maximum_code_error":maximum_code_error,"expected_samples":expected_samples,
             "undo_rebind_clear_equal":true,"obsolete_frame_rejected":true,"cli_clear_assign_reopen":true,"malformed_cli_preserves_project":true,
@@ -1331,6 +1339,8 @@ fn craft_video_hdr_native_tags_float_light_and_high_depth_delivery() -> TestResu
             GraphBudget::default(),
             deadline.media()?,
         )?;
+        let graph_adapter = format!("{:?}", graph.adapter);
+        assert_cpu_adapter(&graph_adapter);
         let frame = graph.render(composition, SourcePosition::new(0, 1)?, false)?;
         let actual = graph.readback(&frame)?;
         let mut max_relative_error = 0_f64;
@@ -1420,6 +1430,7 @@ fn craft_video_hdr_native_tags_float_light_and_high_depth_delivery() -> TestResu
             |_, _| {},
         )?;
         assert_eq!(receipt.color, color);
+        assert_cpu_adapter(&receipt.adapter);
         assert_eq!(receipt.pixel_sha256, receipt.decoded_pixel_sha256);
         let source = SourceFile::open(&master, &cancel)?;
         let probe = source.probe(cancel.clone())?;
@@ -1459,7 +1470,7 @@ fn craft_video_hdr_native_tags_float_light_and_high_depth_delivery() -> TestResu
             max_code_error <= 8,
             "{name} roundtrip code error {max_code_error}"
         );
-        cases.push(json!({"case":name,"input":input,"native":native,"master":master,"receipt":receipt,
+        cases.push(json!({"case":name,"input":input,"native":native,"master":master,"receipt":receipt,"graph_adapter":graph_adapter,
             "maximum_relative_working_error":max_relative_error,"maximum_roundtrip_code_error":max_code_error,"probe":probe,"actual_program_scopes":scopes}));
     }
     write_new(
