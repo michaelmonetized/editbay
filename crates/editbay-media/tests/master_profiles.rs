@@ -129,6 +129,42 @@ fn hevc_hdr_negotiation_and_registration_never_claim_qualification() {
 }
 
 #[test]
+fn webm_exact_picture_clock_is_explicit_and_sound_is_48k() {
+    let format = DeliveryFormat::Vp9Profile2Webm;
+    format.validate(&profile()).unwrap();
+    assert!(format.lossy_sound() && format.yuv10() && format.requires_opaque());
+    assert_eq!(format.extension(), "webm");
+    for invalid in [
+        LosslessMovProfile {
+            frame_rate: FrameRate {
+                numerator: 30_000,
+                denominator: 1001,
+            },
+            ..profile()
+        },
+        LosslessMovProfile {
+            frame_rate: FrameRate {
+                numerator: 24,
+                denominator: 1,
+            },
+            ..profile()
+        },
+        LosslessMovProfile {
+            sample_rate: 44100,
+            ..profile()
+        },
+    ] {
+        assert!(
+            format
+                .validate(&invalid)
+                .unwrap_err()
+                .to_string()
+                .contains("WebM")
+        );
+    }
+}
+
+#[test]
 fn hevc_main8_is_a_separate_declared_lossy_sdr_profile() {
     let format = DeliveryFormat::HevcMainMp4;
     assert!(format.hevc() && format.aac() && format.requires_opaque());

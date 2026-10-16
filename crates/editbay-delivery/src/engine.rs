@@ -217,7 +217,7 @@ impl Session {
             let plan = self.plan.prepare(self.first_sample + self.samples, count)?;
             let sound = self.sound.render(&plan)?;
             self.sound.validate_result(&sound)?;
-            if (self.request.format.aac() || self.request.format.pcm24())
+            if (self.request.format.lossy_sound() || self.request.format.pcm24())
                 && sound
                     .sound()
                     .samples()
@@ -262,6 +262,12 @@ impl Session {
                     if self.color.primaries == 9 { 9 } else { 1 },
                     1,
                 ),
+                DeliveryFormat::Vp9Profile2Webm => (
+                    "vp9",
+                    "opus",
+                    if self.color.primaries == 9 { 9 } else { 1 },
+                    1,
+                ),
                 DeliveryFormat::HevcMainMp4 => ("hevc", "aac", 1, 1),
                 DeliveryFormat::ProresMov => ("prores", "pcm_f32le", 1, 1),
                 DeliveryFormat::DnxhrHqxMov | DeliveryFormat::DnxhrHqxMxf => {
@@ -276,12 +282,14 @@ impl Session {
                         .map(|index| format!("U{index}"))
                         .collect::<Vec<_>>();
             if video.codec != video_codec
-                || (self.request.format.hevc()
+                || ((self.request.format.hevc() || self.request.format.webm())
                     && (video
                         .metadata
                         .get("editbay.codec_profile_name")
                         .map(String::as_str)
-                        != Some(if self.request.format == DeliveryFormat::HevcMainMp4 {
+                        != Some(if self.request.format.webm() {
+                            "Profile 2"
+                        } else if self.request.format == DeliveryFormat::HevcMainMp4 {
                             "Main"
                         } else {
                             "Main 10"
@@ -331,7 +339,12 @@ impl Session {
                         range,
                     })
                 || video.time_base.is_none_or(|base| {
-                    if self.request.format == DeliveryFormat::DnxhrHqxMxf {
+                    if self.request.format.webm() {
+                        base != TimeBase {
+                            numerator: 1,
+                            denominator: 1000,
+                        }
+                    } else if self.request.format == DeliveryFormat::DnxhrHqxMxf {
                         u64::from(base.numerator) * u64::from(self.profile.frame_rate.numerator)
                             != u64::from(base.denominator)
                                 * u64::from(self.profile.frame_rate.denominator)
@@ -345,7 +358,11 @@ impl Session {
                 || audio.time_base
                     != Some(TimeBase {
                         numerator: 1,
-                        denominator: self.profile.sample_rate,
+                        denominator: if self.request.format.webm() {
+                            1000
+                        } else {
+                            self.profile.sample_rate
+                        },
                     })
             {
                 return Err(format!("Delivery metadata differs from the requested profile: picture={:?}; sound={:?}; expected={:?}/{:?}",
@@ -481,11 +498,19 @@ impl Session {
             let valid = frames.min(self.total_samples.saturating_sub(self.samples));
             let padding = frames - valid;
             self.decoded_padding += padding;
-            if self.decoded_padding > if self.request.format.aac() { 1023 } else { 0 } {
+            if self.decoded_padding
+                > if self.request.format.webm() {
+                    959
+                } else if self.request.format.aac() {
+                    1023
+                } else {
+                    0
+                }
+            {
                 return Err("Delivery contains excess sound beyond codec padding".into());
             }
             let valid_samples = &block.samples[..valid as usize * channels];
-            if self.request.format.aac() || self.request.format.pcm24() {
+            if self.request.format.lossy_sound() || self.request.format.pcm24() {
                 let mut first = 0usize;
                 while first < valid as usize {
                     let count = (valid as usize - first).min(4096) as u32;
@@ -511,19 +536,19 @@ impl Session {
             }
         } else {
             if self.samples - self.decoded_padding != self.total_samples
-                || (!self.request.format.aac()
+                || (!self.request.format.lossy_sound()
                     && !self.request.format.pcm24()
                     && self.decoded.clone().finalize() != self.expected_pcm.clone().finalize())
             {
                 return Err("Decoded delivery sound differs from shared graph output".into());
             }
-            if self.request.format.aac()
+            if self.request.format.lossy_sound()
                 && self
                     .sound_quality
                     .rms_error()
                     .is_none_or(|error| error > 0.02)
             {
-                return Err("AAC delivery exceeds its declared sound quality tolerance".into());
+                return Err("Compressed sound exceeds its declared quality tolerance".into());
             }
             if self.request.format.pcm24()
                 && (self.sound_quality.samples == 0

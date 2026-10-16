@@ -37,7 +37,7 @@ impl DeliveryColor {
                 Err(Error::Invalid("HEVC Main8 is an explicit 8-bit SDR profile; use a supported high-depth profile for HDR".into()))
             };
         }
-        if format == DeliveryFormat::HevcMain10Mp4 {
+        if format.yuv10() {
             if [1, 9].contains(&self.primaries)
                 && [1, 13, 16, 18].contains(&self.transfer)
                 && (![16, 18].contains(&self.transfer) || self.primaries == 9)
@@ -45,7 +45,7 @@ impl DeliveryColor {
             {
                 return Ok(());
             }
-            return Err(Error::Invalid("HEVC Main10 supports BT.709/sRGB or BT.2020 PQ/HLG; static HDR metadata is unavailable in this preset".into()));
+            return Err(Error::Invalid("10-bit 4:2:0 delivery supports BT.709/sRGB or BT.2020 PQ/HLG; static HDR metadata is unavailable in this preset".into()));
         }
         if ![1, 9, 12].contains(&self.primaries)
             || ![1, 8, 13, 16, 18].contains(&self.transfer)
@@ -76,6 +76,7 @@ pub enum DeliveryFormat {
     DnxhrHqxMov,
     DnxhrHqxMxf,
     HevcMain10Mp4,
+    Vp9Profile2Webm,
     HevcMainMp4,
 }
 
@@ -94,7 +95,7 @@ pub struct DeliveryAvailability {
 }
 
 impl DeliveryFormat {
-    pub const ALL: [Self; 8] = [
+    pub const ALL: [Self; 9] = [
         Self::LosslessMov,
         Self::Lossless16Mov,
         Self::H264Mp4,
@@ -102,6 +103,7 @@ impl DeliveryFormat {
         Self::DnxhrHqxMov,
         Self::DnxhrHqxMxf,
         Self::HevcMain10Mp4,
+        Self::Vp9Profile2Webm,
         Self::HevcMainMp4,
     ];
 
@@ -117,6 +119,7 @@ impl DeliveryFormat {
                 ("dnxhd", "DNXHR HQX", "yuv422p10le", "pcm_s24le")
             }
             Self::HevcMain10Mp4 => ("libx265", "Main 10", "yuv420p10le", "aac"),
+            Self::Vp9Profile2Webm => ("libvpx-vp9", "Profile 2", "yuv420p10le", "libopus"),
             Self::HevcMainMp4 => ("libx265", "Main", "yuv420p", "aac"),
         };
         let code = crate::ffi::delivery_available(self);
@@ -154,7 +157,7 @@ impl DeliveryFormat {
     /// Return native picture storage at the encoder boundary.
     /// Takes this format and returns its declared interleaved component encoding.
     pub fn pixel_encoding(self) -> crate::PixelEncoding {
-        if self == Self::Lossless16Mov || self.dnxhr() || self.hevc() {
+        if self == Self::Lossless16Mov || self.dnxhr() || (self.hevc() || self.webm()) {
             crate::PixelEncoding::Rgba16Le
         } else {
             crate::PixelEncoding::Rgba8
@@ -201,6 +204,24 @@ impl DeliveryFormat {
         Ok(())
     }
 
+    /// Identify high-depth 4:2:0 delivery through the shared native conversion.
+    /// Takes this format; returns whether the encoder uses YUV420P10 input.
+    pub fn yuv10(self) -> bool {
+        matches!(self, Self::HevcMain10Mp4 | Self::Vp9Profile2Webm)
+    }
+
+    /// Identify the explicitly bounded WebM clock and Opus preset.
+    /// Takes this format; returns whether WebM timing constraints apply.
+    pub fn webm(self) -> bool {
+        self == Self::Vp9Profile2Webm
+    }
+
+    /// Identify sound requiring signal-error QC rather than exact float bytes.
+    /// Takes this format; returns true for AAC or Opus delivery.
+    pub fn lossy_sound(self) -> bool {
+        self.aac() || self.webm()
+    }
+
     pub(crate) fn native_id(self) -> i32 {
         match self {
             Self::LosslessMov => 0,
@@ -210,6 +231,7 @@ impl DeliveryFormat {
             Self::DnxhrHqxMov => 4,
             Self::DnxhrHqxMxf => 5,
             Self::HevcMain10Mp4 => 6,
+            Self::Vp9Profile2Webm => 7,
             Self::HevcMainMp4 => 8,
         }
     }
@@ -217,7 +239,7 @@ impl DeliveryFormat {
     /// Reject transparency for a codec without an alpha channel.
     /// Takes this format; returns true when an opaque graph or explicit background is required.
     pub fn requires_opaque(self) -> bool {
-        self.dnxhr() || self.hevc()
+        self.dnxhr() || self.hevc() || self.webm()
     }
 
     /// Identify formats whose decoded picture bytes must match exactly.
@@ -231,6 +253,7 @@ impl DeliveryFormat {
         match self {
             Self::H264Mp4 | Self::HevcMain10Mp4 | Self::HevcMainMp4 => "mp4",
             Self::DnxhrHqxMxf => "mxf",
+            Self::Vp9Profile2Webm => "webm",
             _ => "mov",
         }
     }
@@ -272,21 +295,28 @@ impl DeliveryFormat {
                 return Err(Error::Invalid("MXF fractional sample-per-edit clocks are unavailable: preserving the selected audio phase requires a different rechunk policy; use DNxHR MOV".into()));
             }
         }
-        if self.aac()
+        if self.lossy_sound()
             && (!profile.width.is_multiple_of(2)
                 || !profile.height.is_multiple_of(2)
                 || profile.channels.len() > 2
                 || ![44100, 48000].contains(&profile.sample_rate))
         {
             return Err(Error::Invalid(
-                "AAC video delivery needs even dimensions and mono/stereo sound at 44.1 or 48 kHz"
+                "Compressed sound video delivery needs even dimensions and mono/stereo sound at 44.1 or 48 kHz"
                     .into(),
             ));
         }
-        if self.hevc() && (profile.width < 16 || profile.height < 16) {
+        if (self.hevc() || self.webm()) && (profile.width < 16 || profile.height < 16) {
             return Err(Error::Invalid(
-                "HEVC needs geometry of at least 16x16".into(),
+                "HEVC/VP9 delivery needs geometry of at least 16x16".into(),
             ));
+        }
+        if self.webm()
+            && (profile.sample_rate != 48000
+                || !(1000u64 * u64::from(profile.frame_rate.denominator))
+                    .is_multiple_of(u64::from(profile.frame_rate.numerator)))
+        {
+            return Err(Error::Invalid("WebM VP9/Opus needs 48 kHz sound and an integral-millisecond picture clock; fractional millisecond clocks are unavailable in this exact-timing preset".into()));
         }
         Ok(())
     }

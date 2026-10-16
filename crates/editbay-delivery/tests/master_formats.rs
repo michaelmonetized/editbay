@@ -458,10 +458,21 @@ fn inspect(
         .iter()
         .find(|s| s.kind == StreamType::Audio)
         .ok_or("Delivered sound absent")?;
-    assert_eq!(video.codec, if format.aac() { "hevc" } else { "dnxhd" });
+    assert_eq!(
+        video.codec,
+        if format.webm() {
+            "vp9"
+        } else if format.aac() {
+            "hevc"
+        } else {
+            "dnxhd"
+        }
+    );
     assert_eq!(
         video.metadata["editbay.codec_profile_name"],
-        if format == DeliveryFormat::HevcMainMp4 {
+        if format.webm() {
+            "Profile 2"
+        } else if format == DeliveryFormat::HevcMainMp4 {
             "Main"
         } else if format.aac() {
             "Main 10"
@@ -471,7 +482,7 @@ fn inspect(
     );
     assert_eq!(
         video.metadata["editbay.pixel_format_name"],
-        if format.aac() {
+        if format.lossy_sound() {
             if format == DeliveryFormat::HevcMainMp4 {
                 "yuv420p"
             } else {
@@ -505,7 +516,16 @@ fn inspect(
         )
     );
     assert_eq!(video.nominal_rate, Some(rate));
-    assert_eq!(audio.codec, if format.aac() { "aac" } else { "pcm_s24le" });
+    assert_eq!(
+        audio.codec,
+        if format.webm() {
+            "opus"
+        } else if format.aac() {
+            "aac"
+        } else {
+            "pcm_s24le"
+        }
+    );
     assert_eq!(audio.sample_rate, Some(RATE));
     assert_eq!(
         audio.channels,
@@ -576,9 +596,9 @@ fn inspect(
     assert_eq!(count, range.end - range.start);
     let rms = (squared / measured as f64).sqrt();
     assert!(
-        maximum <= if format.aac() { 1024 } else { 512 }
-            && rms <= if format.aac() { 256. } else { 128. }
-            && maximum_luma <= if format.aac() { 0.02 } else { 0.01 },
+        maximum <= if format.lossy_sound() { 1024 } else { 512 }
+            && rms <= if format.lossy_sound() { 256. } else { 128. }
+            && maximum_luma <= if format.lossy_sound() { 0.02 } else { 0.01 },
         "RGB max {maximum}, RMS {rms}, luma {maximum_luma}"
     );
     assert!(
@@ -603,30 +623,34 @@ fn inspect(
         assert!(block.samples.len().is_multiple_of(channels));
         for frame in block.samples.chunks_exact(channels) {
             if samples >= total {
-                assert!(format.aac(), "Unexpected MXF/PCM padding");
+                assert!(format.lossy_sound(), "Unexpected MXF/PCM padding");
                 padding += 1;
-                assert!(padding <= 1023, "Excess AAC padding");
+                assert!(
+                    padding <= if format.webm() { 959 } else { 1023 },
+                    "Excess compressed-sound padding"
+                );
                 continue;
             }
             for (channel, actual) in frame.iter().enumerate() {
-                let original = f64::from(if format.aac() {
+                let original = f64::from(if format.lossy_sound() {
                     aac_tone(start + samples, channel)
                 } else {
                     tone(start + samples, channel)
                 });
-                let expected = if format.aac() {
+                let expected = if format.lossy_sound() {
                     original
                 } else {
                     (original / PCM_STEP).round().clamp(-8_388_608., 8_388_607.) * PCM_STEP
                 };
                 let error = (f64::from(*actual) - expected).abs();
                 assert!(
-                    actual.is_finite() && error <= if format.aac() { 0.08 } else { PCM_STEP },
+                    actual.is_finite()
+                        && error <= if format.lossy_sound() { 0.08 } else { PCM_STEP },
                     "Sample {samples}/{channel}: {actual} != PCM24 {expected}"
                 );
                 maximum_pcm_error = maximum_pcm_error.max(error);
                 pcm_squared += error * error;
-                if format.aac() && samples >= 128 && samples + 128 < total {
+                if format.lossy_sound() && samples >= 128 && samples + 128 < total {
                     for (index, squared) in lag_squared.iter_mut().enumerate() {
                         let shifted = (start + samples) as i64 + index as i64 - 8;
                         let reference = f64::from(aac_tone(u64::try_from(shifted)?, channel));
@@ -648,8 +672,8 @@ fn inspect(
         assert!(positive_endpoints > 0 && negative_endpoints > 0);
     }
     let pcm_rms = (pcm_squared / (samples as f64 * channels as f64)).sqrt();
-    assert!(pcm_rms <= if format.aac() { 0.02 } else { PCM_STEP });
-    let best_lag = if format.aac() {
+    assert!(pcm_rms <= if format.lossy_sound() { 0.02 } else { PCM_STEP });
+    let best_lag = if format.lossy_sound() {
         assert!(lag_samples > 512);
         let best = lag_squared
             .iter()
@@ -660,7 +684,7 @@ fn inspect(
             - 8;
         assert_eq!(
             best, 0,
-            "AAC analytic sample phase shifted; squared errors {lag_squared:?}"
+            "Compressed sound analytic sample phase shifted; squared errors {lag_squared:?}"
         );
         Some(best)
     } else {
@@ -668,7 +692,7 @@ fn inspect(
     };
     source.verify(cancel)?;
     Ok(
-        json!({"probe":probe,"frames":count,"samples":samples,"padding":padding,"pcm_rms_error":pcm_rms,"analytic_best_lag_samples":best_lag,"lag_squared_errors":if format.aac() {Some(lag_squared)} else {None},"lag_samples":lag_samples,"source_sample_start":start,"source_sample_end":start+total,"maximum_interior_code_error":maximum,"interior_rms_code_error":rms,"maximum_luma_error":maximum_luma,"interior_non8bit_components":non8bit,"maximum_pcm_error":maximum_pcm_error,"pcm24_step":if format.pcm24() {Some(PCM_STEP)} else {None},"positive_endpoints":positive_endpoints,"negative_endpoints":negative_endpoints,"endpoints":endpoints}),
+        json!({"probe":probe,"frames":count,"samples":samples,"padding":padding,"pcm_rms_error":pcm_rms,"analytic_best_lag_samples":best_lag,"lag_squared_errors":if format.lossy_sound() {Some(lag_squared)} else {None},"lag_samples":lag_samples,"source_sample_start":start,"source_sample_end":start+total,"maximum_interior_code_error":maximum,"interior_rms_code_error":rms,"maximum_luma_error":maximum_luma,"interior_non8bit_components":non8bit,"maximum_pcm_error":maximum_pcm_error,"pcm24_step":if format.pcm24() {Some(PCM_STEP)} else {None},"positive_endpoints":positive_endpoints,"negative_endpoints":negative_endpoints,"endpoints":endpoints}),
     )
 }
 
@@ -698,8 +722,15 @@ fn run_case_color(
     let result = (|| -> TestResult<Value> {
         let cancel = deadline.media()?;
         let input = directory.join("original.mov");
-        let (mut project, composition) =
-            author_signal(&input, rate, channels, true, None, &cancel, format.aac())?;
+        let (mut project, composition) = author_signal(
+            &input,
+            rate,
+            channels,
+            true,
+            None,
+            &cancel,
+            format.lossy_sound(),
+        )?;
         if let Some(transfer) = hdr {
             let mut editor = DocumentEditor::new((*project).clone())?;
             let mut configuration = project.color;
@@ -884,7 +915,7 @@ fn run_case_color(
     editbay_core::write_new_bytes(
         directory.join("master-format.json"),
         &serde_json::to_vec_pretty(
-            &json!({"schema":"editbay.master-formats.v1","case":label,"format":format,"binding":binding,"result":receipt,"fixture_source_sha256":format!("{:x}", <sha2::Sha256 as sha2::Digest>::digest(include_bytes!("master_formats.rs"))),"proof_boundary":if format == DeliveryFormat::HevcMainMp4 { "Actual native HEVC Main8 SDR, explicit8-bit4:2:0 output, shared high-depth float source/graph, bounded AAC peak/RMS/zero-lag/padding, cancellation and preservation. Precision/subsampling loss is expected and reported; no inherited Main10/HDR or independent HEVC picture, device/physical proof." } else if format.aac() { "Actual native source/writer, shared float graph, clean-bound CLI supervisor and decode/QC on CPU Vulkan. Original BT.709 and PQ/HLG gray oracles; AAC peak/RMS, zero analytic lag and bounded final padding. Encode/decode share FFmpeg; no independent HEVC picture conformance, external player, desktop/audio device or physical proof." } else { "Actual native source/writer, shared float graph, clean-bound CLI supervisor and decode/QC on CPU Vulkan. Original analytic BT.709 picture/PCM oracles include selected-range endpoints and PCM24 saturation. Encode/decode share FFmpeg; no independent DNxHR/MXF conformance, external NLE, desktop/audio device or physical proof." }}),
+            &json!({"schema":"editbay.master-formats.v1","case":label,"format":format,"binding":binding,"result":receipt,"fixture_source_sha256":format!("{:x}", <sha2::Sha256 as sha2::Digest>::digest(include_bytes!("master_formats.rs"))),"proof_boundary":if format == DeliveryFormat::HevcMainMp4 { "Actual native HEVC Main8 SDR, explicit8-bit4:2:0 output, shared high-depth float source/graph, bounded AAC peak/RMS/zero-lag/padding, cancellation and preservation. Precision/subsampling loss is expected and reported; no inherited Main10/HDR or independent HEVC picture, device/physical proof." } else if format.webm() { "Actual native VP9/Opus source/writer, shared float graph and clean-bound supervised QC on CPU Vulkan. Explicit integral-millisecond picture clocks; original gray/picture and Opus RMS/peak/zero-lag/count oracles. Encode/decode share FFmpeg. No independent VP9 picture or full WebM conformance, external player, desktop/audio device or physical proof." } else if format.aac() { "Actual native source/writer, shared float graph, clean-bound CLI supervisor and decode/QC on CPU Vulkan. Original BT.709 and PQ/HLG gray oracles; AAC peak/RMS, zero analytic lag and bounded final padding. Encode/decode share FFmpeg; no independent HEVC picture conformance, external player, desktop/audio device or physical proof." } else { "Actual native source/writer, shared float graph, clean-bound CLI supervisor and decode/QC on CPU Vulkan. Original analytic BT.709 picture/PCM oracles include selected-range endpoints and PCM24 saturation. Encode/decode share FFmpeg; no independent DNxHR/MXF conformance, external NLE, desktop/audio device or physical proof." }}),
         )?,
     )?;
     result.map(|_| ())
@@ -1000,6 +1031,52 @@ fn craft_video_hevc_main10_mp4_mono() -> TestResult<()> {
         1,
         FrameRate::new(25, 1)?,
         FrameRange { start: 1, end: 4 },
+    )
+}
+
+#[test]
+fn craft_video_vp9_webm_mono() -> TestResult<()> {
+    run_case(
+        DeliveryFormat::Vp9Profile2Webm,
+        "vp9-mono",
+        1,
+        FrameRate::new(25, 1)?,
+        FrameRange { start: 1, end: 4 },
+    )
+}
+
+#[test]
+fn craft_video_vp9_webm_stereo_50fps() -> TestResult<()> {
+    run_case(
+        DeliveryFormat::Vp9Profile2Webm,
+        "vp9-stereo-50fps",
+        2,
+        FrameRate::new(50, 1)?,
+        FrameRange { start: 1, end: 4 },
+    )
+}
+
+#[test]
+fn craft_video_vp9_webm_pq() -> TestResult<()> {
+    run_case_color(
+        DeliveryFormat::Vp9Profile2Webm,
+        "vp9-pq",
+        1,
+        FrameRate::new(25, 1)?,
+        FrameRange { start: 1, end: 4 },
+        Some(OutputTransfer::Pq),
+    )
+}
+
+#[test]
+fn craft_video_vp9_webm_hlg() -> TestResult<()> {
+    run_case_color(
+        DeliveryFormat::Vp9Profile2Webm,
+        "vp9-hlg",
+        1,
+        FrameRate::new(25, 1)?,
+        FrameRange { start: 1, end: 4 },
+        Some(OutputTransfer::Hlg),
     )
 }
 
