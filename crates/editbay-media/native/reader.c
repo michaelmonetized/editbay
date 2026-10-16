@@ -16,6 +16,7 @@
 #include <libavutil/pixdesc.h>
 #include <libswscale/swscale.h>
 #include <libswresample/swresample.h>
+#include "color_metadata.h"
 
 typedef struct EBCancel { atomic_int requested; } EBCancel;
 _Static_assert(ATOMIC_INT_LOCK_FREE == 2, "Cancellation requires lock-free integer atomics");
@@ -177,6 +178,11 @@ EBInput *eb_probe_open(int descriptor, const char *label, EBCancel *cancel, int 
 void eb_probe_close(EBInput *input) { if (input) { input_close(input); free(input); } }
 int eb_probe_streams(EBInput *input) { return input->format->nb_streams; }
 
+int eb_probe_hdr(EBInput *input, int index, EBHdr *output) {
+    if (index < 0 || index >= (int)input->format->nb_streams) return AVERROR(EINVAL);
+    return eb_hdr_read(NULL, input->format->streams[index]->codecpar, output);
+}
+
 int eb_probe_info(EBInput *input, int index, EBStream *info, const char **codec) {
     if (index < 0 || index >= (int)input->format->nb_streams) return AVERROR(EINVAL);
     stream_info(input->format, index, info);
@@ -248,6 +254,8 @@ typedef struct {
     int stream, audio, draining, sample_rate, channels, output_encoding, icc_seen;
     uint8_t *icc_profile;
     size_t icc_profile_bytes;
+    EBHdr hdr;
+    int hdr_seen;
     int64_t next_sample;
 } EBReader;
 
@@ -291,6 +299,11 @@ static int capture_profile(EBReader *reader) {
 int eb_reader_icc_profile(EBReader *reader, const uint8_t **data) {
     *data = reader->icc_profile;
     return (int)reader->icc_profile_bytes;
+}
+
+int eb_reader_hdr(EBReader *reader, EBHdr *output) {
+    *output = reader->hdr;
+    return 0;
 }
 
 EBReader *eb_reader_open(int descriptor, const char *label, int selected, int mode,
@@ -454,6 +467,10 @@ next_frame:
     int width = reader->codec->width, height = reader->codec->height;
     if (frame->width != width || frame->height != height) return AVERROR(EINVAL);
     if ((ret = capture_profile(reader)) < 0) return ret;
+    EBHdr hdr;
+    if ((ret = eb_hdr_read(frame, reader->input.format->streams[reader->stream]->codecpar, &hdr)) < 0) return ret;
+    if (reader->hdr_seen && memcmp(&reader->hdr, &hdr, sizeof(hdr))) return AVERROR(EINVAL);
+    reader->hdr = hdr; reader->hdr_seen = 1;
     if (selected) {
         if (details->pts == AV_NOPTS_VALUE || details->pts > tick) return AVERROR(EINVAL);
         if (details->pts < tick) goto next_frame;

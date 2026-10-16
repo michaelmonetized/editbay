@@ -49,6 +49,7 @@ fn model() -> Project {
         metadata: BTreeMap::from([("reel".into(), "A001".into())]),
         streams: vec![
             SourceStream {
+                hdr_metadata: Default::default(),
                 icc_profile: None,
                 index: 0,
                 codec: "ffv1".into(),
@@ -77,6 +78,7 @@ fn model() -> Project {
                 metadata: BTreeMap::new(),
             },
             SourceStream {
+                hdr_metadata: Default::default(),
                 icc_profile: None,
                 index: 1,
                 codec: "pcm_f32le".into(),
