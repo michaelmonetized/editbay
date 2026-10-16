@@ -159,6 +159,12 @@ impl DeliveryPane {
         preview: &mut PreviewPane,
     ) -> Option<(DocumentOwner, DeliveryRequest, String)> {
         let choice = self.choice.as_mut()?;
+        let controls = (
+            "export-controls",
+            choice.owner.tab,
+            choice.composition,
+            choice.draft,
+        );
         let mut accepted = None;
         let mut cancelled = false;
         let modal = egui::Modal::new(egui::Id::new("export-options")).show(ctx, |ui| {
@@ -192,9 +198,17 @@ impl DeliveryPane {
                 }
             });
             ui.add_space(8.);
-            let whole = ui.radio_value(&mut choice.full, true, "Full sequence");
+            let whole = crate::fields::native_scope(ui, egui::Id::new((controls, "full")), |ui| {
+                ui.radio_value(&mut choice.full, true, "Full sequence")
+            })
+            .inner;
+            crate::keyboard_ui::focus(ui, &whole);
             preview.observe_control("export-full", &whole, ui);
-            let range = ui.radio_value(&mut choice.full, false, "Frame range");
+            let range = crate::fields::native_scope(ui, egui::Id::new((controls, "range")), |ui| {
+                ui.radio_value(&mut choice.full, false, "Frame range")
+            })
+            .inner;
+            crate::keyboard_ui::focus(ui, &range);
             preview.observe_control("export-range", &range, ui);
             let mut range_responses = Vec::new();
             ui.add_enabled_ui(!choice.full, |ui| {
@@ -251,15 +265,20 @@ impl DeliveryPane {
             }
             ui.add_space(8.);
             ui.horizontal(|ui| {
-                let next = ui.add_enabled(
-                    owned && request.is_ok(),
-                    egui::Button::new("Choose destination…"),
-                );
+                let next = ui
+                    .add_enabled_ui(owned && request.is_ok(), |ui| {
+                        crate::keyboard_ui::button(
+                            ui,
+                            (controls, "continue"),
+                            "Choose destination…",
+                        )
+                    })
+                    .inner;
                 preview.observe_control("export-continue", &next, ui);
                 if next.clicked() {
                     accepted = request.ok();
                 }
-                let cancel = ui.button("Cancel");
+                let cancel = crate::keyboard_ui::button(ui, (controls, "cancel"), "Cancel");
                 preview.observe_control("export-options-cancel", &cancel, ui);
                 cancelled = cancel.clicked();
             });
@@ -517,5 +536,86 @@ fn format_name(format: DeliveryFormat) -> &'static str {
         DeliveryFormat::H264Mp4 => "H.264 / AAC MP4",
         DeliveryFormat::ProresMov => "ProRes 4444 MOV",
         DeliveryFormat::LosslessMov => "Lossless MOV",
+    }
+}
+
+#[cfg(test)]
+mod keyboard_tests {
+    use super::*;
+    use crate::workflow_ui::keyboard_tests::{Author, Page, directory};
+    use editbay_core::{DocumentCommand, DocumentVersion, FrameRange};
+
+    #[test]
+    fn craft_keyboard_common_delivery_native_formats_invalid_cancel_reopen_and_stale_owner() {
+        let directory = directory();
+        let mut author = Author::new(directory.path(), Page::Delivery);
+        let composition = author.camera("Program");
+        let (owner, _) = author.workspace.edit_snapshot(author.tab).unwrap();
+        author
+            .delivery
+            .choose(owner, composition, "Program".into(), 240);
+        author.frame(vec![]);
+        author.tab_prefix("Export format:");
+        author.press(egui::Key::End);
+        assert_eq!(
+            author.delivery.choice.as_ref().unwrap().format,
+            DeliveryFormat::LosslessMov
+        );
+        author.open("Frame range");
+        author.tab_to("Start frame");
+        let first_draft = author.ctx.memory(|memory| memory.focused()).unwrap();
+        author.replace("-");
+        author.invalid(first_draft);
+        author.tab_to("End frame (exclusive)");
+        author.press(egui::Key::Tab);
+        assert_eq!(author.focus, "Cancel");
+        assert!(author.delivered.is_none());
+        author.press(egui::Key::Enter);
+        assert!(author.delivery.choice.is_none());
+        author
+            .delivery
+            .choose(owner, composition, "Program".into(), 240);
+        author.frame(vec![]);
+        author.open("Frame range");
+        author.tab_to("Start frame");
+        assert_ne!(
+            author.ctx.memory(|memory| memory.focused()),
+            Some(first_draft)
+        );
+        author.replace("12");
+        author.tab_to("End frame (exclusive)");
+        author.replace("48");
+        author.tab_prefix("Export format:");
+        author.press(egui::Key::End);
+        author.open("Choose destination…");
+        let request = author.delivered.take().unwrap();
+        assert_eq!(request.format, DeliveryFormat::LosslessMov);
+        assert_eq!(request.composition, composition);
+        assert_eq!(request.range, Some(FrameRange { start: 12, end: 48 }));
+        author
+            .delivery
+            .choose(owner, composition, "Program".into(), 240);
+        author.frame(vec![]);
+        author.open("Frame range");
+        author
+            .workspace
+            .apply(
+                author.tab,
+                DocumentVersion::of(author.project()),
+                "Change captured owner".into(),
+                &[DocumentCommand::RenameProject {
+                    name: "Changed while choosing".into(),
+                }],
+            )
+            .unwrap();
+        author.tab_to("Start frame");
+        let stale = author.ctx.memory(|memory| memory.focused()).unwrap();
+        author.invalid(stale);
+        author.tab_to("End frame (exclusive)");
+        author.press(egui::Key::Tab);
+        assert_eq!(author.focus, "Cancel");
+        author.press(egui::Key::Enter);
+        assert!(author.delivered.is_none());
+        assert!(author.delivery.choice.is_none());
     }
 }

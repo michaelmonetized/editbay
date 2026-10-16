@@ -1,4 +1,6 @@
 use crate::{
+    fields::{self, FieldState},
+    keyboard_ui,
     preview::PreviewPane,
     workspace::{DocumentOwner, Workspace},
 };
@@ -227,28 +229,23 @@ impl WorkflowPane {
             .selected_composition(tab, &project)
             .unwrap_or(Uuid::nil());
         let scene = project.compositions.iter().find(|c| c.id == composition);
+        let owner = ("workflow", tab, project.id);
         ui.collapsing("Editorial exchange", |ui| {
-            ui.label("Source or new destination path");
-            ui.text_edit_singleline(&mut self.path);
-            egui::ComboBox::from_id_salt("editorial-format")
-                .selected_text(self.format.name())
-                .show_ui(ui, |ui| {
-                    for format in editbay_interchange::Format::ALL {
-                        ui.selectable_value(&mut self.format, format, format.name());
-                    }
-                });
+            keyboard_ui::text(ui, (owner, "exchange-path"), "Source or new destination path", &mut self.path, false);
+            keyboard_ui::choice(ui, (owner, "exchange-format"), "Editorial format", &mut self.format,
+                &editbay_interchange::Format::ALL.into_iter().map(|format| (format, format.name().into())).collect::<Vec<_>>());
+            let mut rate_valid = true;
             if self.format == editbay_interchange::Format::Edl {
-                ui.horizontal(|ui| {
-                    ui.label("EDL frame rate");
-                    ui.add(egui::DragValue::new(&mut self.edl_rate[0]).range(1..=u32::MAX));
-                    ui.label("/");
-                    ui.add(egui::DragValue::new(&mut self.edl_rate[1]).range(1..=u32::MAX));
-                });
+                rate_valid = fields::native_scope(ui, egui::Id::new((owner, "edl-rate")), |ui| {
+                    let (_, numerator_valid) = keyboard_ui::native_number(ui, "numerator", "EDL rate numerator", &mut self.edl_rate[0], 1..=u32::MAX, None, "", None, FieldState::default());
+                    let (_, denominator_valid) = keyboard_ui::native_number(ui, "denominator", "EDL rate denominator", &mut self.edl_rate[1], 1..=u32::MAX, None, "", None, FieldState::default());
+                    numerator_valid && denominator_valid
+                }).inner;
                 ui.weak("EDL files do not store their frame rate. Set the exact source rate before importing.");
             }
             ui.add_enabled_ui(self.task.is_none(), |ui| {
                 ui.horizontal(|ui| {
-                    if ui.button("Import timeline").clicked() {
+                    if ui.add_enabled_ui(rate_valid && !self.path.trim().is_empty(), |ui| keyboard_ui::button(ui, (owner, "import"), "Import timeline")).inner.clicked() {
                         let path = PathBuf::from(&self.path);
                         let format = self.format;
                         let edl_rate = self.edl_rate;
@@ -275,7 +272,7 @@ impl WorkflowPane {
                             Ok(Completion::Imported{project:Box::new(project),report_path})
                         });
                     }
-                    if ui.button("Export timeline").clicked() {
+                    if ui.add_enabled_ui(scene.is_some() && !self.path.trim().is_empty(), |ui| keyboard_ui::button(ui, (owner, "export"), "Export timeline")).inner.clicked() {
                         let path = PathBuf::from(&self.path);
                         let format = self.format;
                         self.start(workspace, tab, ui.ctx(), move |_, project, _cancel| {
@@ -308,15 +305,9 @@ impl WorkflowPane {
                 if !assets.iter().any(|asset| Some(asset.id) == self.relink_asset) {
                     self.relink_asset = assets.first().map(|asset| asset.id);
                 }
-                egui::ComboBox::from_id_salt("editorial-relink-asset")
-                    .selected_text(assets.iter().find(|asset| Some(asset.id) == self.relink_asset)
-                        .map_or_else(|| "Choose original media".into(), |asset| asset.path.display().to_string()))
-                    .show_ui(ui, |ui| {
-                        for asset in assets {
-                            ui.selectable_value(&mut self.relink_asset, Some(asset.id), asset.path.display().to_string());
-                        }
-                    });
-                if ui.add_enabled(self.relink_asset.is_some(), egui::Button::new("Relink moved original to path")).clicked()
+                ui.add_enabled_ui(!assets.is_empty(), |ui| keyboard_ui::choice(ui, (owner, "relink-asset"), "Original media", &mut self.relink_asset,
+                    &assets.iter().map(|asset| (Some(asset.id), asset.path.display().to_string())).collect::<Vec<_>>()));
+                if ui.add_enabled_ui(self.relink_asset.is_some() && !self.path.trim().is_empty(), |ui| keyboard_ui::button(ui, (owner, "relink"), "Relink moved original to path")).inner.clicked()
                     && let Some(asset) = self.relink_asset
                 {
                     let path = PathBuf::from(&self.path);
@@ -335,10 +326,30 @@ impl WorkflowPane {
             return;
         };
         ui.collapsing("Captions", |ui| {
-            ui.label("SRT/VTT source or new sidecar path");
-            ui.text_edit_singleline(&mut self.path);
+            let path_response = keyboard_ui::text(
+                ui,
+                (owner, composition, "caption-path"),
+                "SRT/VTT source or new sidecar path",
+                &mut self.path,
+                false,
+            );
+            let path_valid = caption_vtt(std::path::Path::new(&self.path)).is_ok();
+            if !self.path.is_empty() && !path_valid {
+                keyboard_ui::error(
+                    ui,
+                    &[path_response],
+                    "Caption path must end in .srt or .vtt",
+                );
+            }
             if ui
-                .add_enabled(self.task.is_none(), egui::Button::new("Import captions"))
+                .add_enabled_ui(self.task.is_none() && path_valid, |ui| {
+                    keyboard_ui::button(
+                        ui,
+                        (owner, composition, "caption-import"),
+                        "Import captions",
+                    )
+                })
+                .inner
                 .clicked()
             {
                 let path = PathBuf::from(&self.path);
@@ -370,19 +381,21 @@ impl WorkflowPane {
             if !tracks.iter().any(|t| Some(t.id) == self.selected) {
                 self.selected = tracks.first().map(|t| t.id);
             }
-            egui::ComboBox::from_id_salt("caption-track")
-                .selected_text(
-                    tracks
+            ui.add_enabled_ui(!tracks.is_empty(), |ui| {
+                keyboard_ui::choice(
+                    ui,
+                    (owner, composition, "caption-track"),
+                    "Caption track",
+                    &mut self.selected,
+                    &tracks
                         .iter()
-                        .find(|t| Some(t.id) == self.selected)
-                        .map_or("Choose track", |t| t.name.as_str()),
+                        .map(|track| (Some(track.id), track.name.clone()))
+                        .collect::<Vec<_>>(),
                 )
-                .show_ui(ui, |ui| {
-                    for t in &tracks {
-                        ui.selectable_value(&mut self.selected, Some(t.id), &t.name);
-                    }
-                });
-            if ui.button("New caption track").clicked() {
+            });
+            if keyboard_ui::button(ui, (owner, composition, "caption-new"), "New caption track")
+                .clicked()
+            {
                 match CaptionTrack::new(composition, "Captions") {
                     Ok(track) => {
                         self.selected = Some(track.id);
@@ -401,66 +414,141 @@ impl WorkflowPane {
                 return;
             };
             self.drafts.sync(tab, project.id, track);
+            let track_owner = (owner, composition, track.id);
             let mut edited = track.clone();
-            let mut changed = ui.checkbox(&mut edited.enabled, "Visible").changed();
-            egui::ComboBox::from_id_salt("caption-delivery")
-                .selected_text(format!("{:?}", edited.delivery))
-                .show_ui(ui, |ui| {
-                    for (choice, label) in [
-                        (CaptionDelivery::None, "Preview only"),
-                        (CaptionDelivery::SidecarSrt, "SRT sidecar"),
-                        (CaptionDelivery::SidecarVtt, "VTT sidecar"),
-                        (CaptionDelivery::BurnIn, "Burn in"),
-                        (CaptionDelivery::BurnInAndSrt, "Burn in + SRT"),
-                        (CaptionDelivery::BurnInAndVtt, "Burn in + VTT"),
-                    ] {
-                        changed |= ui
-                            .selectable_value(&mut edited.delivery, choice, label)
-                            .changed();
+            let visible = fields::native_scope(ui, egui::Id::new((track_owner, "visible")), |ui| {
+                ui.checkbox(&mut edited.enabled, "Caption visible")
+            })
+            .inner;
+            keyboard_ui::focus(ui, &visible);
+            let mut changed = visible.changed();
+            changed |= keyboard_ui::choice(
+                ui,
+                (track_owner, "delivery"),
+                "Caption delivery",
+                &mut edited.delivery,
+                &[
+                    (CaptionDelivery::None, "Preview only"),
+                    (CaptionDelivery::SidecarSrt, "SRT sidecar"),
+                    (CaptionDelivery::SidecarVtt, "VTT sidecar"),
+                    (CaptionDelivery::BurnIn, "Burn in"),
+                    (CaptionDelivery::BurnInAndSrt, "Burn in + SRT"),
+                    (CaptionDelivery::BurnInAndVtt, "Burn in + VTT"),
+                ]
+                .map(|(choice, label)| (choice, label.into())),
+            )
+            .changed();
+            let style_valid =
+                fields::native_scope(ui, egui::Id::new((track_owner, "style")), |ui| {
+                    let (size, size_valid) = keyboard_ui::native_number(
+                        ui,
+                        "font-size",
+                        "Caption font size",
+                        &mut edited.style.font_size,
+                        4.0..=512.0,
+                        None,
+                        "",
+                        None,
+                        FieldState::default(),
+                    );
+                    changed |= size.changed;
+                    let mut margin = edited.style.safe_area.left;
+                    let mixed = [
+                        edited.style.safe_area.right,
+                        edited.style.safe_area.top,
+                        edited.style.safe_area.bottom,
+                    ]
+                    .into_iter()
+                    .any(|value| value != margin);
+                    let (inset, inset_valid) = keyboard_ui::native_number(
+                        ui,
+                        "safe-margin",
+                        "Caption safe margin",
+                        &mut margin,
+                        0.0..=0.4,
+                        Some(0.01),
+                        "",
+                        None,
+                        FieldState {
+                            mixed,
+                            ..Default::default()
+                        },
+                    );
+                    if inset.changed {
+                        edited.style.safe_area = CaptionSafeArea {
+                            left: margin,
+                            right: margin,
+                            top: margin,
+                            bottom: margin,
+                        };
+                        changed = true;
                     }
-                });
-            ui.horizontal(|ui| {
-                ui.label("Font size");
-                changed |= ui
-                    .add(egui::DragValue::new(&mut edited.style.font_size).range(4.0..=512.))
-                    .changed();
-                ui.label("Safe margin");
-                let mut margin = edited.style.safe_area.left;
-                if ui
-                    .add(
-                        egui::DragValue::new(&mut margin)
-                            .speed(0.01)
-                            .range(0.0..=0.4),
-                    )
-                    .changed()
-                {
-                    edited.style.safe_area = CaptionSafeArea {
-                        left: margin,
-                        right: margin,
-                        top: margin,
-                        bottom: margin,
-                    };
-                    changed = true;
-                }
-            });
+                    size_valid && inset_valid
+                })
+                .inner;
             let mut font_request = None;
-            ui.text_edit_singleline(&mut self.font)
-                .on_hover_text("Retained TrueType/OpenType font path for burn-in");
+            keyboard_ui::text(
+                ui,
+                (track_owner, "font"),
+                "Caption font file",
+                &mut self.font,
+                false,
+            )
+            .on_hover_text("Retained TrueType/OpenType font path for burn-in");
             if ui
-                .add_enabled(
-                    self.task.is_none(),
-                    egui::Button::new("Use font for burn-in"),
+                .add_enabled_ui(
+                    self.task.is_none() && style_valid && !self.font.trim().is_empty(),
+                    |ui| keyboard_ui::button(ui, (track_owner, "use-font"), "Use font for burn-in"),
                 )
+                .inner
                 .clicked()
             {
                 font_request = Some(PathBuf::from(&self.font));
             }
+            let range_valid =
+                fields::native_scope(ui, egui::Id::new((track_owner, "cue-range")), |ui| {
+                    let (start, start_valid) = keyboard_ui::native_number(
+                        ui,
+                        "start",
+                        "Cue start (ms)",
+                        &mut self.start,
+                        0..=u64::MAX,
+                        None,
+                        "",
+                        None,
+                        FieldState::default(),
+                    );
+                    let (end, end_valid) = keyboard_ui::native_number(
+                        ui,
+                        "end",
+                        "Cue end (ms)",
+                        &mut self.end,
+                        0..=u64::MAX,
+                        None,
+                        "",
+                        None,
+                        FieldState::default(),
+                    );
+                    let valid = start_valid && end_valid;
+                    if self.start >= self.end {
+                        keyboard_ui::error(
+                            ui,
+                            &[start.response, end.response],
+                            "Cue end must follow its start",
+                        );
+                    }
+                    valid && self.start < self.end
+                })
+                .inner;
             ui.horizontal(|ui| {
-                ui.label("Start ms");
-                ui.add(egui::DragValue::new(&mut self.start));
-                ui.label("End ms");
-                ui.add(egui::DragValue::new(&mut self.end));
-                if ui.button("Add cue").clicked() {
+                if ui
+                    .add_enabled_ui(range_valid, |ui| {
+                        keyboard_ui::button(ui, (track_owner, "cue-add"), "Add cue")
+                    })
+                    .inner
+                    .clicked()
+                    && range_valid
+                {
                     match CaptionCue::new(
                         CaptionTime::from_milliseconds(self.start),
                         CaptionTime::from_milliseconds(self.end),
@@ -476,7 +564,7 @@ impl WorkflowPane {
             let playhead = preview.position(tab, &project).map_or(0, |(_, f)| f);
             let mut remove = None;
             let mut retime = None;
-            for cue in &mut edited.cues {
+            for (index, cue) in edited.cues.iter_mut().enumerate() {
                 let draft = self
                     .drafts
                     .cues
@@ -490,19 +578,39 @@ impl WorkflowPane {
                         cue.end.numerator,
                         cue.end.denominator
                     ));
-                    let response = ui.text_edit_multiline(&mut draft.text);
+                    let cue_owner = (track_owner, cue.id);
+                    let response = keyboard_ui::text(
+                        ui,
+                        (cue_owner, "text"),
+                        &format!("Cue {} text", index + 1),
+                        &mut draft.text,
+                        true,
+                    );
                     if response.changed() {
                         draft.error = None;
                     }
                     let mut apply_text = response.lost_focus();
+                    let mut candidate = cue.clone();
+                    candidate.text = draft.text.clone();
+                    let text_error = candidate.validate().err().map(|error| error.to_string());
                     ui.horizontal(|ui| {
                         apply_text |= ui
-                            .add_enabled(draft.text != cue.text, egui::Button::new("Apply text"))
+                            .add_enabled_ui(draft.text != cue.text && text_error.is_none(), |ui| {
+                                keyboard_ui::button(ui, (cue_owner, "apply"), "Apply text")
+                            })
+                            .inner
                             .clicked();
-                        if ui.button("Retime to fields").clicked() {
+                        if ui
+                            .add_enabled_ui(range_valid, |ui| {
+                                keyboard_ui::button(ui, (cue_owner, "retime"), "Retime to fields")
+                            })
+                            .inner
+                            .clicked()
+                            && range_valid
+                        {
                             retime = Some(cue.id);
                         }
-                        if ui.button("Remove").clicked() {
+                        if keyboard_ui::button(ui, (cue_owner, "remove"), "Remove cue").clicked() {
                             remove = Some(cue.id);
                         }
                     });
@@ -510,8 +618,8 @@ impl WorkflowPane {
                         cue.text = text;
                         changed = true;
                     }
-                    if let Some(error) = &draft.error {
-                        ui.colored_label(egui::Color32::RED, error);
+                    if let Some(error) = text_error.as_ref().or(draft.error.as_ref()) {
+                        keyboard_ui::error(ui, &[response], error);
                     }
                 });
             }
@@ -529,10 +637,30 @@ impl WorkflowPane {
                 edited.cues.retain(|c| c.id != id);
                 changed = true;
             }
-            ui.horizontal(|ui| {
-                ui.label("Split text after character");
-                ui.add(egui::DragValue::new(&mut self.split_offset));
-                if ui.button("Split active cue at playhead").clicked() {
+            fields::native_scope(ui, egui::Id::new((track_owner, "split")), |ui| {
+                let (_, split_valid) = keyboard_ui::native_number(
+                    ui,
+                    "offset",
+                    "Split text after character",
+                    &mut self.split_offset,
+                    0..=usize::MAX,
+                    None,
+                    "",
+                    None,
+                    FieldState::default(),
+                );
+                if ui
+                    .add_enabled_ui(split_valid, |ui| {
+                        keyboard_ui::button(
+                            ui,
+                            (track_owner, "split-apply"),
+                            "Split active cue at playhead",
+                        )
+                    })
+                    .inner
+                    .clicked()
+                    && split_valid
+                {
                     let time = CaptionTime::from_frame(playhead, scene.frame_rate);
                     let split = time.and_then(|time| {
                         let id = edited
@@ -587,7 +715,17 @@ impl WorkflowPane {
                     Ok(Completion::Edited(editor))
                 });
             }
-            if ui.button("Export selected sidecar").clicked() {
+            if ui
+                .add_enabled_ui(self.task.is_none() && path_valid, |ui| {
+                    keyboard_ui::button(
+                        ui,
+                        (track_owner, "sidecar-export"),
+                        "Export selected sidecar",
+                    )
+                })
+                .inner
+                .clicked()
+            {
                 let path = PathBuf::from(&self.path);
                 let track = edited.clone();
                 self.start(workspace, tab, ui.ctx(), move |_, _, _cancel| {
@@ -721,6 +859,10 @@ fn caption_vtt(path: &std::path::Path) -> Result<bool, String> {
 fn write_new(path: &std::path::Path, bytes: &[u8]) -> Result<(), String> {
     editbay_core::write_new_bytes(path, bytes).map_err(|error| error.to_string())
 }
+
+#[cfg(test)]
+#[path = "workflow_keyboard.rs"]
+pub(crate) mod keyboard_tests;
 
 #[cfg(test)]
 mod tests {
