@@ -33,6 +33,8 @@ use std::{
 use uuid::Uuid;
 
 type TestResult<T> = Result<T, Box<dyn std::error::Error>>;
+#[path = "../../editbay-media/tests/fixtures/icc.rs"]
+mod icc_fixture;
 const WIDTH: u32 = 16;
 const HEIGHT: u32 = 16;
 const INPUT_FRAMES: u64 = 12;
@@ -968,6 +970,272 @@ fn hdr_light(code: [f64; 3], hlg: bool, white: f64) -> [f64; 3] {
     });
     let luma = scene[0] * 0.2627 + scene[1] * 0.6780 + scene[2] * 0.0593;
     scene.map(|v| v * luma.powf(0.2) * 1000. / white)
+}
+
+#[test]
+fn craft_video_icc_source_float_graph_assignment_reopen_and_atomic_master() -> TestResult<()> {
+    use editbay_core::{AlphaMode, WorkingGamut, source_icc_command};
+    use editbay_media::PixelEncoding;
+    let (cli, binding) = bound_cli()?;
+    let directory = FixtureDirectory::new()?;
+    let cancel = Cancellation::new()?;
+    let deadline = DeadlineGuard::new(cancel.clone())?;
+    let profile_bytes = icc_fixture::original_profile()?;
+    let input = directory.path.join("original-icc-rgb16.png");
+    let profile_path = directory.path.join("original-matrix-trc.icc");
+    write_new(&input, &icc_fixture::original_png(&profile_bytes)?)?;
+    write_new(&profile_path, &profile_bytes)?;
+    let source = SourceFile::open(&input, &cancel)?;
+    let imported = source.ingest(
+        "Original RGB16 ICC source".into(),
+        &[0],
+        cancel.clone(),
+        |_, _| {},
+    )?;
+    let source_id = imported.source.id;
+    let mut editor = DocumentEditor::new(Project::new("ICC through the native float graph")?)?;
+    apply(&mut editor, "Import ICC source", &imported.commands())?;
+    let commands =
+        editbay_core::sequence_from_video(editor.project(), source_id, 0, FrameRate::new(25, 1)?)?;
+    let composition = commands
+        .iter()
+        .find_map(|command| match command {
+            DocumentCommand::SetComposition { composition } => Some(composition.id),
+            _ => None,
+        })
+        .ok_or("ICC composition absent")?;
+    apply(&mut editor, "Create ICC source sequence", &commands)?;
+    let native = directory.path.join("icc-source.editbay");
+    save_new(editor.project(), &native)?;
+    let project = Arc::new(load(&native)?);
+    assert_eq!(*project, *editor.project());
+    let profile = project.sources[0].streams[0]
+        .icc_profile
+        .clone()
+        .ok_or("Embedded ICC absent")?;
+    assert_eq!(profile.bytes, profile_bytes);
+    assert_eq!(
+        project.sources[0].streams[0].metadata["editbay.native_pixel_model"],
+        "rgb"
+    );
+    let snapshot = Arc::new(EvaluationSnapshot::new(project.clone())?);
+    let mut graph = GraphRenderer::new(
+        snapshot,
+        PictureBudget::default(),
+        GraphBudget::default(),
+        deadline.media()?,
+    )?;
+    let frame = graph.render(composition, SourcePosition::new(0, 1)?, false)?;
+    let actual = graph.readback(&frame)?;
+    assert_eq!(
+        actual.len(),
+        (icc_fixture::WIDTH * icc_fixture::HEIGHT * 4) as usize
+    );
+    let mut maximum_working_error = 0_f64;
+    for (pixel, original) in actual.as_chunks::<4>().0.iter().zip(icc_fixture::samples()) {
+        let encoded = original.map(|value| f64::from(value) / 65535.);
+        let (expected, allowance) = icc_fixture::expected(encoded, WorkingGamut::Bt709);
+        for channel in 0..3 {
+            let error = (f64::from(pixel[channel]) - expected[channel]).abs();
+            maximum_working_error = maximum_working_error.max(error);
+            assert!(
+                error <= allowance[channel] + 2e-6,
+                "ICC working sample {encoded:?}: {pixel:?} expected {expected:?} allowance {allowance:?}"
+            );
+        }
+        assert_eq!(pixel[3], 1.);
+    }
+    let clear = source_icc_command(editor.project(), source_id, 0, None)?;
+    apply(&mut editor, "Clear interpretation", &[clear])?;
+    assert!(editor.project().sources[0].streams[0].icc_profile.is_none());
+    editor.undo(DocumentVersion::of(editor.project()))?;
+    assert_eq!(
+        editor.project().sources[0].streams[0].icc_profile.as_ref(),
+        Some(&profile)
+    );
+    graph.rebind(
+        Arc::new(EvaluationSnapshot::new(editor.snapshot())?),
+        deadline.media()?,
+    )?;
+    assert!(
+        graph.readback(&frame).is_err(),
+        "ICC source history must reject an obsolete render receipt"
+    );
+    let rebound = graph.render(composition, SourcePosition::new(0, 1)?, false)?;
+    assert_eq!(graph.readback(&rebound)?, actual);
+    graph.clear()?;
+    let cleared = graph.render(composition, SourcePosition::new(0, 1)?, false)?;
+    assert_eq!(graph.readback(&cleared)?, actual);
+    drop(graph);
+
+    let command_args = [
+        "source-profile".to_owned(),
+        native.to_string_lossy().into_owned(),
+        source_id.to_string(),
+        "0".into(),
+    ];
+    let cleared = Command::new(&cli)
+        .args(&command_args)
+        .arg("none")
+        .output()?;
+    assert!(
+        cleared.status.success(),
+        "{}",
+        String::from_utf8_lossy(&cleared.stderr)
+    );
+    assert!(load(&native)?.sources[0].streams[0].icc_profile.is_none());
+    let assigned = Command::new(&cli)
+        .args(&command_args)
+        .arg(&profile_path)
+        .output()?;
+    assert!(
+        assigned.status.success(),
+        "{}",
+        String::from_utf8_lossy(&assigned.stderr)
+    );
+    let project = Arc::new(load(&native)?);
+    assert_eq!(
+        project.sources[0].streams[0].icc_profile.as_ref(),
+        Some(&profile)
+    );
+    let malformed = directory.path.join("malformed.icc");
+    write_new(&malformed, b"invalid ICC")?;
+    let before_invalid = fs::read(&native)?;
+    let refused = Command::new(&cli)
+        .args(&command_args)
+        .arg(&malformed)
+        .output()?;
+    assert!(!refused.status.success());
+    assert_eq!(fs::read(&native)?, before_invalid);
+    let request = DeliveryRequest {
+        format: DeliveryFormat::Lossless16Mov,
+        composition,
+        sample_rate: 48000,
+        range: None,
+    };
+    let master = directory.path.join("icc-converted-master.mov");
+    let receipt = deliver(
+        &cli,
+        project.clone(),
+        request,
+        &master,
+        &deadline.control()?,
+        |_, _| {},
+    )?;
+    assert_eq!(receipt.pixel_sha256, receipt.decoded_pixel_sha256);
+    let output = SourceFile::open(&master, &cancel)?;
+    let probe = output.probe(cancel.clone())?;
+    assert_eq!(
+        (
+            probe.streams[0].color.primaries,
+            probe.streams[0].color.transfer
+        ),
+        (1, 13)
+    );
+    let mut reader = VideoReader::open_stream_with_encoding(
+        &output,
+        0,
+        cancel.clone(),
+        PixelEncoding::Rgba16Le,
+    )?;
+    let picture = reader
+        .next_frame()?
+        .ok_or("ICC converted master frame absent")?;
+    assert!(reader.next_frame()?.is_none());
+    let srgb = |linear: f64| -> f64 {
+        if linear <= 0.0031308 {
+            linear * 12.92
+        } else {
+            1.055 * linear.powf(1. / 2.4) - 0.055
+        }
+    };
+    let mut maximum_code_error = 0_f64;
+    let mut expected_samples = Vec::new();
+    for (pixel, original) in picture
+        .rgba
+        .as_chunks::<8>()
+        .0
+        .iter()
+        .zip(icc_fixture::samples())
+    {
+        let (expected, allowance) = icc_fixture::expected(
+            original.map(|value| f64::from(value) / 65535.),
+            WorkingGamut::Bt709,
+        );
+        let mut codes = Vec::new();
+        for channel in 0..3 {
+            let actual = u16::from_le_bytes(pixel[channel * 2..channel * 2 + 2].try_into()?);
+            let expected_code = (srgb(expected[channel]).clamp(0., 1.) * 65535.).round();
+            maximum_code_error = maximum_code_error.max((f64::from(actual) - expected_code).abs());
+            let low = (srgb(expected[channel] - allowance[channel] - 2e-6).clamp(0., 1.) * 65535.)
+                .floor();
+            let high =
+                (srgb(expected[channel] + allowance[channel] + 2e-6).clamp(0., 1.) * 65535.).ceil();
+            assert!(
+                f64::from(actual) >= low && f64::from(actual) <= high,
+                "ICC master code {actual}, allowed {low}..{high}"
+            );
+            codes.push(json!({"expected":expected_code,"minimum":low,"maximum":high}));
+        }
+        assert_eq!(u16::from_le_bytes(pixel[6..8].try_into()?), 65535);
+        expected_samples.push(codes);
+    }
+    let cancelled = directory.path.join("icc-cancelled.mov");
+    let control = deadline.control()?;
+    let mut accepted = false;
+    assert!(
+        deliver(
+            &cli,
+            project,
+            request,
+            &cancelled,
+            &control,
+            |progress, _| {
+                if (progress.phase == Phase::Rendering && progress.pictures >= 1)
+                    || progress.phase == Phase::VerifyingPictures
+                {
+                    accepted |= control.cancel();
+                }
+            }
+        )
+        .is_err()
+    );
+    assert!(
+        accepted,
+        "Cancel actual private output after its sole picture was rendered"
+    );
+    assert!(!cancelled.exists());
+    let preserved_master = fs::read(&master)?;
+    assert!(
+        deliver(
+            &cli,
+            Arc::new(load(&native)?),
+            request,
+            &master,
+            &deadline.control()?,
+            |_, _| {}
+        )
+        .is_err()
+    );
+    assert_eq!(fs::read(&master)?, preserved_master);
+    source.verify(&cancel)?;
+    write_new(
+        &directory.path.join("icc-pipeline.json"),
+        &serde_json::to_vec_pretty(&json!({
+            "schema":"editbay.icc-pipeline.v1","status":"passed","source_revision":binding["test_source_revision"],
+            "cli_source_revision":binding["revision"],"cli_build_receipt":binding["actual_cli_compiler_packet"],"cli_fingerprint":binding["actual_cli_fingerprint"],
+            "input":input,"input_fingerprint":source.fingerprint(),"profile":profile_path,"profile_sha256":profile.sha256,
+            "native":native,"master":master,"receipt":receipt,"probe":probe,"dimensions":[icc_fixture::WIDTH,icc_fixture::HEIGHT],
+            "maximum_working_error":maximum_working_error,"maximum_code_error":maximum_code_error,"expected_samples":expected_samples,
+            "undo_rebind_clear_equal":true,"obsolete_frame_rejected":true,"cli_clear_assign_reopen":true,"malformed_cli_preserves_project":true,
+            "post_render_cancel_no_publication":true,"existing_destination_preserved":true,"source_preserved":true,
+            "generator_source_sha256":format!("{:x}", <sha2::Sha256 as sha2::Digest>::digest(include_bytes!("../../editbay-media/tests/fixtures/icc.rs"))),
+            "gamma_bits":icc_fixture::GAMMA_BITS,"gamma":icc_fixture::GAMMA,"numeric_allowance":icc_fixture::NATIVE_ALLOWANCE,
+            "format_references":[icc_fixture::ICC_SPEC,icc_fixture::PNG_SPEC],"alpha":AlphaMode::Opaque,
+            "proof_boundary":"Actual native ICC PNG16 capture, same working-float graph, native16 master/QC and typed/CLI profile assignment. Independent analytic matrix/TRC oracle; no second CMM, output ICC embedding, general ICC conformance or physical display proof."
+        }))?,
+    )?;
+    Ok(())
 }
 
 #[test]

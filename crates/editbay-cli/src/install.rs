@@ -534,6 +534,10 @@ fn rust_notices(destination: &Path) -> Result<()> {
         licenses.join("OMADESIGN-MIT.txt"),
         include_bytes!("../../../vendor/OMADESIGN-LICENSE-MIT"),
     )?;
+    fs::write(
+        licenses.join("LCMS2-MIT.txt"),
+        include_bytes!("../../../assets/native-licenses/lcms2-MIT.txt"),
+    )?;
     fs::copy(
         root.join("Cargo.lock"),
         destination.join("source-Cargo.lock"),

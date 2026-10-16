@@ -41,6 +41,7 @@ Usage:
   editbay frame-plan FILE COMPOSITION_ID FRAME
   editbay probe-media SOURCE
   editbay ingest FILE SOURCE STREAM_INDICES
+  editbay source-profile FILE SOURCE_ID STREAM_INDEX ICC_FILE|none
   editbay decode-frame SOURCE STREAM_INDEX SOURCE_TICK
   editbay export FILE COMPOSITION_ID NEW_MOV [SAMPLE_RATE]
   editbay export-range FILE COMPOSITION_ID NEW_MOV START_FRAME END_FRAME [SAMPLE_RATE]
@@ -263,6 +264,38 @@ fn run(args: &[OsString]) -> Result<(), Box<dyn std::error::Error>> {
             let cancel = Cancellation::new()?;
             let source = SourceFile::open(Path::new(&args[1]), &cancel)?;
             print(source.probe(cancel)?)?;
+        }
+        ("source-profile", 5) => {
+            let path = Path::new(&args[1]);
+            let expected = load(path)?;
+            let cancel = Cancellation::new()?;
+            let profile = if args[4] == "none" {
+                None
+            } else {
+                let profile =
+                    editbay_media::ColorTransform::read_profile(Path::new(&args[4]), &cancel)?;
+                editbay_media::ColorTransform::new(
+                    &profile,
+                    expected.color.working_gamut,
+                    editbay_core::AlphaMode::Straight,
+                    cancel,
+                )?;
+                Some(profile)
+            };
+            let command = editbay_core::source_icc_command(
+                &expected,
+                name(&args[2])?.parse()?,
+                name(&args[3])?.parse()?,
+                profile,
+            )?;
+            let mut editor = DocumentEditor::new(expected.clone())?;
+            let receipt = editor.apply(
+                DocumentVersion::of(&expected),
+                "Assign source ICC profile".into(),
+                &[command],
+            )?;
+            save_if_unchanged(editor.project(), path, &expected)?;
+            print(serde_json::json!({"receipt":receipt,"saved":true}))?;
         }
         ("ingest", 4) => {
             let path = Path::new(&args[1]);

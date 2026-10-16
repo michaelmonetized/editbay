@@ -10,6 +10,7 @@ pub mod media_ui;
 pub mod multicam_ui;
 pub mod preferences;
 pub mod preview;
+pub mod source_color_ui;
 pub mod studio;
 pub mod theme;
 pub mod timeline_ui;

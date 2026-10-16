@@ -49,6 +49,7 @@ fn model() -> Project {
         metadata: BTreeMap::from([("reel".into(), "A001".into())]),
         streams: vec![
             SourceStream {
+                icc_profile: None,
                 index: 0,
                 codec: "ffv1".into(),
                 time_base: TimeBase {
@@ -76,6 +77,7 @@ fn model() -> Project {
                 metadata: BTreeMap::new(),
             },
             SourceStream {
+                icc_profile: None,
                 index: 1,
                 codec: "pcm_f32le".into(),
                 time_base: TimeBase {

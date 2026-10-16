@@ -38,7 +38,9 @@ impl Cancellation {
         self.0.requested()
     }
 
-    fn check(&self) -> Result<()> {
+    /// Reject work after its shared native owner cancels.
+    /// Takes no arguments; returns the same explicit cancellation error as native IO.
+    pub fn check(&self) -> Result<()> {
         if self.is_cancelled() {
             Err(Error::Cancelled)
         } else {
@@ -225,6 +227,10 @@ impl SourceFile {
             if kind == StreamType::Video && raw.pixel_format >= 0 {
                 let encoding = ffi::pixel_encoding(raw.pixel_format)?;
                 metadata.insert(
+                    "editbay.native_pixel_model".into(),
+                    ffi::pixel_model(raw.pixel_format)?.into(),
+                );
+                metadata.insert(
                     "editbay.pixel_encoding".into(),
                     serde_json::to_value(encoding)
                         .map_err(|e| Error::Invalid(e.to_string()))?
@@ -317,12 +323,14 @@ impl SourceFile {
                 ));
             }
             let encoding = crate::PixelEncoding::from_native(frame.pixel_encoding)?;
+            let pixel_model = ffi::model_name(frame.pixel_model)?;
             let resolved_color = resolve_color(frame, stream.color);
             let resolved_alpha = alpha(frame.has_alpha, frame.alpha_mode);
             let current = (
                 resolved_color,
                 resolved_alpha,
                 encoding,
+                pixel_model,
                 frame.has_alpha != 0 && frame.alpha_mode == 0,
             );
             if interpretation.is_some_and(|old| old != current) {
@@ -367,7 +375,8 @@ impl SourceFile {
                     .into(),
             ));
         };
-        let (color, alpha, encoding, alpha_interpretation_required) = interpretation.unwrap();
+        let (color, alpha, encoding, pixel_model, alpha_interpretation_required) =
+            interpretation.unwrap();
         progress(ticks.len() as u64);
         cancel.check()?;
         self.check_identity()?;
@@ -377,6 +386,8 @@ impl SourceFile {
             end_tick,
             end_method: end_method.into(),
             encoding,
+            icc_profile: reader.icc_profile()?,
+            pixel_model: pixel_model.into(),
             color,
             alpha,
             alpha_interpretation_required,
@@ -416,6 +427,7 @@ impl SourceFile {
                 )));
             }
             let mut metadata = stream.metadata.clone();
+            let mut icc_profile = None;
             let (time_base, start_tick, duration_ticks, format) = match stream.kind {
                 StreamType::Video => {
                     let video =
@@ -438,6 +450,12 @@ impl SourceFile {
                             "unspecified source alpha interpreted as straight".into(),
                         );
                     }
+                    metadata.insert("editbay.native_pixel_model".into(), video.pixel_model);
+                    if let Some(profile) = &video.icc_profile {
+                        metadata
+                            .insert("editbay.embedded_icc_sha256".into(), profile.sha256.clone());
+                    }
+                    icc_profile = video.icc_profile;
                     let base = stream.time_base.unwrap();
                     (
                         base,
@@ -535,6 +553,7 @@ impl SourceFile {
                 }
             };
             streams.push(SourceStream {
+                icc_profile,
                 index: *index,
                 codec: stream.codec.clone(),
                 time_base,
@@ -709,6 +728,10 @@ pub struct MediaProbe {
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct VideoIndex {
+    #[serde(default)]
+    pub pixel_model: String,
+    #[serde(default)]
+    pub icc_profile: Option<editbay_core::IccProfile>,
     #[serde(default)]
     pub encoding: crate::PixelEncoding,
     pub start_tick: i64,

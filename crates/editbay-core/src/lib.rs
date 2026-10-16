@@ -2,6 +2,9 @@
 //!
 //! One typed media/composition document is shared by UI, CLI, automation and recovery.
 
+pub use icc::{IccProfile, source_icc_command};
+mod icc;
+
 mod authoring;
 pub use authoring::{
     conform_sequence, sequence_from_audio, sequence_from_video, sequence_from_video_with_audio,
