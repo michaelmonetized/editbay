@@ -109,8 +109,10 @@ fn compare(input: &[f32], output: &[f32], gamut: WorkingGamut) -> Value {
     let mut maximum_error = 0_f64;
     let mut maximum_allowance = 0_f64;
     for (pixel, (source, actual)) in input
-        .chunks_exact(4)
-        .zip(output.chunks_exact(4))
+        .as_chunks::<4>()
+        .0
+        .iter()
+        .zip(output.as_chunks::<4>().0)
         .enumerate()
     {
         let (wanted, allowance) = expected(
@@ -325,7 +327,7 @@ fn craft_video_icc_straight_and_premultiplied_alpha_keep_source_interpretation()
         0.25, 0.5, 0.75, 0.5, 0.0, 0.0, 0.0, 0.0, 1.0, 0.5, 0.25, 1.0,
     ];
     let mut premultiplied = unassociated.clone();
-    for pixel in premultiplied.chunks_exact_mut(4) {
+    for pixel in premultiplied.as_chunks_mut::<4>().0 {
         let alpha = pixel[3];
         for component in &mut pixel[..3] {
             *component *= alpha;
