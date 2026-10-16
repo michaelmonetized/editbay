@@ -337,8 +337,10 @@ impl StoreReader {
         let Some(record) = self.entries.get(key) else {
             return Ok(None);
         };
-        if u64::from(record.header.width) * u64::from(record.header.height) * 4
-            != output.len() as u64
+        if u64::from(record.header.width)
+            .checked_mul(u64::from(record.header.height))
+            .and_then(|pixels| pixels.checked_mul(record.header.encoding.bytes_per_pixel() as u64))
+            != Some(output.len() as u64)
         {
             return Err(Error::Invalid(
                 "picture storage read has foreign geometry".into(),

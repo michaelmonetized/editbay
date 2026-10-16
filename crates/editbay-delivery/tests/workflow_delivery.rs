@@ -1022,8 +1022,10 @@ fn craft_video_precision_decode_worker_store_float_graph_and_atomic_master() -> 
             })
         })
         .ok_or("media request absent")?;
-    let mut budget = PictureBudget::default();
-    budget.maximum_picture_bytes = (WIDTH * HEIGHT * 4) as usize;
+    let budget = PictureBudget {
+        maximum_picture_bytes: (WIDTH * HEIGHT * 4) as usize,
+        ..PictureBudget::default()
+    };
     let mut limited = PictureCache::new(snapshot.clone(), budget, deadline.media()?)?;
     assert!(
         limited.picture(&source_request).is_err(),
