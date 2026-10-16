@@ -274,6 +274,38 @@ fn tone(sample: u64, channel: usize) -> f32 {
     }) as f32
 }
 
+fn aac_tone(sample: u64, channel: usize) -> f32 {
+    let phase = sample as f64 * std::f64::consts::TAU;
+    (if channel == 0 {
+        0.18 * (phase / 96.).sin()
+    } else {
+        -0.22 * (phase / 79.).cos()
+    }) as f32
+}
+
+fn hdr_gray(code: u16, transfer: i32) -> u16 {
+    let source = f64::from(code) / 65535.;
+    let linear = if source < 0.081 {
+        source / 4.5
+    } else {
+        ((source + 0.099) / 1.099).powf(1. / 0.45)
+    };
+    let output = if transfer == 16 {
+        let power = (linear * 100. / 10000.).powf(2610. / 16384.);
+        ((3424. / 4096. + 2413. / 128. * power) / (1. + 2392. / 128. * power)).powf(2523. / 32.)
+    } else {
+        let scene = (linear * 100. / 1000.).powf(1. / 1.2);
+        if scene <= 1. / 12. {
+            (3. * scene).sqrt()
+        } else {
+            let a = 0.17883277_f64;
+            let b = 1. - 4. * a;
+            a * (12. * scene - b).ln() + 0.5 - a * (4. * a).ln()
+        }
+    };
+    (output * 65535.).round() as u16
+}
+
 /// Author a real high-depth source and a saved linked native sequence through shared commands.
 /// `path`, rate/layout and failure switches define original input; returns reopened project and root.
 fn author(
@@ -283,6 +315,18 @@ fn author(
     opaque: bool,
     headroom: Option<f32>,
     cancel: &Cancellation,
+) -> TestResult<(Arc<Project>, Uuid)> {
+    author_signal(path, rate, channels, opaque, headroom, cancel, false)
+}
+
+fn author_signal(
+    path: &Path,
+    rate: FrameRate,
+    channels: usize,
+    opaque: bool,
+    headroom: Option<f32>,
+    cancel: &Cancellation,
+    aac: bool,
 ) -> TestResult<(Arc<Project>, Uuid)> {
     let profile = LosslessMovProfile {
         width: WIDTH,
@@ -324,7 +368,15 @@ fn author(
         let end = boundary(frame + 1, rate);
         let samples: Vec<f32> = (first..end)
             .flat_map(|n| {
-                (0..channels).map(move |channel| headroom.unwrap_or_else(|| tone(n, channel)))
+                (0..channels).map(move |channel| {
+                    headroom.unwrap_or_else(|| {
+                        if aac {
+                            aac_tone(n, channel)
+                        } else {
+                            tone(n, channel)
+                        }
+                    })
+                })
             })
             .collect();
         writer.sound(first, &samples)?;
@@ -384,10 +436,12 @@ fn author(
 /// `path`, selected range/rate/layout and native cancellation define the exact expected master.
 fn inspect(
     path: &Path,
+    format: DeliveryFormat,
     rate: FrameRate,
     range: FrameRange,
     channels: usize,
     cancel: &Cancellation,
+    color: DeliveryColor,
 ) -> TestResult<Value> {
     let source = SourceFile::open(path, cancel)?;
     let probe = source.probe(cancel.clone())?;
@@ -401,7 +455,20 @@ fn inspect(
         .iter()
         .find(|s| s.kind == StreamType::Audio)
         .ok_or("Delivered sound absent")?;
-    assert_eq!(video.codec, "dnxhd");
+    assert_eq!(video.codec, if format.aac() { "hevc" } else { "dnxhd" });
+    assert_eq!(
+        video.metadata["editbay.codec_profile_name"],
+        if format.aac() { "Main 10" } else { "DNXHR HQX" }
+    );
+    assert_eq!(
+        video.metadata["editbay.pixel_format_name"],
+        if format.aac() {
+            "yuv420p10le"
+        } else {
+            "yuv422p10le"
+        }
+    );
+    assert_eq!(video.metadata["editbay.component_depth"], "10");
     assert_eq!((video.width, video.height), (Some(WIDTH), Some(HEIGHT)));
     assert_eq!(
         (
@@ -410,10 +477,15 @@ fn inspect(
             video.color.matrix,
             video.color.range
         ),
-        (1, 1, 1, 1)
+        (
+            color.primaries,
+            color.transfer,
+            if color.primaries == 9 { 9 } else { 1 },
+            1
+        )
     );
     assert_eq!(video.nominal_rate, Some(rate));
-    assert_eq!(audio.codec, "pcm_s24le");
+    assert_eq!(audio.codec, if format.aac() { "aac" } else { "pcm_s24le" });
     assert_eq!(audio.sample_rate, Some(RATE));
     assert_eq!(
         audio.channels,
@@ -445,10 +517,17 @@ fn inspect(
         assert_eq!(decoded.rgba.len(), (WIDTH * HEIGHT * 8) as usize);
         for (index, bytes) in decoded.rgba.as_chunks::<8>().0.iter().enumerate() {
             let x = index as u32 % WIDTH;
-            let expected = pixel(range.start + count, x, index as u32 / WIDTH, true);
+            let mut expected = pixel(range.start + count, x, index as u32 / WIDTH, true);
             let actual: [u16; 4] =
                 std::array::from_fn(|c| u16::from_le_bytes([bytes[c * 2], bytes[c * 2 + 1]]));
             assert_eq!(actual[3], u16::MAX);
+            if [16, 18].contains(&color.transfer) {
+                if x < 136 {
+                    continue;
+                }
+                let gray = hdr_gray(expected[0], color.transfer);
+                expected = [gray, gray, gray, u16::MAX];
+            }
             let error =
                 std::array::from_fn::<_, 3, _>(|c| f64::from(actual[c]) - f64::from(expected[c]));
             let luma = (error[0] * 0.2126 + error[1] * 0.7152 + error[2] * 0.0722).abs() / 65535.;
@@ -472,7 +551,9 @@ fn inspect(
     assert_eq!(count, range.end - range.start);
     let rms = (squared / measured as f64).sqrt();
     assert!(
-        maximum <= 512 && rms <= 128. && maximum_luma <= 0.01,
+        maximum <= if format.aac() { 1024 } else { 512 }
+            && rms <= if format.aac() { 256. } else { 128. }
+            && maximum_luma <= if format.aac() { 0.02 } else { 0.01 },
         "RGB max {maximum}, RMS {rms}, luma {maximum_luma}"
     );
     assert!(
@@ -488,22 +569,36 @@ fn inspect(
     let total = boundary(range.end, rate) - start;
     let (mut samples, mut maximum_pcm_error, mut positive_endpoints, mut negative_endpoints) =
         (0_u64, 0_f64, 0_u64, 0_u64);
+    let (mut padding, mut pcm_squared) = (0_u64, 0_f64);
     let mut endpoints = Vec::new();
     while let Some(block) = reader.next_block()? {
-        assert_eq!(block.first_sample, Some(samples as i64));
+        assert_eq!(block.first_sample, Some((samples + padding) as i64));
         assert!(block.samples.len().is_multiple_of(channels));
         for frame in block.samples.chunks_exact(channels) {
-            assert!(samples < total, "Unexpected MXF/PCM padding");
+            if samples >= total {
+                assert!(format.aac(), "Unexpected MXF/PCM padding");
+                padding += 1;
+                assert!(padding <= 1023, "Excess AAC padding");
+                continue;
+            }
             for (channel, actual) in frame.iter().enumerate() {
-                let original = f64::from(tone(start + samples, channel));
-                let expected =
-                    (original / PCM_STEP).round().clamp(-8_388_608., 8_388_607.) * PCM_STEP;
+                let original = f64::from(if format.aac() {
+                    aac_tone(start + samples, channel)
+                } else {
+                    tone(start + samples, channel)
+                });
+                let expected = if format.aac() {
+                    original
+                } else {
+                    (original / PCM_STEP).round().clamp(-8_388_608., 8_388_607.) * PCM_STEP
+                };
                 let error = (f64::from(*actual) - expected).abs();
                 assert!(
-                    actual.is_finite() && error <= PCM_STEP,
+                    actual.is_finite() && error <= if format.aac() { 0.08 } else { PCM_STEP },
                     "Sample {samples}/{channel}: {actual} != PCM24 {expected}"
                 );
                 maximum_pcm_error = maximum_pcm_error.max(error);
+                pcm_squared += error * error;
                 positive_endpoints += u64::from(original == 1.);
                 negative_endpoints += u64::from(original == -1.);
                 if samples == 0 || samples + 1 == total {
@@ -514,10 +609,14 @@ fn inspect(
         }
     }
     assert_eq!(samples, total);
-    assert!(positive_endpoints > 0 && negative_endpoints > 0);
+    if format.pcm24() {
+        assert!(positive_endpoints > 0 && negative_endpoints > 0);
+    }
+    let pcm_rms = (pcm_squared / (samples as f64 * channels as f64)).sqrt();
+    assert!(pcm_rms <= if format.aac() { 0.02 } else { PCM_STEP });
     source.verify(cancel)?;
     Ok(
-        json!({"probe":probe,"frames":count,"samples":samples,"source_sample_start":start,"source_sample_end":start+total,"maximum_interior_code_error":maximum,"interior_rms_code_error":rms,"maximum_luma_error":maximum_luma,"interior_non8bit_components":non8bit,"maximum_pcm_error":maximum_pcm_error,"pcm24_step":PCM_STEP,"positive_endpoints":positive_endpoints,"negative_endpoints":negative_endpoints,"endpoints":endpoints}),
+        json!({"probe":probe,"frames":count,"samples":samples,"padding":padding,"pcm_rms_error":pcm_rms,"source_sample_start":start,"source_sample_end":start+total,"maximum_interior_code_error":maximum,"interior_rms_code_error":rms,"maximum_luma_error":maximum_luma,"interior_non8bit_components":non8bit,"maximum_pcm_error":maximum_pcm_error,"pcm24_step":if format.pcm24() {Some(PCM_STEP)} else {None},"positive_endpoints":positive_endpoints,"negative_endpoints":negative_endpoints,"endpoints":endpoints}),
     )
 }
 
@@ -530,13 +629,45 @@ fn run_case(
     rate: FrameRate,
     range: FrameRange,
 ) -> TestResult<()> {
+    run_case_color(format, label, channels, rate, range, None)
+}
+
+fn run_case_color(
+    format: DeliveryFormat,
+    label: &str,
+    channels: usize,
+    rate: FrameRate,
+    range: FrameRange,
+    hdr: Option<OutputTransfer>,
+) -> TestResult<()> {
     let (directory, _cleanup) = directory(label)?;
     let (cli, binding) = bound_cli()?;
     let deadline = Deadline::new()?;
     let result = (|| -> TestResult<Value> {
         let cancel = deadline.media()?;
         let input = directory.join("original.mov");
-        let (project, composition) = author(&input, rate, channels, true, None, &cancel)?;
+        let (mut project, composition) =
+            author_signal(&input, rate, channels, true, None, &cancel, format.aac())?;
+        if let Some(transfer) = hdr {
+            let mut editor = DocumentEditor::new((*project).clone())?;
+            let mut configuration = project.color;
+            configuration.output_gamut = editbay_core::WorkingGamut::Bt2020;
+            configuration.output_transfer = transfer;
+            editor.apply(
+                DocumentVersion::of(editor.project()),
+                "Declare HEVC HDR output".into(),
+                &[DocumentCommand::SetColor { configuration }],
+            )?;
+            let edited = editor.project().clone();
+            editor.undo(DocumentVersion::of(editor.project()))?;
+            assert_eq!(editor.project().color, project.color);
+            editor.redo(DocumentVersion::of(editor.project()))?;
+            assert_eq!(editor.project().color, edited.color);
+            let path = directory.join("hdr.editbay");
+            save_new(editor.project(), &path)?;
+            project = Arc::new(load(&path)?);
+            assert_eq!(*project, *editor.project());
+        }
         let input_identity = SourceFile::open(&input, &cancel)?.fingerprint().clone();
         let mut graph = GraphRenderer::new(
             Arc::new(EvaluationSnapshot::new(project.clone())?),
@@ -598,12 +729,34 @@ fn run_case(
         assert_eq!(receipt.profile.first_frame, range.start);
         assert_eq!(receipt.profile.frames, range.end - range.start);
         assert_eq!(receipt.profile.channels.len(), channels);
-        assert_eq!((receipt.color.primaries, receipt.color.transfer), (1, 1));
+        assert_eq!(
+            (receipt.color.primaries, receipt.color.transfer),
+            if hdr.is_some() {
+                (
+                    9,
+                    if hdr == Some(OutputTransfer::Pq) {
+                        16
+                    } else {
+                        18
+                    },
+                )
+            } else {
+                (1, 1)
+            }
+        );
         assert!(
             receipt.picture_quality.samples > 0 && receipt.sound_quality.samples > 0,
             "Lossy picture/PCM24 QC must be measured"
         );
-        let observed = inspect(&master, rate, range, channels, &cancel)?;
+        let observed = inspect(
+            &master,
+            format,
+            rate,
+            range,
+            channels,
+            &cancel,
+            receipt.color,
+        )?;
         let owned = SourceFile::open(&master, &cancel)?.fingerprint().clone();
         assert_eq!(
             (receipt.file_sha256.as_str(), receipt.file_bytes),
@@ -674,6 +827,52 @@ fn craft_video_master_formats_dnxhr_mov_mono() -> TestResult<()> {
         1,
         FrameRate::new(24, 1)?,
         FrameRange { start: 1, end: 4 },
+    )
+}
+
+#[test]
+fn craft_video_hevc_main10_mp4_mono() -> TestResult<()> {
+    run_case(
+        DeliveryFormat::HevcMain10Mp4,
+        "hevc-mono",
+        1,
+        FrameRate::new(25, 1)?,
+        FrameRange { start: 1, end: 4 },
+    )
+}
+
+#[test]
+fn craft_video_hevc_main10_mp4_pq() -> TestResult<()> {
+    run_case_color(
+        DeliveryFormat::HevcMain10Mp4,
+        "hevc-pq",
+        1,
+        FrameRate::new(25, 1)?,
+        FrameRange { start: 1, end: 4 },
+        Some(OutputTransfer::Pq),
+    )
+}
+
+#[test]
+fn craft_video_hevc_main10_mp4_hlg() -> TestResult<()> {
+    run_case_color(
+        DeliveryFormat::HevcMain10Mp4,
+        "hevc-hlg",
+        1,
+        FrameRate::new(25, 1)?,
+        FrameRange { start: 1, end: 4 },
+        Some(OutputTransfer::Hlg),
+    )
+}
+
+#[test]
+fn craft_video_hevc_main10_mp4_stereo_fractional_phase() -> TestResult<()> {
+    run_case(
+        DeliveryFormat::HevcMain10Mp4,
+        "hevc-stereo-fractional",
+        2,
+        FrameRate::new(30_000, 1001)?,
+        FrameRange { start: 2, end: 5 },
     )
 }
 #[test]

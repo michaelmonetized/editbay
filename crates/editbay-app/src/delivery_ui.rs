@@ -172,6 +172,7 @@ impl DeliveryPane {
                         DeliveryFormat::Lossless16Mov,
                         DeliveryFormat::DnxhrHqxMov,
                         DeliveryFormat::DnxhrHqxMxf,
+                        DeliveryFormat::HevcMain10Mp4,
                     ] {
                         let option =
                             ui.selectable_value(&mut choice.format, format, format_name(format));
@@ -180,6 +181,7 @@ impl DeliveryPane {
                 });
             preview.observe_control("export-format", &formats.response, ui);
             ui.weak(match choice.format {
+                DeliveryFormat::HevcMain10Mp4 => "HEVC Main10 · 10-bit 4:2:0 · AAC mono/stereo · opaque graph required",
                 DeliveryFormat::DnxhrHqxMov => "DNxHR HQX 10-bit 4:2:2 · 48 kHz PCM24 mono/stereo · BT.709 · opaque graph required",
                 DeliveryFormat::DnxhrHqxMxf => "MXF OP1a · DNxHR HQX 10-bit 4:2:2 · 48 kHz PCM24 mono/stereo · integral samples per edit · BT.709 · opaque graph required",
                 DeliveryFormat::H264Mp4 => "48 kHz AAC · mono/stereo · transparency over black",
@@ -193,6 +195,10 @@ impl DeliveryPane {
                     "PNG RGBA · 48 kHz float PCM · original channels and alpha"
                 }
             });
+            let availability = choice.format.availability();
+            if availability.status != "available" {
+                ui.colored_label(egui::Color32::YELLOW, availability.reason);
+            }
             ui.add_space(8.);
             let whole = ui.radio_value(&mut choice.full, true, "Full sequence");
             preview.observe_control("export-full", &whole, ui);
@@ -485,5 +491,6 @@ fn format_name(format: DeliveryFormat) -> &'static str {
         DeliveryFormat::Lossless16Mov => "Lossless 16-bit MOV",
         DeliveryFormat::DnxhrHqxMov => "DNxHR HQX / PCM24 MOV",
         DeliveryFormat::DnxhrHqxMxf => "DNxHR HQX / PCM24 MXF",
+        DeliveryFormat::HevcMain10Mp4 => "HEVC Main10 / AAC MP4",
     }
 }

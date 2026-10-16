@@ -40,12 +40,13 @@ Usage:
   editbay migrate SOURCE NEW_FILE
   editbay frame-plan FILE COMPOSITION_ID FRAME
   editbay probe-media SOURCE
+  editbay delivery-formats
   editbay ingest FILE SOURCE STREAM_INDICES
   editbay source-profile FILE SOURCE_ID STREAM_INDEX ICC_FILE|none
   editbay decode-frame SOURCE STREAM_INDEX SOURCE_TICK
   editbay export FILE COMPOSITION_ID NEW_MOV [SAMPLE_RATE]
   editbay export-range FILE COMPOSITION_ID NEW_MOV START_FRAME END_FRAME [SAMPLE_RATE]
-  editbay export-profile FILE COMPOSITION_ID NEW_FILE lossless_mov|lossless16_mov|h264_mp4|prores_mov|dnxhr_hqx_mov|dnxhr_hqx_mxf [SAMPLE_RATE [START_FRAME END_FRAME]]
+  editbay export-profile FILE COMPOSITION_ID NEW_FILE lossless_mov|lossless16_mov|h264_mp4|prores_mov|dnxhr_hqx_mov|dnxhr_hqx_mxf|hevc_main10_mp4 [SAMPLE_RATE [START_FRAME END_FRAME]]
   editbay checkpoint FILE RECOVERY_DIRECTORY
   editbay recoveries RECOVERY_DIRECTORY
   editbay recover CHECKPOINT NEW_FILE
@@ -93,6 +94,7 @@ fn export(args: &[OsString]) -> Result<(), Box<dyn std::error::Error>> {
                 "prores_mov" => editbay_delivery::DeliveryFormat::ProresMov,
                 "dnxhr_hqx_mov" => editbay_delivery::DeliveryFormat::DnxhrHqxMov,
                 "dnxhr_hqx_mxf" => editbay_delivery::DeliveryFormat::DnxhrHqxMxf,
+                "hevc_main10_mp4" => editbay_delivery::DeliveryFormat::HevcMain10Mp4,
                 _ => return Err("Unknown export profile".into()),
             }
         } else {
@@ -182,6 +184,12 @@ fn run(args: &[OsString]) -> Result<(), Box<dyn std::error::Error>> {
         .and_then(|arg| arg.to_str())
         .unwrap_or("--help");
     match (command, args.len()) {
+        ("delivery-formats", 1) => print(serde_json::json!({
+            "schema":"editbay.delivery-capabilities.v1",
+            "native_runtime":editbay_media::version(),
+            "profiles":editbay_media::DeliveryFormat::ALL.map(|format| format.availability()),
+            "proof_boundary":"Registration and negotiation only. This command does not encode, run QC or qualify any matrix case."
+        }))?,
         ("captions-import" | "captions-export", 4) => captions::run(args)?,
         ("exchange-import", 4 | 5) | ("exchange-export", 5) | ("relink", 4) => exchange::run(args)?,
         ("build-job", 3) => print(job::build(Path::new(&args[1]), Path::new(&args[2]))?)?,

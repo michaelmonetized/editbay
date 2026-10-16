@@ -90,3 +90,40 @@ fn masters_require_actual_bt709_opaque_high_depth_and_declared_channels() {
         }
     }
 }
+
+#[test]
+fn hevc_hdr_negotiation_and_registration_never_claim_qualification() {
+    let format = DeliveryFormat::HevcMain10Mp4;
+    assert!(format.requires_opaque() && format.aac());
+    assert_eq!(format.pixel_encoding(), PixelEncoding::Rgba16Le);
+    let hdr = DeliveryColor {
+        primaries: 9,
+        transfer: 16,
+        hdr_metadata: Default::default(),
+    };
+    hdr.validate(format).unwrap();
+    assert!(
+        DeliveryColor {
+            primaries: 1,
+            ..hdr
+        }
+        .validate(format)
+        .is_err()
+    );
+    assert!(
+        format
+            .validate(&LosslessMovProfile {
+                width: 15,
+                ..profile()
+            })
+            .is_err()
+    );
+    for available in DeliveryFormat::ALL.map(|format| format.availability()) {
+        assert!(matches!(
+            available.status,
+            "available" | "unavailable" | "undetermined"
+        ));
+        assert_eq!(available.qualification, "not_run_by_capability_query");
+        assert!(!available.reason.is_empty());
+    }
+}

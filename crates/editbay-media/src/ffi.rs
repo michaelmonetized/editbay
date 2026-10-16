@@ -115,6 +115,7 @@ unsafe extern "C" {
         error: *mut c_int,
     ) -> *mut c_void;
     fn eb_delivery_sound(writer: *mut c_void, samples: *const f32, length: usize) -> c_int;
+    fn eb_delivery_available(format: c_int) -> c_int;
     fn eb_error(code: c_int, message: *mut c_char, length: usize);
     fn eb_version() -> *const c_char;
 }
@@ -373,6 +374,10 @@ pub(crate) fn pixel_format_name(format: i32) -> Result<String> {
 
 pub(crate) fn pixel_depth(format: i32) -> i32 {
     unsafe { eb_pixel_depth(format) }
+}
+
+pub(crate) fn delivery_available(format: crate::DeliveryFormat) -> i32 {
+    unsafe { eb_delivery_available(format.native_id()) }
 }
 
 pub(crate) fn pixel_model(format: i32) -> Result<&'static str> {
@@ -784,14 +789,7 @@ impl LosslessMovWriter {
                 profile.frame_rate.denominator as i32,
                 profile.sample_rate as i32,
                 layout.as_ptr(),
-                match format {
-                    crate::DeliveryFormat::LosslessMov => 0,
-                    crate::DeliveryFormat::Lossless16Mov => 3,
-                    crate::DeliveryFormat::H264Mp4 => 1,
-                    crate::DeliveryFormat::ProresMov => 2,
-                    crate::DeliveryFormat::DnxhrHqxMov => 4,
-                    crate::DeliveryFormat::DnxhrHqxMxf => 5,
-                },
+                format.native_id(),
                 &NativeDeliveryColor {
                     primaries: color.primaries,
                     transfer: color.transfer,
@@ -856,8 +854,7 @@ impl LosslessMovWriter {
             || frames > 4096
             || first.checked_add(frames).is_none_or(|end| end > limit)
             || samples.iter().any(|v| !v.is_finite())
-            || ((self.format == crate::DeliveryFormat::H264Mp4 || self.format.pcm24())
-                && samples.iter().any(|v| v.abs() > 1.))
+            || ((self.format.aac() || self.format.pcm24()) && samples.iter().any(|v| v.abs() > 1.))
         {
             return Err(Error::Invalid(
                 "invalid, stale or unbounded delivery sound".into(),
