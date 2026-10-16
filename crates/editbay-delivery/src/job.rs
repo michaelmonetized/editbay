@@ -212,7 +212,7 @@ pub fn deliver(
             previous.as_ref(),
         )?;
         match response.outcome {
-            Outcome::Failed { message } => return Err(message.into()),
+            Outcome::Failed { message } => return Err(child.failure(message).into()),
             Outcome::Progress {
                 progress: status,
                 receipt,
