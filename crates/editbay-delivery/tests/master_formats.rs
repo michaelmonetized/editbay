@@ -840,7 +840,7 @@ fn run_case_color(
     editbay_core::write_new_bytes(
         directory.join("master-format.json"),
         &serde_json::to_vec_pretty(
-            &json!({"schema":"editbay.master-formats.v1","case":label,"format":format,"binding":binding,"result":receipt,"fixture_source_sha256":format!("{:x}", <sha2::Sha256 as sha2::Digest>::digest(include_bytes!("master_formats.rs"))),"proof_boundary":"Actual native source/writer, shared float graph, clean-bound CLI supervisor and decode/QC on CPU Vulkan. Original analytic BT.709 picture/PCM oracles include selected-range endpoints and PCM24 saturation. Encode/decode share FFmpeg; no independent DNxHR/MXF conformance, external NLE, desktop/audio device or physical proof."}),
+            &json!({"schema":"editbay.master-formats.v1","case":label,"format":format,"binding":binding,"result":receipt,"fixture_source_sha256":format!("{:x}", <sha2::Sha256 as sha2::Digest>::digest(include_bytes!("master_formats.rs"))),"proof_boundary":if format.aac() { "Actual native source/writer, shared float graph, clean-bound CLI supervisor and decode/QC on CPU Vulkan. Original BT.709 and PQ/HLG gray oracles; AAC peak/RMS, zero analytic lag and bounded final padding. Encode/decode share FFmpeg; no independent HEVC picture conformance, external player, desktop/audio device or physical proof." } else { "Actual native source/writer, shared float graph, clean-bound CLI supervisor and decode/QC on CPU Vulkan. Original analytic BT.709 picture/PCM oracles include selected-range endpoints and PCM24 saturation. Encode/decode share FFmpeg; no independent DNxHR/MXF conformance, external NLE, desktop/audio device or physical proof." }}),
         )?,
     )?;
     result.map(|_| ())
