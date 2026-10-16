@@ -275,12 +275,15 @@ fn tone(sample: u64, channel: usize) -> f32 {
 }
 
 fn aac_tone(sample: u64, channel: usize) -> f32 {
-    let phase = sample as f64 * std::f64::consts::TAU;
-    (if channel == 0 {
-        0.18 * (phase / 96.).sin()
+    let seconds = sample as f64 / f64::from(RATE);
+    let (frequency, sweep) = if channel == 0 {
+        (523., 1337.)
     } else {
-        -0.22 * (phase / 79.).cos()
-    }) as f32
+        (617., -911.)
+    };
+    let phase = std::f64::consts::TAU * (frequency * seconds + 0.5 * sweep * seconds * seconds);
+    let envelope = 0.16 + 0.02 * (std::f64::consts::TAU * sample as f64 / 7919.).sin();
+    (envelope * phase.sin()) as f32
 }
 
 fn hdr_gray(code: u16, transfer: i32) -> u16 {
@@ -469,6 +472,8 @@ fn inspect(
         video.metadata["editbay.codec_profile_name"],
         if format.webm() {
             "Profile 2"
+        } else if format == DeliveryFormat::HevcMainMp4 {
+            "Main"
         } else if format.aac() {
             "Main 10"
         } else {
@@ -478,12 +483,23 @@ fn inspect(
     assert_eq!(
         video.metadata["editbay.pixel_format_name"],
         if format.lossy_sound() {
-            "yuv420p10le"
+            if format == DeliveryFormat::HevcMainMp4 {
+                "yuv420p"
+            } else {
+                "yuv420p10le"
+            }
         } else {
             "yuv422p10le"
         }
     );
-    assert_eq!(video.metadata["editbay.component_depth"], "10");
+    assert_eq!(
+        video.metadata["editbay.component_depth"],
+        if format == DeliveryFormat::HevcMainMp4 {
+            "8"
+        } else {
+            "10"
+        }
+    );
     assert_eq!((video.width, video.height), (Some(WIDTH), Some(HEIGHT)));
     assert_eq!(
         (
@@ -586,7 +602,7 @@ fn inspect(
         "RGB max {maximum}, RMS {rms}, luma {maximum_luma}"
     );
     assert!(
-        non8bit > measured / 2,
+        format == DeliveryFormat::HevcMainMp4 || non8bit > measured / 2,
         "No meaningful high-depth delivered component distribution"
     );
     let mut reader = NativeAudioReader::open_stream(&source, audio.index, cancel.clone())?;
@@ -805,6 +821,13 @@ fn run_case_color(
             );
             assert_eq!(receipt.expected_loss.len(), 1);
             assert!(receipt.expected_loss[0].contains("speaker labels"));
+        } else if format == DeliveryFormat::HevcMainMp4 {
+            assert!(
+                receipt
+                    .expected_loss
+                    .iter()
+                    .any(|loss| loss.contains("8-bit 4:2:0"))
+            );
         } else {
             assert!(receipt.expected_loss.is_empty());
         }
@@ -892,7 +915,7 @@ fn run_case_color(
     editbay_core::write_new_bytes(
         directory.join("master-format.json"),
         &serde_json::to_vec_pretty(
-            &json!({"schema":"editbay.master-formats.v1","case":label,"format":format,"binding":binding,"result":receipt,"fixture_source_sha256":format!("{:x}", <sha2::Sha256 as sha2::Digest>::digest(include_bytes!("master_formats.rs"))),"proof_boundary":if format.webm() { "Actual native VP9/Opus source/writer, shared float graph and clean-bound supervised QC on CPU Vulkan. Explicit integral-millisecond picture clocks; original gray/picture and Opus RMS/peak/zero-lag/count oracles. Encode/decode share FFmpeg. No independent VP9 picture or full WebM conformance, external player, desktop/audio device or physical proof." } else if format.aac() { "Actual native source/writer, shared float graph, clean-bound CLI supervisor and decode/QC on CPU Vulkan. Original BT.709 and PQ/HLG gray oracles; AAC peak/RMS, zero analytic lag and bounded final padding. Encode/decode share FFmpeg; no independent HEVC picture conformance, external player, desktop/audio device or physical proof." } else { "Actual native source/writer, shared float graph, clean-bound CLI supervisor and decode/QC on CPU Vulkan. Original analytic BT.709 picture/PCM oracles include selected-range endpoints and PCM24 saturation. Encode/decode share FFmpeg; no independent DNxHR/MXF conformance, external NLE, desktop/audio device or physical proof." }}),
+            &json!({"schema":"editbay.master-formats.v1","case":label,"format":format,"binding":binding,"result":receipt,"fixture_source_sha256":format!("{:x}", <sha2::Sha256 as sha2::Digest>::digest(include_bytes!("master_formats.rs"))),"proof_boundary":if format == DeliveryFormat::HevcMainMp4 { "Actual native HEVC Main8 SDR, explicit8-bit4:2:0 output, shared high-depth float source/graph, bounded AAC peak/RMS/zero-lag/padding, cancellation and preservation. Precision/subsampling loss is expected and reported; no inherited Main10/HDR or independent HEVC picture, device/physical proof." } else if format.webm() { "Actual native VP9/Opus source/writer, shared float graph and clean-bound supervised QC on CPU Vulkan. Explicit integral-millisecond picture clocks; original gray/picture and Opus RMS/peak/zero-lag/count oracles. Encode/decode share FFmpeg. No independent VP9 picture or full WebM conformance, external player, desktop/audio device or physical proof." } else if format.aac() { "Actual native source/writer, shared float graph, clean-bound CLI supervisor and decode/QC on CPU Vulkan. Original BT.709 and PQ/HLG gray oracles; AAC peak/RMS, zero analytic lag and bounded final padding. Encode/decode share FFmpeg; no independent HEVC picture conformance, external player, desktop/audio device or physical proof." } else { "Actual native source/writer, shared float graph, clean-bound CLI supervisor and decode/QC on CPU Vulkan. Original analytic BT.709 picture/PCM oracles include selected-range endpoints and PCM24 saturation. Encode/decode share FFmpeg; no independent DNxHR/MXF conformance, external NLE, desktop/audio device or physical proof." }}),
         )?,
     )?;
     result.map(|_| ())
@@ -910,6 +933,97 @@ fn craft_video_master_formats_dnxhr_mov_mono() -> TestResult<()> {
 }
 
 #[test]
+fn craft_video_hevc_main8_mp4_mono() -> TestResult<()> {
+    run_case(
+        DeliveryFormat::HevcMainMp4,
+        "hevc-main8-mono",
+        1,
+        FrameRate::new(25, 1)?,
+        FrameRange { start: 1, end: 4 },
+    )
+}
+
+#[test]
+fn craft_video_hevc_main8_mp4_stereo_fractional() -> TestResult<()> {
+    run_case(
+        DeliveryFormat::HevcMainMp4,
+        "hevc-main8-stereo-fractional",
+        2,
+        FrameRate::new(30000, 1001)?,
+        FrameRange { start: 2, end: 5 },
+    )
+}
+
+#[test]
+fn craft_video_hevc_fixture_distinguishes_absolute_source_origin() {
+    let squared: f64 = (0..2000)
+        .map(|sample| {
+            (f64::from(aac_tone(sample, 0)) - f64::from(aac_tone(sample + 1920, 0))).powi(2)
+        })
+        .sum();
+    assert!((squared / 2000.).sqrt() > 0.05);
+}
+
+#[test]
+fn craft_video_hevc_capability_records_unavailable_before_worker() -> TestResult<()> {
+    let (directory, _cleanup) = directory("hevc-capabilities")?;
+    let (cli, binding) = bound_cli()?;
+    let output = Command::new(&cli).arg("delivery-formats").output()?;
+    assert!(output.status.success());
+    let capabilities: Value = serde_json::from_slice(&output.stdout)?;
+    assert_eq!(capabilities["schema"], "editbay.delivery-capabilities.v1");
+    let available = DeliveryFormat::HevcMain10Mp4.availability();
+    let main10 = capabilities["profiles"]
+        .as_array()
+        .ok_or("Absent format list")?
+        .iter()
+        .find(|row| row["format"] == "hevc_main10_mp4")
+        .ok_or("Absent Main10 capability")?;
+    assert_eq!(main10["status"], available.status);
+    let mut before_worker = false;
+    if available.status == "unavailable" {
+        let deadline = Deadline::new()?;
+        let cancel = deadline.media()?;
+        let (project, composition) = author_signal(
+            &directory.join("original.mov"),
+            FrameRate::new(25, 1)?,
+            1,
+            true,
+            None,
+            &cancel,
+            true,
+        )?;
+        let destination = directory.join("unavailable.mov.mp4");
+        let mut observed = false;
+        let error = deliver(
+            &cli,
+            project,
+            DeliveryRequest {
+                format: DeliveryFormat::HevcMain10Mp4,
+                composition,
+                sample_rate: RATE,
+                range: Some(FrameRange { start: 1, end: 4 }),
+            },
+            &destination,
+            &deadline.control()?,
+            |_, _| observed = true,
+        )
+        .expect_err("Unavailable Main10 cannot silently downgrade");
+        assert!(error.to_string().contains("unavailable"));
+        assert!(!observed && !destination.exists());
+        before_worker = true;
+    }
+    editbay_core::write_new_bytes(
+        directory.join("hevc-capabilities.json"),
+        &serde_json::to_vec_pretty(
+            &json!({"schema":"editbay.hevc-capability.v1","binding":binding,"capabilities":capabilities,"main10_export_status":if available.status=="unavailable" {"unavailable"} else {"not_run"},"refused_before_worker":before_worker,"proof_boundary":"Capability/refusal evidence only; no Main10 export pass is inferred. Actual prior failed exports remain failed in their historical receipts."}),
+        )?,
+    )?;
+    Ok(())
+}
+
+#[test]
+#[ignore = "Requires packaged Main10 encoder; capability receipt records unavailable separately"]
 fn craft_video_hevc_main10_mp4_mono() -> TestResult<()> {
     run_case(
         DeliveryFormat::HevcMain10Mp4,
@@ -967,6 +1081,7 @@ fn craft_video_vp9_webm_hlg() -> TestResult<()> {
 }
 
 #[test]
+#[ignore = "Requires packaged Main10 encoder; capability receipt records unavailable separately"]
 fn craft_video_hevc_main10_mp4_pq() -> TestResult<()> {
     run_case_color(
         DeliveryFormat::HevcMain10Mp4,
@@ -979,6 +1094,7 @@ fn craft_video_hevc_main10_mp4_pq() -> TestResult<()> {
 }
 
 #[test]
+#[ignore = "Requires packaged Main10 encoder; capability receipt records unavailable separately"]
 fn craft_video_hevc_main10_mp4_hlg() -> TestResult<()> {
     run_case_color(
         DeliveryFormat::HevcMain10Mp4,
@@ -991,6 +1107,7 @@ fn craft_video_hevc_main10_mp4_hlg() -> TestResult<()> {
 }
 
 #[test]
+#[ignore = "Requires packaged Main10 encoder; capability receipt records unavailable separately"]
 fn craft_video_hevc_main10_mp4_stereo_fractional_phase() -> TestResult<()> {
     run_case(
         DeliveryFormat::HevcMain10Mp4,

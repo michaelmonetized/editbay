@@ -174,6 +174,7 @@ impl DeliveryPane {
                         DeliveryFormat::DnxhrHqxMxf,
                         DeliveryFormat::HevcMain10Mp4,
                         DeliveryFormat::Vp9Profile2Webm,
+                        DeliveryFormat::HevcMainMp4,
                     ] {
                         let option =
                             ui.selectable_value(&mut choice.format, format, format_name(format));
@@ -183,6 +184,7 @@ impl DeliveryPane {
             preview.observe_control("export-format", &formats.response, ui);
             ui.weak(match choice.format {
                 DeliveryFormat::Vp9Profile2Webm => "VP9 Profile2 · 10-bit4:2:0 · 48 kHz Opus mono/stereo · integral millisecond clock · opaque graph required",
+                DeliveryFormat::HevcMainMp4 => "HEVC Main · explicit 8-bit 4:2:0 SDR · AAC mono/stereo · source precision/chroma quantized · opaque graph required",
                 DeliveryFormat::HevcMain10Mp4 => "HEVC Main10 · 10-bit 4:2:0 · AAC mono/stereo · opaque graph required",
                 DeliveryFormat::DnxhrHqxMov => "DNxHR HQX 10-bit 4:2:2 · 48 kHz PCM24 mono/stereo · BT.709 · opaque graph required",
                 DeliveryFormat::DnxhrHqxMxf => "MXF OP1a · DNxHR HQX 10-bit 4:2:2 · 48 kHz ordered PCM24 mono/stereo · speaker labels in receipt · integral samples per edit · BT.709 · opaque graph required",
@@ -239,7 +241,7 @@ impl DeliveryPane {
             ui.add_space(8.);
             ui.horizontal(|ui| {
                 let next = ui.add_enabled(
-                    owned && request.is_ok(),
+                    owned && request.is_ok() && availability.status != "unavailable",
                     egui::Button::new("Choose destination…"),
                 );
                 preview.observe_control("export-continue", &next, ui);
@@ -496,5 +498,6 @@ fn format_name(format: DeliveryFormat) -> &'static str {
         DeliveryFormat::DnxhrHqxMxf => "DNxHR HQX / PCM24 MXF",
         DeliveryFormat::HevcMain10Mp4 => "HEVC Main10 / AAC MP4",
         DeliveryFormat::Vp9Profile2Webm => "VP9 Profile2 / Opus WebM",
+        DeliveryFormat::HevcMainMp4 => "HEVC Main8 SDR / AAC MP4",
     }
 }

@@ -163,3 +163,25 @@ fn webm_exact_picture_clock_is_explicit_and_sound_is_48k() {
         );
     }
 }
+
+#[test]
+fn hevc_main8_is_a_separate_declared_lossy_sdr_profile() {
+    let format = DeliveryFormat::HevcMainMp4;
+    assert!(format.hevc() && format.aac() && format.requires_opaque());
+    assert_eq!(format.pixel_encoding(), PixelEncoding::Rgba16Le);
+    assert_eq!(format.availability().pixel_format, "yuv420p");
+    DeliveryColor::default().validate(format).unwrap();
+    assert!(
+        DeliveryColor {
+            primaries: 9,
+            transfer: 16,
+            hdr_metadata: Default::default()
+        }
+        .validate(format)
+        .is_err()
+    );
+    assert_eq!(
+        DeliveryFormat::HevcMain10Mp4.availability().pixel_format,
+        "yuv420p10le"
+    );
+}

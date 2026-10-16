@@ -123,6 +123,7 @@ pub fn deliver(
         channels: sound.profile().channels.clone(),
     };
     request.format.validate(&expected)?;
+    request.format.validate_availability()?;
     let preparation = SoundRenderer::new(
         Arc::new(sound),
         PcmBudget::default(),
