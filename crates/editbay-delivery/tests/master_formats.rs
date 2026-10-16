@@ -513,10 +513,15 @@ fn inspect(
     assert_eq!(audio.sample_rate, Some(RATE));
     assert_eq!(
         audio.channels,
-        if channels == 1 {
-            vec!["FC"]
+        if path.extension().and_then(|s| s.to_str()) == Some("mxf") {
+            assert!(!audio.channel_order_declared);
+            (0..channels)
+                .map(|index| format!("U{index}"))
+                .collect::<Vec<_>>()
+        } else if channels == 1 {
+            vec!["FC".into()]
         } else {
-            vec!["FL", "FR"]
+            vec!["FL".into(), "FR".into()]
         }
     );
     let base = video
@@ -791,6 +796,18 @@ fn run_case_color(
         assert_eq!(receipt.profile.first_frame, range.start);
         assert_eq!(receipt.profile.frames, range.end - range.start);
         assert_eq!(receipt.profile.channels.len(), channels);
+        if format == DeliveryFormat::DnxhrHqxMxf {
+            assert_eq!(
+                receipt.encoded_audio_channels,
+                (0..channels)
+                    .map(|index| format!("U{index}"))
+                    .collect::<Vec<_>>()
+            );
+            assert_eq!(receipt.expected_loss.len(), 1);
+            assert!(receipt.expected_loss[0].contains("speaker labels"));
+        } else {
+            assert!(receipt.expected_loss.is_empty());
+        }
         assert_eq!(
             (receipt.color.primaries, receipt.color.transfer),
             if hdr.is_some() {

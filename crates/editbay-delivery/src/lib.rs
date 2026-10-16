@@ -79,6 +79,12 @@ pub struct Receipt {
     pub format: DeliveryFormat,
     pub version: DocumentVersion,
     pub profile: LosslessMovProfile,
+    /// Channel roles observed in the encoded container; unknown roles keep ordinal names.
+    #[serde(default)]
+    pub encoded_audio_channels: Vec<String>,
+    /// Declared format losses retained separately from decoded signal-quality measurements.
+    #[serde(default)]
+    pub expected_loss: Vec<String>,
     pub pixel_sha256: String,
     pub pcm_sha256: String,
     pub decoded_pixel_sha256: String,

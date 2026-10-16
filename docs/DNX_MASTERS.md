@@ -8,6 +8,13 @@ and explicitly selects DNxHR HQX. Sound is 48 kHz signed PCM24 mono/stereo.
 Actual profile, pixel format, component depth, color, clocks, channels,
 decoded counts and signal error are checked before publication.
 
+The packaged MXF muxer retains PCM channel order without embedding speaker
+labels. The preset reports this expected loss before export and in its final
+receipt; intended roles remain in the saved project and receipt profile.
+Only mono/stereo ordinal channels are accepted, and every channel's decoded
+signal is compared independently with its intended input. MXF is not claimed
+to preserve embedded speaker labels. MOV retains the declared labels.
+
 Choose BT.709 output gamut and BT.709 output transfer. This is a real output
 conversion; sRGB values are never relabeled as BT.709. The graph must be opaque;
 add an explicit opaque background in the composition when needed. Integer PCM
