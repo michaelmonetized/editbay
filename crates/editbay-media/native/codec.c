@@ -16,10 +16,10 @@
 #include <libavutil/opt.h>
 #include <libswscale/swscale.h>
 #include <libswresample/swresample.h>
+#include "color_metadata.h"
 
 
 typedef struct EBCancel EBCancel;
-typedef struct { int primaries, transfer; } EBColor;
 
 typedef struct {
     AVFormatContext *format;
@@ -138,6 +138,7 @@ static EBWriter *writer_open(int descriptor, int width, int height, int num, int
     if (w->format->oformat->flags & AVFMT_GLOBALHEADER) w->codec->flags |= AV_CODEC_FLAG_GLOBAL_HEADER;
     if ((ret = avcodec_open2(w->codec, encoder, NULL)) < 0) goto failed;
     if ((ret = avcodec_parameters_from_context(w->stream->codecpar, w->codec)) < 0) goto failed;
+    if (color && (ret = eb_hdr_write(w->stream->codecpar, &color->hdr)) < 0) goto failed;
     w->stream->time_base = w->codec->time_base;
     w->stream->avg_frame_rate = w->codec->framerate;
     if (layout) {

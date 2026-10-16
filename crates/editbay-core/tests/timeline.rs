@@ -30,6 +30,7 @@ fn project() -> Project {
         asset: id(10),
         metadata: BTreeMap::new(),
         streams: vec![SourceStream {
+            hdr_metadata: Default::default(),
             icc_profile: None,
             index: 0,
             codec: "pcm_f32le".into(),

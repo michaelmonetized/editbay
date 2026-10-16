@@ -4,11 +4,12 @@ use serde::{Deserialize, Serialize};
 
 /// Declared RGB output tags; matrix and range follow the selected encoder.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
-#[repr(C)]
 #[serde(deny_unknown_fields)]
 pub struct DeliveryColor {
     pub primaries: i32,
     pub transfer: i32,
+    #[serde(default)]
+    pub hdr_metadata: editbay_core::HdrMetadata,
 }
 
 impl Default for DeliveryColor {
@@ -16,6 +17,7 @@ impl Default for DeliveryColor {
         Self {
             primaries: 1,
             transfer: 13,
+            hdr_metadata: Default::default(),
         }
     }
 }
@@ -24,9 +26,11 @@ impl DeliveryColor {
     /// Reject unimplemented color encodings before opening output storage.
     /// `format` selects the codec; returns success only for explicit RGB tags or legacy SDR.
     pub fn validate(self, format: DeliveryFormat) -> Result<()> {
+        self.hdr_metadata.validate()?;
         if ![1, 9, 12].contains(&self.primaries)
             || ![1, 8, 13, 16, 18].contains(&self.transfer)
             || (format != DeliveryFormat::Lossless16Mov && self != Self::default())
+            || (!self.hdr_metadata.is_empty() && ![16, 18].contains(&self.transfer))
         {
             return Err(Error::Invalid(
                 "delivery format does not support this color profile".into(),

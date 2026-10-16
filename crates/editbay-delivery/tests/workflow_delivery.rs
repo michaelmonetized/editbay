@@ -1233,13 +1233,27 @@ fn craft_video_icc_source_float_graph_assignment_reopen_and_atomic_master() -> T
 
 #[test]
 fn craft_video_hdr_native_tags_float_light_and_high_depth_delivery() -> TestResult<()> {
-    use editbay_core::{HdrConfiguration, OutputTransfer, WorkingGamut};
+    use editbay_core::{
+        ContentLight, HdrConfiguration, HdrMetadata, MasteringDisplay, OutputTransfer, WorkingGamut,
+    };
     use editbay_media::{DeliveryColor, PixelEncoding};
     let (cli, binding) = bound_cli()?;
     let directory = FixtureDirectory::new()?;
     let cancel = Cancellation::new()?;
     let deadline = DeadlineGuard::new(cancel.clone())?;
     let mut cases = Vec::new();
+    let metadata = HdrMetadata {
+        mastering_display: Some(MasteringDisplay {
+            primaries_xy_50000: [[35400, 14600], [8500, 39850], [6550, 2300]],
+            white_xy_50000: [15635, 16450],
+            minimum_luminance_10000: 50,
+            maximum_luminance_10000: 10_000_000,
+        }),
+        content_light: Some(ContentLight {
+            maximum_content_light_nits: 1000,
+            maximum_frame_average_light_nits: 400,
+        }),
+    };
     for (name, transfer, hlg) in [
         ("pq", OutputTransfer::Pq, false),
         ("hlg", OutputTransfer::Hlg, true),
@@ -1247,6 +1261,7 @@ fn craft_video_hdr_native_tags_float_light_and_high_depth_delivery() -> TestResu
         let color = DeliveryColor {
             primaries: 9,
             transfer: if hlg { 18 } else { 16 },
+            hdr_metadata: metadata,
         };
         let input = directory.path.join(format!("hdr-{name}.mov"));
         let file = OpenOptions::new()
@@ -1288,11 +1303,16 @@ fn craft_video_hdr_native_tags_float_light_and_high_depth_delivery() -> TestResu
         file.sync_all()?;
         let mut editor = DocumentEditor::new(Project::new(format!("Actual HDR {name}"))?)?;
         let composition = import_camera(&mut editor, &input, &cancel)?;
+        assert_eq!(
+            editor.project().sources[0].streams[0].hdr_metadata,
+            metadata
+        );
         let mut configuration = editor.project().color;
         configuration.working_gamut = WorkingGamut::Bt2020;
         configuration.output_gamut = WorkingGamut::Bt2020;
         configuration.output_transfer = transfer;
         configuration.hdr = HdrConfiguration {
+            metadata,
             reference_white_nits: 203,
             peak_nits: 1000,
         };
@@ -1403,6 +1423,7 @@ fn craft_video_hdr_native_tags_float_light_and_high_depth_delivery() -> TestResu
         assert_eq!(receipt.pixel_sha256, receipt.decoded_pixel_sha256);
         let source = SourceFile::open(&master, &cancel)?;
         let probe = source.probe(cancel.clone())?;
+        assert_eq!(probe.streams[0].hdr_metadata, metadata);
         assert_eq!(
             (
                 probe.streams[0].color.primaries,
@@ -1444,9 +1465,9 @@ fn craft_video_hdr_native_tags_float_light_and_high_depth_delivery() -> TestResu
     write_new(
         &directory.path.join("hdr-pipeline.json"),
         &serde_json::to_vec_pretty(&json!({
-            "schema":"editbay.hdr-pipeline.v1","status":"passed","source_revision":binding["test_source_revision"],"cli_source_revision":binding["revision"],"cli_build_receipt":binding["actual_cli_compiler_packet"],"cli_fingerprint":binding["actual_cli_fingerprint"],"cases":cases,
+            "schema":"editbay.hdr-pipeline.v2","status":"passed","source_revision":binding["test_source_revision"],"cli_source_revision":binding["revision"],"cli_build_receipt":binding["actual_cli_compiler_packet"],"cli_fingerprint":binding["actual_cli_fingerprint"],"cases":cases,"expected_static_metadata":metadata,
             "reference":"Independent f64 BT.2100 PQ EOTF and HLG inverse OETF/OOTF, 203-nit white and 1000-nit HLG display",
-            "proof_boundary":"Actual CPU Vulkan and native high-depth color-tagged MOV/QC. No HDR display/device/physical proof; mastering/content-light/ICC metadata are separate pending cuts."
+            "proof_boundary":"Actual CPU Vulkan and native high-depth color-tagged MOV/QC with exact static mastering/content-light tags. Declared metadata is not measured display/content luminance. No HDR display/device/physical proof or general codec conformance."
         }))?,
     )?;
     Ok(())

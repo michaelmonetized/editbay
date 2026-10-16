@@ -37,6 +37,8 @@ unsafe extern "C" {
     fn eb_reader_close(reader: *mut c_void);
     fn eb_reader_output(reader: *mut c_void, encoding: c_int) -> c_int;
     fn eb_reader_icc_profile(reader: *mut c_void, data: *mut *const u8) -> c_int;
+    fn eb_reader_hdr(reader: *mut c_void, output: *mut NativeHdr) -> c_int;
+    fn eb_probe_hdr(probe: *mut c_void, index: c_int, output: *mut NativeHdr) -> c_int;
     fn eb_pixel_encoding(format: c_int) -> c_int;
     fn eb_pixel_model(format: c_int) -> c_int;
     fn eb_reader_next(
@@ -105,7 +107,7 @@ unsafe extern "C" {
         rate: c_int,
         layout: *const c_char,
         format: c_int,
-        color: *const crate::DeliveryColor,
+        color: *const NativeDeliveryColor,
         cancel: *mut c_void,
         error: *mut c_int,
     ) -> *mut c_void;
@@ -119,6 +121,66 @@ pub struct ColorTransform {
     pointer: NonNull<c_void>,
     cancel: Cancellation,
     premultiplied: bool,
+}
+
+#[repr(C)]
+#[derive(Default, Clone, Copy)]
+struct NativeHdr {
+    mastering: i32,
+    light: i32,
+    primaries: [[u32; 2]; 3],
+    white: [u32; 2],
+    minimum: u32,
+    maximum: u32,
+    cll: u32,
+    fall: u32,
+}
+impl NativeHdr {
+    fn value(self) -> Result<editbay_core::HdrMetadata> {
+        if ![0, 1].contains(&self.mastering) || ![0, 1].contains(&self.light) {
+            return Err(Error::Invalid(
+                "native HDR presence flags are invalid".into(),
+            ));
+        }
+        let value = editbay_core::HdrMetadata {
+            mastering_display: (self.mastering == 1).then_some(editbay_core::MasteringDisplay {
+                primaries_xy_50000: self.primaries,
+                white_xy_50000: self.white,
+                minimum_luminance_10000: self.minimum,
+                maximum_luminance_10000: self.maximum,
+            }),
+            content_light: (self.light == 1).then_some(editbay_core::ContentLight {
+                maximum_content_light_nits: self.cll,
+                maximum_frame_average_light_nits: self.fall,
+            }),
+        };
+        value.validate()?;
+        Ok(value)
+    }
+}
+impl From<editbay_core::HdrMetadata> for NativeHdr {
+    fn from(value: editbay_core::HdrMetadata) -> Self {
+        let mut native = Self::default();
+        if let Some(display) = value.mastering_display {
+            native.mastering = 1;
+            native.primaries = display.primaries_xy_50000;
+            native.white = display.white_xy_50000;
+            native.minimum = display.minimum_luminance_10000;
+            native.maximum = display.maximum_luminance_10000;
+        }
+        if let Some(light) = value.content_light {
+            native.light = 1;
+            native.cll = light.maximum_content_light_nits;
+            native.fall = light.maximum_frame_average_light_nits;
+        }
+        native
+    }
+}
+#[repr(C)]
+struct NativeDeliveryColor {
+    primaries: i32,
+    transfer: i32,
+    hdr: NativeHdr,
 }
 
 impl ColorTransform {
@@ -386,6 +448,15 @@ impl Probe {
         Ok((raw, bounded_text(codec, 256)?))
     }
 
+    pub(crate) fn hdr_metadata(&self, stream: usize) -> Result<editbay_core::HdrMetadata> {
+        let mut value = NativeHdr::default();
+        check(
+            unsafe { eb_probe_hdr(self.pointer.as_ptr(), stream as i32, &mut value) },
+            &self.cancel,
+        )?;
+        value.value()
+    }
+
     pub(crate) fn metadata(
         &self,
         stream: i32,
@@ -472,6 +543,14 @@ pub(crate) struct Reader {
 }
 
 impl Reader {
+    pub(crate) fn hdr_metadata(&self) -> Result<editbay_core::HdrMetadata> {
+        let mut value = NativeHdr::default();
+        check(
+            unsafe { eb_reader_hdr(self.pointer.as_ptr(), &mut value) },
+            &self.cancel,
+        )?;
+        value.value()
+    }
     pub(crate) fn icc_profile(&self) -> Result<Option<editbay_core::IccProfile>> {
         let mut data = std::ptr::null();
         let length = check(
@@ -694,7 +773,11 @@ impl LosslessMovWriter {
                     crate::DeliveryFormat::H264Mp4 => 1,
                     crate::DeliveryFormat::ProresMov => 2,
                 },
-                &color,
+                &NativeDeliveryColor {
+                    primaries: color.primaries,
+                    transfer: color.transfer,
+                    hdr: color.hdr_metadata.into(),
+                },
                 cancel.0.pointer(),
                 &mut code,
             )

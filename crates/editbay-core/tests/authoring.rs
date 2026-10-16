@@ -19,6 +19,7 @@ fn source(ticks: Vec<i64>, end: i64) -> Project {
         asset,
         metadata: BTreeMap::new(),
         streams: vec![SourceStream {
+            hdr_metadata: Default::default(),
             icc_profile: None,
             index: 2,
             codec: "ffv1".into(),
@@ -221,6 +222,7 @@ fn natural_fixture(
         *timing = PictureTiming::Constant { rate };
     }
     project.sources[0].streams.push(SourceStream {
+        hdr_metadata: Default::default(),
         icc_profile: None,
         index: 3,
         codec: "pcm_f32le".into(),

@@ -245,6 +245,11 @@ impl SourceFile {
                 Vec::new()
             };
             streams.push(StreamProfile {
+                hdr_metadata: if kind == StreamType::Video {
+                    probe.hdr_metadata(index)?
+                } else {
+                    Default::default()
+                },
                 index: index as u32,
                 kind,
                 codec,
@@ -387,6 +392,7 @@ impl SourceFile {
             end_method: end_method.into(),
             encoding,
             icc_profile: reader.icc_profile()?,
+            hdr_metadata: reader.hdr_metadata()?,
             pixel_model: pixel_model.into(),
             color,
             alpha,
@@ -428,6 +434,7 @@ impl SourceFile {
             }
             let mut metadata = stream.metadata.clone();
             let mut icc_profile = None;
+            let mut hdr_metadata = editbay_core::HdrMetadata::default();
             let (time_base, start_tick, duration_ticks, format) = match stream.kind {
                 StreamType::Video => {
                     let video =
@@ -456,6 +463,7 @@ impl SourceFile {
                             .insert("editbay.embedded_icc_sha256".into(), profile.sha256.clone());
                     }
                     icc_profile = video.icc_profile;
+                    hdr_metadata = video.hdr_metadata;
                     let base = stream.time_base.unwrap();
                     (
                         base,
@@ -553,6 +561,7 @@ impl SourceFile {
                 }
             };
             streams.push(SourceStream {
+                hdr_metadata,
                 icc_profile,
                 index: *index,
                 codec: stream.codec.clone(),
@@ -694,6 +703,8 @@ pub enum StreamType {
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct StreamProfile {
+    #[serde(default)]
+    pub hdr_metadata: editbay_core::HdrMetadata,
     pub index: u32,
     pub kind: StreamType,
     pub codec: String,
@@ -728,6 +739,8 @@ pub struct MediaProbe {
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct VideoIndex {
+    #[serde(default)]
+    pub hdr_metadata: editbay_core::HdrMetadata,
     #[serde(default)]
     pub pixel_model: String,
     #[serde(default)]

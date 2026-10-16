@@ -46,6 +46,7 @@ pub(crate) struct Session {
 impl Session {
     pub(crate) fn new(project: Arc<Project>, request: DeliveryRequest, file: File) -> Result<Self> {
         let color = editbay_media::DeliveryColor {
+            hdr_metadata: project.color.hdr.metadata,
             primaries: match project.color.output_gamut {
                 WorkingGamut::Bt709 => 1,
                 WorkingGamut::Bt2020 => 9,
@@ -251,6 +252,7 @@ impl Session {
                 DeliveryFormat::ProresMov => ("prores", "pcm_f32le", 1, 1),
             };
             if video.codec != video_codec
+                || video.hdr_metadata != self.color.hdr_metadata
                 || video.width != Some(self.profile.width)
                 || video.height != Some(self.profile.height)
                 || video.color

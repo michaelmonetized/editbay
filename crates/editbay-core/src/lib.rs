@@ -3,7 +3,9 @@
 //! One typed media/composition document is shared by UI, CLI, automation and recovery.
 
 pub use icc::{IccProfile, source_icc_command};
+mod hdr_metadata;
 mod icc;
+pub use hdr_metadata::{ContentLight, HdrMetadata, MasteringDisplay};
 
 mod authoring;
 pub use authoring::{

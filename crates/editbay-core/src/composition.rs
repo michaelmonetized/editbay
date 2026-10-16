@@ -176,6 +176,8 @@ pub enum StreamFormat {
 #[cfg_attr(feature = "json-schema", derive(schemars::JsonSchema))]
 #[serde(deny_unknown_fields)]
 pub struct SourceStream {
+    #[serde(default, skip_serializing_if = "crate::HdrMetadata::is_empty")]
+    pub hdr_metadata: crate::HdrMetadata,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub icc_profile: Option<crate::IccProfile>,
     pub index: u32,
@@ -520,6 +522,8 @@ pub enum OutputTransfer {
 #[cfg_attr(feature = "json-schema", derive(schemars::JsonSchema))]
 #[serde(deny_unknown_fields)]
 pub struct HdrConfiguration {
+    #[serde(default, skip_serializing_if = "crate::HdrMetadata::is_empty")]
+    pub metadata: crate::HdrMetadata,
     pub reference_white_nits: u32,
     pub peak_nits: u32,
 }
@@ -527,6 +531,7 @@ pub struct HdrConfiguration {
 impl Default for HdrConfiguration {
     fn default() -> Self {
         Self {
+            metadata: Default::default(),
             reference_white_nits: 100,
             peak_nits: 1000,
         }
@@ -537,6 +542,7 @@ impl HdrConfiguration {
     /// Check absolute luminance before rendering or accepting document commands.
     /// Takes this scale; returns success for 1..10000 nit white and peak >= white.
     pub fn validate(self) -> Result<()> {
+        self.metadata.validate()?;
         if !(1..=10000).contains(&self.reference_white_nits)
             || !(100..=10000).contains(&self.peak_nits)
             || self.reference_white_nits > self.peak_nits
@@ -693,6 +699,14 @@ pub(crate) fn validate_model(project: &Project, identities: &mut HashSet<Uuid>) 
         }
         let mut indices = HashSet::new();
         for stream in &source.streams {
+            stream.hdr_metadata.validate()?;
+            if !stream.hdr_metadata.is_empty()
+                && !matches!(stream.format, StreamFormat::Video { .. })
+            {
+                return Err(Error::Invalid(
+                    "HDR metadata cannot describe a sound stream".into(),
+                ));
+            }
             if !indices.insert(stream.index) {
                 return Err(Error::Invalid(
                     "source stream indices must be unique".into(),

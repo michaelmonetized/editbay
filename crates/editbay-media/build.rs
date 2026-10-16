@@ -30,4 +30,5 @@ fn main() {
     println!("cargo:rerun-if-changed=native/codec.c");
     println!("cargo:rerun-if-changed=native/reader.c");
     println!("cargo:rerun-if-changed=native/color.c");
+    println!("cargo:rerun-if-changed=native/color_metadata.h");
 }

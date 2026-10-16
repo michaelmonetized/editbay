@@ -16,6 +16,7 @@ fn craft_video_hdr_defaults_validate_undo_and_reopen_through_shared_commands() {
     let mut editor = DocumentEditor::new(project).unwrap();
     let mut color = editor.project().color;
     color.hdr = HdrConfiguration {
+        metadata: Default::default(),
         reference_white_nits: 203,
         peak_nits: 1000,
     };
@@ -41,14 +42,17 @@ fn craft_video_hdr_defaults_validate_undo_and_reopen_through_shared_commands() {
     assert_eq!(editbay_core::load(&path).unwrap(), *editor.project());
     for invalid in [
         HdrConfiguration {
+            metadata: Default::default(),
             reference_white_nits: 0,
             peak_nits: 1000,
         },
         HdrConfiguration {
+            metadata: Default::default(),
             reference_white_nits: 1001,
             peak_nits: 1000,
         },
         HdrConfiguration {
+            metadata: Default::default(),
             reference_white_nits: 203,
             peak_nits: 10001,
         },
