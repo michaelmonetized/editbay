@@ -146,7 +146,7 @@ impl<T: DeserializeOwned + Send + 'static> Process<T> {
             }
         }
     }
-    fn stop(&mut self) {
+    pub(crate) fn stop(&mut self) {
         let _ = self.socket.shutdown(Shutdown::Both);
         let start = Instant::now();
         while matches!(self.child.try_wait(), Ok(None))
@@ -163,7 +163,7 @@ impl<T: DeserializeOwned + Send + 'static> Process<T> {
             let _ = stderr.join();
         }
     }
-    fn error(&self, message: impl std::fmt::Display) -> Error {
+    pub(crate) fn error(&self, message: impl std::fmt::Display) -> Error {
         let tail = self
             .tail
             .lock()

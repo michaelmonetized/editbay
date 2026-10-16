@@ -123,6 +123,7 @@ pub fn deliver(
         channels: sound.profile().channels.clone(),
     };
     request.format.validate(&expected)?;
+    request.format.validate_availability()?;
     let preparation = SoundRenderer::new(
         Arc::new(sound),
         PcmBudget::default(),
@@ -212,7 +213,7 @@ pub fn deliver(
             previous.as_ref(),
         )?;
         match response.outcome {
-            Outcome::Failed { message } => return Err(message.into()),
+            Outcome::Failed { message } => return Err(child.failure(message).into()),
             Outcome::Progress {
                 progress: status,
                 receipt,

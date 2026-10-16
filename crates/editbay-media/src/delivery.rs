@@ -27,6 +27,26 @@ impl DeliveryColor {
     /// `format` selects the codec; returns success only for explicit RGB tags or legacy SDR.
     pub fn validate(self, format: DeliveryFormat) -> Result<()> {
         self.hdr_metadata.validate()?;
+        if format == DeliveryFormat::HevcMainMp4 {
+            return if self.primaries == 1
+                && [1, 13].contains(&self.transfer)
+                && self.hdr_metadata.is_empty()
+            {
+                Ok(())
+            } else {
+                Err(Error::Invalid("HEVC Main8 is an explicit 8-bit SDR profile; use a supported high-depth profile for HDR".into()))
+            };
+        }
+        if format == DeliveryFormat::HevcMain10Mp4 {
+            if [1, 9].contains(&self.primaries)
+                && [1, 13, 16, 18].contains(&self.transfer)
+                && (![16, 18].contains(&self.transfer) || self.primaries == 9)
+                && self.hdr_metadata.is_empty()
+            {
+                return Ok(());
+            }
+            return Err(Error::Invalid("HEVC Main10 supports BT.709/sRGB or BT.2020 PQ/HLG; static HDR metadata is unavailable in this preset".into()));
+        }
         if ![1, 9, 12].contains(&self.primaries)
             || ![1, 8, 13, 16, 18].contains(&self.transfer)
             || (format.dnxhr()
@@ -55,13 +75,86 @@ pub enum DeliveryFormat {
     ProresMov,
     DnxhrHqxMov,
     DnxhrHqxMxf,
+    HevcMain10Mp4,
+    HevcMainMp4,
+}
+
+/// Packaged encoder/muxer negotiation, separate from an executed qualification receipt.
+#[derive(Clone, Debug, Serialize)]
+pub struct DeliveryAvailability {
+    pub format: DeliveryFormat,
+    pub video_codec: &'static str,
+    pub profile: &'static str,
+    pub pixel_format: &'static str,
+    pub audio_codec: &'static str,
+    pub container: &'static str,
+    pub status: &'static str,
+    pub reason: &'static str,
+    pub qualification: &'static str,
 }
 
 impl DeliveryFormat {
+    pub const ALL: [Self; 8] = [
+        Self::LosslessMov,
+        Self::Lossless16Mov,
+        Self::H264Mp4,
+        Self::ProresMov,
+        Self::DnxhrHqxMov,
+        Self::DnxhrHqxMxf,
+        Self::HevcMain10Mp4,
+        Self::HevcMainMp4,
+    ];
+
+    /// Query installed native codec, pixel and container registration without encoding.
+    /// Takes this format; returns an explicit availability reason and no qualification claim.
+    pub fn availability(self) -> DeliveryAvailability {
+        let (video_codec, profile, pixel_format, audio_codec) = match self {
+            Self::LosslessMov => ("png", "RGBA8", "rgba", "pcm_f32le"),
+            Self::Lossless16Mov => ("png", "RGBA16", "rgba64be", "pcm_f32le"),
+            Self::H264Mp4 => ("libx264", "High", "yuv420p", "aac"),
+            Self::ProresMov => ("prores_ks", "4444", "yuva444p10le", "pcm_f32le"),
+            Self::DnxhrHqxMov | Self::DnxhrHqxMxf => {
+                ("dnxhd", "DNXHR HQX", "yuv422p10le", "pcm_s24le")
+            }
+            Self::HevcMain10Mp4 => ("libx265", "Main 10", "yuv420p10le", "aac"),
+            Self::HevcMainMp4 => ("libx265", "Main", "yuv420p", "aac"),
+        };
+        let code = crate::ffi::delivery_available(self);
+        let (status, reason) = match code {
+            0 => (
+                "available",
+                "Registered codec, pixel format, decoder and container combination; actual export/QC is still required",
+            ),
+            1 => ("unavailable", "Required picture encoder is absent"),
+            2 => ("unavailable", "Required sound encoder is absent"),
+            3 => ("unavailable", "Required container muxer is absent"),
+            4 => ("unavailable", "Required QC decoder is absent"),
+            5 => (
+                "unavailable",
+                "Encoder does not advertise the required pixel format",
+            ),
+            6 => ("unavailable", "Container refuses the required codec"),
+            _ => (
+                "undetermined",
+                "Native registration cannot determine the complete combination; actual export may fail",
+            ),
+        };
+        DeliveryAvailability {
+            format: self,
+            video_codec,
+            profile,
+            pixel_format,
+            audio_codec,
+            container: self.extension(),
+            status,
+            reason,
+            qualification: "not_run_by_capability_query",
+        }
+    }
     /// Return native picture storage at the encoder boundary.
     /// Takes this format and returns its declared interleaved component encoding.
     pub fn pixel_encoding(self) -> crate::PixelEncoding {
-        if self == Self::Lossless16Mov || self.dnxhr() {
+        if self == Self::Lossless16Mov || self.dnxhr() || self.hevc() {
             crate::PixelEncoding::Rgba16Le
         } else {
             crate::PixelEncoding::Rgba8
@@ -80,10 +173,51 @@ impl DeliveryFormat {
         self.dnxhr()
     }
 
+    /// Identify profiles using the shared bounded AAC encoding and QC route.
+    /// Takes this format; returns true for full-scale mono/stereo AAC delivery.
+    pub fn aac(self) -> bool {
+        matches!(
+            self,
+            Self::H264Mp4 | Self::HevcMain10Mp4 | Self::HevcMainMp4
+        )
+    }
+
+    /// Identify the explicit 8-bit Main and 10-bit Main10 HEVC presets.
+    /// Takes this format; returns whether the existing x265 route is requested.
+    pub fn hevc(self) -> bool {
+        matches!(self, Self::HevcMainMp4 | Self::HevcMain10Mp4)
+    }
+
+    /// Reject a known unavailable packaged codec combination before starting output work.
+    /// Takes this format; returns the native reason without treating registration as qualification.
+    pub fn validate_availability(self) -> Result<()> {
+        let available = self.availability();
+        if available.status == "unavailable" {
+            return Err(Error::Invalid(format!(
+                "{:?} unavailable: {}",
+                self, available.reason
+            )));
+        }
+        Ok(())
+    }
+
+    pub(crate) fn native_id(self) -> i32 {
+        match self {
+            Self::LosslessMov => 0,
+            Self::H264Mp4 => 1,
+            Self::ProresMov => 2,
+            Self::Lossless16Mov => 3,
+            Self::DnxhrHqxMov => 4,
+            Self::DnxhrHqxMxf => 5,
+            Self::HevcMain10Mp4 => 6,
+            Self::HevcMainMp4 => 8,
+        }
+    }
+
     /// Reject transparency for a codec without an alpha channel.
     /// Takes this format; returns true when an opaque graph or explicit background is required.
     pub fn requires_opaque(self) -> bool {
-        self.dnxhr()
+        self.dnxhr() || self.hevc()
     }
 
     /// Identify formats whose decoded picture bytes must match exactly.
@@ -95,7 +229,7 @@ impl DeliveryFormat {
     /// Takes this format; returns a lowercase extension without a dot.
     pub fn extension(self) -> &'static str {
         match self {
-            Self::H264Mp4 => "mp4",
+            Self::H264Mp4 | Self::HevcMain10Mp4 | Self::HevcMainMp4 => "mp4",
             Self::DnxhrHqxMxf => "mxf",
             _ => "mov",
         }
@@ -138,14 +272,20 @@ impl DeliveryFormat {
                 return Err(Error::Invalid("MXF fractional sample-per-edit clocks are unavailable: preserving the selected audio phase requires a different rechunk policy; use DNxHR MOV".into()));
             }
         }
-        if self == Self::H264Mp4
+        if self.aac()
             && (!profile.width.is_multiple_of(2)
                 || !profile.height.is_multiple_of(2)
                 || profile.channels.len() > 2
                 || ![44100, 48000].contains(&profile.sample_rate))
         {
             return Err(Error::Invalid(
-                "H.264/AAC needs even dimensions and mono/stereo sound at 44.1 or 48 kHz".into(),
+                "AAC video delivery needs even dimensions and mono/stereo sound at 44.1 or 48 kHz"
+                    .into(),
+            ));
+        }
+        if self.hevc() && (profile.width < 16 || profile.height < 16) {
+            return Err(Error::Invalid(
+                "HEVC needs geometry of at least 16x16".into(),
             ));
         }
         Ok(())
