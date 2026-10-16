@@ -302,7 +302,9 @@ impl Session {
                         denominator: self.profile.sample_rate,
                     })
             {
-                return Err("Delivery metadata differs from the requested profile".into());
+                return Err(format!("Delivery metadata differs from the requested profile: picture={:?}; sound={:?}; expected={:?}/{:?}",
+                    (&video.codec, &video.metadata, video.color, video.time_base, video.width, video.height),
+                    (&audio.codec, audio.sample_rate, &audio.channels, audio.time_base), self.profile, self.color).into());
             }
             self.video = Some(VideoReader::open_stream_with_encoding(
                 &source,
