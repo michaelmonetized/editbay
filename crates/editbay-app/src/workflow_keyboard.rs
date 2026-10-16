@@ -271,9 +271,17 @@ impl Author {
             }
             assert!(
                 Instant::now() < deadline,
-                "wanted revision {revision}, actual {}, workflow={:?}",
+                "wanted revision {revision}, actual {}, workflow={:?}, multicam={:?}, native_focus={:?}, native_name={:?}, policies={:?}",
                 self.project().revision,
-                self.workflow.status
+                self.workflow.status,
+                self.multicam.keyboard_worker_state(),
+                self.ctx.memory(|memory| memory.focused()),
+                self.focus,
+                self.project()
+                    .multicam
+                    .iter()
+                    .map(|session| (session.id, session.audio_policy))
+                    .collect::<Vec<_>>(),
             );
             std::thread::sleep(Duration::from_millis(1));
         }
@@ -301,6 +309,139 @@ impl Author {
         editbay_core::save_new(self.project(), &path).unwrap();
         assert_eq!(*self.project(), editbay_core::load(&path).unwrap());
     }
+}
+
+/// Retain one real camera sound source for the native policy fixture.
+/// Args: author, existing camera and new WAV path. Returns the ingested source identity.
+fn retain_camera_sound(author: &mut Author, camera: Uuid, path: &std::path::Path) -> Uuid {
+    use editbay_core::{Clip, ClipSource, StreamFormat, TimeMap, TimePoint, Track, TrackKind};
+    use editbay_media::{Cancellation, SourceFile, StreamType};
+    let mut scene = author
+        .project()
+        .compositions
+        .iter()
+        .find(|scene| scene.id == camera)
+        .unwrap()
+        .clone();
+    let sample_rate = 48_000_u32;
+    let samples = u128::from(scene.duration)
+        * u128::from(scene.frame_rate.denominator)
+        * u128::from(sample_rate);
+    assert_eq!(samples % u128::from(scene.frame_rate.numerator), 0);
+    let samples = u32::try_from(samples / u128::from(scene.frame_rate.numerator)).unwrap();
+    let sample_bytes = samples.checked_mul(2).unwrap();
+    let mut wav = Vec::with_capacity(sample_bytes as usize + 44);
+    wav.extend_from_slice(b"RIFF");
+    wav.extend_from_slice(&(sample_bytes + 36).to_le_bytes());
+    wav.extend_from_slice(b"WAVEfmt ");
+    wav.extend_from_slice(&16_u32.to_le_bytes());
+    wav.extend_from_slice(&1_u16.to_le_bytes());
+    wav.extend_from_slice(&1_u16.to_le_bytes());
+    wav.extend_from_slice(&sample_rate.to_le_bytes());
+    wav.extend_from_slice(&(sample_rate * 2).to_le_bytes());
+    wav.extend_from_slice(&2_u16.to_le_bytes());
+    wav.extend_from_slice(&16_u16.to_le_bytes());
+    wav.extend_from_slice(b"data");
+    wav.extend_from_slice(&sample_bytes.to_le_bytes());
+    for sample in 0..samples {
+        let value = if sample % 2 == 0 { 8192_i16 } else { -8192_i16 };
+        wav.extend_from_slice(&value.to_le_bytes());
+    }
+    editbay_core::write_new_bytes(path, &wav).unwrap();
+    let cancel = Cancellation::new().unwrap();
+    let file = SourceFile::open(path, &cancel).unwrap();
+    let probe = file.probe(cancel.clone()).unwrap();
+    let stream = probe
+        .streams
+        .iter()
+        .find(|stream| stream.kind == StreamType::Audio)
+        .unwrap()
+        .index;
+    let ingested = file
+        .ingest(
+            "Camera A recorded sound".into(),
+            &[stream],
+            cancel,
+            |_, _| {},
+        )
+        .unwrap();
+    let retained = ingested
+        .source
+        .streams
+        .iter()
+        .find(|retained| retained.index == stream)
+        .unwrap();
+    assert!(matches!(
+        &retained.format,
+        StreamFormat::Audio {
+            sample_rate: 48_000,
+            ..
+        }
+    ));
+    assert_eq!(
+        retained.time_base,
+        editbay_core::TimeBase {
+            numerator: 1,
+            denominator: sample_rate
+        }
+    );
+    assert_eq!(retained.duration_ticks, Some(u64::from(samples)));
+    let source = ingested.source.id;
+    let clip = Uuid::new_v4();
+    let node = Uuid::new_v4();
+    let range = FrameRange {
+        start: 0,
+        end: scene.duration,
+    };
+    let end_tick = retained
+        .start_tick
+        .checked_add(i64::try_from(retained.duration_ticks.unwrap()).unwrap())
+        .unwrap();
+    scene.tracks.push(Track {
+        id: Uuid::new_v4(),
+        name: "Original camera sound".into(),
+        kind: TrackKind::Audio,
+        enabled: true,
+        clips: vec![Clip {
+            id: clip,
+            name: "Camera A recorded sound".into(),
+            range,
+            source: ClipSource::Media { source, stream },
+            linked: None,
+            time_map: TimeMap {
+                source_denominator: 1,
+                points: vec![
+                    TimePoint {
+                        frame: 0,
+                        source_tick: retained.start_tick,
+                    },
+                    TimePoint {
+                        frame: scene.duration,
+                        source_tick: end_tick,
+                    },
+                ],
+            },
+        }],
+    });
+    scene.nodes.push(TimedNode {
+        id: node,
+        range,
+        operation: NodeOperation::Source { clip },
+        animation: vec![],
+    });
+    scene.audio = Some(node);
+    let mut commands = ingested.commands().to_vec();
+    commands.push(DocumentCommand::SetComposition { composition: scene });
+    author
+        .workspace
+        .apply(
+            author.tab,
+            DocumentVersion::of(author.project()),
+            "Retain actual camera sound".into(),
+            &commands,
+        )
+        .unwrap();
+    source
 }
 
 #[test]
@@ -544,6 +685,31 @@ fn craft_keyboard_common_multicam_choose_cameras_create_policy_sync_undo_native_
     let mut author = Author::new(directory.path(), Page::Multicam);
     let a = author.camera("Camera A");
     let b = author.camera("Camera B");
+    let sound = retain_camera_sound(&mut author, a, &directory.path().join("camera-a.wav"));
+    assert_eq!(author.project().revision, 3);
+    assert!(
+        author
+            .project()
+            .compositions
+            .iter()
+            .find(|scene| scene.id == a)
+            .unwrap()
+            .audio
+            .is_some()
+    );
+    assert!(
+        author
+            .project()
+            .compositions
+            .iter()
+            .find(|scene| scene.id == b)
+            .unwrap()
+            .audio
+            .is_none()
+    );
+    let original_sources = author.project().sources.clone();
+    let original_assets = author.project().assets.clone();
+    assert_eq!(original_sources[0].id, sound);
     author.frame(vec![]);
     author.open("Create from camera sequences");
     author.tab_prefix("Camera source: Camera A");
@@ -560,7 +726,7 @@ fn craft_keyboard_common_multicam_choose_cameras_create_policy_sync_undo_native_
     author.tab_to("Multicam name");
     author.replace("Keyboard cameras");
     author.open("Create multicam edit");
-    author.settled(3);
+    author.settled(4);
     let original_cameras: Vec<_> = author
         .project()
         .compositions
@@ -571,6 +737,12 @@ fn craft_keyboard_common_multicam_choose_cameras_create_policy_sync_undo_native_
     let session = author.project().multicam[0].clone();
     assert_eq!(session.name, "Keyboard cameras");
     assert_eq!(
+        session.audio_policy,
+        editbay_core::multicam::MulticamAudioPolicy::Fixed {
+            angle: session.angles[0].id
+        }
+    );
+    assert_eq!(
         session
             .angles
             .iter()
@@ -580,18 +752,55 @@ fn craft_keyboard_common_multicam_choose_cameras_create_policy_sync_undo_native_
     );
     author.tab_prefix("2 · Camera B");
     author.press(egui::Key::Enter);
-    author.settled(4);
+    author.settled(5);
     assert_eq!(author.project().multicam[0].cuts[0].frame, 0);
     assert_eq!(
         author.project().multicam[0].cuts[0].angle,
         session.angles[1].id
     );
     author.tab_prefix("Multicam sound:");
-    author.press(egui::Key::Home);
-    author.settled(5);
+    assert_eq!(author.focus, "Multicam sound: Keep Camera A sound");
+    let policy_id = author.ctx.memory(|memory| memory.focused()).unwrap();
+    assert_eq!(
+        author.nodes[&egui::accesskit::NodeId(policy_id.value())].label(),
+        Some("Multicam sound: Keep Camera A sound")
+    );
+    assert!(!egui::ComboBox::is_open(&author.ctx, policy_id));
+    let status = author.multicam.keyboard_worker_state().2.map(str::to_owned);
+    author.press(egui::Key::End);
+    assert_eq!(
+        author.ctx.memory(|memory| memory.focused()),
+        Some(policy_id)
+    );
+    assert_eq!(
+        author.project().revision,
+        5,
+        "silent Camera B is not a fixed-sound target"
+    );
+    assert!(author.multicam.keyboard_worker_state().1.is_none());
+    assert_eq!(author.multicam.keyboard_worker_state().2, status.as_deref());
+    let (owner, _) = author.workspace.edit_snapshot(author.tab).unwrap();
+    author.frame(vec![key(egui::Key::Home, egui::Modifiers::NONE)]);
+    assert_eq!(
+        author.ctx.memory(|memory| memory.focused()),
+        Some(policy_id)
+    );
+    assert_eq!(author.multicam.keyboard_worker_state().0, Some(session.id));
+    assert_eq!(author.multicam.keyboard_worker_state().1, Some(owner));
+    assert_eq!(
+        author.project().revision,
+        5,
+        "actual policy worker has not yet published"
+    );
+    author.settled(6);
+    assert!(author.multicam.keyboard_worker_state().1.is_none());
+    assert_eq!(
+        author.multicam.keyboard_worker_state().2,
+        Some("Change multicam sound policy")
+    );
     assert_eq!(
         author.project().multicam[0].audio_policy,
-        editbay_core::multicam::MulticamAudioPolicy::FollowVideo
+        editbay_core::multicam::MulticamAudioPolicy::All
     );
     author.open("Synchronize cameras");
     author.tab_to("Camera A start timecode");
@@ -612,11 +821,11 @@ fn craft_keyboard_common_multicam_choose_cameras_create_policy_sync_undo_native_
     author.tab_to("Camera B start timecode");
     author.press(egui::Key::Tab);
     assert_ne!(author.focus, "Sync marked event");
-    assert_eq!(author.project().revision, 5);
+    assert_eq!(author.project().revision, 6);
     author.tab_to("Camera A marker frame or fraction");
     author.replace("1/2");
     author.open("Sync marked event");
-    author.settled(6);
+    author.settled(7);
     let synced = author.project().multicam[0].clone();
     assert_eq!(synced.id, session.id);
     assert_eq!(synced.angles[0].id, session.angles[0].id);
@@ -629,7 +838,7 @@ fn craft_keyboard_common_multicam_choose_cameras_create_policy_sync_undo_native_
     author.press(egui::Key::Tab);
     author.press(egui::Key::Tab);
     assert_ne!(author.focus, "Sync decoded audio");
-    assert_eq!(author.project().revision, 6);
+    assert_eq!(author.project().revision, 7);
     author.tab_to("Analyze first");
     author.replace("10");
     author.press(egui::Key::Enter);
@@ -639,7 +848,7 @@ fn craft_keyboard_common_multicam_choose_cameras_create_policy_sync_undo_native_
     author.press(egui::Key::Tab);
     assert_ne!(
         author.focus, "Sync decoded audio",
-        "procedural cameras have no recorded audio"
+        "Camera B has no recorded audio"
     );
     assert_eq!(
         author
@@ -655,6 +864,8 @@ fn craft_keyboard_common_multicam_choose_cameras_create_policy_sync_undo_native_
     assert_eq!(author.project().multicam[0].angles, session.angles);
     author.workspace.history(author.tab, true).unwrap();
     assert_eq!(author.project().multicam[0], synced);
+    assert_eq!(author.project().sources, original_sources);
+    assert_eq!(author.project().assets, original_assets);
     author.saved(directory.path(), "multicam-native.editbay");
 }
 

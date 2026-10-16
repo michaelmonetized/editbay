@@ -311,7 +311,7 @@ impl MulticamPane {
                 }
             });
             ui.weak("The grid shows exact source positions. View source opens that position's containing frame in the native viewer.");
-            self.audio_policy(ui, workspace, tab, session);
+            self.audio_policy(ui, workspace, tab, &project, session);
             self.sync_controls(ui, workspace, tab, &project, session);
             ui.collapsing("Recorded camera cuts", |ui| {
                 for cut in &session.cuts {
@@ -324,26 +324,38 @@ impl MulticamPane {
     }
 
     /// Draw and commit the retained linked-audio policy.
-    /// `ui`, `workspace`, `tab` and `session` select one shared-command edit.
+    /// `ui`, `workspace`, `tab`, `project` and `session` select eligible shared-command edits.
     fn audio_policy(
         &mut self,
         ui: &mut Ui,
         workspace: &mut Workspace,
         tab: Uuid,
+        project: &Project,
         session: &MulticamSession,
     ) {
         let mut policy = session.audio_policy;
-        let mut choices = vec![
-            (
+        let sound_angles: Vec<_> = session
+            .angles
+            .iter()
+            .filter(|angle| {
+                project
+                    .compositions
+                    .iter()
+                    .any(|camera| camera.id == angle.composition && camera.audio.is_some())
+            })
+            .collect();
+        let mut choices = Vec::new();
+        if sound_angles.len() == session.angles.len() {
+            choices.push((
                 MulticamAudioPolicy::FollowVideo,
                 "Sound follows camera".into(),
-            ),
-            (
-                MulticamAudioPolicy::All,
-                "Mix all available camera sound".into(),
-            ),
-        ];
-        choices.extend(session.angles.iter().map(|angle| {
+            ));
+        }
+        choices.push((
+            MulticamAudioPolicy::All,
+            "Mix all available camera sound".into(),
+        ));
+        choices.extend(sound_angles.iter().map(|angle| {
             (
                 MulticamAudioPolicy::Fixed { angle: angle.id },
                 format!("Keep {} sound", angle.name),
@@ -356,6 +368,9 @@ impl MulticamPane {
             &mut policy,
             &choices,
         );
+        if sound_angles.len() != session.angles.len() {
+            ui.weak("Sound follows camera needs sound on every camera. Fixed choices include cameras with sound.");
+        }
         if policy != session.audio_policy {
             let mut next = session.clone();
             next.audio_policy = policy;
@@ -367,6 +382,19 @@ impl MulticamPane {
                 "Change multicam sound policy",
             );
         }
+    }
+
+    /// Inspect the existing multicam owner and result for native-key diagnostics.
+    /// Args: this pane. Returns selected session, captured worker owner and current status.
+    #[cfg(test)]
+    pub(crate) fn keyboard_worker_state(
+        &self,
+    ) -> (Option<Uuid>, Option<DocumentOwner>, Option<&str>) {
+        (
+            self.selected,
+            self.task.as_ref().map(|task| task.owner),
+            self.status.as_deref(),
+        )
     }
 
     /// Draw marker, camera-clock and real decoded-audio synchronization.
