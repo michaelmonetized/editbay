@@ -173,6 +173,7 @@ impl DeliveryPane {
                         DeliveryFormat::DnxhrHqxMov,
                         DeliveryFormat::DnxhrHqxMxf,
                         DeliveryFormat::HevcMain10Mp4,
+                        DeliveryFormat::Vp9Profile2Webm,
                     ] {
                         let option =
                             ui.selectable_value(&mut choice.format, format, format_name(format));
@@ -181,6 +182,7 @@ impl DeliveryPane {
                 });
             preview.observe_control("export-format", &formats.response, ui);
             ui.weak(match choice.format {
+                DeliveryFormat::Vp9Profile2Webm => "VP9 Profile2 · 10-bit4:2:0 · 48 kHz Opus mono/stereo · integral millisecond clock · opaque graph required",
                 DeliveryFormat::HevcMain10Mp4 => "HEVC Main10 · 10-bit 4:2:0 · AAC mono/stereo · opaque graph required",
                 DeliveryFormat::DnxhrHqxMov => "DNxHR HQX 10-bit 4:2:2 · 48 kHz PCM24 mono/stereo · BT.709 · opaque graph required",
                 DeliveryFormat::DnxhrHqxMxf => "MXF OP1a · DNxHR HQX 10-bit 4:2:2 · 48 kHz PCM24 mono/stereo · integral samples per edit · BT.709 · opaque graph required",
@@ -492,5 +494,6 @@ fn format_name(format: DeliveryFormat) -> &'static str {
         DeliveryFormat::DnxhrHqxMov => "DNxHR HQX / PCM24 MOV",
         DeliveryFormat::DnxhrHqxMxf => "DNxHR HQX / PCM24 MXF",
         DeliveryFormat::HevcMain10Mp4 => "HEVC Main10 / AAC MP4",
+        DeliveryFormat::Vp9Profile2Webm => "VP9 Profile2 / Opus WebM",
     }
 }

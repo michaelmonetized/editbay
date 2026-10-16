@@ -48,6 +48,7 @@ static const AVCodec *delivery_encoder(int encoding) {
     if (encoding == 2) return avcodec_find_encoder_by_name("prores_ks");
     if (encoding == 4 || encoding == 5) return avcodec_find_encoder(AV_CODEC_ID_DNXHD);
     if (encoding == 6) return avcodec_find_encoder_by_name("libx265");
+    if (encoding == 7) return avcodec_find_encoder_by_name("libvpx-vp9");
     return avcodec_find_encoder(AV_CODEC_ID_PNG);
 }
 
@@ -56,23 +57,27 @@ static enum AVPixelFormat delivery_pixels(int encoding) {
     if (encoding == 2) return AV_PIX_FMT_YUVA444P10LE;
     if (encoding == 3) return AV_PIX_FMT_RGBA64BE;
     if (encoding == 4 || encoding == 5) return AV_PIX_FMT_YUV422P10LE;
-    if (encoding == 6) return AV_PIX_FMT_YUV420P10LE;
+    if (encoding == 6 || encoding == 7) return AV_PIX_FMT_YUV420P10LE;
     return AV_PIX_FMT_RGBA;
 }
 
 static const char *delivery_container(int encoding) {
-    return encoding == 1 || encoding == 6 ? "mp4" : encoding == 5 ? "mxf" : "mov";
+    return encoding == 7 ? "webm" : encoding == 1 || encoding == 6 ? "mp4" : encoding == 5 ? "mxf" : "mov";
 }
 
 static enum AVCodecID delivery_audio(int encoding) {
-    return encoding == 1 || encoding == 6 ? AV_CODEC_ID_AAC :
+    return encoding == 7 ? AV_CODEC_ID_OPUS : encoding == 1 || encoding == 6 ? AV_CODEC_ID_AAC :
         encoding == 4 || encoding == 5 ? AV_CODEC_ID_PCM_S24LE : AV_CODEC_ID_PCM_F32LE;
 }
 
+static const AVCodec *delivery_sound_encoder(int encoding) {
+    return encoding == 7 ? avcodec_find_encoder_by_name("libopus") : avcodec_find_encoder(delivery_audio(encoding));
+}
+
 int eb_delivery_available(int encoding) {
-    if (encoding < 0 || encoding > 6) return 7;
+    if (encoding < 0 || encoding > 7) return 7;
     const AVCodec *encoder = delivery_encoder(encoding);
-    const AVCodec *sound = avcodec_find_encoder(delivery_audio(encoding));
+    const AVCodec *sound = delivery_sound_encoder(encoding);
     const AVOutputFormat *muxer = av_guess_format(delivery_container(encoding), NULL, NULL);
     if (!encoder) return 1;
     if (!sound) return 2;
@@ -137,9 +142,11 @@ static EBWriter *writer_open(int descriptor, int width, int height, int num, int
     if (!w) goto failed;
     w->cancel = cancel;
     w->encoding = encoding;
-    if (encoding < 0 || encoding > 6) { ret = AVERROR(EINVAL); goto failed; }
+    if (encoding < 0 || encoding > 7) { ret = AVERROR(EINVAL); goto failed; }
     int dnx = encoding == 4 || encoding == 5;
     int hevc = encoding == 6;
+    int vp9 = encoding == 7;
+    int yuv10 = hevc || vp9;
     int aac = encoding == 1 || hevc;
     struct stat file_info;
     if (fstat(descriptor, &file_info) != 0 || !S_ISREG(file_info.st_mode) || file_info.st_size != 0) {
@@ -157,6 +164,7 @@ static EBWriter *writer_open(int descriptor, int width, int height, int num, int
     w->format->pb = avio_alloc_context(buffer, 32768, 1, w, NULL, write_bytes, seek_bytes);
     if (!w->format->pb) { av_free(buffer); ret = AVERROR(ENOMEM); goto failed; }
     w->format->flags |= AVFMT_FLAG_CUSTOM_IO;
+    if (vp9) w->format->avoid_negative_ts = AVFMT_AVOID_NEG_TS_DISABLED;
     const AVCodec *encoder = layout ? delivery_encoder(encoding) : avcodec_find_encoder(AV_CODEC_ID_FFV1);
     if (!encoder) { ret = AVERROR_ENCODER_NOT_FOUND; goto failed; }
     w->codec = avcodec_alloc_context3(encoder);
@@ -170,12 +178,12 @@ static EBWriter *writer_open(int descriptor, int width, int height, int num, int
     w->codec->time_base = (AVRational){den, num};
     w->codec->framerate = (AVRational){num, den};
     w->codec->thread_count = 2;
-    w->codec->color_range = encoding == 1 || encoding == 2 || dnx || hevc ? AVCOL_RANGE_MPEG : AVCOL_RANGE_JPEG;
+    w->codec->color_range = encoding == 1 || encoding == 2 || dnx || yuv10 ? AVCOL_RANGE_MPEG : AVCOL_RANGE_JPEG;
     w->codec->color_primaries = color ? color->primaries : AVCOL_PRI_BT709;
     w->codec->color_trc = color ? color->transfer : AVCOL_TRC_IEC61966_2_1;
-    w->codec->colorspace = hevc && color && color->primaries == 9 ? AVCOL_SPC_BT2020_NCL :
-        encoding == 1 || encoding == 2 || dnx || hevc ? AVCOL_SPC_BT709 : AVCOL_SPC_RGB;
-    w->codec->alpha_mode = aac || dnx ? AVALPHA_MODE_UNSPECIFIED : AVALPHA_MODE_STRAIGHT;
+    w->codec->colorspace = yuv10 && color && color->primaries == 9 ? AVCOL_SPC_BT2020_NCL :
+        encoding == 1 || encoding == 2 || dnx || yuv10 ? AVCOL_SPC_BT709 : AVCOL_SPC_RGB;
+    w->codec->alpha_mode = aac || dnx || vp9 ? AVALPHA_MODE_UNSPECIFIED : AVALPHA_MODE_STRAIGHT;
     if (encoding == 1) {
         w->codec->gop_size = 48;
         w->codec->max_b_frames = 0;
@@ -194,6 +202,15 @@ static EBWriter *writer_open(int descriptor, int width, int height, int num, int
         if ((ret = av_opt_set(w->codec->priv_data, "preset", "medium", 0)) < 0) goto failed;
         if ((ret = av_opt_set(w->codec->priv_data, "crf", "16", 0)) < 0) goto failed;
         if ((ret = av_opt_set(w->codec->priv_data, "x265-params", "pools=none:frame-threads=2:wpp=0:bframes=0:log-level=error", 0)) < 0) goto failed;
+    } else if (vp9) {
+        w->codec->profile = AV_PROFILE_VP9_2;
+        w->codec->bit_rate = 0;
+        w->codec->max_b_frames = 0;
+        if ((ret = av_opt_set(w->codec->priv_data, "deadline", "good", 0)) < 0) goto failed;
+        if ((ret = av_opt_set(w->codec->priv_data, "cpu-used", "4", 0)) < 0) goto failed;
+        if ((ret = av_opt_set(w->codec->priv_data, "crf", "16", 0)) < 0) goto failed;
+        if ((ret = av_opt_set(w->codec->priv_data, "lag-in-frames", "0", 0)) < 0) goto failed;
+        if ((ret = av_opt_set(w->codec->priv_data, "row-mt", "0", 0)) < 0) goto failed;
     }
     if (w->format->oformat->flags & AVFMT_GLOBALHEADER) w->codec->flags |= AV_CODEC_FLAG_GLOBAL_HEADER;
     if ((ret = avcodec_open2(w->codec, encoder, NULL)) < 0) goto failed;
@@ -202,7 +219,7 @@ static EBWriter *writer_open(int descriptor, int width, int height, int num, int
     w->stream->time_base = w->codec->time_base;
     w->stream->avg_frame_rate = w->codec->framerate;
     if (layout) {
-        const AVCodec *pcm = avcodec_find_encoder(delivery_audio(encoding));
+        const AVCodec *pcm = delivery_sound_encoder(encoding);
         if (!pcm) { ret = AVERROR_ENCODER_NOT_FOUND; goto failed; }
         w->audio = avcodec_alloc_context3(pcm);
         w->sound = avformat_new_stream(w->format, NULL);
@@ -217,17 +234,21 @@ static EBWriter *writer_open(int descriptor, int width, int height, int num, int
             if (w->audio->ch_layout.nb_channels > 2) { ret = AVERROR(EINVAL); goto failed; }
             w->audio->bit_rate = w->audio->ch_layout.nb_channels == 1 ? 192000 : 320000;
         }
+        if (vp9) {
+            w->audio->bit_rate = w->audio->ch_layout.nb_channels == 1 ? 192000 : 320000;
+            if ((ret = av_opt_set(w->audio->priv_data, "application", "audio", 0)) < 0) goto failed;
+        }
         if (w->audio->ch_layout.order != AV_CHANNEL_ORDER_NATIVE) { ret = AVERROR(EINVAL); goto failed; }
         if (w->format->oformat->flags & AVFMT_GLOBALHEADER) w->audio->flags |= AV_CODEC_FLAG_GLOBAL_HEADER;
         if ((ret = avcodec_open2(w->audio, pcm, NULL)) < 0) goto failed;
-        if (aac) {
-            w->fifo = av_audio_fifo_alloc(AV_SAMPLE_FMT_FLTP, w->audio->ch_layout.nb_channels, 8192);
+        if (aac || vp9) {
+            w->fifo = av_audio_fifo_alloc(w->audio->sample_fmt, w->audio->ch_layout.nb_channels, 8192);
             if (!w->fifo) { ret = AVERROR(ENOMEM); goto failed; }
         }
         if ((ret = avcodec_parameters_from_context(w->sound->codecpar, w->audio)) < 0) goto failed;
         w->sound->time_base = w->audio->time_base;
     }
-    if (layout && encoding != 5) {
+    if (layout && encoding != 5 && !vp9) {
         int64_t scale = (int64_t)num / av_gcd(num, rate) * rate;
         if (scale > INT32_MAX) { ret = AVERROR(EINVAL); goto failed; }
         if ((ret = av_dict_set_int(&options, "movie_timescale", scale, 0)) < 0) goto failed;
@@ -246,8 +267,8 @@ static EBWriter *writer_open(int descriptor, int width, int height, int num, int
     w->frame->colorspace = w->codec->colorspace;
     w->frame->alpha_mode = w->codec->alpha_mode;
     if ((ret = av_frame_get_buffer(w->frame, 32)) < 0) goto failed;
-    if (encoding == 1 || encoding == 2 || dnx || hevc) {
-        w->conversion = sws_getContext(width, height, dnx || hevc ? AV_PIX_FMT_RGBA64LE : AV_PIX_FMT_RGBA, width, height,
+    if (encoding == 1 || encoding == 2 || dnx || yuv10) {
+        w->conversion = sws_getContext(width, height, dnx || yuv10 ? AV_PIX_FMT_RGBA64LE : AV_PIX_FMT_RGBA, width, height,
             w->codec->pix_fmt, SWS_BICUBIC, NULL, NULL, NULL);
         if (!w->conversion) { ret = AVERROR(ENOMEM); goto failed; }
         const int *coefficients = sws_getCoefficients(w->codec->colorspace == AVCOL_SPC_BT2020_NCL ? SWS_CS_BT2020 : SWS_CS_ITU709);
@@ -360,12 +381,13 @@ int eb_delivery_sound(EBWriter *w, const float *samples, size_t length) {
         int channels = w->audio->ch_layout.nb_channels;
         if (av_audio_fifo_space(w->fifo) < (int)count) return AVERROR(ENOMEM);
         av_frame_unref(w->samples);
-        w->samples->format = AV_SAMPLE_FMT_FLTP;
+        w->samples->format = w->audio->sample_fmt;
         w->samples->nb_samples = count;
         int ret = av_channel_layout_copy(&w->samples->ch_layout, &w->audio->ch_layout);
         if (ret < 0) return ret;
         if ((ret = av_frame_get_buffer(w->samples, 0)) < 0) return ret;
-        for (int channel = 0; channel < channels; channel++) {
+        if (w->audio->sample_fmt == AV_SAMPLE_FMT_FLT) memcpy(w->samples->data[0], samples, length * sizeof(float));
+        else for (int channel = 0; channel < channels; channel++) {
             float *plane = (float *)w->samples->data[channel];
             for (size_t frame = 0; frame < count; frame++) plane[frame] = samples[frame * channels + channel];
         }

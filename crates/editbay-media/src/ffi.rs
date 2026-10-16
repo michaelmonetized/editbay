@@ -854,7 +854,8 @@ impl LosslessMovWriter {
             || frames > 4096
             || first.checked_add(frames).is_none_or(|end| end > limit)
             || samples.iter().any(|v| !v.is_finite())
-            || ((self.format.aac() || self.format.pcm24()) && samples.iter().any(|v| v.abs() > 1.))
+            || ((self.format.lossy_sound() || self.format.pcm24())
+                && samples.iter().any(|v| v.abs() > 1.))
         {
             return Err(Error::Invalid(
                 "invalid, stale or unbounded delivery sound".into(),

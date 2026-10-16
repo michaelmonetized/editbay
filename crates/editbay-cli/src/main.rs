@@ -46,7 +46,7 @@ Usage:
   editbay decode-frame SOURCE STREAM_INDEX SOURCE_TICK
   editbay export FILE COMPOSITION_ID NEW_MOV [SAMPLE_RATE]
   editbay export-range FILE COMPOSITION_ID NEW_MOV START_FRAME END_FRAME [SAMPLE_RATE]
-  editbay export-profile FILE COMPOSITION_ID NEW_FILE lossless_mov|lossless16_mov|h264_mp4|prores_mov|dnxhr_hqx_mov|dnxhr_hqx_mxf|hevc_main10_mp4 [SAMPLE_RATE [START_FRAME END_FRAME]]
+  editbay export-profile FILE COMPOSITION_ID NEW_FILE lossless_mov|lossless16_mov|h264_mp4|prores_mov|dnxhr_hqx_mov|dnxhr_hqx_mxf|hevc_main10_mp4|vp9_profile2_webm [SAMPLE_RATE [START_FRAME END_FRAME]]
   editbay checkpoint FILE RECOVERY_DIRECTORY
   editbay recoveries RECOVERY_DIRECTORY
   editbay recover CHECKPOINT NEW_FILE
@@ -95,6 +95,7 @@ fn export(args: &[OsString]) -> Result<(), Box<dyn std::error::Error>> {
                 "dnxhr_hqx_mov" => editbay_delivery::DeliveryFormat::DnxhrHqxMov,
                 "dnxhr_hqx_mxf" => editbay_delivery::DeliveryFormat::DnxhrHqxMxf,
                 "hevc_main10_mp4" => editbay_delivery::DeliveryFormat::HevcMain10Mp4,
+                "vp9_profile2_webm" => editbay_delivery::DeliveryFormat::Vp9Profile2Webm,
                 _ => return Err("Unknown export profile".into()),
             }
         } else {
