@@ -1190,6 +1190,7 @@ fn craft_video_icc_source_float_graph_assignment_reopen_and_atomic_master() -> T
     }
     let cancelled = directory.path.join("icc-cancelled.mov");
     let control = deadline.control()?;
+    let mut accepted = false;
     assert!(
         deliver(
             &cli,
@@ -1198,12 +1199,18 @@ fn craft_video_icc_source_float_graph_assignment_reopen_and_atomic_master() -> T
             &cancelled,
             &control,
             |progress, _| {
-                if progress.phase == Phase::Rendering && progress.pictures >= 1 {
-                    control.cancel();
+                if (progress.phase == Phase::Rendering && progress.pictures >= 1)
+                    || progress.phase == Phase::VerifyingPictures
+                {
+                    accepted |= control.cancel();
                 }
             }
         )
         .is_err()
+    );
+    assert!(
+        accepted,
+        "Cancel actual private output after its sole picture was rendered"
     );
     assert!(!cancelled.exists());
     let preserved_master = fs::read(&master)?;
