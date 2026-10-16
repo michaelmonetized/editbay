@@ -570,6 +570,8 @@ fn inspect(
     let (mut samples, mut maximum_pcm_error, mut positive_endpoints, mut negative_endpoints) =
         (0_u64, 0_f64, 0_u64, 0_u64);
     let (mut padding, mut pcm_squared) = (0_u64, 0_f64);
+    let mut lag_squared = [0_f64; 17];
+    let mut lag_samples = 0_u64;
     let mut endpoints = Vec::new();
     while let Some(block) = reader.next_block()? {
         assert_eq!(block.first_sample, Some((samples + padding) as i64));
@@ -599,6 +601,14 @@ fn inspect(
                 );
                 maximum_pcm_error = maximum_pcm_error.max(error);
                 pcm_squared += error * error;
+                if format.aac() && samples >= 128 && samples + 128 < total {
+                    for (index, squared) in lag_squared.iter_mut().enumerate() {
+                        let shifted = (start + samples) as i64 + index as i64 - 8;
+                        let reference = f64::from(aac_tone(u64::try_from(shifted)?, channel));
+                        *squared += (f64::from(*actual) - reference).powi(2);
+                    }
+                    lag_samples += 1;
+                }
                 positive_endpoints += u64::from(original == 1.);
                 negative_endpoints += u64::from(original == -1.);
                 if samples == 0 || samples + 1 == total {
@@ -614,9 +624,26 @@ fn inspect(
     }
     let pcm_rms = (pcm_squared / (samples as f64 * channels as f64)).sqrt();
     assert!(pcm_rms <= if format.aac() { 0.02 } else { PCM_STEP });
+    let best_lag = if format.aac() {
+        assert!(lag_samples > 512);
+        let best = lag_squared
+            .iter()
+            .enumerate()
+            .min_by(|a, b| a.1.total_cmp(b.1))
+            .unwrap()
+            .0 as i64
+            - 8;
+        assert_eq!(
+            best, 0,
+            "AAC analytic sample phase shifted; squared errors {lag_squared:?}"
+        );
+        Some(best)
+    } else {
+        None
+    };
     source.verify(cancel)?;
     Ok(
-        json!({"probe":probe,"frames":count,"samples":samples,"padding":padding,"pcm_rms_error":pcm_rms,"source_sample_start":start,"source_sample_end":start+total,"maximum_interior_code_error":maximum,"interior_rms_code_error":rms,"maximum_luma_error":maximum_luma,"interior_non8bit_components":non8bit,"maximum_pcm_error":maximum_pcm_error,"pcm24_step":if format.pcm24() {Some(PCM_STEP)} else {None},"positive_endpoints":positive_endpoints,"negative_endpoints":negative_endpoints,"endpoints":endpoints}),
+        json!({"probe":probe,"frames":count,"samples":samples,"padding":padding,"pcm_rms_error":pcm_rms,"analytic_best_lag_samples":best_lag,"lag_squared_errors":if format.aac() {Some(lag_squared)} else {None},"lag_samples":lag_samples,"source_sample_start":start,"source_sample_end":start+total,"maximum_interior_code_error":maximum,"interior_rms_code_error":rms,"maximum_luma_error":maximum_luma,"interior_non8bit_components":non8bit,"maximum_pcm_error":maximum_pcm_error,"pcm24_step":if format.pcm24() {Some(PCM_STEP)} else {None},"positive_endpoints":positive_endpoints,"negative_endpoints":negative_endpoints,"endpoints":endpoints}),
     )
 }
 
