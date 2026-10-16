@@ -1,4 +1,4 @@
-use crate::{Cancellation, Error, Result, SourceFile, VideoReader};
+use crate::{Cancellation, Error, PixelEncoding, Result, SourceFile, VideoReader};
 use editbay_core::{
     AssetReference, DocumentVersion, EvaluationSnapshot, SourceRequest, StreamFormat,
 };
@@ -14,7 +14,7 @@ use uuid::Uuid;
 
 const MAXIMUM_FORWARD_SKIP: u64 = 8;
 
-/// Explicit budgets for retained RGBA8 outputs and native decoder handles.
+/// Explicit budgets for retained native outputs and native decoder handles.
 #[derive(Debug, Clone, Copy, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct PictureBudget {
@@ -90,9 +90,10 @@ impl Drop for Allocation {
     }
 }
 
-/// Immutable native RGBA8 pixels with lifetime-charged output memory.
+/// Immutable native pixels with lifetime-charged output memory.
 pub struct DecodedPicture {
     pub(crate) rgba: Pixels,
+    pub encoding: PixelEncoding,
     pub width: u32,
     pub height: u32,
     pub source_tick: i64,
@@ -107,6 +108,8 @@ pub struct DecodedPicture {
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub(crate) struct PictureHeader {
+    #[serde(default)]
+    pub(crate) encoding: PixelEncoding,
     pub(crate) width: u32,
     pub(crate) height: u32,
     pub(crate) tick: i64,
@@ -118,6 +121,7 @@ pub(crate) struct PictureHeader {
 impl PictureHeader {
     pub(crate) fn of(picture: &DecodedPicture) -> Self {
         Self {
+            encoding: picture.encoding,
             width: picture.width,
             height: picture.height,
             tick: picture.source_tick,
@@ -161,7 +165,7 @@ impl Output {
 
 impl DecodedPicture {
     /// Inspect shared decoded pixels without copying or permitting mutation.
-    /// Takes no arguments. Returns full-range native RGBA8 bytes.
+    /// Takes no arguments. Returns the native bytes declared by this picture's encoding.
     pub fn rgba(&self) -> &[u8] {
         match &self.rgba {
             Pixels::Owned(bytes) => bytes,
@@ -194,6 +198,7 @@ struct Entry {
 }
 
 pub(crate) struct Selection<'a> {
+    pub(crate) encoding: PixelEncoding,
     pub(crate) reference: &'a AssetReference,
     pub(crate) width: u32,
     pub(crate) height: u32,
@@ -273,9 +278,10 @@ pub(crate) fn selection<'a>(
     let tick = *presentation_ticks
         .get(ordinal as usize)
         .ok_or_else(|| Error::Invalid("picture ordinal is outside its index".into()))?;
+    let encoding = PixelEncoding::captured(&profile.metadata)?;
     let size = (*width as usize)
         .checked_mul(*height as usize)
-        .and_then(|size| size.checked_mul(4))
+        .and_then(|size| size.checked_mul(encoding.bytes_per_pixel()))
         .ok_or_else(|| Error::Invalid("picture geometry overflow".into()))?;
     if size > budget.maximum_picture_bytes || *width > 8192 || *height > 8192 {
         return Err(Error::Invalid(
@@ -283,6 +289,7 @@ pub(crate) fn selection<'a>(
         ));
     }
     Ok(Some(Selection {
+        encoding,
         reference,
         width: *width,
         height: *height,
@@ -406,6 +413,7 @@ impl PictureCache {
             return Ok(None);
         };
         let Selection {
+            encoding,
             reference,
             width,
             height,
@@ -464,7 +472,12 @@ impl PictureCache {
                         })?;
                     self.decoders.remove(&oldest);
                 }
-                let reader = VideoReader::open_stream(&owned, *stream, self.cancel.clone())?;
+                let reader = VideoReader::open_stream_with_encoding(
+                    &owned,
+                    *stream,
+                    self.cancel.clone(),
+                    encoding,
+                )?;
                 if reader.info.width != *width as i32 || reader.info.height != *height as i32 {
                     return Err(Error::Invalid(
                         "native picture geometry differs from the captured profile".into(),
@@ -528,6 +541,7 @@ impl PictureCache {
             }
             decoder.next = ordinal.checked_add(1);
             PictureHeader {
+                encoding,
                 width: *width,
                 height: *height,
                 tick,
@@ -540,6 +554,7 @@ impl PictureCache {
         owned.check_current(&self.cancel)?;
         let picture = Arc::new(DecodedPicture {
             rgba: output.freeze()?,
+            encoding: header.encoding,
             width: *width,
             height: *height,
             source_tick: tick,

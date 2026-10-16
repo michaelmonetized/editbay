@@ -169,6 +169,7 @@ impl DeliveryPane {
                         DeliveryFormat::H264Mp4,
                         DeliveryFormat::ProresMov,
                         DeliveryFormat::LosslessMov,
+                        DeliveryFormat::Lossless16Mov,
                     ] {
                         let option =
                             ui.selectable_value(&mut choice.format, format, format_name(format));
@@ -180,6 +181,9 @@ impl DeliveryPane {
                 DeliveryFormat::H264Mp4 => "48 kHz AAC · mono/stereo · transparency over black",
                 DeliveryFormat::ProresMov => {
                     "ProRes 4444 · 48 kHz float PCM · original channels and alpha"
+                }
+                DeliveryFormat::Lossless16Mov => {
+                    "16-bit RGBA PNG · float PCM · retains transparency"
                 }
                 DeliveryFormat::LosslessMov => {
                     "PNG RGBA · 48 kHz float PCM · original channels and alpha"
@@ -474,5 +478,6 @@ fn format_name(format: DeliveryFormat) -> &'static str {
         DeliveryFormat::H264Mp4 => "H.264 / AAC MP4",
         DeliveryFormat::ProresMov => "ProRes 4444 MOV",
         DeliveryFormat::LosslessMov => "Lossless MOV",
+        DeliveryFormat::Lossless16Mov => "Lossless 16-bit MOV",
     }
 }

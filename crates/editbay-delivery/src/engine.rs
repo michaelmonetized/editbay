@@ -187,7 +187,7 @@ impl Session {
             false,
         )?;
         let output = self.picture.convert(&working, ImageBoundary::Output)?;
-        let (mut rgba, clipped) = rgba8(&self.picture.readback(&output)?)?;
+        let (mut rgba, clipped) = rgba(&self.picture.readback(&output)?, self.request.format)?;
         flatten(&mut rgba, self.request.format);
         self.clipped += clipped;
         let writer = self.writer.as_mut().ok_or("Delivery encoder is absent")?;
@@ -233,7 +233,9 @@ impl Session {
             let video = &probe.streams[0];
             let audio = &probe.streams[1];
             let (video_codec, audio_codec, matrix, range) = match self.request.format {
-                DeliveryFormat::LosslessMov => ("png", "pcm_f32le", 0, 2),
+                DeliveryFormat::LosslessMov | DeliveryFormat::Lossless16Mov => {
+                    ("png", "pcm_f32le", 0, 2)
+                }
                 DeliveryFormat::H264Mp4 => ("h264", "aac", 1, 1),
                 DeliveryFormat::ProresMov => ("prores", "pcm_f32le", 1, 1),
             };
@@ -263,7 +265,12 @@ impl Session {
             {
                 return Err("Delivery metadata differs from the requested profile".into());
             }
-            self.video = Some(VideoReader::open_stream(&source, 0, self.cancel.clone())?);
+            self.video = Some(VideoReader::open_stream_with_encoding(
+                &source,
+                0,
+                self.cancel.clone(),
+                self.request.format.pixel_encoding(),
+            )?);
             self.source = Some(source);
             self.pictures = 0;
             self.samples = 0;
@@ -287,7 +294,7 @@ impl Session {
                 return Err("Delivered pictures have the wrong time or count".into());
             }
             self.decoded.update(&frame.rgba);
-            if self.request.format != DeliveryFormat::LosslessMov {
+            if !self.request.format.lossless() {
                 let working = self.picture.render(
                     self.request.composition,
                     SourcePosition {
@@ -297,7 +304,8 @@ impl Session {
                     false,
                 )?;
                 let output = self.picture.convert(&working, ImageBoundary::Output)?;
-                let (mut reference, _) = rgba8(&self.picture.readback(&output)?)?;
+                let (mut reference, _) =
+                    rgba(&self.picture.readback(&output)?, self.request.format)?;
                 flatten(&mut reference, self.request.format);
                 if reference.len() != frame.rgba.len() {
                     return Err("Decoded delivery picture has the wrong geometry".into());
@@ -310,12 +318,12 @@ impl Session {
             self.pictures += 1;
         } else {
             if self.pictures != self.profile.frames
-                || (self.request.format == DeliveryFormat::LosslessMov
+                || (self.request.format.lossless()
                     && self.decoded.clone().finalize() != self.expected_pixels.clone().finalize())
             {
                 return Err("Decoded delivery pictures differ from shared graph output".into());
             }
-            if self.request.format != DeliveryFormat::LosslessMov {
+            if !self.request.format.lossless() {
                 let limit = if self.request.format == DeliveryFormat::H264Mp4 {
                     0.035
                 } else {
@@ -448,11 +456,13 @@ fn flatten(rgba: &mut [u8], format: DeliveryFormat) {
     }
 }
 
-fn rgba8(premultiplied: &[f32]) -> Result<(Vec<u8>, u64)> {
+fn rgba(premultiplied: &[f32], format: DeliveryFormat) -> Result<(Vec<u8>, u64)> {
+    let high_depth = format == DeliveryFormat::Lossless16Mov;
+    let maximum = if high_depth { 65535. } else { 255. };
     if !premultiplied.len().is_multiple_of(4) {
         return Err("Malformed rendered picture".into());
     }
-    let mut output = Vec::with_capacity(premultiplied.len());
+    let mut output = Vec::with_capacity(premultiplied.len() * if high_depth { 2 } else { 1 });
     let mut clipped = 0;
     for pixel in premultiplied.as_chunks::<4>().0 {
         let alpha = pixel[3];
@@ -462,9 +472,19 @@ fn rgba8(premultiplied: &[f32]) -> Result<(Vec<u8>, u64)> {
         for value in &pixel[..3] {
             let straight = if alpha == 0. { 0. } else { *value / alpha };
             clipped += u64::from(!(0. ..=1.).contains(&straight));
-            output.push((straight.clamp(0., 1.) * 255.).round() as u8);
+            let code = (straight.clamp(0., 1.) * maximum).round() as u16;
+            if high_depth {
+                output.extend_from_slice(&code.to_le_bytes());
+            } else {
+                output.push(code as u8);
+            }
         }
-        output.push((alpha * 255.).round() as u8);
+        let code = (alpha * maximum).round() as u16;
+        if high_depth {
+            output.extend_from_slice(&code.to_le_bytes());
+        } else {
+            output.push(code as u8);
+        }
     }
     Ok((output, clipped))
 }

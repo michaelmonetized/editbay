@@ -8,11 +8,27 @@ use serde::{Deserialize, Serialize};
 pub enum DeliveryFormat {
     #[default]
     LosslessMov,
+    Lossless16Mov,
     H264Mp4,
     ProresMov,
 }
 
 impl DeliveryFormat {
+    /// Return native picture storage at the encoder boundary.
+    /// Takes this format and returns its declared interleaved component encoding.
+    pub fn pixel_encoding(self) -> crate::PixelEncoding {
+        if self == Self::Lossless16Mov {
+            crate::PixelEncoding::Rgba16Le
+        } else {
+            crate::PixelEncoding::Rgba8
+        }
+    }
+
+    /// Identify formats whose decoded picture bytes must match exactly.
+    /// Takes this format and returns whether delivery uses lossless picture QC.
+    pub fn lossless(self) -> bool {
+        matches!(self, Self::LosslessMov | Self::Lossless16Mov)
+    }
     /// Return the required filename suffix for this encoding.
     /// Takes this format; returns a lowercase extension without a dot.
     pub fn extension(self) -> &'static str {

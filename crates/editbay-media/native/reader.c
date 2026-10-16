@@ -219,23 +219,41 @@ typedef struct {
 typedef struct {
     int64_t pts, duration, sample_start;
     int color_primaries, color_transfer, color_matrix, color_range, alpha_mode, has_alpha;
+    int pixel_encoding;
 } EBFrame;
+
+int eb_pixel_encoding(int format) {
+    const AVPixFmtDescriptor *pixel = av_pix_fmt_desc_get(format);
+    if (!pixel) return -1;
+    if (pixel->flags & AV_PIX_FMT_FLAG_FLOAT) return 2;
+    for (int i = 0; i < pixel->nb_components; i++)
+        if (pixel->comp[i].depth > 8) return 1;
+    return 0;
+}
 
 typedef struct {
     EBInput input;
     AVCodecContext *codec;
     AVPacket *packet;
     AVFrame *frame;
+    AVFrame *converted;
     struct SwsContext *scale;
     SwrContext *resample;
-    int stream, audio, draining, sample_rate, channels;
+    int stream, audio, draining, sample_rate, channels, output_encoding;
     int64_t next_sample;
 } EBReader;
+
+int eb_reader_output(EBReader *reader, int encoding) {
+    if (reader->audio || encoding < 0 || encoding > 2) return AVERROR(EINVAL);
+    reader->output_encoding = encoding;
+    av_frame_free(&reader->converted);
+    return 0;
+}
 
 void eb_reader_close(EBReader *reader) {
     if (!reader) return;
     sws_freeContext(reader->scale); swr_free(&reader->resample);
-    av_frame_free(&reader->frame); av_packet_free(&reader->packet);
+    av_frame_free(&reader->frame); av_frame_free(&reader->converted); av_packet_free(&reader->packet);
     avcodec_free_context(&reader->codec); input_close(&reader->input);
     free(reader);
 }
@@ -364,6 +382,7 @@ next_frame:
     details->alpha_mode = frame->alpha_mode;
     const AVPixFmtDescriptor *pixel = av_pix_fmt_desc_get(frame->format);
     details->has_alpha = pixel && (pixel->flags & AV_PIX_FMT_FLAG_ALPHA);
+    details->pixel_encoding = eb_pixel_encoding(frame->format);
     const AVCodecParameters *parameters = reader->input.format->streams[reader->stream]->codecpar;
     if (details->color_primaries == AVCOL_PRI_UNSPECIFIED) details->color_primaries = parameters->color_primaries;
     if (details->color_transfer == AVCOL_TRC_UNSPECIFIED) details->color_transfer = parameters->color_trc;
@@ -403,9 +422,37 @@ next_frame:
         if (details->pts < tick) goto next_frame;
     }
     if (!output) return 1;
-    if (capacity < (size_t)width * height * 4) return AVERROR(ENOBUFS);
+    int bytes = reader->output_encoding == 2 ? 16 : reader->output_encoding == 1 ? 8 : 4;
+    if (capacity < (size_t)width * height * bytes) return AVERROR(ENOBUFS);
+    if (reader->output_encoding == 2 && pixel && (pixel->flags & AV_PIX_FMT_FLAG_FLOAT)) {
+        int gray = pixel->nb_components <= 2;
+        if (!gray && !(pixel->flags & AV_PIX_FMT_FLAG_RGB)) return AVERROR(ENOSYS);
+        for (int channel = 0; channel < pixel->nb_components; channel++)
+            if (pixel->comp[channel].depth != 32 || pixel->comp[channel].shift) return AVERROR(ENOSYS);
+        for (int row = 0; row < height; row++) {
+            if (interrupted(&reader->input)) return AVERROR_EXIT;
+            for (int x = 0; x < width; x++) {
+                for (int channel = 0; channel < 4; channel++) {
+                    uint8_t *target = output + ((size_t)row * width + x) * 16 + channel * 4;
+                    int selected = gray ? (channel < 3 ? 0 : 1) : channel;
+                    if (selected >= pixel->nb_components) {
+                        const uint8_t opaque[] = {0, 0, 128, 63};
+                        memcpy(target, opaque, 4);
+                    } else {
+                        const AVComponentDescriptor *component = &pixel->comp[selected];
+                        const uint8_t *sample = frame->data[component->plane] +
+                            (ptrdiff_t)row * frame->linesize[component->plane] + (size_t)x * component->step + component->offset;
+                        for (int byte = 0; byte < 4; byte++)
+                            target[byte] = sample[pixel->flags & AV_PIX_FMT_FLAG_BE ? 3 - byte : byte];
+                    }
+                }
+            }
+        }
+        return width * height * bytes;
+    }
+    enum AVPixelFormat output_format = reader->output_encoding ? AV_PIX_FMT_RGBA64LE : AV_PIX_FMT_RGBA;
     reader->scale = sws_getCachedContext(reader->scale, width, height, frame->format, width, height,
-        AV_PIX_FMT_RGBA, SWS_BILINEAR, NULL, NULL, NULL);
+        output_format, SWS_BILINEAR, NULL, NULL, NULL);
     if (!reader->scale) return AVERROR(ENOMEM);
     int matrix = details->color_matrix == AVCOL_SPC_BT709 ? SWS_CS_ITU709 :
         details->color_matrix == AVCOL_SPC_BT2020_NCL ? SWS_CS_BT2020 :
@@ -416,10 +463,37 @@ next_frame:
     ret = sws_setColorspaceDetails(reader->scale, coefficients, details->color_range == AVCOL_RANGE_JPEG,
         coefficients, 1, 0, 1<<16, 1<<16);
     if (ret < 0) return ret;
-    uint8_t *planes[] = {output}; int strides[] = {width * 4};
-    ret = sws_scale(reader->scale, (const uint8_t * const *)frame->data, frame->linesize, 0, height, planes, strides);
+    if (!reader->converted) {
+        reader->converted = av_frame_alloc();
+        if (!reader->converted) return AVERROR(ENOMEM);
+        reader->converted->format = output_format;
+        reader->converted->width = width; reader->converted->height = height;
+    }
+    if (!reader->converted->data[0]) {
+        ret = av_frame_get_buffer(reader->converted, 64);
+        if (ret < 0) return ret;
+    }
+    ret = sws_scale(reader->scale, (const uint8_t * const *)frame->data, frame->linesize, 0, height,
+        reader->converted->data, reader->converted->linesize);
+    if (ret < 0) return ret;
+    if (ret != height) return AVERROR(EIO);
     if (interrupted(&reader->input)) return AVERROR_EXIT;
-    return ret < 0 ? ret : width * height * 4;
+    for (int row = 0; row < height; row++) {
+        if (reader->output_encoding == 2) {
+            for (int x = 0; x < width * 4; x++) {
+                const uint8_t *sample = reader->converted->data[0] + (size_t)row * reader->converted->linesize[0] + x * 2;
+                float value = (float)((unsigned int)sample[0] | ((unsigned int)sample[1] << 8)) / 65535.0f;
+                uint32_t bits;
+                memcpy(&bits, &value, 4);
+                uint8_t *target = output + (size_t)row * width * 16 + x * 4;
+                for (int byte = 0; byte < 4; byte++) target[byte] = (uint8_t)(bits >> (byte * 8));
+            }
+        } else {
+            memcpy(output + (size_t)row * width * bytes,
+                reader->converted->data[0] + (size_t)row * reader->converted->linesize[0], (size_t)width * bytes);
+        }
+    }
+    return width * height * bytes;
 }
 
 int eb_reader_next(EBReader *reader, uint8_t *output, size_t capacity, EBFrame *details) {
