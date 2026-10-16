@@ -96,6 +96,7 @@ pub struct Studio {
     timeline: TimelinePane,
     workflows: crate::workflow_ui::WorkflowPane,
     multicam: crate::multicam_ui::MulticamPane,
+    source_color: crate::source_color_ui::SourceColorPane,
     preferences_applied: bool,
     explicit_paths: bool,
     restoring: bool,
@@ -187,6 +188,7 @@ impl Studio {
             timeline: TimelinePane::default(),
             workflows: crate::workflow_ui::WorkflowPane::new(state.join("interchange-loss")),
             multicam: Default::default(),
+            source_color: Default::default(),
             preferences_applied: false,
             explicit_paths,
             restoring: false,
@@ -245,6 +247,7 @@ impl Studio {
         }
         self.workflows.poll(&mut self.workspace, !self.welcome);
         self.multicam.poll(&mut self.workspace, !self.welcome);
+        self.source_color.poll(&mut self.workspace, !self.welcome);
         self.preview.poll(&mut self.workspace, !self.welcome, ctx);
         self.timeline
             .poll(&mut self.workspace, &mut self.preview, !self.welcome, ctx);
@@ -1564,6 +1567,8 @@ impl Studio {
                     id,
                     project.clone(),
                 );
+                self.source_color
+                    .show(ui, &mut self.workspace, id, project.clone(), interactive);
                 for sequence in project
                     .sequences
                     .iter()

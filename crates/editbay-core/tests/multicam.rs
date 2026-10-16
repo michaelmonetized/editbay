@@ -25,6 +25,7 @@ fn camera(project: &mut Project, base: u128, rate: FrameRate, duration: u64) {
         name: format!("Camera {base} sound"),
         asset: id(base + 1),
         streams: vec![SourceStream {
+            icc_profile: None,
             index: 0,
             codec: "pcm_f32le".into(),
             time_base: TimeBase {

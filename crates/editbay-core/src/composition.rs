@@ -176,6 +176,8 @@ pub enum StreamFormat {
 #[cfg_attr(feature = "json-schema", derive(schemars::JsonSchema))]
 #[serde(deny_unknown_fields)]
 pub struct SourceStream {
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub icc_profile: Option<crate::IccProfile>,
     pub index: u32,
     pub codec: String,
     pub time_base: TimeBase,
@@ -698,6 +700,14 @@ pub(crate) fn validate_model(project: &Project, identities: &mut HashSet<Uuid>) 
             }
             named(&stream.codec)?;
             metadata(&stream.metadata)?;
+            if let Some(profile) = &stream.icc_profile {
+                profile.validate()?;
+                if !matches!(stream.format, StreamFormat::Video { .. }) {
+                    return Err(Error::Invalid(
+                        "ICC profile cannot interpret a sound stream".into(),
+                    ));
+                }
+            }
             stream.time_base.validate()?;
             if stream.duration_ticks.is_some_and(|duration| {
                 duration == 0

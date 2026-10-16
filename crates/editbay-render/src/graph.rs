@@ -21,7 +21,7 @@ use std::{
 use uuid::Uuid;
 use wgpu::util::DeviceExt;
 
-const KERNEL: &str = "editbay-resident-native-picture-v3";
+const KERNEL: &str = "editbay-resident-native-picture-v4";
 
 /// Separate working-image residency and bounded evaluation limits.
 #[derive(Debug, Clone, Copy, Serialize)]
@@ -218,6 +218,7 @@ pub struct GraphRenderer<P: PictureProvider = PictureCache> {
     fonts: crate::text::FontCache,
     caption_fonts: crate::caption_text::CaptionFontCache,
     caption_preview_warnings: Vec<String>,
+    icc_transforms: HashMap<String, editbay_media::ColorTransform>,
 }
 impl GraphRenderer {
     /// Create a headless native GPU worker over one immutable document.
@@ -397,6 +398,7 @@ impl<P: PictureProvider> GraphRenderer<P> {
             fonts: crate::text::FontCache::default(),
             caption_fonts: Default::default(),
             caption_preview_warnings: Vec::new(),
+            icc_transforms: HashMap::new(),
         })
     }
 
@@ -751,40 +753,48 @@ impl<P: PictureProvider> GraphRenderer<P> {
                         p.gamut[0][..3].copy_from_slice(&weights);
                         images.push(values[image].image()?);
                     }
-                    NodeOperation::Source { .. } => {
-                        match node.source.as_ref() {
-                            Some(request @ SourceRequest::Media { source, stream, .. }) => {
-                                let snapshot = self.snapshot.clone();
-                                let (_, profile, _) = snapshot.source_stream(*source, *stream)?;
-                                let StreamFormat::Video {
-                                    color,
-                                    alpha,
-                                    sample_aspect,
-                                    ..
-                                } = profile.format
-                                else {
-                                    return Err("picture source selected sound".into());
-                                };
-                                let rotation = profile
-                                    .metadata
-                                    .get("editbay.display_rotation_degrees")
-                                    .map(|v| v.parse::<f64>())
-                                    .transpose()?;
-                                if rotation.is_some_and(|v| !v.is_finite() || v != 0.) {
-                                    return Err(
-                                        "source display rotation requires the orientation renderer"
-                                            .into(),
-                                    );
-                                }
-                                if ![0, 1, 4, 5, 6, 7, 9].contains(&color.matrix)
-                                    || ![1, 2].contains(&color.range)
-                                {
-                                    return Err(
+                    NodeOperation::Source { .. } => match node.source.as_ref() {
+                        Some(request @ SourceRequest::Media { source, stream, .. }) => {
+                            let snapshot = self.snapshot.clone();
+                            let (_, profile, _) = snapshot.source_stream(*source, *stream)?;
+                            let StreamFormat::Video {
+                                color,
+                                alpha,
+                                sample_aspect,
+                                ..
+                            } = profile.format
+                            else {
+                                return Err("picture source selected sound".into());
+                            };
+                            let rotation = profile
+                                .metadata
+                                .get("editbay.display_rotation_degrees")
+                                .map(|v| v.parse::<f64>())
+                                .transpose()?;
+                            if rotation.is_some_and(|v| !v.is_finite() || v != 0.) {
+                                return Err(
+                                    "source display rotation requires the orientation renderer"
+                                        .into(),
+                                );
+                            }
+                            let icc = profile.icc_profile.as_ref();
+                            let native_rgb = profile
+                                .metadata
+                                .get("editbay.native_pixel_model")
+                                .is_some_and(|model| model == "rgb" || model == "gray");
+                            if !(icc.is_some() && native_rgb)
+                                && (![0, 1, 4, 5, 6, 7, 9].contains(&color.matrix)
+                                    || ![1, 2].contains(&color.range))
+                            {
+                                return Err(
                                     "source matrix/range needs a supported native interpretation"
                                         .into(),
                                 );
-                                }
-                                let gamut = match color.primaries {
+                            }
+                            let gamut = if icc.is_some() {
+                                frame.color.working_gamut
+                            } else {
+                                match color.primaries {
                                     1 => WorkingGamut::Bt709,
                                     9 => WorkingGamut::Bt2020,
                                     12 => WorkingGamut::DisplayP3,
@@ -792,130 +802,167 @@ impl<P: PictureProvider> GraphRenderer<P> {
                                         "source primaries need a supported explicit interpretation"
                                             .into(),
                                     ),
-                                };
-                                p.transfer = match color.transfer { 8 => OutputTransfer::Linear, 13 => OutputTransfer::Srgb, 1 => OutputTransfer::Bt709, 16 => OutputTransfer::Pq, 18 => OutputTransfer::Hlg, _ => return Err("source transfer requires an explicit supported interpretation".into()) };
-                                p.absolute(frame.color.hdr, gamut);
-                                let began = Instant::now();
-                                let decoded = self.pictures.picture(request)?;
-                                self.source_picture_us = self
-                                    .source_picture_us
-                                    .saturating_add(began.elapsed().as_micros() as u64);
-                                if let Some(decoded) = decoded {
-                                    self.pictures.validate_result(&decoded)?;
-                                    if decoded.picture.color != color
-                                        || decoded.picture.alpha != alpha
-                                        || decoded.picture.alpha_interpretation_required
-                                        || decoded.picture.rotation_degrees != 0.
-                                    {
-                                        return Err("source color/alpha override requires a native interpretation adapter".into());
-                                    }
-                                    key = fingerprint(&(
-                                        KERNEL,
-                                        &node.sha256,
-                                        color,
-                                        alpha,
-                                        sample_aspect,
-                                        frame.color.hdr,
-                                    ))?;
-                                    if let Some(hit) = self.cached(&key) {
-                                        values.insert(node.id, Value::Image(hit));
-                                        continue;
-                                    }
-                                    p.operation = Kernel::Source;
-                                    p.alpha = alpha;
-                                    let upload = self.allocate(
-                                        decoded.picture.width,
-                                        decoded.picture.height,
-                                        frame.color.precision,
-                                        gamut,
-                                        OutputTransfer::Linear,
-                                        if decoded.picture.encoding
-                                            == editbay_media::PixelEncoding::Rgba8
-                                        {
-                                            wgpu::TextureFormat::Rgba8Unorm
-                                        } else {
-                                            wgpu::TextureFormat::Rgba32Float
-                                        },
-                                        "native precision upload".into(),
-                                        false,
-                                    )?;
-                                    if self.pending.load(Ordering::Acquire)
-                                        >= self.budget.pending_submissions
-                                    {
-                                        self.wait(true)?;
-                                    }
-                                    let normalized = if decoded.picture.encoding
-                                        == editbay_media::PixelEncoding::Rgba8
-                                    {
-                                        None
-                                    } else {
-                                        Some(
-                                            decoded
-                                                .picture
-                                                .encoding
-                                                .to_f32(decoded.picture.rgba())?,
-                                        )
-                                    };
-                                    let pixels =
-                                        normalized.as_ref().map_or(decoded.picture.rgba(), |v| {
-                                            bytemuck::cast_slice(v)
-                                        });
-                                    self.queue.write_texture(
-                                        upload.texture.as_image_copy(),
-                                        pixels,
-                                        wgpu::TexelCopyBufferLayout {
-                                            offset: 0,
-                                            bytes_per_row: Some(
-                                                decoded.picture.width
-                                                    * if normalized.is_some() { 16 } else { 4 },
-                                            ),
-                                            rows_per_image: Some(decoded.picture.height),
-                                        },
-                                        upload.texture.size(),
-                                    );
-                                    let commands =
-                                        self.device.create_command_encoder(&Default::default());
-                                    self.submit(commands, vec![upload.clone()])?;
-                                    self.uploads = self.uploads.saturating_add(1);
-                                    let sar = f64::from(sample_aspect.numerator)
-                                        / f64::from(sample_aspect.denominator);
-                                    fit(
-                                        &mut p,
-                                        upload.dimensions(),
-                                        [frame.width, frame.height],
-                                        sar,
-                                    )?;
-                                    set_gamut(&mut p, gamut, frame.color.working_gamut);
-                                    images.push(upload);
-                                } else {
-                                    values.insert(node.id, Value::Image(self.blank(&frame)?));
+                                }
+                            };
+                            p.transfer = if icc.is_some() {
+                                OutputTransfer::Linear
+                            } else {
+                                match color.transfer {
+                                    8 => OutputTransfer::Linear,
+                                    13 => OutputTransfer::Srgb,
+                                    1 => OutputTransfer::Bt709,
+                                    16 => OutputTransfer::Pq,
+                                    18 => OutputTransfer::Hlg,
+                                    _ => return Err("source transfer requires an explicit supported interpretation".into()),
+                                }
+                            };
+                            p.absolute(frame.color.hdr, gamut);
+                            let began = Instant::now();
+                            let decoded = self.pictures.picture(request)?;
+                            self.source_picture_us = self
+                                .source_picture_us
+                                .saturating_add(began.elapsed().as_micros() as u64);
+                            if let Some(decoded) = decoded {
+                                self.pictures.validate_result(&decoded)?;
+                                if decoded.picture.color != color
+                                    || decoded.picture.alpha != alpha
+                                    || decoded.picture.alpha_interpretation_required
+                                    || decoded.picture.rotation_degrees != 0.
+                                {
+                                    return Err("source color/alpha override requires a native interpretation adapter".into());
+                                }
+                                key = fingerprint(&(
+                                    KERNEL,
+                                    &node.sha256,
+                                    color,
+                                    alpha,
+                                    sample_aspect,
+                                    frame.color.hdr,
+                                    icc.map(|profile| &profile.sha256),
+                                    gamut,
+                                ))?;
+                                if let Some(hit) = self.cached(&key) {
+                                    values.insert(node.id, Value::Image(hit));
                                     continue;
                                 }
-                            }
-                            Some(SourceRequest::Composition {
-                                composition,
-                                position,
-                                reverse,
-                            }) => {
-                                let child = self.scene(
-                                    *composition,
-                                    *position,
-                                    *reverse,
-                                    depth + 1,
-                                    remaining,
+                                p.operation = Kernel::Source;
+                                p.alpha = if icc.is_some() && alpha == AlphaMode::Premultiplied {
+                                    AlphaMode::Straight
+                                } else {
+                                    alpha
+                                };
+                                let upload = self.allocate(
+                                    decoded.picture.width,
+                                    decoded.picture.height,
+                                    frame.color.precision,
+                                    gamut,
+                                    OutputTransfer::Linear,
+                                    if decoded.picture.encoding
+                                        == editbay_media::PixelEncoding::Rgba8
+                                        && icc.is_none()
+                                    {
+                                        wgpu::TextureFormat::Rgba8Unorm
+                                    } else {
+                                        wgpu::TextureFormat::Rgba32Float
+                                    },
+                                    "native precision upload".into(),
+                                    false,
                                 )?;
-                                key = fingerprint(&(KERNEL, &node.sha256, &child.key))?;
-                                p.operation = Kernel::Nested;
-                                fit(&mut p, child.dimensions(), [frame.width, frame.height], 1.)?;
-                                set_gamut(&mut p, child.gamut, frame.color.working_gamut);
-                                images.push(child);
-                            }
-                            None => {
+                                if self.pending.load(Ordering::Acquire)
+                                    >= self.budget.pending_submissions
+                                {
+                                    self.wait(true)?;
+                                }
+                                let mut normalized = if decoded.picture.encoding
+                                    == editbay_media::PixelEncoding::Rgba8
+                                    && icc.is_none()
+                                {
+                                    None
+                                } else {
+                                    Some(decoded.picture.encoding.to_f32(decoded.picture.rgba())?)
+                                };
+                                if let Some(profile) = icc {
+                                    let transform_key =
+                                        fingerprint(&(&profile.sha256, gamut, alpha))?;
+                                    if !self.icc_transforms.contains_key(&transform_key) {
+                                        if self.icc_transforms.len() >= 16 {
+                                            let old =
+                                                self.icc_transforms.keys().next().cloned().unwrap();
+                                            self.icc_transforms.remove(&old);
+                                        }
+                                        self.icc_transforms.insert(
+                                            transform_key.clone(),
+                                            editbay_media::ColorTransform::new(
+                                                profile,
+                                                gamut,
+                                                alpha,
+                                                self.cancel.clone(),
+                                            )?,
+                                        );
+                                    }
+                                    self.icc_transforms
+                                        .get_mut(&transform_key)
+                                        .unwrap()
+                                        .apply(normalized.as_mut().unwrap())?;
+                                }
+                                let pixels = normalized
+                                    .as_ref()
+                                    .map_or(decoded.picture.rgba(), |v| bytemuck::cast_slice(v));
+                                self.queue.write_texture(
+                                    upload.texture.as_image_copy(),
+                                    pixels,
+                                    wgpu::TexelCopyBufferLayout {
+                                        offset: 0,
+                                        bytes_per_row: Some(
+                                            decoded.picture.width
+                                                * if normalized.is_some() { 16 } else { 4 },
+                                        ),
+                                        rows_per_image: Some(decoded.picture.height),
+                                    },
+                                    upload.texture.size(),
+                                );
+                                let commands =
+                                    self.device.create_command_encoder(&Default::default());
+                                self.submit(commands, vec![upload.clone()])?;
+                                self.uploads = self.uploads.saturating_add(1);
+                                let sar = f64::from(sample_aspect.numerator)
+                                    / f64::from(sample_aspect.denominator);
+                                fit(
+                                    &mut p,
+                                    upload.dimensions(),
+                                    [frame.width, frame.height],
+                                    sar,
+                                )?;
+                                set_gamut(&mut p, gamut, frame.color.working_gamut);
+                                images.push(upload);
+                            } else {
                                 values.insert(node.id, Value::Image(self.blank(&frame)?));
                                 continue;
                             }
                         }
-                    }
+                        Some(SourceRequest::Composition {
+                            composition,
+                            position,
+                            reverse,
+                        }) => {
+                            let child = self.scene(
+                                *composition,
+                                *position,
+                                *reverse,
+                                depth + 1,
+                                remaining,
+                            )?;
+                            key = fingerprint(&(KERNEL, &node.sha256, &child.key))?;
+                            p.operation = Kernel::Nested;
+                            fit(&mut p, child.dimensions(), [frame.width, frame.height], 1.)?;
+                            set_gamut(&mut p, child.gamut, frame.color.working_gamut);
+                            images.push(child);
+                        }
+                        None => {
+                            values.insert(node.id, Value::Image(self.blank(&frame)?));
+                            continue;
+                        }
+                    },
                     NodeOperation::Solid { rgba } => {
                         for (target, value) in p.solid.iter_mut().zip(rgba) {
                             if value.abs() > 4096. {
@@ -1271,6 +1318,7 @@ impl<P: PictureProvider> GraphRenderer<P> {
         self.entries.clear();
         self.fonts.clear();
         self.caption_fonts.clear();
+        self.icc_transforms.clear();
         self.bytes = 0;
         self.pictures.clear()?;
         self.generation = next;
@@ -1290,6 +1338,7 @@ impl<P: PictureProvider> GraphRenderer<P> {
             .ok_or("render generation exhausted")?;
         self.wait(false)?;
         self.pictures.rebind(snapshot.clone(), cancel.clone())?;
+        self.icc_transforms.clear();
         self.snapshot = snapshot;
         self.cancel = cancel;
         self.generation = next;

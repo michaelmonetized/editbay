@@ -11,6 +11,19 @@ use std::{
 };
 
 unsafe extern "C" {
+    fn eb_color_open(
+        bytes: *const u8,
+        length: usize,
+        gamut: c_int,
+        premultiplied: c_int,
+    ) -> *mut c_void;
+    fn eb_color_close(color: *mut c_void);
+    fn eb_color_apply(
+        color: *mut c_void,
+        rgba: *mut f32,
+        pixels: usize,
+        cancel: *mut c_void,
+    ) -> c_int;
     fn eb_reader_open(
         descriptor: c_int,
         path: *const c_char,
@@ -23,7 +36,9 @@ unsafe extern "C" {
     ) -> *mut c_void;
     fn eb_reader_close(reader: *mut c_void);
     fn eb_reader_output(reader: *mut c_void, encoding: c_int) -> c_int;
+    fn eb_reader_icc_profile(reader: *mut c_void, data: *mut *const u8) -> c_int;
     fn eb_pixel_encoding(format: c_int) -> c_int;
+    fn eb_pixel_model(format: c_int) -> c_int;
     fn eb_reader_next(
         reader: *mut c_void,
         output: *mut u8,
@@ -99,6 +114,112 @@ unsafe extern "C" {
     fn eb_version() -> *const c_char;
 }
 
+/// One bounded native RGB ICC transform into the existing linear working gamut.
+pub struct ColorTransform {
+    pointer: NonNull<c_void>,
+    cancel: Cancellation,
+    premultiplied: bool,
+}
+
+impl ColorTransform {
+    /// Read a bounded regular RGB ICC file without following links or opening a decoder.
+    /// `path` and `cancel` select original bytes and ownership. Returns a retained profile;
+    /// full native profile validation occurs when a transform is opened.
+    pub fn read_profile(
+        path: &std::path::Path,
+        cancel: &Cancellation,
+    ) -> Result<editbay_core::IccProfile> {
+        use std::{io::Read, os::unix::fs::OpenOptionsExt};
+        cancel.check()?;
+        let file = std::fs::OpenOptions::new()
+            .read(true)
+            .custom_flags(libc::O_NONBLOCK | libc::O_NOFOLLOW)
+            .open(path)?;
+        if !file.metadata()?.is_file() || file.metadata()?.len() > 1024 * 1024 {
+            return Err(Error::Invalid(
+                "ICC input must be a regular file within 1 MiB".into(),
+            ));
+        }
+        let mut bytes = Vec::new();
+        file.take(1024 * 1024 + 1).read_to_end(&mut bytes)?;
+        cancel.check()?;
+        Ok(editbay_core::IccProfile::new(bytes)?)
+    }
+    /// Open captured profile bytes for one explicitly declared source interpretation.
+    /// `profile`, `gamut`, `alpha` and `cancel` retain bytes, target and lifetime.
+    /// Returns a private native transform; no image decoder or compositor is created.
+    pub fn new(
+        profile: &editbay_core::IccProfile,
+        gamut: editbay_core::WorkingGamut,
+        alpha: editbay_core::AlphaMode,
+        cancel: Cancellation,
+    ) -> Result<Self> {
+        profile.validate()?;
+        cancel.check()?;
+        let gamut = match gamut {
+            editbay_core::WorkingGamut::Bt709 => 1,
+            editbay_core::WorkingGamut::Bt2020 => 9,
+            editbay_core::WorkingGamut::DisplayP3 => 12,
+        };
+        let premultiplied = alpha == editbay_core::AlphaMode::Premultiplied;
+        let pointer = NonNull::new(unsafe {
+            eb_color_open(
+                profile.bytes.as_ptr(),
+                profile.bytes.len(),
+                gamut,
+                i32::from(premultiplied),
+            )
+        })
+        .ok_or_else(|| {
+            Error::Invalid("native RGB ICC profile or transform is unsupported".into())
+        })?;
+        let transform = Self {
+            pointer,
+            cancel,
+            premultiplied,
+        };
+        transform.cancel.check()?;
+        Ok(transform)
+    }
+
+    /// Convert private source pixels before spatial sampling in the float graph.
+    /// `rgba` contains finite native normalized floats. Returns linear straight RGBA
+    /// in place, or an error; cancelled/invalid partial pixels must be discarded.
+    pub fn apply(&mut self, rgba: &mut [f32]) -> Result<()> {
+        self.cancel.check()?;
+        if rgba.is_empty()
+            || !rgba.len().is_multiple_of(4)
+            || rgba.len() / 4 > 8192 * 8192
+            || rgba.iter().any(|v| !v.is_finite())
+            || rgba.as_chunks::<4>().0.iter().any(|p| {
+                !(0. ..=1.).contains(&p[3])
+                    || (self.premultiplied && p[3] == 0. && p[..3].iter().any(|v| *v != 0.))
+            })
+        {
+            return Err(Error::Invalid("ICC input has invalid geometry/color/alpha or unsupported additive zero-alpha light".into()));
+        }
+        let code = unsafe {
+            eb_color_apply(
+                self.pointer.as_ptr(),
+                rgba.as_mut_ptr(),
+                rgba.len() / 4,
+                self.cancel.0.pointer(),
+            )
+        };
+        self.cancel.check()?;
+        if code != 0 || rgba.iter().any(|v| !v.is_finite()) {
+            return Err(Error::Invalid("native ICC conversion failed".into()));
+        }
+        Ok(())
+    }
+}
+
+impl Drop for ColorTransform {
+    fn drop(&mut self) {
+        unsafe { eb_color_close(self.pointer.as_ptr()) }
+    }
+}
+
 fn error(code: i32) -> Error {
     let mut bytes = [0u8; 256];
     unsafe {
@@ -168,10 +289,24 @@ pub(crate) struct RawFrame {
     pub alpha_mode: i32,
     pub has_alpha: i32,
     pub pixel_encoding: i32,
+    pub pixel_model: i32,
 }
 
 pub(crate) fn pixel_encoding(format: i32) -> Result<crate::PixelEncoding> {
     crate::PixelEncoding::from_native(unsafe { eb_pixel_encoding(format) })
+}
+
+pub(crate) fn pixel_model(format: i32) -> Result<&'static str> {
+    model_name(unsafe { eb_pixel_model(format) })
+}
+
+pub(crate) fn model_name(model: i32) -> Result<&'static str> {
+    match model {
+        1 => Ok("rgb"),
+        2 => Ok("gray"),
+        3 => Ok("yuv"),
+        _ => Err(Error::Invalid("unknown native pixel model".into())),
+    }
 }
 
 struct CancelInner(NonNull<c_void>);
@@ -337,6 +472,21 @@ pub(crate) struct Reader {
 }
 
 impl Reader {
+    pub(crate) fn icc_profile(&self) -> Result<Option<editbay_core::IccProfile>> {
+        let mut data = std::ptr::null();
+        let length = check(
+            unsafe { eb_reader_icc_profile(self.pointer.as_ptr(), &mut data) },
+            &self.cancel,
+        )? as usize;
+        if length == 0 {
+            return Ok(None);
+        }
+        if data.is_null() || !(128..=1024 * 1024).contains(&length) {
+            return Err(Error::Invalid("native ICC data exceeds its bound".into()));
+        }
+        let bytes = unsafe { std::slice::from_raw_parts(data, length) }.to_vec();
+        Ok(Some(editbay_core::IccProfile::new(bytes)?))
+    }
     pub(crate) fn output(&mut self, encoding: crate::PixelEncoding) -> Result<()> {
         check(
             unsafe { eb_reader_output(self.pointer.as_ptr(), encoding.native()) },

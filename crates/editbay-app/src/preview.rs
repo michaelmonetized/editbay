@@ -71,6 +71,7 @@ mod tests {
             asset,
             metadata: BTreeMap::new(),
             streams: vec![SourceStream {
+                icc_profile: None,
                 index: 0,
                 codec: "ffv1".into(),
                 time_base: TimeBase {

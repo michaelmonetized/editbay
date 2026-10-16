@@ -219,7 +219,7 @@ typedef struct {
 typedef struct {
     int64_t pts, duration, sample_start;
     int color_primaries, color_transfer, color_matrix, color_range, alpha_mode, has_alpha;
-    int pixel_encoding;
+    int pixel_encoding, pixel_model;
 } EBFrame;
 
 int eb_pixel_encoding(int format) {
@@ -231,6 +231,12 @@ int eb_pixel_encoding(int format) {
     return 0;
 }
 
+int eb_pixel_model(int format) {
+    const AVPixFmtDescriptor *pixel = av_pix_fmt_desc_get(format);
+    if (!pixel) return -1;
+    return pixel->flags & AV_PIX_FMT_FLAG_RGB ? 1 : pixel->nb_components <= 2 ? 2 : 3;
+}
+
 typedef struct {
     EBInput input;
     AVCodecContext *codec;
@@ -239,7 +245,9 @@ typedef struct {
     AVFrame *converted;
     struct SwsContext *scale;
     SwrContext *resample;
-    int stream, audio, draining, sample_rate, channels, output_encoding;
+    int stream, audio, draining, sample_rate, channels, output_encoding, icc_seen;
+    uint8_t *icc_profile;
+    size_t icc_profile_bytes;
     int64_t next_sample;
 } EBReader;
 
@@ -253,9 +261,36 @@ int eb_reader_output(EBReader *reader, int encoding) {
 void eb_reader_close(EBReader *reader) {
     if (!reader) return;
     sws_freeContext(reader->scale); swr_free(&reader->resample);
+    av_freep(&reader->icc_profile);
     av_frame_free(&reader->frame); av_frame_free(&reader->converted); av_packet_free(&reader->packet);
     avcodec_free_context(&reader->codec); input_close(&reader->input);
     free(reader);
+}
+
+static int capture_profile(EBReader *reader) {
+    const AVFrameSideData *frame = av_frame_get_side_data(reader->frame, AV_FRAME_DATA_ICC_PROFILE);
+    const AVCodecParameters *parameters = reader->input.format->streams[reader->stream]->codecpar;
+    const AVPacketSideData *stream = av_packet_side_data_get(parameters->coded_side_data,
+        parameters->nb_coded_side_data, AV_PKT_DATA_ICC_PROFILE);
+    const uint8_t *data = frame ? frame->data : stream ? stream->data : NULL;
+    size_t length = frame ? frame->size : stream ? stream->size : 0;
+    if ((frame || stream) && (!data || length < 128 || length > 1024 * 1024)) return AVERROR(EINVAL);
+    if (reader->icc_seen && (length != reader->icc_profile_bytes)) return AVERROR(EINVAL);
+    reader->icc_seen = 1;
+    if (!length) return 0;
+    if (reader->icc_profile) {
+        if (reader->icc_profile_bytes != length || memcmp(reader->icc_profile, data, length)) return AVERROR(EINVAL);
+    } else {
+        reader->icc_profile = av_memdup(data, length);
+        if (!reader->icc_profile) return AVERROR(ENOMEM);
+        reader->icc_profile_bytes = length;
+    }
+    return 0;
+}
+
+int eb_reader_icc_profile(EBReader *reader, const uint8_t **data) {
+    *data = reader->icc_profile;
+    return (int)reader->icc_profile_bytes;
 }
 
 EBReader *eb_reader_open(int descriptor, const char *label, int selected, int mode,
@@ -383,6 +418,7 @@ next_frame:
     const AVPixFmtDescriptor *pixel = av_pix_fmt_desc_get(frame->format);
     details->has_alpha = pixel && (pixel->flags & AV_PIX_FMT_FLAG_ALPHA);
     details->pixel_encoding = eb_pixel_encoding(frame->format);
+    details->pixel_model = eb_pixel_model(frame->format);
     const AVCodecParameters *parameters = reader->input.format->streams[reader->stream]->codecpar;
     if (details->color_primaries == AVCOL_PRI_UNSPECIFIED) details->color_primaries = parameters->color_primaries;
     if (details->color_transfer == AVCOL_TRC_UNSPECIFIED) details->color_transfer = parameters->color_trc;
@@ -417,6 +453,7 @@ next_frame:
     }
     int width = reader->codec->width, height = reader->codec->height;
     if (frame->width != width || frame->height != height) return AVERROR(EINVAL);
+    if ((ret = capture_profile(reader)) < 0) return ret;
     if (selected) {
         if (details->pts == AV_NOPTS_VALUE || details->pts > tick) return AVERROR(EINVAL);
         if (details->pts < tick) goto next_frame;
