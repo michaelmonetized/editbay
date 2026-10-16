@@ -1,3 +1,7 @@
+use crate::{
+    fields::{self, FieldState},
+    keyboard_ui,
+};
 use editbay_core::{ColorConfiguration, OutputTransfer, WorkingGamut};
 use editbay_render::scopes::{
     ScopeGrid, ScopeIdentity, ScopeRange, ScopeReport, ScopeScale, ScopeSettings, ScopeUnit,
@@ -34,6 +38,7 @@ pub struct ScopePanel {
     pub enabled: bool,
     pub settings: ScopeSettings,
     cached: Option<CachedTextures>,
+    controls: Option<uuid::Uuid>,
 }
 
 impl ScopePanel {
@@ -43,54 +48,35 @@ impl ScopePanel {
     /// the caller must restart its asynchronous capture with those new settings.
     /// Reports for previous settings are hidden while the next capture completes.
     pub fn show(&mut self, ui: &mut Ui, report: Option<&ScopeReport>) -> bool {
+        let owner = (
+            "color-scopes",
+            *self.controls.get_or_insert_with(uuid::Uuid::new_v4),
+        );
         let before = (self.enabled, self.settings);
         ui.horizontal(|ui| {
             ui.heading("Color");
-            ui.checkbox(&mut self.enabled, "Live scopes");
+            let response =
+                crate::fields::native_scope(ui, egui::Id::new((owner, "enabled")), |ui| {
+                    ui.checkbox(&mut self.enabled, "Live scopes")
+                })
+                .inner;
+            keyboard_ui::focus(ui, &response);
         });
         ui.add_enabled_ui(self.enabled, |ui| {
             ui.horizontal_wrapped(|ui| {
-                ui.label("Levels");
-                egui::ComboBox::from_id_salt("scope-level-units")
-                    .selected_text(scale_label(self.settings.scale))
-                    .show_ui(ui, |ui| {
-                        for scale in [ScopeScale::OutputCode, ScopeScale::Linear, ScopeScale::Nits] {
-                            ui.selectable_value(
-                                &mut self.settings.scale,
-                                scale,
-                                scale_label(scale),
-                            );
-                        }
-                    });
-                ui.label("Sample limit");
-                egui::ComboBox::from_id_salt("scope-sample-limit")
-                    .selected_text(format!("{} pixels", self.settings.maximum_samples))
-                    .show_ui(ui, |ui| {
-                        for samples in [16_384, 65_536, 262_144] {
-                            ui.selectable_value(
-                                &mut self.settings.maximum_samples,
-                                samples,
-                                format!("{samples} pixels"),
-                            );
-                        }
-                    });
+                keyboard_ui::choice(ui, (owner, "levels"), "Levels", &mut self.settings.scale,
+                    &[ScopeScale::OutputCode, ScopeScale::Linear, ScopeScale::Nits].map(|scale| (scale, scale_label(scale).into())));
+                keyboard_ui::choice(ui, (owner, "sample-limit"), "Sample limit", &mut self.settings.maximum_samples,
+                    &[16_384, 65_536, 262_144].map(|samples| (samples, format!("{samples} pixels"))));
             });
             ui.collapsing("Luminance settings", |ui| {
-                ui.horizontal_wrapped(|ui| {
-                    ui.label("Reference white");
-                    ui.add(
-                        egui::DragValue::new(&mut self.settings.reference_white_nits)
-                            .range(1.0..=self.settings.peak_nits)
-                            .speed(1.0)
-                            .suffix(" nits"),
-                    );
-                    ui.label("Peak");
-                    ui.add(
-                        egui::DragValue::new(&mut self.settings.peak_nits)
-                            .range(self.settings.reference_white_nits.max(100.0)..=10_000.0)
-                            .speed(10.0)
-                            .suffix(" nits"),
-                    );
+                fields::native_scope(ui, egui::Id::new((owner, "luminance")), |ui| {
+                    let mut white = self.settings.reference_white_nits;
+                    let (result, _) = keyboard_ui::native_number(ui, "reference-white", "Reference white", &mut white, 1.0..=self.settings.peak_nits, Some(1.0), " nits", None, FieldState::default());
+                    if result.changed { self.settings.reference_white_nits = white; }
+                    let mut peak = self.settings.peak_nits;
+                    let (result, _) = keyboard_ui::native_number(ui, "peak", "Peak", &mut peak, self.settings.reference_white_nits.max(100.0)..=10_000.0, Some(10.0), " nits", None, FieldState::default());
+                    if result.changed { self.settings.peak_nits = peak; }
                 });
                 ui.weak("Nits follow this explicit reference white. Peak sets the nits plot and HLG reference display.");
             });

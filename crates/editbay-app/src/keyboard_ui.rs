@@ -15,6 +15,159 @@ pub(crate) fn with_native_modifiers(events: Vec<egui::Event>) -> Vec<egui::Event
     native
 }
 
+/// Decorate one native number without changing its type, step or edit precision.
+/// Args: UI, owner ID, name, value, native range, optional speed, suffix, reset and field state.
+/// Returns the actual widget's FieldResponse and this app-owned draft's current validity.
+pub fn native_number<N: egui::emath::Numeric + std::fmt::Display>(
+    ui: &mut Ui,
+    id: impl std::hash::Hash + std::fmt::Debug,
+    label: &str,
+    value: &mut N,
+    range: std::ops::RangeInclusive<N>,
+    speed: Option<f64>,
+    suffix: &str,
+    reset: Option<N>,
+    state: crate::fields::FieldState<'_>,
+) -> (crate::fields::FieldResponse, bool) {
+    let key = ui.make_persistent_id(("editbay-native-number", id));
+    crate::fields::native_scope(ui, key, |ui| {
+        let before = *value;
+        let bounds = (*range.start(), *range.end());
+        let enabled = ui.is_enabled() && !state.locked;
+        let draft_key = key.with("editbay-rejected-number-draft");
+        let attempted = std::cell::RefCell::new(None);
+        let (text_input, arrow, escape) = ui.input(|input| {
+            (
+                input.events.iter().any(|event| matches!(event,
+                    egui::Event::Text(_) | egui::Event::Paste(_) | egui::Event::Cut | egui::Event::Ime(_)
+                    | egui::Event::Key { key: egui::Key::Backspace | egui::Key::Delete, pressed: true, .. })),
+                input.events.iter().any(|event| matches!(event,
+                    egui::Event::Key { key: egui::Key::ArrowUp | egui::Key::ArrowDown, pressed: true, modifiers, .. } if !modifiers.any())),
+                input.key_pressed(egui::Key::Escape),
+            )
+        });
+        let mut reset_clicked = false;
+        let mut editing = false;
+        let mut response = ui.vertical(|ui| {
+            let name = ui.label(label);
+            ui.add_enabled_ui(enabled, |ui| {
+                ui.horizontal(|ui| {
+                    let mut number = egui::DragValue::new(value)
+                        .range(range)
+                        .clamp_existing_to_range(false)
+                        .suffix(suffix)
+                        .custom_formatter(|number, _| {
+                            if state.mixed && number == before.to_f64() {
+                                "Mixed".into()
+                            } else if number == before.to_f64() {
+                                before.to_string()
+                            } else {
+                                let mut number = N::from_f64(number);
+                                if number != before {
+                                    if number < bounds.0 { number = bounds.0; }
+                                    if number > bounds.1 { number = bounds.1; }
+                                }
+                                number.to_string()
+                            }
+                        })
+                        .custom_parser(|text| {
+                            let parsed = parse_native_number(text);
+                            attempted.replace(Some((text.to_owned(), parsed.is_some())));
+                            parsed
+                        });
+                    if let Some(speed) = speed { number = number.speed(speed); }
+                    editing = ui.memory(|memory| memory.has_focus(ui.next_auto_id()));
+                    let response = ui.add(number).labelled_by(name.id);
+                    if let Some(reset) = reset
+                        && button(ui, (key, "reset"), &format!("Reset {label}")).clicked()
+                    {
+                        *value = reset;
+                        reset_clicked = true;
+                    }
+                    response
+                }).inner
+            }).inner
+        }).inner;
+        let focused = response.has_focus() || response.lost_focus();
+        let cancelled = escape && (focused || response.dragged());
+        let (native_action, invalid_action) = ui.input(|input| {
+            use egui::accesskit::{Action, ActionData};
+            (
+                [Action::SetValue, Action::Increment, Action::Decrement].into_iter().any(|action| input.accesskit_action_requests(response.id, action).next().is_some()),
+                input.accesskit_action_requests(response.id, Action::SetValue).any(|request| matches!(request.data, Some(ActionData::NumericValue(value)) if !value.is_finite())),
+            )
+        });
+        let actual_input = enabled && (reset_clicked || response.dragged() || native_action || ((editing || response.has_focus()) && (text_input || arrow)));
+        let mut rejected = ui.data(|data| data.get_temp::<String>(draft_key));
+        if cancelled || reset_clicked {
+            rejected = None;
+        } else if actual_input {
+            if invalid_action || !value.to_f64().is_finite() {
+                rejected = Some("Enter a finite number".into());
+            } else if let Some((text, valid)) = attempted.into_inner() {
+                let untouched_mixed = text == "Mixed" && !text_input && rejected.is_none();
+                if !untouched_mixed { rejected = (!valid).then_some(text); }
+            } else if response.changed() {
+                rejected = None;
+            }
+        }
+        if actual_input && value.to_f64().is_finite() {
+            if *value < bounds.0 { *value = bounds.0; }
+            if *value > bounds.1 { *value = bounds.1; }
+        }
+        if cancelled || !enabled { *value = before; }
+        let valid = rejected.is_none() && value.to_f64().is_finite() && state.error.is_none();
+        let changed = actual_input && !cancelled && valid && (response.changed() || reset_clicked);
+        if !changed { *value = before; }
+        ui.data_mut(|data| {
+            if let Some(text) = &rejected { data.insert_temp(draft_key, text.clone()); }
+            else { data.remove::<String>(draft_key); }
+        });
+        if reset_clicked && changed { response.mark_changed(); }
+        let mixed = state.mixed && !changed;
+        response.widget_info(|| {
+            let mut info = egui::WidgetInfo::labeled(egui::WidgetType::DragValue, response.enabled(), label);
+            if valid && !mixed { info.value = Some(value.to_f64()); }
+            info
+        });
+        ui.ctx().accesskit_node_builder(response.id, |node| {
+            node.set_label(label);
+            if mixed { node.set_state_description("Mixed"); }
+            if mixed || !valid { node.clear_numeric_value(); }
+            else { node.set_numeric_value(value.to_f64()); }
+            if mixed && valid { node.set_value("Mixed"); }
+        });
+        if let Some(message) = state.error.or((!valid).then_some("Enter a finite number")) {
+            error(ui, &[response.clone()], message);
+        }
+        if response.has_focus() {
+            ui.memory_mut(|memory| {
+                memory.set_focus_lock_filter(response.id, egui::EventFilter { horizontal_arrows: true, vertical_arrows: true, ..Default::default() });
+                if arrow { memory.move_focus(egui::FocusDirection::None); }
+            });
+        }
+        focus(ui, &response);
+        let committed = changed && (reset_clicked || response.drag_stopped() || response.lost_focus() || !response.has_focus());
+        (crate::fields::FieldResponse { response, changed, committed, cancelled }, valid)
+    }).inner
+}
+
+/// Read egui's native decimal grammar while rejecting nonfinite drafts.
+/// Args: native edit text. Returns a finite number without changing its native range handling.
+fn parse_native_number(text: &str) -> Option<f64> {
+    text.chars()
+        .filter(|character| !character.is_whitespace())
+        .map(|character| if character == '−' { '-' } else { character })
+        .collect::<String>()
+        .parse::<f64>()
+        .ok()
+        .filter(|value| value.is_finite())
+}
+
+#[cfg(test)]
+#[path = "keyboard_number_tests.rs"]
+mod number_tests;
+
 /// Associate one visible error with its actual native controls.
 /// Args: UI, rendered field responses and message. Returns no value.
 pub fn error(ui: &mut Ui, responses: &[Response], message: &str) {

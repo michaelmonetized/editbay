@@ -1,4 +1,6 @@
 use crate::{
+    fields::{self, FieldState},
+    keyboard_ui,
     preview::PreviewPane,
     workspace::{DocumentOwner, Workspace},
 };
@@ -152,6 +154,7 @@ impl MulticamPane {
         {
             self.status = Some(error);
         }
+        let owner = ("multicam", tab, project.id);
         ui.heading("Multicam");
         if let Some(message) = &self.status {
             ui.label(message);
@@ -164,7 +167,7 @@ impl MulticamPane {
                 } else {
                     "Preparing multicam edit…"
                 });
-                if ui.button("Cancel").clicked() {
+                if keyboard_ui::button(ui, (owner, "cancel"), "Cancel multicam work").clicked() {
                     task.cancel.cancel();
                 }
             });
@@ -176,12 +179,16 @@ impl MulticamPane {
                 self.chosen_sources.retain(|id| project.compositions.iter().any(|scene| scene.id == *id));
                 for scene in project.compositions.iter().filter(|scene| scene.picture.is_some() && !project.multicam.iter().any(|session| session.composition == scene.id)) {
                     let mut checked = self.chosen_sources.contains(&scene.id);
-                    if ui.checkbox(&mut checked, format!("{} · {} × {} · {}/{} fps", scene.name, scene.width, scene.height, scene.frame_rate.numerator, scene.frame_rate.denominator)).changed() {
+                    let response = fields::native_scope(ui, egui::Id::new((owner, scene.id, "camera-source")), |ui| ui.checkbox(&mut checked, format!("Camera source: {} · {} × {} · {}/{} fps", scene.name, scene.width, scene.height, scene.frame_rate.numerator, scene.frame_rate.denominator))).inner;
+                    keyboard_ui::focus(ui, &response);
+                    if response.changed() {
                         if checked { self.chosen_sources.insert(scene.id); } else { self.chosen_sources.remove(&scene.id); }
                     }
                 }
-                ui.text_edit_singleline(&mut self.name);
-                if ui.add_enabled(self.chosen_sources.len() >= 2, egui::Button::new("Create multicam edit")).clicked() {
+                let response = keyboard_ui::text(ui, (owner, "name"), "Multicam name", &mut self.name, false);
+                let name_valid = !self.name.trim().is_empty() && self.name.len() <= 1024 && !self.name.contains(['\n', '\r', '\0']);
+                if !name_valid { keyboard_ui::error(ui, &[response], "Enter a single-line multicam name of 1–1024 bytes"); }
+                if ui.add_enabled_ui(self.chosen_sources.len() >= 2 && name_valid, |ui| keyboard_ui::button(ui, (owner, "create"), "Create multicam edit")).inner.clicked() {
                     let sources: Vec<_> = project.compositions.iter().filter(|scene| self.chosen_sources.contains(&scene.id)).map(|scene| scene.id).collect();
                     let name = self.name.clone();
                     self.start(workspace, tab, ui.ctx(), move |mut editor, project, cancel| {
@@ -207,19 +214,17 @@ impl MulticamPane {
         {
             self.selected = project.multicam.first().map(|session| session.id);
         }
-        egui::ComboBox::from_id_salt(("multicam-session", tab))
-            .selected_text(
-                project
-                    .multicam
-                    .iter()
-                    .find(|session| Some(session.id) == self.selected)
-                    .map_or("Choose multicam", |session| session.name.as_str()),
-            )
-            .show_ui(ui, |ui| {
-                for session in &project.multicam {
-                    ui.selectable_value(&mut self.selected, Some(session.id), &session.name);
-                }
-            });
+        keyboard_ui::choice(
+            ui,
+            (owner, "session"),
+            "Multicam session",
+            &mut self.selected,
+            &project
+                .multicam
+                .iter()
+                .map(|session| (Some(session.id), session.name.clone()))
+                .collect::<Vec<_>>(),
+        );
         let Some(session) = project
             .multicam
             .iter()
@@ -253,7 +258,9 @@ impl MulticamPane {
                 "Program frame {frame} / {} · common origin {}",
                 overlap.duration, overlap.origin
             ));
-            if ui.button("View program").clicked() {
+            if keyboard_ui::button(ui, (owner, session.id, "view-program"), "View program")
+                .clicked()
+            {
                 self.view(
                     workspace,
                     preview,
@@ -266,8 +273,10 @@ impl MulticamPane {
         });
         ui.add_enabled_ui(self.task.is_none(), |ui| {
             ui.horizontal_wrapped(|ui| {
-                ui.radio_value(&mut self.cut_mode, true, "Cut at playhead");
-                ui.radio_value(&mut self.cut_mode, false, "Switch whole segment");
+                for (mode, name) in [(true, "Cut at playhead"), (false, "Switch whole segment")] {
+                    let response = fields::native_scope(ui, egui::Id::new((owner, session.id, "cut-mode", mode)), |ui| ui.radio_value(&mut self.cut_mode, mode, name)).inner;
+                    keyboard_ui::focus(ui, &response);
+                }
             });
             if !program_visible { ui.weak("View the program to cut or switch at its playhead."); }
             let active = session.cuts.iter().rev().find(|cut| cut.frame <= frame).map(|cut| cut.angle);
@@ -277,7 +286,9 @@ impl MulticamPane {
                         let time = angle_position(&project, session, angle, overlap.origin, frame);
                         let position_label = time.as_ref().map(|position| format!("Source frame {}/{}", position.numerator, position.denominator)).unwrap_or_else(|error| error.clone());
                         let name = format!("{} · {}{}\n{}", index + 1, angle.name, if active == Some(angle.id) { " · Active" } else { "" }, position_label);
-                        if ui.add_enabled(program_visible, egui::Button::new(name).selected(active == Some(angle.id))).clicked() {
+                        let response = fields::native_scope(ui, egui::Id::new((owner, session.id, angle.id, "camera-cut")), |ui| ui.add_enabled(program_visible && time.is_ok(), egui::Button::new(name).selected(active == Some(angle.id)))).inner;
+                        keyboard_ui::focus(ui, &response);
+                        if response.clicked() {
                             let mut next = session.clone();
                             let cut_mode = self.cut_mode;
                             let angle = angle.id;
@@ -287,7 +298,7 @@ impl MulticamPane {
                                 Ok(Completion { editor, session: next.id, focus: None, message: if cut_mode { format!("Camera cut recorded at frame {frame}") } else { "Camera changed for the existing segment".into() } })
                             });
                         }
-                        if ui.button("View source frame").clicked() {
+                        if ui.add_enabled_ui(time.as_ref().is_ok_and(|position| position.numerator >= 0), |ui| keyboard_ui::button(ui, (owner, session.id, angle.id, "view-source"), &format!("View {} source frame", angle.name))).inner.clicked() {
                             match time.and_then(|position| {
                                 u64::try_from(position.numerator).map(|numerator| numerator / position.denominator).map_err(|_| "Source frame is before the camera start".to_owned())
                             }) {
@@ -300,7 +311,7 @@ impl MulticamPane {
                 }
             });
             ui.weak("The grid shows exact source positions. View source opens that position's containing frame in the native viewer.");
-            self.audio_policy(ui, workspace, tab, session);
+            self.audio_policy(ui, workspace, tab, &project, session);
             self.sync_controls(ui, workspace, tab, &project, session);
             ui.collapsing("Recorded camera cuts", |ui| {
                 for cut in &session.cuts {
@@ -313,40 +324,53 @@ impl MulticamPane {
     }
 
     /// Draw and commit the retained linked-audio policy.
-    /// `ui`, `workspace`, `tab` and `session` select one shared-command edit.
+    /// `ui`, `workspace`, `tab`, `project` and `session` select eligible shared-command edits.
     fn audio_policy(
         &mut self,
         ui: &mut Ui,
         workspace: &mut Workspace,
         tab: Uuid,
+        project: &Project,
         session: &MulticamSession,
     ) {
         let mut policy = session.audio_policy;
-        egui::ComboBox::from_id_salt(("multicam-audio-policy", session.id))
-            .selected_text(match policy {
-                MulticamAudioPolicy::FollowVideo => "Sound follows camera",
-                MulticamAudioPolicy::All => "Mix all camera sound",
-                MulticamAudioPolicy::Fixed { .. } => "Fixed sound camera",
+        let sound_angles: Vec<_> = session
+            .angles
+            .iter()
+            .filter(|angle| {
+                project
+                    .compositions
+                    .iter()
+                    .any(|camera| camera.id == angle.composition && camera.audio.is_some())
             })
-            .show_ui(ui, |ui| {
-                ui.selectable_value(
-                    &mut policy,
-                    MulticamAudioPolicy::FollowVideo,
-                    "Sound follows camera",
-                );
-                ui.selectable_value(
-                    &mut policy,
-                    MulticamAudioPolicy::All,
-                    "Mix all available camera sound",
-                );
-                for angle in &session.angles {
-                    ui.selectable_value(
-                        &mut policy,
-                        MulticamAudioPolicy::Fixed { angle: angle.id },
-                        format!("Keep {} sound", angle.name),
-                    );
-                }
-            });
+            .collect();
+        let mut choices = Vec::new();
+        if sound_angles.len() == session.angles.len() {
+            choices.push((
+                MulticamAudioPolicy::FollowVideo,
+                "Sound follows camera".into(),
+            ));
+        }
+        choices.push((
+            MulticamAudioPolicy::All,
+            "Mix all available camera sound".into(),
+        ));
+        choices.extend(sound_angles.iter().map(|angle| {
+            (
+                MulticamAudioPolicy::Fixed { angle: angle.id },
+                format!("Keep {} sound", angle.name),
+            )
+        }));
+        keyboard_ui::choice(
+            ui,
+            ("multicam-audio-policy", tab, session.id),
+            "Multicam sound",
+            &mut policy,
+            &choices,
+        );
+        if sound_angles.len() != session.angles.len() {
+            ui.weak("Sound follows camera needs sound on every camera. Fixed choices include cameras with sound.");
+        }
         if policy != session.audio_policy {
             let mut next = session.clone();
             next.audio_policy = policy;
@@ -360,6 +384,19 @@ impl MulticamPane {
         }
     }
 
+    /// Inspect the existing multicam owner and result for native-key diagnostics.
+    /// Args: this pane. Returns selected session, captured worker owner and current status.
+    #[cfg(test)]
+    pub(crate) fn keyboard_worker_state(
+        &self,
+    ) -> (Option<Uuid>, Option<DocumentOwner>, Option<&str>) {
+        (
+            self.selected,
+            self.task.as_ref().map(|task| task.owner),
+            self.status.as_deref(),
+        )
+    }
+
     /// Draw marker, camera-clock and real decoded-audio synchronization.
     /// The supplied UI and document ownership select exact retained session changes.
     fn sync_controls(
@@ -371,18 +408,44 @@ impl MulticamPane {
         session: &MulticamSession,
     ) {
         ui.collapsing("Synchronize cameras", |ui| {
+            let owner = ("multicam-sync", tab, project.id, session.id);
+            let mut markers_valid = true;
+            let mut clocks_valid = true;
             egui::Grid::new(("multicam-sync-fields", session.id)).num_columns(3).show(ui, |ui| {
                 ui.label("Camera"); ui.label("Marker frame or fraction"); ui.label("Start timecode"); ui.end_row();
                 for angle in &session.angles {
                     let fields = self.fields.entry(angle.id).or_insert_with(|| SyncFields { marker: "0".into(), timecode: "00:00:00:00".into() });
                     ui.label(&angle.name);
-                    ui.add(egui::TextEdit::singleline(&mut fields.marker).desired_width(110.0));
-                    ui.add(egui::TextEdit::singleline(&mut fields.timecode).desired_width(125.0));
+                    ui.vertical(|ui| {
+                        let response = keyboard_ui::text(ui, (owner, angle.id, "marker"), &format!("{} marker frame or fraction", angle.name), &mut fields.marker, false);
+                        let marker = parse_position(&fields.marker).and_then(|position| {
+                            let camera = project.compositions.iter().find(|scene| scene.id == angle.composition).ok_or("Camera composition is absent")?;
+                            let end = i64::try_from(camera.duration).map_err(|_| "Camera duration exceeds integer time")?;
+                            if position.numerator < 0 || position.compare_tick(end).map_err(|error| error.to_string())? != std::cmp::Ordering::Less {
+                                return Err("Marker must be inside its camera composition".into());
+                            }
+                            Ok(position)
+                        });
+                        if let Err(error) = marker {
+                            markers_valid = false;
+                            keyboard_ui::error(ui, &[response], &error);
+                        }
+                    });
+                    ui.vertical(|ui| {
+                        let response = keyboard_ui::text(ui, (owner, angle.id, "timecode"), &format!("{} start timecode", angle.name), &mut fields.timecode, false);
+                        let clock = project.compositions.iter().find(|scene| scene.id == angle.composition)
+                            .ok_or_else(|| "Camera composition is absent".to_owned())
+                            .and_then(|scene| MulticamTimecode::parse(&fields.timecode, scene.frame_rate).map_err(|error| error.to_string()));
+                        if let Err(error) = clock {
+                            clocks_valid = false;
+                            keyboard_ui::error(ui, &[response], &error);
+                        }
+                    });
                     ui.end_row();
                 }
             });
             ui.horizontal_wrapped(|ui| {
-                if ui.button("Sync marked event").clicked() {
+                if ui.add_enabled_ui(markers_valid, |ui| keyboard_ui::button(ui, (owner, "markers-apply"), "Sync marked event")).inner.clicked() && markers_valid {
                     let values: Result<Vec<_>, String> = session.angles.iter().map(|angle| parse_position(&self.fields[&angle.id].marker).map(|position| (angle.id, position))).collect();
                     match values {
                         Ok(markers) => {
@@ -396,7 +459,7 @@ impl MulticamPane {
                         Err(error) => self.status = Some(error),
                     }
                 }
-                if ui.button("Sync start timecodes").clicked() {
+                if ui.add_enabled_ui(clocks_valid, |ui| keyboard_ui::button(ui, (owner, "clocks-apply"), "Sync start timecodes")).inner.clicked() && clocks_valid {
                     let clocks: Result<Vec<_>, String> = session.angles.iter().map(|angle| {
                         let rate = project.compositions.iter().find(|scene| scene.id == angle.composition).ok_or("Camera composition is absent")?.frame_rate;
                         MulticamTimecode::parse(&self.fields[&angle.id].timecode, rate).map(|clock| (angle.id, clock)).map_err(|error| error.to_string())
@@ -418,15 +481,20 @@ impl MulticamPane {
             if !self.audio_reference.is_some_and(|id| session.angles.iter().any(|angle| angle.id == id)) { self.audio_reference = session.angles.first().map(|angle| angle.id); }
             if !self.audio_candidate.is_some_and(|id| Some(id) != self.audio_reference && session.angles.iter().any(|angle| angle.id == id)) { self.audio_candidate = session.angles.iter().find(|angle| Some(angle.id) != self.audio_reference).map(|angle| angle.id); }
             ui.horizontal_wrapped(|ui| {
-                angle_choice(ui, "multicam-audio-reference", "Reference", &mut self.audio_reference, session);
-                angle_choice(ui, "multicam-audio-candidate", "Match", &mut self.audio_candidate, session);
+                angle_choice(ui, (owner, "audio-reference"), "Reference camera", &mut self.audio_reference, session);
+                angle_choice(ui, (owner, "audio-candidate"), "Match camera", &mut self.audio_candidate, session);
             });
-            ui.horizontal_wrapped(|ui| {
-                ui.label("Analyze first");
-                ui.add(egui::DragValue::new(&mut self.audio_seconds).range(1..=30).suffix(" seconds"));
-                ui.label("Maximum offset");
-                ui.add(egui::DragValue::new(&mut self.audio_offset_seconds).range(1..=10).suffix(" seconds"));
-                if ui.add_enabled(self.audio_reference != self.audio_candidate, egui::Button::new("Sync decoded audio")).clicked()
+            fields::native_scope(ui, egui::Id::new((owner, "audio-window")), |ui| {
+                let (_, seconds_valid) = keyboard_ui::native_number(ui, "seconds", "Analyze first", &mut self.audio_seconds, 1..=30, None, " seconds", None, FieldState::default());
+                let (_, offset_valid) = keyboard_ui::native_number(ui, "offset", "Maximum offset", &mut self.audio_offset_seconds, 1..=10, None, " seconds", None, FieldState::default());
+                let recorded = [self.audio_reference, self.audio_candidate].into_iter().all(|id| id
+                    .and_then(|id| session.angles.iter().find(|angle| angle.id == id))
+                    .and_then(|angle| project.compositions.iter().find(|scene| scene.id == angle.composition))
+                    .is_some_and(|camera| camera.audio.is_some()));
+                let audio_valid = seconds_valid && offset_valid
+                    && recorded && self.audio_reference != self.audio_candidate;
+                if !recorded { ui.weak("Audio synchronization needs recorded sound on both selected cameras."); }
+                if ui.add_enabled_ui(audio_valid, |ui| keyboard_ui::button(ui, (owner, "audio-apply"), "Sync decoded audio")).inner.clicked() && audio_valid
                     && let (Some(reference), Some(candidate)) = (self.audio_reference, self.audio_candidate)
                 {
                     let next = session.clone();
@@ -624,25 +692,22 @@ fn check(cancel: &Cancellation) -> Result<(), String> {
 /// The supplied UI, label and session update `selected` without touching the document.
 fn angle_choice(
     ui: &mut Ui,
-    id: &str,
+    id: impl std::hash::Hash + std::fmt::Debug,
     label: &str,
     selected: &mut Option<Uuid>,
     session: &MulticamSession,
 ) {
-    egui::ComboBox::from_id_salt((id, session.id))
-        .selected_text(format!(
-            "{label}: {}",
-            session
-                .angles
-                .iter()
-                .find(|angle| Some(angle.id) == *selected)
-                .map_or("Choose camera", |angle| angle.name.as_str())
-        ))
-        .show_ui(ui, |ui| {
-            for angle in &session.angles {
-                ui.selectable_value(selected, Some(angle.id), &angle.name);
-            }
-        });
+    keyboard_ui::choice(
+        ui,
+        id,
+        label,
+        selected,
+        &session
+            .angles
+            .iter()
+            .map(|angle| (Some(angle.id), angle.name.clone()))
+            .collect::<Vec<_>>(),
+    );
 }
 
 /// Read an exact editable marker coordinate.
@@ -805,6 +870,73 @@ fn append_envelope(output: &mut Vec<f32>, samples: &[f32], channels: usize) -> R
         output.push(mean as f32);
     }
     Ok(())
+}
+
+#[cfg(test)]
+mod keyboard_tests {
+    use super::*;
+    use crate::workflow_ui::keyboard_tests::{Author, Page, directory, key};
+    use std::time::Instant;
+
+    #[test]
+    fn craft_keyboard_common_multicam_busy_and_changed_owner_reject_real_creation() {
+        let directory = directory();
+        let mut author = Author::new(directory.path(), Page::Multicam);
+        author.camera("Camera A");
+        author.camera("Camera B");
+        author.frame(vec![]);
+        author.open("Create from camera sequences");
+        author.tab_prefix("Camera source: Camera A");
+        author.press(egui::Key::Space);
+        author.tab_prefix("Camera source: Camera B");
+        author.press(egui::Key::Space);
+        author.tab_to("Create multicam edit");
+        author.frame(vec![key(egui::Key::Enter, egui::Modifiers::NONE)]);
+        let pending = author
+            .multicam
+            .task
+            .as_ref()
+            .expect("native action dispatched the production worker")
+            .owner;
+        author.poll_workers = false;
+        author.press(egui::Key::Enter);
+        assert!(author.disabled("Create multicam edit"));
+        assert_eq!(author.multicam.task.as_ref().unwrap().owner, pending);
+        assert_eq!(author.project().revision, 2);
+        assert!(author.project().multicam.is_empty());
+        author
+            .workspace
+            .apply(
+                author.tab,
+                DocumentVersion::of(author.project()),
+                "External document edit".into(),
+                &[DocumentCommand::RenameProject {
+                    name: "Newer owner revision".into(),
+                }],
+            )
+            .unwrap();
+        author.poll_workers = true;
+        let deadline = Instant::now() + Duration::from_secs(5);
+        while author.multicam.task.is_some() {
+            author.frame(vec![]);
+            assert!(
+                Instant::now() < deadline,
+                "production worker did not retire"
+            );
+            std::thread::sleep(Duration::from_millis(1));
+        }
+        assert!(
+            author
+                .multicam
+                .status
+                .as_ref()
+                .unwrap()
+                .contains("discarded")
+        );
+        assert!(author.project().multicam.is_empty());
+        assert_eq!(author.project().name, "Newer owner revision");
+        assert_eq!(author.project().revision, 3);
+    }
 }
 
 #[cfg(test)]
