@@ -111,7 +111,7 @@ static int input_open(EBInput *input, int descriptor, const char *label, EBCance
     input->format->max_analyze_duration = 5 * AV_TIME_BASE;
     AVDictionary *options = NULL;
     av_dict_set(&options, "protocol_whitelist", "file", 0);
-    av_dict_set(&options, "format_whitelist", "mov,mp4,m4a,3gp,3g2,mj2,matroska,webm,avi,mpegts,mpeg,mp3,wav,flac,ogg,aac,aiff,image2pipe,png_pipe,jpeg_pipe,tiff_pipe,webp_pipe,exr_pipe,bmp_pipe,gif", 0);
+    av_dict_set(&options, "format_whitelist", "mov,mp4,m4a,3gp,3g2,mj2,matroska,webm,avi,mxf,mpegts,mpeg,mp3,wav,flac,ogg,aac,aiff,image2pipe,png_pipe,jpeg_pipe,tiff_pipe,webp_pipe,exr_pipe,bmp_pipe,gif", 0);
     int ret = avformat_open_input(&input->format, label, NULL, &options);
     av_dict_free(&options);
     if (ret < 0) return ret;
@@ -136,6 +136,7 @@ typedef struct {
     int disposition, decoder_available;
     int64_t start_tick, duration_ticks;
     double rotation;
+    int codec_id, codec_profile;
 } EBStream;
 
 static void stream_info(AVFormatContext *format, int index, EBStream *info) {
@@ -159,12 +160,32 @@ static void stream_info(AVFormatContext *format, int index, EBStream *info) {
     info->has_alpha = pixel && (pixel->flags & AV_PIX_FMT_FLAG_ALPHA);
     info->disposition = stream->disposition;
     info->decoder_available = avcodec_find_decoder(codec->codec_id) != NULL;
+    info->codec_id = codec->codec_id;
+    info->codec_profile = codec->profile;
     info->start_tick = stream->start_time;
     info->duration_ticks = stream->duration;
     const AVPacketSideData *matrix = av_packet_side_data_get(codec->coded_side_data,
         codec->nb_coded_side_data, AV_PKT_DATA_DISPLAYMATRIX);
     if (matrix && matrix->size >= 9 * sizeof(int32_t))
         info->rotation = -av_display_rotation_get((const int32_t *)matrix->data);
+}
+
+const char *eb_codec_profile_name(int codec, int profile) {
+    const char *name = avcodec_profile_name(codec, profile);
+    return name ? name : "unknown";
+}
+
+const char *eb_pixel_format_name(int format) {
+    const char *name = av_get_pix_fmt_name(format);
+    return name ? name : "unknown";
+}
+
+int eb_pixel_depth(int format) {
+    const AVPixFmtDescriptor *pixel = av_pix_fmt_desc_get(format);
+    int depth = 0;
+    if (pixel) for (int i = 0; i < pixel->nb_components; i++)
+        depth = FFMAX(depth, pixel->comp[i].depth);
+    return depth;
 }
 
 EBInput *eb_probe_open(int descriptor, const char *label, EBCancel *cancel, int *error) {

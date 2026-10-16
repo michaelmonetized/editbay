@@ -89,7 +89,8 @@ static EBWriter *writer_open(int descriptor, int width, int height, int num, int
     if (!w) goto failed;
     w->cancel = cancel;
     w->encoding = encoding;
-    if (encoding < 0 || encoding > 3) { ret = AVERROR(EINVAL); goto failed; }
+    if (encoding < 0 || encoding > 5) { ret = AVERROR(EINVAL); goto failed; }
+    int dnx = encoding == 4 || encoding == 5;
     struct stat file_info;
     if (fstat(descriptor, &file_info) != 0 || !S_ISREG(file_info.st_mode) || file_info.st_size != 0) {
         ret = AVERROR(EINVAL); goto failed;
@@ -100,13 +101,14 @@ static EBWriter *writer_open(int descriptor, int width, int height, int num, int
     if (!w->file) { close(owned); ret = AVERROR(errno); goto failed; }
     if (fseeko(w->file, 0, SEEK_SET)) { ret = AVERROR(errno); goto failed; }
     if ((ret = avformat_alloc_output_context2(&w->format, NULL,
-            encoding == 1 ? "mp4" : layout ? "mov" : "matroska", NULL)) < 0) goto failed;
+            encoding == 1 ? "mp4" : encoding == 5 ? "mxf" : layout ? "mov" : "matroska", NULL)) < 0) goto failed;
     unsigned char *buffer = av_malloc(32768);
     if (!buffer) { ret = AVERROR(ENOMEM); goto failed; }
     w->format->pb = avio_alloc_context(buffer, 32768, 1, w, NULL, write_bytes, seek_bytes);
     if (!w->format->pb) { av_free(buffer); ret = AVERROR(ENOMEM); goto failed; }
     w->format->flags |= AVFMT_FLAG_CUSTOM_IO;
     const AVCodec *encoder = encoding == 1 ? avcodec_find_encoder_by_name("libx264") :
+        dnx ? avcodec_find_encoder(AV_CODEC_ID_DNXHD) :
         encoding == 2 ? avcodec_find_encoder_by_name("prores_ks") :
         avcodec_find_encoder(layout ? AV_CODEC_ID_PNG : AV_CODEC_ID_FFV1);
     if (!encoder) { ret = AVERROR_ENCODER_NOT_FOUND; goto failed; }
@@ -118,15 +120,15 @@ static EBWriter *writer_open(int descriptor, int width, int height, int num, int
     w->codec->width = width;
     w->codec->height = height;
     w->codec->pix_fmt = encoding == 1 ? AV_PIX_FMT_YUV420P :
-        encoding == 2 ? AV_PIX_FMT_YUVA444P10LE : encoding == 3 ? AV_PIX_FMT_RGBA64BE : layout ? AV_PIX_FMT_RGBA : AV_PIX_FMT_BGRA;
+        encoding == 2 ? AV_PIX_FMT_YUVA444P10LE : dnx ? AV_PIX_FMT_YUV422P10LE : encoding == 3 ? AV_PIX_FMT_RGBA64BE : layout ? AV_PIX_FMT_RGBA : AV_PIX_FMT_BGRA;
     w->codec->time_base = (AVRational){den, num};
     w->codec->framerate = (AVRational){num, den};
     w->codec->thread_count = 2;
-    w->codec->color_range = encoding == 1 || encoding == 2 ? AVCOL_RANGE_MPEG : AVCOL_RANGE_JPEG;
+    w->codec->color_range = encoding == 1 || encoding == 2 || dnx ? AVCOL_RANGE_MPEG : AVCOL_RANGE_JPEG;
     w->codec->color_primaries = color ? color->primaries : AVCOL_PRI_BT709;
     w->codec->color_trc = color ? color->transfer : AVCOL_TRC_IEC61966_2_1;
-    w->codec->colorspace = encoding == 1 || encoding == 2 ? AVCOL_SPC_BT709 : AVCOL_SPC_RGB;
-    w->codec->alpha_mode = encoding == 1 ? AVALPHA_MODE_UNSPECIFIED : AVALPHA_MODE_STRAIGHT;
+    w->codec->colorspace = encoding == 1 || encoding == 2 || dnx ? AVCOL_SPC_BT709 : AVCOL_SPC_RGB;
+    w->codec->alpha_mode = encoding == 1 || dnx ? AVALPHA_MODE_UNSPECIFIED : AVALPHA_MODE_STRAIGHT;
     if (encoding == 1) {
         w->codec->gop_size = 48;
         w->codec->max_b_frames = 0;
@@ -134,6 +136,8 @@ static EBWriter *writer_open(int descriptor, int width, int height, int num, int
         if ((ret = av_opt_set(w->codec->priv_data, "crf", "16", 0)) < 0) goto failed;
     } else if (encoding == 2) {
         w->codec->profile = AV_PROFILE_PRORES_4444;
+    } else if (dnx) {
+        if ((ret = av_opt_set(w->codec->priv_data, "profile", "dnxhr_hqx", 0)) < 0) goto failed;
     }
     if (w->format->oformat->flags & AVFMT_GLOBALHEADER) w->codec->flags |= AV_CODEC_FLAG_GLOBAL_HEADER;
     if ((ret = avcodec_open2(w->codec, encoder, NULL)) < 0) goto failed;
@@ -142,13 +146,14 @@ static EBWriter *writer_open(int descriptor, int width, int height, int num, int
     w->stream->time_base = w->codec->time_base;
     w->stream->avg_frame_rate = w->codec->framerate;
     if (layout) {
-        const AVCodec *pcm = avcodec_find_encoder(encoding == 1 ? AV_CODEC_ID_AAC : AV_CODEC_ID_PCM_F32LE);
+        const AVCodec *pcm = avcodec_find_encoder(encoding == 1 ? AV_CODEC_ID_AAC : dnx ? AV_CODEC_ID_PCM_S24LE : AV_CODEC_ID_PCM_F32LE);
         if (!pcm) { ret = AVERROR_ENCODER_NOT_FOUND; goto failed; }
         w->audio = avcodec_alloc_context3(pcm);
         w->sound = avformat_new_stream(w->format, NULL);
         w->samples = av_frame_alloc();
         if (!w->audio || !w->sound || !w->samples) { ret = AVERROR(ENOMEM); goto failed; }
-        w->audio->sample_fmt = encoding == 1 ? AV_SAMPLE_FMT_FLTP : AV_SAMPLE_FMT_FLT;
+        w->audio->sample_fmt = encoding == 1 ? AV_SAMPLE_FMT_FLTP : dnx ? AV_SAMPLE_FMT_S32 : AV_SAMPLE_FMT_FLT;
+        if (dnx) w->audio->bits_per_raw_sample = 24;
         w->audio->sample_rate = rate;
         w->audio->time_base = (AVRational){1, rate};
         if ((ret = av_channel_layout_from_string(&w->audio->ch_layout, layout)) < 0) goto failed;
@@ -166,7 +171,7 @@ static EBWriter *writer_open(int descriptor, int width, int height, int num, int
         if ((ret = avcodec_parameters_from_context(w->sound->codecpar, w->audio)) < 0) goto failed;
         w->sound->time_base = w->audio->time_base;
     }
-    if (layout) {
+    if (layout && encoding != 5) {
         int64_t scale = (int64_t)num / av_gcd(num, rate) * rate;
         if (scale > INT32_MAX) { ret = AVERROR(EINVAL); goto failed; }
         if ((ret = av_dict_set_int(&options, "movie_timescale", scale, 0)) < 0) goto failed;
@@ -185,8 +190,8 @@ static EBWriter *writer_open(int descriptor, int width, int height, int num, int
     w->frame->colorspace = w->codec->colorspace;
     w->frame->alpha_mode = w->codec->alpha_mode;
     if ((ret = av_frame_get_buffer(w->frame, 32)) < 0) goto failed;
-    if (encoding == 1 || encoding == 2) {
-        w->conversion = sws_getContext(width, height, AV_PIX_FMT_RGBA, width, height,
+    if (encoding == 1 || encoding == 2 || dnx) {
+        w->conversion = sws_getContext(width, height, dnx ? AV_PIX_FMT_RGBA64LE : AV_PIX_FMT_RGBA, width, height,
             w->codec->pix_fmt, SWS_BICUBIC, NULL, NULL, NULL);
         if (!w->conversion) { ret = AVERROR(ENOMEM); goto failed; }
         const int *coefficients = sws_getCoefficients(SWS_CS_ITU709);
@@ -237,13 +242,15 @@ static int packets(EBWriter *w, AVCodecContext *codec, AVStream *stream) {
 
 int eb_writer_frame(EBWriter *w, const uint8_t *rgba, size_t length) {
     if (w->cancel && eb_cancelled(w->cancel)) return AVERROR_EXIT;
-    int bytes = w->encoding == 3 ? 8 : 4;
+    int bytes = w->encoding >= 3 ? 8 : 4;
     if (length != (size_t)w->codec->width * w->codec->height * bytes) return AVERROR(EINVAL);
+    if (w->encoding >= 4) for (size_t i = 6; i < length; i += 8)
+        if (rgba[i] != 255 || rgba[i+1] != 255) return AVERROR(EINVAL);
     int ret = av_frame_make_writable(w->frame);
     if (ret < 0) return ret;
     if (w->conversion) {
         const uint8_t *input[] = {rgba};
-        int stride[] = {w->codec->width * 4};
+        int stride[] = {w->codec->width * bytes};
         ret = sws_scale(w->conversion, input, stride, 0, w->codec->height,
             w->frame->data, w->frame->linesize);
         if (ret != w->codec->height) return ret < 0 ? ret : AVERROR(EINVAL);
@@ -316,7 +323,16 @@ int eb_delivery_sound(EBWriter *w, const float *samples, size_t length) {
     int ret = av_channel_layout_copy(&w->samples->ch_layout, &w->audio->ch_layout);
     if (ret < 0) return ret;
     if ((ret = av_frame_get_buffer(w->samples, 0)) < 0) return ret;
-    memcpy(w->samples->data[0], samples, length * sizeof(float));
+    if (w->encoding == 4 || w->encoding == 5) {
+        int32_t *output = (int32_t *)w->samples->data[0];
+        for (size_t i = 0; i < length; i++) {
+            double scaled = (double)samples[i] * 8388608.0;
+            if (!(samples[i] >= -1.0f && samples[i] <= 1.0f)) return AVERROR(EINVAL);
+            int64_t quantized = (int64_t)(scaled + (scaled < 0 ? -0.5 : 0.5));
+            quantized = FFMIN(8388607, FFMAX(-8388608, quantized));
+            output[i] = (int32_t)(quantized * 256);
+        }
+    } else memcpy(w->samples->data[0], samples, length * sizeof(float));
     w->samples->pts = w->sound_frames;
     w->samples->duration = count;
     w->sound_frames += count;

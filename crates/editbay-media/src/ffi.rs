@@ -41,6 +41,9 @@ unsafe extern "C" {
     fn eb_probe_hdr(probe: *mut c_void, index: c_int, output: *mut NativeHdr) -> c_int;
     fn eb_pixel_encoding(format: c_int) -> c_int;
     fn eb_pixel_model(format: c_int) -> c_int;
+    fn eb_codec_profile_name(codec: c_int, profile: c_int) -> *const c_char;
+    fn eb_pixel_format_name(format: c_int) -> *const c_char;
+    fn eb_pixel_depth(format: c_int) -> c_int;
     fn eb_reader_next(
         reader: *mut c_void,
         output: *mut u8,
@@ -336,6 +339,8 @@ pub(crate) struct RawStream {
     pub start_tick: i64,
     pub duration_ticks: i64,
     pub rotation: f64,
+    pub codec_id: i32,
+    pub codec_profile: i32,
 }
 
 #[derive(Debug, Clone, Copy, Default)]
@@ -356,6 +361,18 @@ pub(crate) struct RawFrame {
 
 pub(crate) fn pixel_encoding(format: i32) -> Result<crate::PixelEncoding> {
     crate::PixelEncoding::from_native(unsafe { eb_pixel_encoding(format) })
+}
+
+pub(crate) fn codec_profile_name(codec: i32, profile: i32) -> Result<String> {
+    bounded_text(unsafe { eb_codec_profile_name(codec, profile) }, 256)
+}
+
+pub(crate) fn pixel_format_name(format: i32) -> Result<String> {
+    bounded_text(unsafe { eb_pixel_format_name(format) }, 256)
+}
+
+pub(crate) fn pixel_depth(format: i32) -> i32 {
+    unsafe { eb_pixel_depth(format) }
 }
 
 pub(crate) fn pixel_model(format: i32) -> Result<&'static str> {
@@ -772,6 +789,8 @@ impl LosslessMovWriter {
                     crate::DeliveryFormat::Lossless16Mov => 3,
                     crate::DeliveryFormat::H264Mp4 => 1,
                     crate::DeliveryFormat::ProresMov => 2,
+                    crate::DeliveryFormat::DnxhrHqxMov => 4,
+                    crate::DeliveryFormat::DnxhrHqxMxf => 5,
                 },
                 &NativeDeliveryColor {
                     primaries: color.primaries,
@@ -795,7 +814,7 @@ impl LosslessMovWriter {
         })
     }
 
-    /// Append one full-range straight-alpha Rec.709/sRGB picture.
+    /// Append one full-range straight-alpha picture in the validated output color space.
     /// `frame` is the consecutive relative ordinal; `rgba` has exact geometry and
     /// the format's declared pixel encoding (RGBA8 or little-endian RGBA16).
     /// Returns after encoding. Sound must catch up before the following picture.
@@ -823,7 +842,8 @@ impl LosslessMovWriter {
 
     /// Append original-channel float PCM for already written pictures.
     /// `first` is the consecutive relative sample; `samples` has at most 4096
-    /// frames. Returns after muxing, retaining finite headroom without clipping.
+    /// frames. Returns after muxing. Float PCM retains finite headroom;
+    /// integer/AAC profiles reject full-scale overflow rather than silently clipping.
     pub fn sound(&mut self, first: u64, samples: &[f32]) -> Result<()> {
         check(0, &self.cancel)?;
         let channels = self.profile.channels.len();
@@ -836,7 +856,7 @@ impl LosslessMovWriter {
             || frames > 4096
             || first.checked_add(frames).is_none_or(|end| end > limit)
             || samples.iter().any(|v| !v.is_finite())
-            || (self.format == crate::DeliveryFormat::H264Mp4
+            || ((self.format == crate::DeliveryFormat::H264Mp4 || self.format.pcm24())
                 && samples.iter().any(|v| v.abs() > 1.))
         {
             return Err(Error::Invalid(
