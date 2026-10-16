@@ -627,6 +627,8 @@ mod tests {
             format: crate::DeliveryFormat::default(),
             version: owner.version,
             profile: profile.clone(),
+            encoded_audio_channels: profile.channels.clone(),
+            expected_loss: Vec::new(),
             pixel_sha256: "a".repeat(64),
             pcm_sha256: "b".repeat(64),
             decoded_pixel_sha256: "a".repeat(64),
@@ -639,6 +641,12 @@ mod tests {
             adapter: "test".into(),
             caption_sidecars: Vec::new(),
         };
+        let mut legacy = serde_json::to_value(&receipt).unwrap();
+        let fields = legacy.as_object_mut().unwrap();
+        fields.remove("encoded_audio_channels");
+        fields.remove("expected_loss");
+        let decoded: Receipt = serde_json::from_value(legacy).unwrap();
+        assert!(decoded.encoded_audio_channels.is_empty() && decoded.expected_loss.is_empty());
         assert!(
             validate_reply(
                 &make(complete.clone(), Some(receipt.clone())),

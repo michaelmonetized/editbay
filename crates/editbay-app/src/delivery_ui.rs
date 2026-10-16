@@ -181,7 +181,7 @@ impl DeliveryPane {
             preview.observe_control("export-format", &formats.response, ui);
             ui.weak(match choice.format {
                 DeliveryFormat::DnxhrHqxMov => "DNxHR HQX 10-bit 4:2:2 · 48 kHz PCM24 mono/stereo · BT.709 · opaque graph required",
-                DeliveryFormat::DnxhrHqxMxf => "MXF OP1a · DNxHR HQX 10-bit 4:2:2 · 48 kHz PCM24 mono/stereo · integral samples per edit · BT.709 · opaque graph required",
+                DeliveryFormat::DnxhrHqxMxf => "MXF OP1a · DNxHR HQX 10-bit 4:2:2 · 48 kHz ordered PCM24 mono/stereo · speaker labels in receipt · integral samples per edit · BT.709 · opaque graph required",
                 DeliveryFormat::H264Mp4 => "48 kHz AAC · mono/stereo · transparency over black",
                 DeliveryFormat::ProresMov => {
                     "ProRes 4444 · 48 kHz float PCM · original channels and alpha"
@@ -403,9 +403,10 @@ impl DeliveryPane {
                 ui.group(|ui| {
                     ui.label(job.destination.file_name().unwrap_or_default().to_string_lossy());
                     if let Some(receipt) = &job.receipt {
+                        for loss in &receipt.expected_loss { ui.colored_label(ui.visuals().warn_fg_color, loss); }
                         ui.label(format!("Revision {} exported and verified · frames {}–{} · {} Hz · {} channels", receipt.version.revision, receipt.profile.first_frame, receipt.profile.first_frame + receipt.profile.frames, receipt.profile.sample_rate, receipt.profile.channels.len()));
                         ui.weak(job.destination.to_string_lossy());
-                        if receipt.clipped_picture_values > 0 { ui.colored_label(ui.visuals().warn_fg_color, "Picture values outside the 8-bit output range were clipped"); }
+                        if receipt.clipped_picture_values > 0 { ui.colored_label(ui.visuals().warn_fg_color, "Picture values outside the output range were clipped"); }
                     } else if job.project.is_some() {
                         ui.label("Queued · captured project revision");
                         let cancel = ui.button("Cancel queued export");

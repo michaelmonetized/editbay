@@ -17,6 +17,8 @@ pub(crate) struct Session {
     request: DeliveryRequest,
     profile: LosslessMovProfile,
     color: editbay_media::DeliveryColor,
+    encoded_audio_channels: Vec<String>,
+    expected_loss: Vec<String>,
     cancel: Cancellation,
     picture: GraphRenderer,
     sound: SoundRenderer,
@@ -123,6 +125,8 @@ impl Session {
             request,
             profile,
             color,
+            encoded_audio_channels: Vec::new(),
+            expected_loss: Vec::new(),
             cancel,
             picture,
             sound,
@@ -257,6 +261,13 @@ impl Session {
                     ("dnxhd", "pcm_s24le", 1, 1)
                 }
             };
+            let ordinal_mxf = self.request.format == DeliveryFormat::DnxhrHqxMxf
+                && !audio.channel_order_declared
+                && self.profile.channels.len() <= 2
+                && audio.channels
+                    == (0..self.profile.channels.len())
+                        .map(|index| format!("U{index}"))
+                        .collect::<Vec<_>>();
             if video.codec != video_codec
                 || (self.request.format.dnxhr()
                     && (video
@@ -295,7 +306,7 @@ impl Session {
                 })
                 || audio.codec != audio_codec
                 || audio.sample_rate != Some(self.profile.sample_rate)
-                || audio.channels != self.profile.channels
+                || (audio.channels != self.profile.channels && !ordinal_mxf)
                 || audio.time_base
                     != Some(TimeBase {
                         numerator: 1,
@@ -305,6 +316,10 @@ impl Session {
                 return Err(format!("Delivery metadata differs from the requested profile: picture={:?}; sound={:?}; expected={:?}/{:?}",
                     (&video.codec, &video.metadata, video.color, video.time_base, video.width, video.height),
                     (&audio.codec, audio.sample_rate, &audio.channels, audio.time_base), self.profile, self.color).into());
+            }
+            self.encoded_audio_channels = audio.channels.clone();
+            if ordinal_mxf {
+                self.expected_loss.push(format!("MXF retains PCM channel order but does not embed speaker labels {:?}; labels remain in the project and delivery receipt. Every ordered sample is verified before publication.", self.profile.channels));
             }
             self.video = Some(VideoReader::open_stream_with_encoding(
                 &source,
@@ -493,6 +508,8 @@ impl Session {
                 format: self.request.format,
                 version: self.version,
                 profile: self.profile.clone(),
+                encoded_audio_channels: self.encoded_audio_channels.clone(),
+                expected_loss: self.expected_loss.clone(),
                 pixel_sha256: format!("{:x}", self.expected_pixels.clone().finalize()),
                 pcm_sha256: format!("{:x}", self.expected_pcm.clone().finalize()),
                 decoded_pixel_sha256: self
