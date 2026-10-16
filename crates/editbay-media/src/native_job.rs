@@ -24,6 +24,13 @@ impl<R: DeserializeOwned + Send + 'static> NativeJob<R> {
         self.0.child.id()
     }
 
+    /// Reap a failed native job and retain its bounded codec diagnostic tail.
+    /// `message` is the validated worker failure; returns the message and drained stderr.
+    pub fn failure(&mut self, message: impl std::fmt::Display) -> Error {
+        self.0.stop();
+        self.0.error(message)
+    }
+
     /// Exchange a bounded request off the UI thread.
     /// `request` is typed metadata; `file` optionally transfers one private file;
     /// `cancel` interrupts the wait. Returns one typed reply; unsolicited files fail.
