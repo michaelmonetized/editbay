@@ -534,6 +534,12 @@ impl Default for HdrConfiguration {
 }
 
 impl HdrConfiguration {
+    /// Preserve the original serialized shape when no HDR scale was authored.
+    /// Takes this scale; returns true for the backward-compatible SDR defaults.
+    pub fn is_default(&self) -> bool {
+        *self == Self::default()
+    }
+
     /// Check absolute luminance before rendering or accepting document commands.
     /// Takes this scale; returns success for 1..10000 nit white and peak >= white.
     pub fn validate(self) -> Result<()> {
@@ -559,7 +565,7 @@ pub struct ColorConfiguration {
     pub display_transfer: OutputTransfer,
     pub output_gamut: WorkingGamut,
     pub output_transfer: OutputTransfer,
-    #[serde(default)]
+    #[serde(default, skip_serializing_if = "HdrConfiguration::is_default")]
     pub hdr: HdrConfiguration,
 }
 
