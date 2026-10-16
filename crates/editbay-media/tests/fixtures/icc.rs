@@ -233,7 +233,7 @@ fn chunk(output: &mut Vec<u8>, kind: &[u8; 4], data: &[u8]) -> FixtureResult<()>
 pub fn original_png(profile: &[u8]) -> FixtureResult<Vec<u8>> {
     assert_eq!(crc32(b"123456789"), 0xcbf4_3926);
     let mut rows = Vec::new();
-    for row in samples().chunks_exact(WIDTH as usize) {
+    for row in samples().as_chunks::<{ WIDTH as usize }>().0 {
         rows.push(0);
         for pixel in row {
             rows.extend(pixel.iter().flat_map(|value| value.to_be_bytes()));
