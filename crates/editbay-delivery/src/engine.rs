@@ -262,6 +262,7 @@ impl Session {
                     if self.color.primaries == 9 { 9 } else { 1 },
                     1,
                 ),
+                DeliveryFormat::HevcMainMp4 => ("hevc", "aac", 1, 1),
                 DeliveryFormat::ProresMov => ("prores", "pcm_f32le", 1, 1),
                 DeliveryFormat::DnxhrHqxMov | DeliveryFormat::DnxhrHqxMxf => {
                     ("dnxhd", "pcm_s24le", 1, 1)
@@ -275,22 +276,34 @@ impl Session {
                         .map(|index| format!("U{index}"))
                         .collect::<Vec<_>>();
             if video.codec != video_codec
-                || (self.request.format == DeliveryFormat::HevcMain10Mp4
+                || (self.request.format.hevc()
                     && (video
                         .metadata
                         .get("editbay.codec_profile_name")
                         .map(String::as_str)
-                        != Some("Main 10")
+                        != Some(if self.request.format == DeliveryFormat::HevcMainMp4 {
+                            "Main"
+                        } else {
+                            "Main 10"
+                        })
                         || video
                             .metadata
                             .get("editbay.pixel_format_name")
                             .map(String::as_str)
-                            != Some("yuv420p10le")
+                            != Some(if self.request.format == DeliveryFormat::HevcMainMp4 {
+                                "yuv420p"
+                            } else {
+                                "yuv420p10le"
+                            })
                         || video
                             .metadata
                             .get("editbay.component_depth")
                             .map(String::as_str)
-                            != Some("10")))
+                            != Some(if self.request.format == DeliveryFormat::HevcMainMp4 {
+                                "8"
+                            } else {
+                                "10"
+                            })))
                 || (self.request.format.dnxhr()
                     && (video
                         .metadata
@@ -340,6 +353,9 @@ impl Session {
                     (&audio.codec, audio.sample_rate, &audio.channels, audio.time_base), self.profile, self.color).into());
             }
             self.encoded_audio_channels = audio.channels.clone();
+            if self.request.format == DeliveryFormat::HevcMainMp4 {
+                self.expected_loss.push("HEVC Main encodes 8-bit 4:2:0; source precision and chroma detail are quantized. Main10/HDR qualification is separate.".into());
+            }
             if ordinal_mxf {
                 self.expected_loss.push(format!("MXF retains PCM channel order but does not embed speaker labels {:?}; labels remain in the project and delivery receipt. Every ordered sample is verified before publication.", self.profile.channels));
             }

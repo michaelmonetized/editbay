@@ -47,7 +47,7 @@ static const AVCodec *delivery_encoder(int encoding) {
     if (encoding == 1) return avcodec_find_encoder_by_name("libx264");
     if (encoding == 2) return avcodec_find_encoder_by_name("prores_ks");
     if (encoding == 4 || encoding == 5) return avcodec_find_encoder(AV_CODEC_ID_DNXHD);
-    if (encoding == 6) return avcodec_find_encoder_by_name("libx265");
+    if (encoding == 6 || encoding == 8) return avcodec_find_encoder_by_name("libx265");
     return avcodec_find_encoder(AV_CODEC_ID_PNG);
 }
 
@@ -57,20 +57,21 @@ static enum AVPixelFormat delivery_pixels(int encoding) {
     if (encoding == 3) return AV_PIX_FMT_RGBA64BE;
     if (encoding == 4 || encoding == 5) return AV_PIX_FMT_YUV422P10LE;
     if (encoding == 6) return AV_PIX_FMT_YUV420P10LE;
+    if (encoding == 8) return AV_PIX_FMT_YUV420P;
     return AV_PIX_FMT_RGBA;
 }
 
 static const char *delivery_container(int encoding) {
-    return encoding == 1 || encoding == 6 ? "mp4" : encoding == 5 ? "mxf" : "mov";
+    return encoding == 1 || (encoding == 6 || encoding == 8) ? "mp4" : encoding == 5 ? "mxf" : "mov";
 }
 
 static enum AVCodecID delivery_audio(int encoding) {
-    return encoding == 1 || encoding == 6 ? AV_CODEC_ID_AAC :
+    return encoding == 1 || (encoding == 6 || encoding == 8) ? AV_CODEC_ID_AAC :
         encoding == 4 || encoding == 5 ? AV_CODEC_ID_PCM_S24LE : AV_CODEC_ID_PCM_F32LE;
 }
 
 int eb_delivery_available(int encoding) {
-    if (encoding < 0 || encoding > 6) return 7;
+    if (encoding < 0 || encoding > 8 || encoding == 7) return 7;
     const AVCodec *encoder = delivery_encoder(encoding);
     const AVCodec *sound = avcodec_find_encoder(delivery_audio(encoding));
     const AVOutputFormat *muxer = av_guess_format(delivery_container(encoding), NULL, NULL);
@@ -137,9 +138,9 @@ static EBWriter *writer_open(int descriptor, int width, int height, int num, int
     if (!w) goto failed;
     w->cancel = cancel;
     w->encoding = encoding;
-    if (encoding < 0 || encoding > 6) { ret = AVERROR(EINVAL); goto failed; }
+    if (encoding < 0 || encoding > 8 || encoding == 7) { ret = AVERROR(EINVAL); goto failed; }
     int dnx = encoding == 4 || encoding == 5;
-    int hevc = encoding == 6;
+    int hevc = encoding == 6 || encoding == 8;
     int aac = encoding == 1 || hevc;
     struct stat file_info;
     if (fstat(descriptor, &file_info) != 0 || !S_ISREG(file_info.st_mode) || file_info.st_size != 0) {
@@ -186,11 +187,11 @@ static EBWriter *writer_open(int descriptor, int width, int height, int num, int
     } else if (dnx) {
         if ((ret = av_opt_set(w->codec->priv_data, "profile", "dnxhr_hqx", 0)) < 0) goto failed;
     } else if (hevc) {
-        w->codec->profile = AV_PROFILE_HEVC_MAIN_10;
+        w->codec->profile = encoding == 8 ? AV_PROFILE_HEVC_MAIN : AV_PROFILE_HEVC_MAIN_10;
         w->codec->max_b_frames = 0;
         w->codec->gop_size = 48;
         w->codec->codec_tag = MKTAG('h','v','c','1');
-        if ((ret = av_opt_set(w->codec->priv_data, "profile", "main10", 0)) < 0) goto failed;
+        if ((ret = av_opt_set(w->codec->priv_data, "profile", encoding == 8 ? "main" : "main10", 0)) < 0) goto failed;
         if ((ret = av_opt_set(w->codec->priv_data, "preset", "medium", 0)) < 0) goto failed;
         if ((ret = av_opt_set(w->codec->priv_data, "crf", "16", 0)) < 0) goto failed;
         if ((ret = av_opt_set(w->codec->priv_data, "x265-params", "pools=none:frame-threads=2:wpp=0:bframes=0:log-level=error", 0)) < 0) goto failed;

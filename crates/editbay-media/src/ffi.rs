@@ -770,6 +770,7 @@ impl LosslessMovWriter {
     ) -> Result<Self> {
         color.validate(format)?;
         format.validate(&profile)?;
+        format.validate_availability()?;
         check(0, &cancel)?;
         let metadata = file.metadata()?;
         if !metadata.is_file() || metadata.len() != 0 {

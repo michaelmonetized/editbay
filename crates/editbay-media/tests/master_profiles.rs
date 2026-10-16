@@ -127,3 +127,25 @@ fn hevc_hdr_negotiation_and_registration_never_claim_qualification() {
         assert!(!available.reason.is_empty());
     }
 }
+
+#[test]
+fn hevc_main8_is_a_separate_declared_lossy_sdr_profile() {
+    let format = DeliveryFormat::HevcMainMp4;
+    assert!(format.hevc() && format.aac() && format.requires_opaque());
+    assert_eq!(format.pixel_encoding(), PixelEncoding::Rgba16Le);
+    assert_eq!(format.availability().pixel_format, "yuv420p");
+    DeliveryColor::default().validate(format).unwrap();
+    assert!(
+        DeliveryColor {
+            primaries: 9,
+            transfer: 16,
+            hdr_metadata: Default::default()
+        }
+        .validate(format)
+        .is_err()
+    );
+    assert_eq!(
+        DeliveryFormat::HevcMain10Mp4.availability().pixel_format,
+        "yuv420p10le"
+    );
+}
