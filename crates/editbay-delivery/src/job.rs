@@ -623,6 +623,7 @@ mod tests {
             ..prior.clone()
         };
         let receipt = Receipt {
+            color: editbay_media::DeliveryColor::default(),
             format: crate::DeliveryFormat::default(),
             version: owner.version,
             profile: profile.clone(),

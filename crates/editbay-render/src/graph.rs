@@ -21,7 +21,7 @@ use std::{
 use uuid::Uuid;
 use wgpu::util::DeviceExt;
 
-const KERNEL: &str = "editbay-resident-sdr-picture-v2";
+const KERNEL: &str = "editbay-resident-native-picture-v3";
 
 /// Separate working-image residency and bounded evaluation limits.
 #[derive(Debug, Clone, Copy, Serialize)]
@@ -751,40 +751,40 @@ impl<P: PictureProvider> GraphRenderer<P> {
                         p.gamut[0][..3].copy_from_slice(&weights);
                         images.push(values[image].image()?);
                     }
-                    NodeOperation::Source { .. } => match node.source.as_ref() {
-                        Some(request @ SourceRequest::Media { source, stream, .. }) => {
-                            let snapshot = self.snapshot.clone();
-                            let (_, profile, _) = snapshot.source_stream(*source, *stream)?;
-                            let StreamFormat::Video {
-                                color,
-                                alpha,
-                                sample_aspect,
-                                ..
-                            } = profile.format
-                            else {
-                                return Err("picture source selected sound".into());
-                            };
-                            let rotation = profile
-                                .metadata
-                                .get("editbay.display_rotation_degrees")
-                                .map(|v| v.parse::<f64>())
-                                .transpose()?;
-                            if rotation.is_some_and(|v| !v.is_finite() || v != 0.) {
-                                return Err(
-                                    "source display rotation requires the orientation renderer"
-                                        .into(),
-                                );
-                            }
-                            if ![0, 1, 4, 5, 6, 7, 9].contains(&color.matrix)
-                                || ![1, 2].contains(&color.range)
-                            {
-                                return Err(
+                    NodeOperation::Source { .. } => {
+                        match node.source.as_ref() {
+                            Some(request @ SourceRequest::Media { source, stream, .. }) => {
+                                let snapshot = self.snapshot.clone();
+                                let (_, profile, _) = snapshot.source_stream(*source, *stream)?;
+                                let StreamFormat::Video {
+                                    color,
+                                    alpha,
+                                    sample_aspect,
+                                    ..
+                                } = profile.format
+                                else {
+                                    return Err("picture source selected sound".into());
+                                };
+                                let rotation = profile
+                                    .metadata
+                                    .get("editbay.display_rotation_degrees")
+                                    .map(|v| v.parse::<f64>())
+                                    .transpose()?;
+                                if rotation.is_some_and(|v| !v.is_finite() || v != 0.) {
+                                    return Err(
+                                        "source display rotation requires the orientation renderer"
+                                            .into(),
+                                    );
+                                }
+                                if ![0, 1, 4, 5, 6, 7, 9].contains(&color.matrix)
+                                    || ![1, 2].contains(&color.range)
+                                {
+                                    return Err(
                                     "source matrix/range needs a supported native interpretation"
                                         .into(),
                                 );
-                            }
-                            let gamut =
-                                match color.primaries {
+                                }
+                                let gamut = match color.primaries {
                                     1 => WorkingGamut::Bt709,
                                     9 => WorkingGamut::Bt2020,
                                     12 => WorkingGamut::DisplayP3,
@@ -793,120 +793,129 @@ impl<P: PictureProvider> GraphRenderer<P> {
                                             .into(),
                                     ),
                                 };
-                            p.transfer = match color.transfer { 8 => OutputTransfer::Linear, 13 => OutputTransfer::Srgb, 1 => OutputTransfer::Bt709, _ => return Err("source transfer requires the HDR/log renderer or an explicit interpretation".into()) };
-                            let began = Instant::now();
-                            let decoded = self.pictures.picture(request)?;
-                            self.source_picture_us = self
-                                .source_picture_us
-                                .saturating_add(began.elapsed().as_micros() as u64);
-                            if let Some(decoded) = decoded {
-                                self.pictures.validate_result(&decoded)?;
-                                if decoded.picture.color != color
-                                    || decoded.picture.alpha != alpha
-                                    || decoded.picture.alpha_interpretation_required
-                                    || decoded.picture.rotation_degrees != 0.
-                                {
-                                    return Err("source color/alpha override requires a native interpretation adapter".into());
-                                }
-                                key = fingerprint(&(
-                                    KERNEL,
-                                    &node.sha256,
-                                    color,
-                                    alpha,
-                                    sample_aspect,
-                                ))?;
-                                if let Some(hit) = self.cached(&key) {
-                                    values.insert(node.id, Value::Image(hit));
-                                    continue;
-                                }
-                                p.operation = Kernel::Source;
-                                p.alpha = alpha;
-                                let upload = self.allocate(
-                                    decoded.picture.width,
-                                    decoded.picture.height,
-                                    frame.color.precision,
-                                    gamut,
-                                    OutputTransfer::Linear,
-                                    if decoded.picture.encoding
+                                p.transfer = match color.transfer { 8 => OutputTransfer::Linear, 13 => OutputTransfer::Srgb, 1 => OutputTransfer::Bt709, 16 => OutputTransfer::Pq, 18 => OutputTransfer::Hlg, _ => return Err("source transfer requires an explicit supported interpretation".into()) };
+                                p.absolute(frame.color.hdr, gamut);
+                                let began = Instant::now();
+                                let decoded = self.pictures.picture(request)?;
+                                self.source_picture_us = self
+                                    .source_picture_us
+                                    .saturating_add(began.elapsed().as_micros() as u64);
+                                if let Some(decoded) = decoded {
+                                    self.pictures.validate_result(&decoded)?;
+                                    if decoded.picture.color != color
+                                        || decoded.picture.alpha != alpha
+                                        || decoded.picture.alpha_interpretation_required
+                                        || decoded.picture.rotation_degrees != 0.
+                                    {
+                                        return Err("source color/alpha override requires a native interpretation adapter".into());
+                                    }
+                                    key = fingerprint(&(
+                                        KERNEL,
+                                        &node.sha256,
+                                        color,
+                                        alpha,
+                                        sample_aspect,
+                                        frame.color.hdr,
+                                    ))?;
+                                    if let Some(hit) = self.cached(&key) {
+                                        values.insert(node.id, Value::Image(hit));
+                                        continue;
+                                    }
+                                    p.operation = Kernel::Source;
+                                    p.alpha = alpha;
+                                    let upload = self.allocate(
+                                        decoded.picture.width,
+                                        decoded.picture.height,
+                                        frame.color.precision,
+                                        gamut,
+                                        OutputTransfer::Linear,
+                                        if decoded.picture.encoding
+                                            == editbay_media::PixelEncoding::Rgba8
+                                        {
+                                            wgpu::TextureFormat::Rgba8Unorm
+                                        } else {
+                                            wgpu::TextureFormat::Rgba32Float
+                                        },
+                                        "native precision upload".into(),
+                                        false,
+                                    )?;
+                                    if self.pending.load(Ordering::Acquire)
+                                        >= self.budget.pending_submissions
+                                    {
+                                        self.wait(true)?;
+                                    }
+                                    let normalized = if decoded.picture.encoding
                                         == editbay_media::PixelEncoding::Rgba8
                                     {
-                                        wgpu::TextureFormat::Rgba8Unorm
+                                        None
                                     } else {
-                                        wgpu::TextureFormat::Rgba32Float
-                                    },
-                                    "native precision upload".into(),
-                                    false,
-                                )?;
-                                if self.pending.load(Ordering::Acquire)
-                                    >= self.budget.pending_submissions
-                                {
-                                    self.wait(true)?;
-                                }
-                                let normalized = if decoded.picture.encoding
-                                    == editbay_media::PixelEncoding::Rgba8
-                                {
-                                    None
+                                        Some(
+                                            decoded
+                                                .picture
+                                                .encoding
+                                                .to_f32(decoded.picture.rgba())?,
+                                        )
+                                    };
+                                    let pixels =
+                                        normalized.as_ref().map_or(decoded.picture.rgba(), |v| {
+                                            bytemuck::cast_slice(v)
+                                        });
+                                    self.queue.write_texture(
+                                        upload.texture.as_image_copy(),
+                                        pixels,
+                                        wgpu::TexelCopyBufferLayout {
+                                            offset: 0,
+                                            bytes_per_row: Some(
+                                                decoded.picture.width
+                                                    * if normalized.is_some() { 16 } else { 4 },
+                                            ),
+                                            rows_per_image: Some(decoded.picture.height),
+                                        },
+                                        upload.texture.size(),
+                                    );
+                                    let commands =
+                                        self.device.create_command_encoder(&Default::default());
+                                    self.submit(commands, vec![upload.clone()])?;
+                                    self.uploads = self.uploads.saturating_add(1);
+                                    let sar = f64::from(sample_aspect.numerator)
+                                        / f64::from(sample_aspect.denominator);
+                                    fit(
+                                        &mut p,
+                                        upload.dimensions(),
+                                        [frame.width, frame.height],
+                                        sar,
+                                    )?;
+                                    set_gamut(&mut p, gamut, frame.color.working_gamut);
+                                    images.push(upload);
                                 } else {
-                                    Some(decoded.picture.encoding.to_f32(decoded.picture.rgba())?)
-                                };
-                                let pixels = normalized
-                                    .as_ref()
-                                    .map_or(decoded.picture.rgba(), |v| bytemuck::cast_slice(v));
-                                self.queue.write_texture(
-                                    upload.texture.as_image_copy(),
-                                    pixels,
-                                    wgpu::TexelCopyBufferLayout {
-                                        offset: 0,
-                                        bytes_per_row: Some(
-                                            decoded.picture.width
-                                                * if normalized.is_some() { 16 } else { 4 },
-                                        ),
-                                        rows_per_image: Some(decoded.picture.height),
-                                    },
-                                    upload.texture.size(),
-                                );
-                                let commands =
-                                    self.device.create_command_encoder(&Default::default());
-                                self.submit(commands, vec![upload.clone()])?;
-                                self.uploads = self.uploads.saturating_add(1);
-                                let sar = f64::from(sample_aspect.numerator)
-                                    / f64::from(sample_aspect.denominator);
-                                fit(
-                                    &mut p,
-                                    upload.dimensions(),
-                                    [frame.width, frame.height],
-                                    sar,
+                                    values.insert(node.id, Value::Image(self.blank(&frame)?));
+                                    continue;
+                                }
+                            }
+                            Some(SourceRequest::Composition {
+                                composition,
+                                position,
+                                reverse,
+                            }) => {
+                                let child = self.scene(
+                                    *composition,
+                                    *position,
+                                    *reverse,
+                                    depth + 1,
+                                    remaining,
                                 )?;
-                                set_gamut(&mut p, gamut, frame.color.working_gamut);
-                                images.push(upload);
-                            } else {
+                                key = fingerprint(&(KERNEL, &node.sha256, &child.key))?;
+                                p.operation = Kernel::Nested;
+                                fit(&mut p, child.dimensions(), [frame.width, frame.height], 1.)?;
+                                set_gamut(&mut p, child.gamut, frame.color.working_gamut);
+                                images.push(child);
+                            }
+                            None => {
                                 values.insert(node.id, Value::Image(self.blank(&frame)?));
                                 continue;
                             }
                         }
-                        Some(SourceRequest::Composition {
-                            composition,
-                            position,
-                            reverse,
-                        }) => {
-                            let child = self.scene(
-                                *composition,
-                                *position,
-                                *reverse,
-                                depth + 1,
-                                remaining,
-                            )?;
-                            key = fingerprint(&(KERNEL, &node.sha256, &child.key))?;
-                            p.operation = Kernel::Nested;
-                            fit(&mut p, child.dimensions(), [frame.width, frame.height], 1.)?;
-                            set_gamut(&mut p, child.gamut, frame.color.working_gamut);
-                            images.push(child);
-                        }
-                        None => {
-                            values.insert(node.id, Value::Image(self.blank(&frame)?));
-                            continue;
-                        }
-                    },
+                    }
                     NodeOperation::Solid { rgba } => {
                         for (target, value) in p.solid.iter_mut().zip(rgba) {
                             if value.abs() > 4096. {
@@ -1049,8 +1058,8 @@ impl<P: PictureProvider> GraphRenderer<P> {
 
     /// Convert a working receipt into its explicit display or output encoding.
     /// `frame` must belong to this worker/version; `boundary` selects captured
-    /// color settings. Returns another resident premultiplied float image; PQ/
-    /// HLG fail until absolute luminance/tone-mapping contracts are implemented.
+    /// color settings. Returns another resident premultiplied float image, using
+    /// captured reference-white/peak luminance for PQ and HLG. No tone map is implicit.
     pub fn convert(
         &mut self,
         frame: &RenderedFrame,
@@ -1070,9 +1079,17 @@ impl<P: PictureProvider> GraphRenderer<P> {
             transfer,
             ..Parameters::default()
         };
+        p.absolute(color.hdr, gamut);
         transfer_code(transfer)?;
         set_gamut(&mut p, frame.image.gamut, gamut);
-        let key = fingerprint(&(KERNEL, "boundary", &frame.image.key, gamut, transfer))?;
+        let key = fingerprint(&(
+            KERNEL,
+            "boundary",
+            &frame.image.key,
+            gamut,
+            transfer,
+            color.hdr,
+        ))?;
         let image = if let Some(hit) = self.cached(&key) {
             hit
         } else {
@@ -1677,6 +1694,8 @@ struct Parameters {
     solid: [f32; 4],
     gamut: [[f32; 4]; 3],
     points: Arc<[[f32; 2]]>,
+    hdr: [f32; 4],
+    luma: [f32; 4],
 }
 impl Default for Parameters {
     fn default() -> Self {
@@ -1690,10 +1709,27 @@ impl Default for Parameters {
             solid: [0.; 4],
             gamut: [[1., 0., 0., 0.], [0., 1., 0., 0.], [0., 0., 1., 0.]],
             points: Arc::from([]),
+            hdr: [100., 1000., 1.2, 0.],
+            luma: [0.2126, 0.7152, 0.0722, 0.],
         }
     }
 }
 impl Parameters {
+    fn absolute(&mut self, hdr: editbay_core::HdrConfiguration, gamut: WorkingGamut) {
+        let peak = hdr.peak_nits as f32;
+        let gamma = if (400. ..=2000.).contains(&peak) {
+            1.2 + 0.42 * (peak / 1000.).log10()
+        } else {
+            1.2 * 1.111_f32.powf((peak / 1000.).log2())
+        };
+        self.hdr = [hdr.reference_white_nits as f32, peak, gamma, 0.];
+        self.luma = match gamut {
+            WorkingGamut::Bt709 => [0.2126, 0.7152, 0.0722, 0.],
+            WorkingGamut::Bt2020 => [0.2627, 0.6780, 0.0593, 0.],
+            WorkingGamut::DisplayP3 => [0.22897456, 0.69173855, 0.07928691, 0.],
+        };
+    }
+
     /// Recognize zero premultiplied output from trusted inputs and parameters.
     /// `images` retains immutable renderer-owned proofs; returns true only when
     /// every output channel is zero, without inspecting or assuming source pixels.
@@ -1735,6 +1771,8 @@ impl Parameters {
             self.gamut[0],
             self.gamut[1],
             self.gamut[2],
+            self.hdr,
+            self.luma,
         ]
         .iter()
         .flatten()
@@ -1747,7 +1785,8 @@ fn transfer_code(transfer: OutputTransfer) -> Result<f32> {
         OutputTransfer::Linear => Ok(0.),
         OutputTransfer::Srgb => Ok(1.),
         OutputTransfer::Bt709 => Ok(2.),
-        _ => Err("HDR display/output requires absolute luminance and tone-mapping support".into()),
+        OutputTransfer::Pq => Ok(3.),
+        OutputTransfer::Hlg => Ok(4.),
     }
 }
 fn fit(p: &mut Parameters, source: [u32; 2], destination: [u32; 2], sar: f64) -> Result<()> {

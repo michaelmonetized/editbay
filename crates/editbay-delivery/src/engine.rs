@@ -16,6 +16,7 @@ pub(crate) struct Session {
     version: DocumentVersion,
     request: DeliveryRequest,
     profile: LosslessMovProfile,
+    color: editbay_media::DeliveryColor,
     cancel: Cancellation,
     picture: GraphRenderer,
     sound: SoundRenderer,
@@ -44,13 +45,21 @@ pub(crate) struct Session {
 
 impl Session {
     pub(crate) fn new(project: Arc<Project>, request: DeliveryRequest, file: File) -> Result<Self> {
-        if project.color.output_gamut != WorkingGamut::Bt709
-            || project.color.output_transfer != OutputTransfer::Srgb
-        {
-            return Err(
-                "The PNG/float PCM master requires Rec.709 primaries and sRGB output".into(),
-            );
-        }
+        let color = editbay_media::DeliveryColor {
+            primaries: match project.color.output_gamut {
+                WorkingGamut::Bt709 => 1,
+                WorkingGamut::Bt2020 => 9,
+                WorkingGamut::DisplayP3 => 12,
+            },
+            transfer: match project.color.output_transfer {
+                OutputTransfer::Linear => 8,
+                OutputTransfer::Srgb => 13,
+                OutputTransfer::Bt709 => 1,
+                OutputTransfer::Pq => 16,
+                OutputTransfer::Hlg => 18,
+            },
+        };
+        color.validate(request.format)?;
         let owned = file.metadata()?;
         if !owned.is_file() || owned.nlink() != 0 {
             return Err("Delivery requires an anonymous private output file".into());
@@ -100,16 +109,18 @@ impl Session {
         } else {
             Phase::Preparing
         };
-        let writer = Some(LosslessMovWriter::encoded(
+        let writer = Some(LosslessMovWriter::encoded_color(
             &file,
             profile.clone(),
             request.format,
+            color,
             cancel.clone(),
         )?);
         Ok(Self {
             version,
             request,
             profile,
+            color,
             cancel,
             picture,
             sound,
@@ -244,8 +255,8 @@ impl Session {
                 || video.height != Some(self.profile.height)
                 || video.color
                     != (SourceColor {
-                        primaries: 1,
-                        transfer: 13,
+                        primaries: self.color.primaries,
+                        transfer: self.color.transfer,
                         matrix,
                         range,
                     })
@@ -420,6 +431,7 @@ impl Session {
             let source = self.source.as_ref().ok_or("Delivery source is absent")?;
             source.verify(&self.cancel)?;
             self.receipt = Some(Receipt {
+                color: self.color,
                 format: self.request.format,
                 version: self.version,
                 profile: self.profile.clone(),

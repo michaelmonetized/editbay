@@ -513,6 +513,46 @@ pub enum OutputTransfer {
     Hlg,
 }
 
+/// Absolute scale for the shared linear picture pipeline.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[cfg_attr(feature = "json-schema", derive(schemars::JsonSchema))]
+#[serde(deny_unknown_fields)]
+pub struct HdrConfiguration {
+    pub reference_white_nits: u32,
+    pub peak_nits: u32,
+}
+
+impl Default for HdrConfiguration {
+    fn default() -> Self {
+        Self {
+            reference_white_nits: 100,
+            peak_nits: 1000,
+        }
+    }
+}
+
+impl HdrConfiguration {
+    /// Preserve the original serialized shape when no HDR scale was authored.
+    /// Takes this scale; returns true for the backward-compatible SDR defaults.
+    pub fn is_default(&self) -> bool {
+        *self == Self::default()
+    }
+
+    /// Check absolute luminance before rendering or accepting document commands.
+    /// Takes this scale; returns success for 1..10000 nit white and peak >= white.
+    pub fn validate(self) -> Result<()> {
+        if !(1..=10000).contains(&self.reference_white_nits)
+            || !(100..=10000).contains(&self.peak_nits)
+            || self.reference_white_nits > self.peak_nits
+        {
+            return Err(Error::Invalid(
+                "HDR white/peak luminance is outside its supported scale".into(),
+            ));
+        }
+        Ok(())
+    }
+}
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[cfg_attr(feature = "json-schema", derive(schemars::JsonSchema))]
 #[serde(deny_unknown_fields)]
@@ -523,6 +563,8 @@ pub struct ColorConfiguration {
     pub display_transfer: OutputTransfer,
     pub output_gamut: WorkingGamut,
     pub output_transfer: OutputTransfer,
+    #[serde(default, skip_serializing_if = "HdrConfiguration::is_default")]
+    pub hdr: HdrConfiguration,
 }
 
 impl Default for ColorConfiguration {
@@ -534,6 +576,7 @@ impl Default for ColorConfiguration {
             display_transfer: OutputTransfer::Srgb,
             output_gamut: WorkingGamut::Bt709,
             output_transfer: OutputTransfer::Srgb,
+            hdr: HdrConfiguration::default(),
         }
     }
 }
@@ -600,6 +643,7 @@ fn identity(id: Uuid, identities: &mut HashSet<Uuid>) -> Result<()> {
 }
 
 pub(crate) fn validate_model(project: &Project, identities: &mut HashSet<Uuid>) -> Result<()> {
+    project.color.hdr.validate()?;
     if identities.len() > 100_000 {
         return Err(Error::Invalid(
             "document exceeds its 100,000 entity budget".into(),

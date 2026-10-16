@@ -19,7 +19,7 @@ mod source;
 mod tests;
 pub mod worker;
 
-pub use delivery::{DeliveryFormat, LosslessMovProfile};
+pub use delivery::{DeliveryColor, DeliveryFormat, LosslessMovProfile};
 pub use ffi::LosslessMovWriter;
 pub use pixels::PixelEncoding;
 

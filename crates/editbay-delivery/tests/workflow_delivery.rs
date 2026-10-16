@@ -944,6 +944,253 @@ fn precision_pixel(pixel: usize) -> [u16; 4] {
     ]
 }
 
+/// Independently decode BT.2100 encoded RGB into relative display light.
+/// `code`, `hlg` and `white` define a 1000-nit display and return straight linear RGB.
+fn hdr_light(code: [f64; 3], hlg: bool, white: f64) -> [f64; 3] {
+    if !hlg {
+        return code.map(|v| {
+            let power = v.powf(32. / 2523.);
+            ((power - 3424. / 4096.).max(0.) / (2413. / 128. - 2392. / 128. * power))
+                .powf(16384. / 2610.)
+                * 10000.
+                / white
+        });
+    }
+    let a = 0.17883277_f64;
+    let b = 1. - 4. * a;
+    let c = 0.5 - a * (4. * a).ln();
+    let scene = code.map(|v| {
+        if v <= 0.5 {
+            v * v / 3.
+        } else {
+            (((v - c) / a).exp() + b) / 12.
+        }
+    });
+    let luma = scene[0] * 0.2627 + scene[1] * 0.6780 + scene[2] * 0.0593;
+    scene.map(|v| v * luma.powf(0.2) * 1000. / white)
+}
+
+#[test]
+fn craft_video_hdr_native_tags_float_light_and_high_depth_delivery() -> TestResult<()> {
+    use editbay_core::{HdrConfiguration, OutputTransfer, WorkingGamut};
+    use editbay_media::{DeliveryColor, PixelEncoding};
+    let (cli, binding) = bound_cli()?;
+    let directory = FixtureDirectory::new()?;
+    let cancel = Cancellation::new()?;
+    let deadline = DeadlineGuard::new(cancel.clone())?;
+    let mut cases = Vec::new();
+    for (name, transfer, hlg) in [
+        ("pq", OutputTransfer::Pq, false),
+        ("hlg", OutputTransfer::Hlg, true),
+    ] {
+        let color = DeliveryColor {
+            primaries: 9,
+            transfer: if hlg { 18 } else { 16 },
+        };
+        let input = directory.path.join(format!("hdr-{name}.mov"));
+        let file = OpenOptions::new()
+            .create_new(true)
+            .write(true)
+            .read(true)
+            .open(&input)?;
+        let profile = LosslessMovProfile {
+            width: WIDTH,
+            height: HEIGHT,
+            frame_rate: FrameRate::new(24, 1)?,
+            first_frame: 0,
+            frames: INPUT_FRAMES,
+            sample_rate: 48000,
+            channels: vec!["FC".into()],
+        };
+        let pixels: Vec<u8> = (0..256)
+            .flat_map(precision_pixel)
+            .flat_map(u16::to_le_bytes)
+            .collect();
+        let mut writer = LosslessMovWriter::encoded_color(
+            &file,
+            profile.clone(),
+            DeliveryFormat::Lossless16Mov,
+            color,
+            cancel.clone(),
+        )?;
+        let mut first = 0;
+        for frame in 0..INPUT_FRAMES {
+            writer.picture(frame, &pixels)?;
+            let end = profile.samples_through(frame + 1)?;
+            writer.sound(
+                first,
+                &(first..end).map(|n| camera_pcm(0, n)).collect::<Vec<_>>(),
+            )?;
+            first = end;
+        }
+        writer.finish()?;
+        file.sync_all()?;
+        let mut editor = DocumentEditor::new(Project::new(format!("Actual HDR {name}"))?)?;
+        let composition = import_camera(&mut editor, &input, &cancel)?;
+        let mut configuration = editor.project().color;
+        configuration.working_gamut = WorkingGamut::Bt2020;
+        configuration.output_gamut = WorkingGamut::Bt2020;
+        configuration.output_transfer = transfer;
+        configuration.hdr = HdrConfiguration {
+            reference_white_nits: 203,
+            peak_nits: 1000,
+        };
+        apply(
+            &mut editor,
+            "Declare HDR scale",
+            &[DocumentCommand::SetColor { configuration }],
+        )?;
+        let native = directory.path.join(format!("hdr-{name}.editbay"));
+        save_new(editor.project(), &native)?;
+        let project = Arc::new(load(&native)?);
+        assert_eq!(*project, *editor.project());
+        let mut graph = GraphRenderer::new(
+            Arc::new(EvaluationSnapshot::new(project.clone())?),
+            PictureBudget::default(),
+            GraphBudget::default(),
+            deadline.media()?,
+        )?;
+        let frame = graph.render(composition, SourcePosition::new(0, 1)?, false)?;
+        let actual = graph.readback(&frame)?;
+        let mut max_relative_error = 0_f64;
+        for (index, pixel) in actual.as_chunks::<4>().0.iter().enumerate() {
+            let codes = precision_pixel(index);
+            let alpha = f64::from(codes[3]) / 65535.;
+            let expected = hdr_light(
+                [
+                    f64::from(codes[0]) / 65535.,
+                    f64::from(codes[1]) / 65535.,
+                    f64::from(codes[2]) / 65535.,
+                ],
+                hlg,
+                203.,
+            );
+            for channel in 0..3 {
+                let relative = (f64::from(pixel[channel]) - expected[channel] * alpha).abs()
+                    / (expected[channel] * alpha).abs().max(0.01);
+                max_relative_error = max_relative_error.max(relative);
+            }
+        }
+        assert!(
+            max_relative_error < 0.0003,
+            "{name} EOTF/OOTF error {max_relative_error}"
+        );
+        let scopes = sample_program_frame(
+            &actual,
+            [WIDTH, HEIGHT],
+            ScopeIdentity {
+                version: DocumentVersion::of(&project),
+                composition,
+                frame: 0,
+            },
+            configuration,
+            ScopeSettings {
+                reference_white_nits: 203.,
+                peak_nits: 1000.,
+                scale: ScopeScale::Nits,
+                ..ScopeSettings::default()
+            },
+        )?;
+        assert_eq!(scopes.invalid_pixels, 0);
+        assert!(
+            scopes
+                .clipping
+                .above_reference_white_channels
+                .iter()
+                .sum::<u64>()
+                > 0
+        );
+        let expected_max_nits = (0..256)
+            .filter(|index| precision_pixel(*index)[3] != 0)
+            .map(|index| {
+                let codes = precision_pixel(index);
+                let rgb = hdr_light(
+                    [
+                        f64::from(codes[0]) / 65535.,
+                        f64::from(codes[1]) / 65535.,
+                        f64::from(codes[2]) / 65535.,
+                    ],
+                    hlg,
+                    203.,
+                );
+                (rgb[0] * 0.2627 + rgb[1] * 0.6780 + rgb[2] * 0.0593) * 203.
+            })
+            .fold(0_f64, f64::max);
+        let actual_max_nits = scopes
+            .statistics
+            .luminance_nits
+            .ok_or("HDR nits range absent")?
+            .maximum;
+        assert!((actual_max_nits - expected_max_nits).abs() / expected_max_nits < 0.0003);
+        drop(graph);
+        let master = directory.path.join(format!("hdr-{name}-master.mov"));
+        let request = DeliveryRequest {
+            format: DeliveryFormat::Lossless16Mov,
+            composition,
+            sample_rate: 48000,
+            range: Some(editbay_core::FrameRange { start: 1, end: 3 }),
+        };
+        let receipt = deliver(
+            &cli,
+            project,
+            request,
+            &master,
+            &deadline.control()?,
+            |_, _| {},
+        )?;
+        assert_eq!(receipt.color, color);
+        assert_eq!(receipt.pixel_sha256, receipt.decoded_pixel_sha256);
+        let source = SourceFile::open(&master, &cancel)?;
+        let probe = source.probe(cancel.clone())?;
+        assert_eq!(
+            (
+                probe.streams[0].color.primaries,
+                probe.streams[0].color.transfer
+            ),
+            (9, color.transfer)
+        );
+        let mut read = VideoReader::open_stream_with_encoding(
+            &source,
+            0,
+            cancel.clone(),
+            PixelEncoding::Rgba16Le,
+        )?;
+        let mut frames = 0;
+        let mut max_code_error = 0_u16;
+        while let Some(decoded) = read.next_frame()? {
+            for (index, pixel) in decoded.rgba.as_chunks::<8>().0.iter().enumerate() {
+                let expected = precision_pixel(index);
+                for (channel, bytes) in pixel.as_chunks::<2>().0.iter().enumerate() {
+                    let expected = if expected[3] == 0 && channel != 3 {
+                        0
+                    } else {
+                        expected[channel]
+                    };
+                    max_code_error =
+                        max_code_error.max(u16::from_le_bytes(*bytes).abs_diff(expected));
+                }
+            }
+            frames += 1;
+        }
+        assert_eq!(frames, 2);
+        assert!(
+            max_code_error <= 8,
+            "{name} roundtrip code error {max_code_error}"
+        );
+        cases.push(json!({"case":name,"input":input,"native":native,"master":master,"receipt":receipt,
+            "maximum_relative_working_error":max_relative_error,"maximum_roundtrip_code_error":max_code_error,"probe":probe,"actual_program_scopes":scopes}));
+    }
+    write_new(
+        &directory.path.join("hdr-pipeline.json"),
+        &serde_json::to_vec_pretty(&json!({
+            "schema":"editbay.hdr-pipeline.v1","status":"passed","source_revision":binding["test_source_revision"],"cli_source_revision":binding["revision"],"cli_build_receipt":binding["actual_cli_compiler_packet"],"cli_fingerprint":binding["actual_cli_fingerprint"],"cases":cases,
+            "reference":"Independent f64 BT.2100 PQ EOTF and HLG inverse OETF/OOTF, 203-nit white and 1000-nit HLG display",
+            "proof_boundary":"Actual CPU Vulkan and native high-depth color-tagged MOV/QC. No HDR display/device/physical proof; mastering/content-light/ICC metadata are separate pending cuts."
+        }))?,
+    )?;
+    Ok(())
+}
+
 #[test]
 fn craft_video_precision_decode_worker_store_float_graph_and_atomic_master() -> TestResult<()> {
     use editbay_core::{FrameRange, SourceRequest};

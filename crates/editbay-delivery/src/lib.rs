@@ -74,6 +74,8 @@ pub struct Progress {
 #[derive(Clone, Debug, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct Receipt {
+    #[serde(default)]
+    pub color: editbay_media::DeliveryColor,
     pub format: DeliveryFormat,
     pub version: DocumentVersion,
     pub profile: LosslessMovProfile,
