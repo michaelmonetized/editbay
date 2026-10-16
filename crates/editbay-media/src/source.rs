@@ -227,6 +227,22 @@ impl SourceFile {
             if kind == StreamType::Video && raw.pixel_format >= 0 {
                 let encoding = ffi::pixel_encoding(raw.pixel_format)?;
                 metadata.insert(
+                    "editbay.codec_profile".into(),
+                    raw.codec_profile.to_string(),
+                );
+                metadata.insert(
+                    "editbay.codec_profile_name".into(),
+                    ffi::codec_profile_name(raw.codec_id, raw.codec_profile)?,
+                );
+                metadata.insert(
+                    "editbay.pixel_format_name".into(),
+                    ffi::pixel_format_name(raw.pixel_format)?,
+                );
+                metadata.insert(
+                    "editbay.component_depth".into(),
+                    ffi::pixel_depth(raw.pixel_format).to_string(),
+                );
+                metadata.insert(
                     "editbay.native_pixel_model".into(),
                     ffi::pixel_model(raw.pixel_format)?.into(),
                 );

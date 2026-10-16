@@ -29,7 +29,11 @@ impl DeliveryColor {
         self.hdr_metadata.validate()?;
         if ![1, 9, 12].contains(&self.primaries)
             || ![1, 8, 13, 16, 18].contains(&self.transfer)
-            || (format != DeliveryFormat::Lossless16Mov && self != Self::default())
+            || (format.dnxhr()
+                && (self.primaries != 1 || self.transfer != 1 || !self.hdr_metadata.is_empty()))
+            || (!format.dnxhr()
+                && format != DeliveryFormat::Lossless16Mov
+                && self != Self::default())
             || (!self.hdr_metadata.is_empty() && ![16, 18].contains(&self.transfer))
         {
             return Err(Error::Invalid(
@@ -49,17 +53,37 @@ pub enum DeliveryFormat {
     Lossless16Mov,
     H264Mp4,
     ProresMov,
+    DnxhrHqxMov,
+    DnxhrHqxMxf,
 }
 
 impl DeliveryFormat {
     /// Return native picture storage at the encoder boundary.
     /// Takes this format and returns its declared interleaved component encoding.
     pub fn pixel_encoding(self) -> crate::PixelEncoding {
-        if self == Self::Lossless16Mov {
+        if self == Self::Lossless16Mov || self.dnxhr() {
             crate::PixelEncoding::Rgba16Le
         } else {
             crate::PixelEncoding::Rgba8
         }
+    }
+
+    /// Identify the declared progressive 10-bit 4:2:2 native master profiles.
+    /// Takes this format; returns true only for the explicitly supported DNxHR presets.
+    pub fn dnxhr(self) -> bool {
+        matches!(self, Self::DnxhrHqxMov | Self::DnxhrHqxMxf)
+    }
+
+    /// Declare full-scale integer PCM rather than implying float-PCM preservation.
+    /// Takes this format; returns whether samples are quantized to signed 24-bit PCM.
+    pub fn pcm24(self) -> bool {
+        self.dnxhr()
+    }
+
+    /// Reject transparency for a codec without an alpha channel.
+    /// Takes this format; returns true when an opaque graph or explicit background is required.
+    pub fn requires_opaque(self) -> bool {
+        self.dnxhr()
     }
 
     /// Identify formats whose decoded picture bytes must match exactly.
@@ -72,6 +96,7 @@ impl DeliveryFormat {
     pub fn extension(self) -> &'static str {
         match self {
             Self::H264Mp4 => "mp4",
+            Self::DnxhrHqxMxf => "mxf",
             _ => "mov",
         }
     }
@@ -80,6 +105,39 @@ impl DeliveryFormat {
     /// `profile` declares exact output clocks; returns failure before encoding.
     pub fn validate(self, profile: &LosslessMovProfile) -> Result<()> {
         profile.validate()?;
+        if self.dnxhr() {
+            let supported_rate = [
+                (24000, 1001),
+                (24, 1),
+                (25, 1),
+                (30000, 1001),
+                (30, 1),
+                (50, 1),
+                (60000, 1001),
+                (60, 1),
+            ]
+            .into_iter()
+            .any(|(num, den)| {
+                u64::from(profile.frame_rate.numerator) * den
+                    == u64::from(profile.frame_rate.denominator) * num
+            });
+            if profile.width < 256
+                || profile.height < 120
+                || !profile.width.is_multiple_of(2)
+                || !profile.height.is_multiple_of(2)
+                || !supported_rate
+                || profile.sample_rate != 48000
+                || profile.channels.len() > 2
+            {
+                return Err(Error::Invalid("DNxHR HQX needs even progressive geometry >=256x120, a declared 23.976..60 master rate, and mono/stereo 48k PCM24".into()));
+            }
+            if self == Self::DnxhrHqxMxf
+                && !(48000u64 * u64::from(profile.frame_rate.denominator))
+                    .is_multiple_of(u64::from(profile.frame_rate.numerator))
+            {
+                return Err(Error::Invalid("MXF fractional sample-per-edit clocks are unavailable: preserving the selected audio phase requires a different rechunk policy; use DNxHR MOV".into()));
+            }
+        }
         if self == Self::H264Mp4
             && (!profile.width.is_multiple_of(2)
                 || !profile.height.is_multiple_of(2)

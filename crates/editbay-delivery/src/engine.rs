@@ -33,6 +33,7 @@ pub(crate) struct Session {
     expected_pcm: Sha256,
     decoded: Sha256,
     video: Option<VideoReader>,
+    video_time_base: Option<TimeBase>,
     audio: Option<NativeAudioReader>,
     source: Option<SourceFile>,
     clipped: u64,
@@ -138,6 +139,7 @@ impl Session {
             expected_pcm: Sha256::new(),
             decoded: Sha256::new(),
             video: None,
+            video_time_base: None,
             audio: None,
             source: None,
             clipped: 0,
@@ -211,7 +213,7 @@ impl Session {
             let plan = self.plan.prepare(self.first_sample + self.samples, count)?;
             let sound = self.sound.render(&plan)?;
             self.sound.validate_result(&sound)?;
-            if self.request.format == DeliveryFormat::H264Mp4
+            if (self.request.format == DeliveryFormat::H264Mp4 || self.request.format.pcm24())
                 && sound
                     .sound()
                     .samples()
@@ -219,7 +221,8 @@ impl Session {
                     .any(|sample| sample.abs() > 1.)
             {
                 return Err(
-                    "AAC delivery exceeds full scale; lower the sound mix before exporting".into(),
+                    "Integer/AAC delivery exceeds full scale; lower the sound mix before exporting"
+                        .into(),
                 );
             }
             writer.sound(self.samples, sound.sound().samples())?;
@@ -250,8 +253,27 @@ impl Session {
                 }
                 DeliveryFormat::H264Mp4 => ("h264", "aac", 1, 1),
                 DeliveryFormat::ProresMov => ("prores", "pcm_f32le", 1, 1),
+                DeliveryFormat::DnxhrHqxMov | DeliveryFormat::DnxhrHqxMxf => {
+                    ("dnxhd", "pcm_s24le", 1, 1)
+                }
             };
             if video.codec != video_codec
+                || (self.request.format.dnxhr()
+                    && (video
+                        .metadata
+                        .get("editbay.codec_profile_name")
+                        .map(String::as_str)
+                        != Some("DNXHR HQX")
+                        || video
+                            .metadata
+                            .get("editbay.pixel_format_name")
+                            .map(String::as_str)
+                            != Some("yuv422p10le")
+                        || video
+                            .metadata
+                            .get("editbay.component_depth")
+                            .map(String::as_str)
+                            != Some("10")))
                 || video.hdr_metadata != self.color.hdr_metadata
                 || video.width != Some(self.profile.width)
                 || video.height != Some(self.profile.height)
@@ -262,11 +284,15 @@ impl Session {
                         matrix,
                         range,
                     })
-                || video.time_base
-                    != Some(TimeBase {
-                        numerator: 1,
-                        denominator: self.profile.frame_rate.numerator,
-                    })
+                || video.time_base.is_none_or(|base| {
+                    if self.request.format == DeliveryFormat::DnxhrHqxMxf {
+                        u64::from(base.numerator) * u64::from(self.profile.frame_rate.numerator)
+                            != u64::from(base.denominator)
+                                * u64::from(self.profile.frame_rate.denominator)
+                    } else {
+                        base.numerator != 1 || base.denominator != self.profile.frame_rate.numerator
+                    }
+                })
                 || audio.codec != audio_codec
                 || audio.sample_rate != Some(self.profile.sample_rate)
                 || audio.channels != self.profile.channels
@@ -284,6 +310,7 @@ impl Session {
                 self.cancel.clone(),
                 self.request.format.pixel_encoding(),
             )?);
+            self.video_time_base = video.time_base;
             self.source = Some(source);
             self.pictures = 0;
             self.samples = 0;
@@ -298,12 +325,18 @@ impl Session {
             .as_mut()
             .ok_or("Delivery picture verifier is absent")?;
         if let Some(frame) = reader.next_frame()? {
-            if self.pictures >= self.profile.frames
-                || frame.source_tick
-                    != Some(i64::try_from(
-                        u128::from(self.pictures) * u128::from(self.profile.frame_rate.denominator),
-                    )?)
-            {
+            let base = self
+                .video_time_base
+                .ok_or("Delivery picture clock is absent")?;
+            let correct_time = frame.source_tick.is_some_and(|tick| {
+                i128::from(tick)
+                    * i128::from(base.numerator)
+                    * i128::from(self.profile.frame_rate.numerator)
+                    == i128::from(self.pictures)
+                        * i128::from(self.profile.frame_rate.denominator)
+                        * i128::from(base.denominator)
+            });
+            if self.pictures >= self.profile.frames || !correct_time {
                 return Err("Delivered pictures have the wrong time or count".into());
             }
             self.decoded.update(&frame.rgba);
@@ -323,9 +356,23 @@ impl Session {
                 if reference.len() != frame.rgba.len() {
                     return Err("Decoded delivery picture has the wrong geometry".into());
                 }
-                for (expected, actual) in reference.iter().zip(&frame.rgba) {
-                    self.picture_quality
-                        .observe(f64::from(*expected) / 255., f64::from(*actual) / 255.)?;
+                if self.request.format.pixel_encoding() == editbay_media::PixelEncoding::Rgba16Le {
+                    for (expected, actual) in reference
+                        .as_chunks::<2>()
+                        .0
+                        .iter()
+                        .zip(frame.rgba.as_chunks::<2>().0)
+                    {
+                        self.picture_quality.observe(
+                            f64::from(u16::from_le_bytes(*expected)) / 65535.,
+                            f64::from(u16::from_le_bytes(*actual)) / 65535.,
+                        )?;
+                    }
+                } else {
+                    for (expected, actual) in reference.iter().zip(&frame.rgba) {
+                        self.picture_quality
+                            .observe(f64::from(*expected) / 255., f64::from(*actual) / 255.)?;
+                    }
                 }
             }
             self.pictures += 1;
@@ -389,7 +436,7 @@ impl Session {
                 return Err("Delivery contains excess sound beyond codec padding".into());
             }
             let valid_samples = &block.samples[..valid as usize * channels];
-            if self.request.format == DeliveryFormat::H264Mp4 {
+            if self.request.format == DeliveryFormat::H264Mp4 || self.request.format.pcm24() {
                 let mut first = 0usize;
                 while first < valid as usize {
                     let count = (valid as usize - first).min(4096) as u32;
@@ -416,6 +463,7 @@ impl Session {
         } else {
             if self.samples - self.decoded_padding != self.total_samples
                 || (self.request.format != DeliveryFormat::H264Mp4
+                    && !self.request.format.pcm24()
                     && self.decoded.clone().finalize() != self.expected_pcm.clone().finalize())
             {
                 return Err("Decoded delivery sound differs from shared graph output".into());
@@ -427,6 +475,12 @@ impl Session {
                     .is_none_or(|error| error > 0.02)
             {
                 return Err("AAC delivery exceeds its declared sound quality tolerance".into());
+            }
+            if self.request.format.pcm24()
+                && (self.sound_quality.samples == 0
+                    || self.sound_quality.maximum_absolute_error > 1. / 8388608. + 1e-12)
+            {
+                return Err("PCM24 delivery exceeds one quantization step".into());
             }
             self.picture.verify_sources()?;
             self.sound.verify_sources()?;
@@ -471,7 +525,7 @@ fn flatten(rgba: &mut [u8], format: DeliveryFormat) {
 }
 
 fn rgba(premultiplied: &[f32], format: DeliveryFormat) -> Result<(Vec<u8>, u64)> {
-    let high_depth = format == DeliveryFormat::Lossless16Mov;
+    let high_depth = format.pixel_encoding() == editbay_media::PixelEncoding::Rgba16Le;
     let maximum = if high_depth { 65535. } else { 255. };
     if !premultiplied.len().is_multiple_of(4) {
         return Err("Malformed rendered picture".into());
@@ -482,6 +536,9 @@ fn rgba(premultiplied: &[f32], format: DeliveryFormat) -> Result<(Vec<u8>, u64)>
         let alpha = pixel[3];
         if pixel.iter().any(|v| !v.is_finite()) || !(0. ..=1.).contains(&alpha) {
             return Err("Rendered picture contains invalid color or alpha".into());
+        }
+        if format.requires_opaque() && alpha != 1. {
+            return Err("DNxHR does not retain alpha; composite an opaque background in the working graph before delivery".into());
         }
         for value in &pixel[..3] {
             let straight = if alpha == 0. { 0. } else { *value / alpha };
